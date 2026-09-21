@@ -105,3 +105,23 @@ If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instea
 **Surprises:** the plan's slice 0.2 "Signatures" block is stale vs §8.2 — built to §8.2. `EDGE_REJECT_PX` is declared but never referenced in the §8.2 body (the edge flag is passed in by the caller); kept verbatim. `pointercancel` rollback is a PlacementController concern, not a router method.
 
 **Next:** slice 1.1 (domain core, parallel) → 0.3
+
+## Slice 1.1 — Domain core (pure, fully tested)
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built:** seven `src/domain/*` modules (`types`, `schema`, `units`, `geometry`, `snapping`, `ids`, `migrate`) + six test files (89 tests). Reference code copied verbatim from §6.1/§6.1.1/§6.2/§6.3/§6.4/§3.3/§3.4, plus the session-4 `migrate.ts` and its idempotency/future-version guards.
+
+**Machine gates:** 3/3 passing
+- [x] `npx vitest run` green incl. the value round-trip property test (500 combos) with its own coverage assertions, all seven commit-guard rows, and the F6 zero-slot compose
+- [x] Trace check (5 by hand, executed): `12 6`→150 · `12 6 3`→150 3/16 · `10'-4 1/2"`→124.5 · `124.5`→124.5 · `1/2"`→0.5
+- [x] `migrate` idempotent (asserted) + future `schemaVersion` refused; `formatInches(-124.5)`→`-10'-4 1/2"` + re-parse→`null` asserted; `npx tsc --noEmit` clean; `npm run build` succeeds
+
+**Deferred to hardware:** none (pure domain).
+
+**Checkpoints fired:** none (C2's `12mp-portrait-exif6.jpg` fixture remains a slice 1.3 TODO; migrate uses the existing `v02-markup.json` + new `v02-project.json`).
+
+**Decisions recorded:** D44 — two §3.4 schema corrections found by execution (compilation), not reading.
+
+**Surprises:** (1) §3.4 as written does not typecheck — `AnnotationZ: z.ZodType<Annotation>` fails because `.nullish()` on `fillColor`/`children` yields `| undefined` that §3.3's exact types forbid; fixed to `.nullable()`/`.optional()` (exact translations, no cast, guards untouched). (2) The §6.1.1 compose table has **7** rows, not 8 (the 8th case is the `12' 6 3/8` round-trip). (3) The §6.1/§6.1.1 test block's import list omitted `isCommittableInches` and `KeypadState` — added to the imports. (4) `tests/units.smoke.test.ts` (slice 0.1's STRINGS smoke) left in place; still passes, redundant with the real units tests.
+
+**Next:** slice 1.2 (storage core)

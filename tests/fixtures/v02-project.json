@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "id": "0199b0c3-7a1e-7c2b-9d0e-3f4a5b6c7d8e",
+    "title": "Riverside Elementary",
+    "jobNumber": "1204",
+    "locationLabel": "1204 Oak St, Suite A",
+    "unitSystem": "imperial"
+  },
+  "sheets": [
+    {
+      "id": "0199b0c4-1111-7c2b-9d0e-3f4a5b6c7d8e",
+      "title": "Kitchen existing",
+      "sortIndex": 0,
+      "imageWidth": 4096,
+      "imageHeight": 3072,
+      "calibrationPxPerFoot": null,
+      "createdAt": "2026-09-21T14:12:03.000Z",
+      "updatedAt": "2026-09-21T14:18:22.000Z",
+      "deletedAt": null
+    }
+  ]
+}
