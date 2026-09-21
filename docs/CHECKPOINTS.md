@@ -48,7 +48,7 @@ Either way, also commit: `tiny-2x2.jpg`, `truncated.jpg` (0 bytes), `corrupt-mar
 
 ---
 
-## C3 — Device camera capabilities · slice 0.2 · ⬜
+## C3 — Device camera capabilities · slice 0.2 · ✅ (provisional)
 
 **Measure:** on the target Surface, `enumerateDevices()` + `getUserMedia` with increasing
 resolution constraints. Record the **real** maximum width × height actually delivered (not the

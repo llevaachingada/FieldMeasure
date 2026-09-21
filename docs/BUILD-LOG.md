@@ -84,3 +84,24 @@ If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instea
 **Surprises:** (1) Vitest 5 browser `provider` takes `playwright()` (a function import), not the `'playwright'` string the docs implied — corrected. (2) `@vitest/browser-playwright` is an optional peer, not auto-installed — added explicitly. (3) Node is on the machine but not on the shell PATH, and `npm.ps1` is blocked by execution policy — invoked via `npm.cmd`. (4) `12mp-portrait-exif6.jpg` not yet generated (needs a real/synthetic EXIF source) — TODO in `tests/fixtures/make-fixtures.mjs`.
 
 **Next:** slice 0.2 (input spike)
+
+## Slice 0.2 — Input spike (touch-first router)
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built:** the touch-first input router (`src/editor/inputRouter.ts`) copied verbatim from build spec §8.2 — `InputIntent`/`InputRouterOptions`/`createInputRouter` with the pen-present two-gate palm rule, the pen-free edge-rejection + multi-touch-debounce path, and the locked truth table — plus 15 pure node-project unit tests and the C3 device-caps e2e probe (`tests/e2e/device-caps.spec.ts`).
+
+**Machine gates:** 4/4 passing
+- [x] `tests/inputRouter.test.ts` (15 tests, node project) — pen always draw + window refresh; pen-free draw/navigate; gate 1; gate 2 (no mid-stroke reopen); edge rejection; ≥3-contact burst latch/resume; custom `palmWindowMs`; mouse draw
+- [x] `npx tsc --noEmit` clean
+- [x] `npm run build` succeeds
+- [x] `npx vitest run` green (114 tests across node/jsdom/browser); `npx playwright test` green (smoke + CSP ×2 + device-caps)
+
+**Deferred to hardware:** 8 gates → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 0.2 (touch tap-tap, touch drag-vs-pan, pen parity, palm gauntlet [pen], touch-only palm gate, ink ≤16 ms, pen `pointercancel`, touch `pointercancel`). The throwaway `spike.tsx` canvas is deferred — every one of its gates is `[Surface]`, no machine gate to satisfy.
+
+**Checkpoints fired:** C3 — measured PROVISIONAL (no camera on build machine), recorded in DECISIONS. C8 (touch-primary palm gauntlet) deferred to hardware (H1/H1b).
+
+**Decisions recorded:** D43 (router built to §8.2, not the plan's stale signature block; spike deferred).
+
+**Surprises:** the plan's slice 0.2 "Signatures" block is stale vs §8.2 — built to §8.2. `EDGE_REJECT_PX` is declared but never referenced in the §8.2 body (the edge flag is passed in by the caller); kept verbatim. `pointercancel` rollback is a PlacementController concern, not a router method.
+
+**Next:** slice 1.1 (domain core, parallel) → 0.3

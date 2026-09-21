@@ -49,6 +49,11 @@ Status: **Accepted** · Superseded · Proposed.
 | D40 | Canvas testing | Konva tests run in a **real browser** (jsdom has no canvas — hit-testing "passes" without testing it). CSP is enforced **as a test**. | Accepted |
 | D41 | Pre-code design tooling | **No design phase.** Playwright is the source of truth; Claude Design is moodboard-only (its output cannot ship under `style-src 'self'`). | Accepted |
 | D42 | Contradiction register C11/C12 | C11: `--sel` focus ring vs selection differ by **treatment** (offset ring vs bbox + glow). C12: `--hi` dual-use is **deliberate**; verify legibility on bright/dark photos. | Accepted |
+| D43 | Input router (slice 0.2) | Built to **§8.2** (`createInputRouter(o?)` + `noteTouchDown/Up`), not the plan's stale signature block; throwaway `spike.tsx` deferred to hardware | Accepted |
+| D44 | Schema §3.4 corrections (slice 1.1) | `unitFormat`/`precisionDenominator` → `.nullish()` (v0.2 tolerance + migrate fill); `fillColor` → `.nullable()`, `children` → `.optional()` (§3.4 as written does not compile) | Accepted |
+| D45 | Settings/Home copy gaps (slice 0.3) | Proposed `settings.row*`/`unitSystem*`/`penOnlyHint` keys (⚠ pending approval); path readout = suggested root then handle leaf | Accepted |
+| D46 | 0.3 supporting files | `src/settings/projectsRoot.ts` added; `settings/units.ts` imports `UnitFormat` type (read-only) | Accepted |
+| D47 | Pen-only semantics | §20.5(b) "ignores touch entirely" reconciled to **§8.2**: touch pans/zooms when placement toggles are off, never places/draws | Accepted |
 
 > **Numbering note (session 4):** D16–D20 are referred to elsewhere (the review handoff says
 > "D1–D20") and appear in the Detail sections below, but were never added to this index. Session 4
@@ -446,6 +451,59 @@ context than the pen loupe (50px vs ≈45.7px) *at a higher magnification*, beca
 > independent numbers. Exactly one of the three is free; the other two must be derived. Fixing the
 > same class of defect twice is why this is recorded rather than just corrected.
 
+## Session 6 — slices 0.2, 1.1, 0.3 (2026-09-21)
+
+### D43 — Input router built to §8.2, not the plan's stale signature
+
+The implementation plan's slice 0.2 "Signatures" block predates the final §8.2 hardening: it lists
+`createInputRouter(palmWindowMs=1200)` with `noteTouchContact(e, phase)` and `readonly penPresent`.
+The authoritative §8.2 is `createInputRouter(o?: InputRouterOptions)` returning `notePenEvent /
+penStrokeStart / penStrokeEnd / noteTouchDown(pointerId, atEdge, now?) / noteTouchUp(pointerId) /
+classify(e, now?) / onPenHover(e)`, with `penSeenThisSession` internal (no `penPresent` getter). Built
+to §8.2 (plan reading rule #5: "build to the spec, not to this summary"). `pointercancel` rollback is
+a PlacementController concern, not a router method. The throwaway `spike.tsx` canvas is deferred to
+hardware — every one of its gates is `[Surface]`, so it has no machine gate it can satisfy.
+
+### D44 — §3.4 schema corrections (found by execution, not reading)
+
+Four reading-only review rounds missed that §3.4 as written does not compile under `strict`:
+`AnnotationZ: z.ZodType<Annotation>` fails because §3.4 applies `.nullish()` to `fillColor`
+(`string | null | undefined`) and `children` (`Annotation[] | null | undefined`), neither of which
+satisfies §3.3's `fillColor: string | null` (required-nullable, no `undefined`) and
+`children?: Annotation[]` (optional, no `null`). Fixes (exact translations, no cast, no guard
+weakened): `fillColor → .nullable()`, `children → .optional()`. Separately, to satisfy the §3.4
+migration note + §19.5 + "migration runs AFTER the zod parse, never before", `ProjectFileZ`'s
+`unitFormat` and `precisionDenominator` became `.nullish()` so a pre-v0.3 project file parses and
+`migrateProjectFile` fills `'ft-in'`/`16`. Wrong-measurement guards (`isCommittableInches`,
+`VALID_DENOMINATORS`, numerator<denominator) are untouched.
+
+### D45 — Settings/Home copy gaps (proposed placeholders, pending content-owner approval)
+
+§20.5(b) requires Settings rows the appendices never keyed (Handedness / Unit system / Unit format /
+Theme / Density / Palm rejection window / Imperial / Metric). Simplest behavior: proposed
+`settings.row*` + `settings.unitSystem*` keys + `settings.penOnlyHint` (wording lifted from the
+appendix's own `settings.penOnly` "Where it appears" note), all marked ⚠ in `strings.ts` pending
+approval. Unit-format options use gap #5 keys (`settings.unitFormatFtIn/In/DecimalFt`). Path readout:
+File System Access exposes only `handle.name` (no absolute path), so the readout shows the suggested
+root (`…\Documents\FieldMeasure`) then the handle leaf name after a pick. About shows the package
+version + `document.lastModified` (no Vite `define` wired yet — a later slice adds
+`__APP_VERSION__`/`__BUILD_DATE__`).
+
+### D46 — 0.3 supporting files
+
+`src/settings/projectsRoot.ts` (not in the plan's file list) is the home for the
+`FileSystemDirectoryHandle` + `showDirectoryPicker` flow, kept out of `src/fs/*` (slice 1.2).
+`src/settings/units.ts` imports the `UnitFormat` type from `src/domain/types.ts` (read-only, soft
+coupling — harmless now that 1.1 is complete).
+
+### D47 — Pen-only semantics reconciled to §8.2
+
+§20.5(b)'s trailing line ("`Pen only`, when on, ignores touch input entirely") contradicts §8.2 and
+the plan ("limits finger gestures to two-finger pan/zoom"). §8.2 is authoritative: with the placement
+toggles off, single touch pans and two fingers pinch-zoom — it never places or draws. `Pen only` turns
+touch placement/draw off; it is not "ignore all touch". Recorded so the copy and any future wiring
+agree.
+
 ## Checkpoint C1 — Toolchain bring-up (slice 0.1, 2026-09-21)
 
 **Measured:** `npx tsc --noEmit` ✓ · `npm run build` ✓ (vite 8.3.0; PWA: 11 precache entries) ·
@@ -459,3 +517,16 @@ CSP-as-a-test at both viewports).
 `@types/react` / `@types/react-dom` 19.3.0. Added **`@vitest/browser-playwright` 5.0.1** (Vitest 5's
 browser provider — an optional peer, not auto-installed). Corrected the browser-provider config to
 `provider: playwright()` (a function import), not the `'playwright'` string.
+
+## Checkpoint C3 — Device camera capabilities (slice 0.2, 2026-09-21)
+
+**Measured:** on the build machine (Windows, headless Chromium): `enumerateDevices()` reports 1
+`videoinput` entry with empty `deviceId` and hidden label; `getUserMedia({ video })` returns
+`NotSupportedError`. No usable camera — so no max resolution or torch/flip data could be read.
+
+**Decision row taken:** "If you have no Surface" → PROVISIONAL.
+
+**Action:** recorded provisional; added "re-measure C3 device caps on the target Surface" to
+`docs/HARDWARE-TEST-CHECKLIST.md` (slice 0.2 + H10); slice 1.4 builds against provisional labels and
+reads the §21.7 row after the on-device measurement. The probe is committed at
+`tests/e2e/device-caps.spec.ts` so hardware re-measurement is a one-command run.

@@ -375,22 +375,22 @@ export function createInputRouter(palmWindowMs = 1200): {
 | `pointercancel` mid-placement (touch) | pending placement discarded; **no geometry committed** |
 
 **Gate (all must pass)**
-- [ ] **Touch tap-tap (no pen present):** tapping twice places a dimension A→B; the geometry commits
+- [~] **Touch tap-tap (no pen present):** tapping twice places a dimension A→B; the geometry commits
       and the value sheet can be opened. [Surface]
-- [ ] **Touch drag vs pan (the §3.1 predicate):** one-finger drag on a grabbable, unlocked object
+- [~] **Touch drag vs pan (the §3.1 predicate):** one-finger drag on a grabbable, unlocked object
       moves it; on empty canvas it pans; a **second finger cancels and restores the previous
       position**; two-finger drag always pans. [Surface]
-- [ ] **Pen parity:** the pen draws (pressure/tilt) and the same tap-tap placement works with it. [Surface]
-- [ ] **Palm gauntlet (with a pen present):** draw a stroke > 1.2 s with a palm resting on the glass
+- [~] **Pen parity:** the pen draws (pressure/tilt) and the same tap-tap placement works with it. [Surface]
+- [~] **Palm gauntlet (with a pen present):** draw a stroke > 1.2 s with a palm resting on the glass
       mid-stroke — no pan, no zoom, no stray ink. [Surface]
-- [ ] **Touch-only palm gate (no pen ever detected):** rest a palm/heel and tap-tap — no accidental
+- [~] **Touch-only palm gate (no pen ever detected):** rest a palm/heel and tap-tap — no accidental
       placement; a stray contact is recoverable by `pointercancel` rollback + undo. Assert the router
       reports `penPresent === false` and that **no suppression window is claimed** (it is best-effort
       only). [Surface]
-- [ ] Ink appears ≤ 16 ms perceived (draw fast and watch; use the browser's frame stats if in doubt). [Surface]
-- [ ] Pull the pen out of range mid-drag → `pointercancel` → stroke aborts cleanly (no partial commit). [Surface]
-- [ ] A touch `pointercancel` mid-placement discards the pending anchor and commits nothing. [Surface]
-- [ ] Device caps recorded in `docs/DECISIONS.md`.
+- [~] Ink appears ≤ 16 ms perceived (draw fast and watch; use the browser's frame stats if in doubt). [Surface]
+- [~] Pull the pen out of range mid-drag → `pointercancel` → stroke aborts cleanly (no partial commit). [Surface]
+- [~] A touch `pointercancel` mid-placement discards the pending anchor and commits nothing. [Surface]
+- [x] Device caps recorded in `docs/DECISIONS.md`.
 
 **Rollback:** fix the router forward (it's pure and unit-tested). The spike canvas is throwaway — if the router is wrong, the unit table above pins the bug before any UI consumes it.
 

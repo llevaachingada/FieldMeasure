@@ -67,8 +67,15 @@ Fill this in before the first run — several gates are device-specific.
 ### Slice 0.2 — Input spike
 | Gate | Result |
 |---|---|
-| _(append as reached — the palm gauntlet and the touch-placement checks live here; they are the highest-risk tests in the project. Run them **without a pen present** unless the row says pen-only)_ | |
-| _(pen-optional framing: the router must classify touch as a first-class input. The old gate "Pen draws a line; finger pans" is superseded — see `docs/touch-first-interaction-model.md` §3.1)_ | |
+| **Touch tap-tap (no pen present):** tapping twice places a dimension A→B; the geometry commits and the value sheet can be opened. | PENDING — no Surface available (deferred, BUILD-RUNBOOK §4) |
+| **Touch drag vs pan (the §3.1 predicate):** one-finger drag on a grabbable, unlocked object moves it; on empty canvas it pans; a second finger cancels and restores the previous position; two-finger drag always pans. | PENDING |
+| **Pen parity:** the pen draws (pressure/tilt) and the same tap-tap placement works with it. | PENDING |
+| **Palm gauntlet (with a pen present):** draw a stroke > 1.2 s with a palm resting on the glass mid-stroke — no pan, no zoom, no stray ink. | PENDING |
+| **Touch-only palm gate (no pen ever detected):** rest a palm/heel and tap-tap — no accidental placement; a stray contact is recoverable by `pointercancel` rollback + undo. Assert the router reports `penPresent === false` and that no suppression window is claimed (it is best-effort only). | PENDING |
+| Ink appears ≤ 16 ms perceived (draw fast and watch; use the browser's frame stats if in doubt). | PENDING |
+| Pull the pen out of range mid-drag → `pointercancel` → stroke aborts cleanly (no partial commit). | PENDING |
+| A touch `pointercancel` mid-placement discards the pending anchor and commits nothing. | PENDING |
+| _(C3 re-measure)_ Re-measure device camera caps on the target Surface (`enumerateDevices` + `getUserMedia`); the dev-machine reading was PROVISIONAL (no camera). | PENDING — see H10 |
 
 ### Slice 0.3 — First-run / Settings / Home
 ### Slice 1.2 — Storage core
