@@ -33,7 +33,6 @@
  */
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Maximize, Minus, Plus } from 'lucide-react';
-import { newId } from '@/domain/ids';
 import type { ProjectFile } from '@/domain/schema';
 import {
   EditorCanvas,
@@ -61,11 +60,11 @@ import {
   resolveOpenProjectDir,
   resolveSheetDir,
   writeAtomic,
-  writeJsonAtomic,
   type ProjectChannel,
   type WriterLease,
 } from '@/fs/projectStore';
 import { useAppStore } from '@/state/appStore';
+import { addSheetFromPhoto, defaultSheetTitle } from '@/fs/sheetIntake';
 import { STRINGS, t } from './strings';
 
 type SheetFile = ProjectFile['sheets'][number];
@@ -103,11 +102,6 @@ interface Contact {
   startAt: number;
   /** Last container point, for incremental panning. */
   last: ScreenPoint;
-}
-
-/** `Sheet NN`, zero-padded 2, never renumbered (appendix `project.sheetNameExample`). */
-function defaultSheetTitle(count: number): string {
-  return `${STRINGS.project.sheetNamePrefix} ${String(count).padStart(2, '0')}`;
 }
 
 function isAtEdge(point: ScreenPoint, host: HTMLElement): boolean {
@@ -376,24 +370,17 @@ export default function SheetEditor({
       const exif = await readExifInfo(file);
       const normalized = await normalizeImage(file);
       const now = new Date();
-      const sheet: SheetFile = {
-        id: newId(),
-        title: defaultSheetTitle(state.file.sheets.filter((s) => !s.deletedAt).length + 1),
-        sortIndex: state.file.sheets.length,
-        imageWidth: normalized.width,
-        imageHeight: normalized.height,
-        calibrationPxPerFoot: null,
-        createdAt: (exif.captureTime ?? now).toISOString(),
-        updatedAt: now.toISOString(),
-      };
-      const sheetDir = await resolveSheetDir(state.dir, sheet.id, { create: true });
-      // AGENTS #3: every disk write goes through projectStore.writeAtomic (tmp→close→move).
-      await writeAtomic(sheetDir, 'photo.jpg', normalized.blob, projectId);
-      const nextFile: ProjectFile = {
-        ...state.file,
-        sheets: [...state.file.sheets, sheet],
-      };
-      await writeJsonAtomic(state.dir, 'project.json', nextFile, projectId);
+      // The single "photo → sheet" write path (shared with slice 1.4's capture flow).
+      const { sheet, projectFile: nextFile, sheetDir } = await addSheetFromPhoto(
+        { blob: normalized.blob, width: normalized.width, height: normalized.height },
+        {
+          projectDir: state.dir,
+          projectFile: state.file,
+          projectId,
+          title: defaultSheetTitle(state.file),
+          createdAt: exif.captureTime ?? now,
+        },
+      );
       state.file = nextFile;
 
       // §7.3: thumbnail regenerates 3 s after the last edit (decode in the worker).
