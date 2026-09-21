@@ -51,7 +51,7 @@ spec's slices. The spec remains the authority on *what* to build; this plan is t
 
 **Open items deliberately left to slices (do not "solve" them now — see brief §8):**
 - **Device caps report** — filled by slice 0.2 on real hardware; feeds 1.4's resolution-toggle labels.
-- **TypeScript 7 vs 5.x** — confirmed at slice 0.1 scaffold time (DECISIONS D14 note).
+- **TypeScript 7 vs 5.x** — **pinned to 5.x** per §21.6/D14; the exact 5.x patch is resolved via `npm view typescript@5 version` at checkpoint C1.
 - **`Konva.pixelRatio` downgrade on Surface Go** — measured in slice 1.3 (spec §8.1.1).
 - **Metric-at-launch / typed site-address / sheet templates** — human product questions (CONTINUITY "Open questions"); the plan assumes no answer.
 
@@ -239,7 +239,7 @@ only slice where `package.json` (still npm-init defaults) is fixed.
   must be proven to build **now**, not discovered to be misconfigured in slice 1.3.
 
 **Build order (literal):**
-1. Rewrite `package.json`: `"type": "module"`; scripts `dev`/`build`/`preview`/`test`/`e2e`/`typecheck`; strip the caret ranges so each runtime+dev dep is an exact pin (§2.2). **Confirm TypeScript 7 vs 5.x here** (DECISIONS D14: TS `7.0.2` was installed — if the toolchain rejects it, pin the latest 5.x and record the choice in DECISIONS). Run `npm install` to regenerate the lockfile, then commit it.
+1. Rewrite `package.json`: `"type": "module"`; scripts `dev`/`build`/`preview`/`test`/`e2e`/`typecheck`; strip the caret ranges so each runtime+dev dep is an exact pin (§2.2). **TypeScript is pinned to 5.x** per §21.6/D14 (not TS 7); resolve the exact 5.x patch via `npm view typescript@5 version` at checkpoint C1 and record the resolved patch in DECISIONS. Run `npm install` to regenerate the lockfile, then commit it.
 2. `vite.config.ts`: `@vitejs/plugin-react` + `vite-plugin-pwa` with a `manifest` (name, icons, `display: standalone`, `start_url`) and `workbox` precaching the app shell, both fonts (woff2), and icons. **No** `runtimeCaching` entry that could capture `blob:` URLs or user files.
 3. `tsconfig.json`: `strict: true`, `moduleResolution: "bundler"`, `jsx: "react-jsx"`, paths alias `@/* → src/*`.
 4. `src/main.tsx` + `src/App.tsx`: minimal React 19 root + placeholder. `src/ui/strings.ts` exports an empty `const STRINGS = {} as const`.
@@ -414,6 +414,8 @@ export function createInputRouter(palmWindowMs = 1200): {
      creates and moves geometry. This is the ON-equivalent of the old single "Finger draws" toggle.
    - **`fingerDraws`** (`«Finger draws (freehand)»`, default **OFF**) — finger *freehand ink* only;
      the pen always draws regardless. Was the old toggle, now the narrow one.
+   - **`penOnly`** (`«Pen only»`, default **OFF**) — input filter that limits finger gestures to
+     two-finger pan/zoom; no longer the only input filter (§20.5b; UI §14.7; strings `settings.penOnly`).
    - `magnifierOnTap` (`«Magnifier when you tap»`, default **ON**) and `glovedTouch`
      (`«Gloved touch (bigger touch targets)»`, default **OFF**) — touch model §7.7; gloved adds
      hit slop +8 px, snap acquire +4 px, loupe offset +16 px.
@@ -421,7 +423,7 @@ export function createInputRouter(palmWindowMs = 1200): {
 3. `src/ui/FirstRun.tsx`: step 1 handedness = a **plain question** (`«Which hand do you write with?»`, Right pre-selected — **no Windows-setting claim**, spec M6/D18); step 2 projects folder = `showDirectoryPicker({ id: 'fieldmeasure-projects', mode: 'readwrite' })` with a suggested `Documents\FieldMeasure` (use `startIn: 'documents'`; show the resolved path in mono). Persist the handle in idb-keyval.
 4. `src/ui/ProjectList.tsx`: empty state (`«Projects are just folders on this PC. Pick one and everything saves into it.»`), loading (6 skeleton cards), and card grid reading placeholder data — per UI §11.1 states.
 5. `src/ui/Settings.tsx`: read/write the `settings/*` helpers + appStore; render the **Input group**
-   (the four touch toggles above) so touch behaviour is user-controllable from the first-run app.
+   (the five input toggles above) so touch behaviour is user-controllable from the first-run app.
 6. Wire FirstRun → Settings → Home routing; land on Home after first run.
 
 **Signatures (from §10):**
@@ -441,13 +443,14 @@ interface AppState {
   // touch-first input toggles (touch model §7.7)
   touchPlaces: boolean;      // «Touch places and moves» — default true
   fingerDraws: boolean;      // «Finger draws (freehand)» — default false
+  penOnly: boolean;          // «Pen only» — default false (input filter)
   magnifierOnTap: boolean;   // «Magnifier when you tap» — default true
   glovedTouch: boolean;      // «Gloved touch» — default false
   // … actions (create via zustand)
 }
 ```
 
-**Tests:** component tests for FirstRun (two steps, Right default, auto-advance) and Settings round-trip (set handedness → reload → persisted). Plus: the four input toggles default correctly (`touchPlaces: true`, `fingerDraws: false`, `magnifierOnTap: true`, `glovedTouch: false`) and persist across reload.
+**Tests:** component tests for FirstRun (two steps, Right default, auto-advance) and Settings round-trip (set handedness → reload → persisted). Plus: the five input toggles default correctly (`touchPlaces: true`, `fingerDraws: false`, `magnifierOnTap: true`, `glovedTouch: false`, `penOnly: false`) and persist across reload.
 
 **Gate (all must pass)**
 - [ ] First run completes in < 20 s; both steps land on Home.
@@ -1235,11 +1238,10 @@ interface EditorState {
 - [ ] **(session 4, P21 — confirm the behaviour before building it)** Tapping a fraction chip during
       one dimension entry currently re-rounds **every label in the project**, because the chip edits
       the project-level `precisionDenominator` (§8.5 step 4 / M11). In a Chain sequence that is a
-      silent, project-wide change made from inside a single measurement. **Recommended:** the chip
-      sets the denominator **for this entry**, and changing the project default requires the style
-      panel's Precision control (which already exists and already confirms
-      `«Project precision: 1/16»`). This is a **product decision** — resolve it with the user, record
-      it in DECISIONS, and build only the resolved behaviour.
+      silent, project-wide change made from inside a single measurement. **Already decided (D31 /
+      §21.2):** the chip is **entry-scoped** — it sets the denominator **for this entry**; changing
+      the project default requires the style panel's Precision control (which already exists and
+      already confirms `«Project precision: 1/16»`).
 - [ ] **(a11y §19.6)** Mixed/indeterminate states are announced, not only rendered; disabled controls
       keep an accessible name explaining why they are disabled; **48 px minimum touch targets, 16 px
       hit slop** (the swatch grid keeps its sanctioned sub-48 exception; Recents rise to 44 px).
@@ -1546,7 +1548,7 @@ the crop window moves (the session-3 hardening — children share the image's `-
   preview and the stored `enteredText` then diverge);
 - a **property test that passes without exercising the branch it exists to protect** — assert the
   generator's coverage, not just its result;
-- a fraction chip silently re-rounding **every label in the project** (slice 1.8, P21 — resolve first).
+- a fraction chip silently re-rounding **every label in the project** (slice 1.8, P21 — decided: the chip is entry-scoped, D31/§21.2).
 
 **Data-loss tripwires (any hit → stop) — new in session 4:**
 - any `*.tmp` surviving anywhere in the project tree after a crash (check `sheets/`, not just the root);

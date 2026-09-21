@@ -83,7 +83,7 @@ A bug in any of these is a wrong measurement or a wrong artifact. Test them exha
 - **All user-visible text lives in `src/ui/strings.ts`.** Copy comes from
   `docs/appendix-strings.md` — do not invent wording that the specs already provide.
 - **Accessibility is per-slice**, not a final pass: focus order, visible focus ring, `aria-label`
-  on every control, 44×44 minimum target, no keyboard trap.
+  on every control, 48 px minimum target (touch-primary floor), no keyboard trap.
 - Commit at the end of each slice, with the slice number in the subject. Update
   `docs/BUILD-LOG.md` in the same commit.
 

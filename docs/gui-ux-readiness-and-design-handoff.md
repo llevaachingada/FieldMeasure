@@ -71,8 +71,8 @@ almost entirely inside slice 0.2 (the input spike), which has not started.
 | No `src/`, no `tests/`, no build output | `docs/BUILD-LOG.md:54`; `docs/CONTINUITY.md:15` |
 | `package.json` is still npm-init defaults (`"type": "commonjs"`, placeholder test script) | `docs/CONTINUITY.md:273` |
 | Dependencies installed and pinned; four spec/UI-review rounds complete | `docs/CONTINUITY.md:18–21` |
-| `docs/BUILD-RUNBOOK.md` cited by four docs but **does not exist** | `docs/CONTINUITY.md:280` |
-| `THIRD-PARTY-NOTICES.md` required by spec, **does not exist** | `docs/CONTINUITY.md:279` |
+| `docs/BUILD-RUNBOOK.md` cited by four docs but **now exists (created session 4b, after this review)** | `docs/CONTINUITY.md:280` |
+| `THIRD-PARTY-NOTICES.md` required by spec, **now exists (created session 4b, after this review)** | `docs/CONTINUITY.md:279` |
 | Next action: slice 0.0, then 0.1 | `docs/CONTINUITY.md:241` |
 
 ---

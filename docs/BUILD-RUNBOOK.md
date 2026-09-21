@@ -54,7 +54,7 @@ Every slice ends in a **gate**: a list of checkable statements. Two kinds:
 
 - **Machine gates** run on a dev machine — `npx vitest run`, `npx tsc --noEmit`, `npm run build`,
   and any deterministic check. These **block** the slice: the slice is not done until they pass.
-- **On-device `[Surface]` gates** need a real Surface with a pen (palm rejection, pen pressure,
+- **On-device `[Surface]` gates** need a real Surface (the pen is optional under touch-first; the touch-only palm gate H1b runs without one) — palm rejection, pen pressure,
   sunlight, power-loss, real camera resolution). You do not have one. **They do not block the
   slice** — see §4.
 

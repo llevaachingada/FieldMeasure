@@ -370,7 +370,7 @@ W3C Pointer Events 3 states that authors **cannot suppress** the behaviour, and 
 scenarios is **out of scope for the specification**. Contact geometry (`PointerEvent.width`/`height`)
 defaults to `1` when the hardware cannot report it, so it cannot be trusted as a palm discriminator.
 The router's suppression window only starts on a **pen event**, so **a pen-less session has no palm
-suppression at all** — every touch resolves to `'navigate'`.
+suppression window at all** — with a placement tool armed and no pen ever seen, touch classifies as `'draw'` (the plan's locked truth table), not `'navigate'`.
 
 Design response: bounded heuristics (edge rejection, multi-touch debounce) + keep the pen as a
 suppression signal **when one is present** + make **undo and `pointercancel` rollback the real safety

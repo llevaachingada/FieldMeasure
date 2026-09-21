@@ -928,7 +928,7 @@ Names are suggestions; the **boundaries** are the specification.
 
 These are the specific things a mechanical implementer is most likely to flatten. Each one is a deliberate design decision with a reason.
 
-1. **The tool rail is vertical and on the pen-hand side.** Not a bottom bar, not a left-docked Figma-style palette. Reason: canvas aspect must match a 3:2 photo, and the pen hand must not cross the body. (§5.1)
+1. **The tool rail is vertical and on the writing-hand side.** Not a bottom bar, not a left-docked Figma-style palette. Reason: canvas aspect must match a 3:2 photo, and the pen hand must not cross the body. (§5.1)
 2. **The rail is a 2-column grid, bottom-anchored, with undo/redo at the very bottom.** Not a single scrolling column. (§6.2)
 3. **No radial menu for the full tool set** — only an 8-slot recents radial, and only if the pen has a barrel button. (§6.4)
 4. **The Style Chip is a WYSIWYG rendering of the next stroke**, not a colored dot or a tooltip. (§7.1)
