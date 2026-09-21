@@ -1,7 +1,7 @@
 # Field Measure — Pre-flight Handoff & Implementation Plan (v0.3, hardened)
 
 > **Status:** Pre-flight. No functional code exists yet. Reference code in Part 3+ is a build anchor, not finished code — treat it as the required starting point and verify library versions/APIs when installing packages.
-> **Version:** 0.3-hardened **+ session-4 addendum** (September 21, 2026). Round 4 was a senior adversarial + architecture review; it re-executed this document's reference code and found defects that survived rounds 1–3. Code-level fixes are marked `SESSION-4 FIX (…)` in place; new normative rules are in **§5.8** and **§19**; the full finding register is `docs/review-session-4-hardening.md`. Base version note follows.
+> **Version:** 0.3-hardened **+ session-4 addendum + touch-primary addendum** (September 21, 2026). Round 4 was a senior adversarial + architecture review; it re-executed this document's reference code and found defects that survived rounds 1–3. Code-level fixes are marked `SESSION-4 FIX (…)` in place; new normative rules are in **§5.8** and **§19**; the full finding register is `docs/review-session-4-hardening.md`. **Round 5 (touch-primary inversion):** touch is now the **primary input** and the pen enhances it — see the round-5 changelog below and §8.2. Base version note follows.
 > **Version (base):** 0.3-hardened (September 21, 2026) — supersedes `preflight-handoff.md` v0.2. This revision incorporates the adversarial review (findings B1–B5, M1–M13, Minors 1–6): corrected export math, keypad input model, inset child coordinate space, FSA API corrections, validation fixes, and build-plan gaps. Library versions verified against the npm registry on 2026-09-21.
 > **Audience:** the AI builder. This document is written to be followed end-to-end with zero judgment calls. Anything a builder might reasonably guess at is spelled out here.
 > **Companion:** `docs/ui-spec-field-measure-v2-hardened.md` (detailed UI/UX, v2 hardened). Where the two disagree, this document wins on architecture and data; the UI spec wins on visual presentation and interaction feel. **The v1 scope table (§2.4) wins over both** — it is the single authority on what is built in v1.
@@ -59,6 +59,26 @@ measurement or data loss · 🟠 build-blocking · 🟡 correctness/clarity.
 | 37 | 🟠 §13: three slices added for work no slice owned — **0.0** (origin), **1.4.5** (top bar + tool rail + panel docking: the rail is "do not simplify #1" and nothing built it), **1.11** (release/update). | P1, P4, P5 |
 | 38 | 🟡 §19.5/§19.6: `precisionDenominator` default stated (16); loupe geometry pinned to a formula (its three numbers were mutually impossible); `§8.7` and "slice 1.4's loupe" cross-references corrected; degenerate-angle guard; slice 2.0 given a "Done when"; accessibility moved from a final slice into every UI slice's gate. | F8, P8, P15–P19 |
 
+### Changelog — touch-primary inversion (round 5)
+
+**Locked product decisions (2026-09-21): touch is the primary input; the pen enhances it.** The
+pre-flight input model assumed a pen was always present, so much of §8/§13 was written pen-first.
+Every row below is a consequence. Design sources: `docs/gui-ux-readiness-and-design-handoff.md`
+§13 (C1–C14, touch workstream) and `docs/touch-first-interaction-model.md` (§9 lists the deltas).
+Severity: 🔴 wrong measurement/artifact · 🟠 build-blocking · 🟡 correctness/clarity.
+
+| # | Change | Finding |
+|---|---|---|
+| 39 | 🟡 §1 product definition (`§1.1`, `§1.2` step 3, G1): "Surface tablets **with a pen**" → **pen-optional**; touch is primary and the pen enhances. The core loop opens with tap-tap. | T1 |
+| 40 | 🟡 §2.4: the radial quick menu's **primary entry is the rail's press-and-hold** (all inputs); the pen barrel-button hold is an *optional accelerator*. Added the **input-model settings row** and the touch-primary defaults. | T4 |
+| 41 | 🟠 §8.2 rewritten: **touch can `draw`/place**; the **two-gate palm rule applies when a pen is present**; a defined **pen-free path** (edge rejection + multi-touch debounce) is documented with its probabilistic limitation; `pointercancel` rolls back the in-progress gesture; an explicit `classify` **truth table** was added; intent is sticky at `pointerdown`. | T2, T5 |
+| 42 | 🟠 §8.4/§8.5: the **touch loupe variant** (200 px / 4× / 136 px offset / contact disc / dashed leader / freeze-on-lift 700 ms); Dimension **A→B drag becomes tap-tap with a 450 ms settle window** (drag retained); Select **move is object-first drag** with second-finger restore; Erase object mode = tap-to-delete + undo toast and stroke mode is **pen-only under touch**; Angle/Line/Arrow/Rect/Ellipse/Polygon get tap-tap; finger freehand is opt-in with a fixed-width fallback. | T3, T6 |
+| 43 | 🟡 §11.1/§11.4/§11.6/§11.12: the "Pen draws, finger navigates" principle replaced by "Touch taps and moves; the pen draws"; pen-hover affordances get mandatory touch equivalents; 48 px floor + 16/24 px hit slop; handedness now also drives the touch-loupe flip. | T7 |
+| 44 | 🟠 §13: slice 0.2's spike gates rewritten for touch-primary (touch places, finger pans, pen-free palm path); slice 1.5 commit-on-penup → tap-tap + settle; slice 1.6's "every tool draws with the pen" and the **pressure gate** rewritten — `pressure`/`tilt` are pen-only signals and the finger path asserts a fixed-width fallback. §0.3 and the §14 test plan updated. | T8 |
+| 45 | 🟡 §19.6 a11y floor 44→**48** under touch-primary (C5 exceptions unchanged at two); §20.5b Settings Input group. | T9 |
+
+*(C6 width readout = `DECISIONS.md` D33, and C7 radial wedges — already applied to the UI spec by the repo owner; deliberately NOT re-applied here.)*
+
 ---
 
 ## Table of contents
@@ -91,14 +111,14 @@ measurement or data loss · 🟠 build-blocking · 🟡 correctness/clarity.
 
 ### 1.1 What it is
 
-Field Measure is a Windows-first web app (PWA) for Microsoft Surface tablets with a pen. A field crew member takes a photo with the built-in camera, draws feet-inch dimension lines and rich markup on it, inserts additional photos within the photo (insets), and exports a marked-up PDF/PNG to a local project folder. There is **no server, no database, no sign-in, no cloud SDK, no Bluetooth, and no multi-user**. Each Surface is fully self-contained; the user later drags the project's `exports/` folder into Dropbox manually.
+Field Measure is a Windows-first web app (PWA) for Microsoft Surface tablets. A field crew member takes a photo with the built-in camera, draws feet-inch dimension lines and rich markup on it, inserts additional photos within the photo (insets), and exports a marked-up PDF/PNG to a local project folder. **Touch is the primary input; the pen is optional and enhances it** with pressure, tilt and hover. The app must be fully usable with a finger and gloves alone (§8.2, §13). There is **no server, no database, no sign-in, no cloud SDK, no Bluetooth, and no multi-user**. Each Surface is fully self-contained; the user later drags the project's `exports/` folder into Dropbox manually.
 
 ### 1.2 The core loop (field dimensioning on Surface)
 
 1. Open the app (installed PWA from Edge) and create or open a project — a folder on disk.
 2. Take a photo with the Surface camera (or import an existing image).
-3. Tap the **Dimension** tool. Pen down at point A (a magnifier loupe appears next to the tip), lift at point B.
-4. A ft-in keypad slides up with a live parse preview. Type `10'-4 1/2"` and commit.
+3. Tap the **Dimension** tool. **Tap point A, then tap point B** — a magnifier loupe appears under the finger and snapping locks to nearby geometry. The pen can also draw A→B in one drag; both paths create the same geometry (§8.2, §8.5).
+4. The ft-in keypad slides up after a **450 ms settle window** (a touch on the canvas inside that window cancels the auto-open and keeps the drawn geometry). Type `10'-4 1/2"` and commit.
 5. Add a text note, an arrow, a shape, or an **image inset** (a close-up photo placed on top of the main photo, with its own markup).
 6. Everything autosaves locally. There is no Save button.
 7. Export PDF/PNG to `<project>/exports/<timestamp>/`, then drag that folder into Dropbox.
@@ -107,7 +127,7 @@ Field Measure is a Windows-first web app (PWA) for Microsoft Surface tablets wit
 
 | # | Goal | How we know it's met |
 |---|---|---|
-| G1 | Dimension a photo fast with the pen | Median < 60 s for a photo with 4 dimensions |
+| G1 | Dimension a photo fast with touch or pen | Median < 60 s for a photo with 4 dimensions |
 | G2 | Works offline forever | No network dependency at any point; runs with the network stack dead |
 | G3 | Clean professional export | PDF and PNG an estimator, fabricator, or client can read without explanation |
 | G4 | Files land in the right place | Exports write to `<project>/exports/<timestamp>/`; user drags into Dropbox |
@@ -223,10 +243,11 @@ Every feature named in either document is IN, DEFERRED, or CUT here. If a UI-spe
 | Replace photo | **IN, constrained** | Markup kept only if the new working image has identical dimensions; otherwise an explicit warned choice (§8.5 Replace photo) |
 | Rotate sheet (Project card menu) | **CUT** | Rotation happens only at capture-review time, before normalization |
 | "Show in Explorer" / "Open folder" | **CUT as specified** | Not possible from a PWA. Replaced everywhere by `«Copy path»` + `«Reveal folder»` (= `showDirectoryPicker({ startIn: <handle> })`, which opens the OS picker rooted at the folder) |
-| Radial quick menu (8 recents) | **IN** | Barrel-button-gated; absent if the pen reports no barrel button |
+| Radial quick menu (8 recents) | **IN** | **The rail's press-and-hold is the primary entry path** and works for every input. The pen **barrel-button hold** is an *optional accelerator* on top of it — the radial is reachable even if the pen reports no barrel button (§11.4, §20.6). Not a replacement for the rail. |
 | Rulers/guides on canvas | **DEFERRED** | |
 | Two-finger tap = add to selection; pinch-zoom; double-tap fit↔100% | **IN** | |
 | Handedness question at first run | **IN** | Plain question, default Right. **Do not** claim to read the Windows pen setting (no web API exposes it) |
+| Input-model settings (touch-first) | **IN** | Settings → Input gains the touch-primary toggles: `«Touch places and moves»` (**ON**) · `«Finger draws (freehand)»` (**OFF**) · `«Magnifier when you tap»` (**ON**) · `«Gloved touch»` (**OFF**). `«Pen only»` remains, but is **no longer the only input filter** (§20.5b, §8.2). The pen always draws; touch placement is the default. Persisted in the settings store. |
 | Sunlight / Dim themes | **IN** | Token-level themes |
 | Persisted undo across restarts | **IN as history snapshots** | §8.3: in-memory commands + `.history` snapshots are the only mechanisms; "undo after restart" = restore a snapshot from the History flyout |
 
@@ -1442,7 +1463,7 @@ Performance rules (low-end Surface Go, 8 GB):
 
 Hit-testing:
 - `layer.getIntersection({ x, y })` uses container-space (same as `stage.getPointerPosition()`), honors `listening:false`/visibility/opacity/`hitStrokeWidth`.
-- Set `hitStrokeWidth` (e.g. 24) on thin lines for fat invisible hit areas (fingers/gloves).
+- Set `hitStrokeWidth` on thin lines for fat invisible hit areas — **16 px general, 24 px along thin strokes** under touch-primary (fingers/gloves; §11.12). Section hit slop: **16 px general / 24 px thin**.
 - Tag every shape with `name()` = annotation id; resolve hit results to the owning annotation (children resolve to their inset). Use `hitFunc` for custom hit geometry.
 - **Insets:** hit-testing resolves through the inset group's absolute transform; a hit on an inset child maps container-space → sheet-space via the group, then to **group-local** space by the inverse transform, then to asset-space by **adding `crop`** (`asset = local + crop` — the inverse transform lands in crop-window space, not asset space). The input router must divide the container point by the group's absolute scale/rotation, not just the stage's.
 
@@ -1455,53 +1476,144 @@ Hit-testing:
 
 Text nodes do NOT go through `Konva.pixelRatio` for their raster; text sharpness comes from setting `fontSize = fontSizeMu / s` (§4.2) so glyphs rasterize at full stage scale.
 
-### 8.2 Input router (`src/editor/inputRouter.ts`) — HARDENED
+### 8.2 Input router (`src/editor/inputRouter.ts`) — TOUCH-PRIMARY (HARDENED)
+
+> **The inversion (2026-09-21):** touch is the **primary input**; the pen enhances it. Touch can both
+> **place/move** geometry and **navigate**. The pen always draws, and additionally supplies pressure,
+> tilt and hover. This section is the single authority on input routing — §8.4/§8.5, §11.1 and slice
+> 0.2 all defer to it. Design source: `docs/touch-first-interaction-model.md` §1, §3, §9.
+
+**Intent is decided once, at `pointerdown`, and is sticky for the whole contact.** A contact
+classified `'draw'` stays `'draw'` for its lifetime (a drifting placement never silently becomes a
+pan); a second concurrent contact is the one documented exception ("second touch wins", below).
 
 ```ts
 export type InputIntent = 'draw' | 'navigate' | 'ignore';
+// 'draw'     = may create/edit geometry with the active tool (pen always; touch per the toggles)
+// 'navigate' = pan/zoom only
+// 'ignore'   = palm/heel/OS gesture — no action, no state change
 
-/** Pen draws. Finger pans/zooms. Touch shortly after ANY pen event, or while a pen
- *  stroke is active, is treated as palm and ignored. */
-export function createInputRouter(palmWindowMs = 1200) {
+export interface InputRouterOptions {
+  palmWindowMs?: number;          // default 1200; refreshed by every pen event
+  touchPlaces?: () => boolean;    // «Touch places and moves» — default ON
+  fingerDraws?: () => boolean;    // «Finger draws (freehand)» — default OFF
+}
+const EDGE_REJECT_PX = 24;        // pen-free path (a): outer band a contact can never place from
+const PALM_BURST_COUNT = 3;       // pen-free path (b): contacts in a burst that read as a palm/heel
+const PALM_BURST_MS = 90;         // pen-free path (b): the burst window
+
+export function createInputRouter(o: InputRouterOptions = {}) {
+  const palmWindowMs = o.palmWindowMs ?? 1200;
+  const touchPlaces = o.touchPlaces ?? (() => true);
+  const fingerDraws = o.fingerDraws ?? (() => false);
+
   let lastPenAt = 0;
   let penStrokeActive = false;
+  let penSeenThisSession = false;                    // has ANY pen event fired since load?
+  const touchDownAt = new Map<number, number>();      // pointerId → down time
+  const touchBornAtEdge = new Map<number, boolean>(); // pointerId → began in the outer band?
+  let burstIgnoreUntilLift = false;                   // pen-free multi-touch debounce latch
+
+  const canCreate = () => touchPlaces() || fingerDraws();
 
   return {
     /** Feed EVERY pen pointer event (down AND move) through here. */
-    notePenEvent(): void { lastPenAt = performance.now(); },
+    notePenEvent(): void { penSeenThisSession = true; lastPenAt = performance.now(); },
     penStrokeStart(): void { penStrokeActive = true; },
     penStrokeEnd(): void { penStrokeActive = false; },
 
+    /** Call on every touch pointerdown with whether it began within EDGE_REJECT_PX of the edge. */
+    noteTouchDown(pointerId: number, atEdge: boolean, now = performance.now()): void {
+      touchDownAt.set(pointerId, now);
+      touchBornAtEdge.set(pointerId, atEdge);
+      // (b) multi-touch debounce: a burst of ≥3 contacts inside 90 ms is a heel, not intentional use.
+      const recent = [...touchDownAt.values()].filter(t => now - t <= PALM_BURST_MS).length;
+      if (recent >= PALM_BURST_COUNT) burstIgnoreUntilLift = true;
+    },
+    noteTouchUp(pointerId: number): void {
+      touchDownAt.delete(pointerId);
+      touchBornAtEdge.delete(pointerId);
+      if (touchDownAt.size === 0) burstIgnoreUntilLift = false;
+    },
+
     classify(e: PointerEvent, now = performance.now()): InputIntent {
       if (e.pointerType === 'pen') {
-        lastPenAt = now;
+        penSeenThisSession = true; lastPenAt = now;
         return 'draw';
       }
       if (e.pointerType === 'touch') {
-        // Palm rejection has TWO gates: the time window AND an active pen stroke.
-        // A stroke longer than palmWindowMs must not re-open the touch window.
-        if (penStrokeActive) return 'ignore';
-        return now - lastPenAt < palmWindowMs ? 'ignore' : 'navigate';
+        if (burstIgnoreUntilLift) return 'ignore';                        // pen-free (b)
+        if (penStrokeActive) return 'ignore';                             // pen-present gate 2
+        // pen-present gate 1 — only meaningful once a pen has actually been seen this session
+        if (penSeenThisSession && now - lastPenAt < palmWindowMs) return 'ignore';
+        if (!penSeenThisSession && touchBornAtEdge.get(e.pointerId)) return 'navigate'; // pen-free (a)
+        return canCreate() ? 'draw' : 'navigate';
       }
       return 'draw';   // mouse or trackpad
     },
 
-    onPenHover(e: PointerEvent): void { /* pointerType==='pen' && no buttons → hover affordances */ },
+    onPenHover(_e: PointerEvent): void { /* pointerType==='pen' && buttons===0 → hover affordances */ },
   };
 }
 ```
 
+**`classify` truth table (keep this and the code above in lock-step — slice 0.2 tests it):**
+
+| Pen seen this session? | Contact | Active pen stroke? | Time since last pen event | Edge-born / burst? | Result |
+|---|---|---|---|---|---|
+| yes | pen | — | — | — | `'draw'` (sets `penSeen`, refreshes the window) |
+| yes | touch | yes | — | — | `'ignore'` (gate 2) |
+| yes | touch | no | `< 1200 ms` | — | `'ignore'` (gate 1) |
+| yes | touch | no | `≥ 1200 ms` | no | `'draw'` if a toggle is on, else `'navigate'` |
+| no | touch | n/a | n/a | burst | `'ignore'` (all until every pointer lifts) |
+| no | touch | n/a | n/a | edge-born | `'navigate'` (pan at most — never places) |
+| no | touch | n/a | n/a | no | `'draw'` if a toggle is on, else `'navigate'` |
+| any | mouse/trackpad | — | — | — | `'draw'` (wheel+Ctrl zoom, spacebar+drag pan) |
+
 **Input routing rules (complete, binding):**
-- **Pen** (`pointerType === 'pen'`): draws with the active tool. Every pen `pointermove` refreshes the palm window (`notePenEvent`).
-- **Touch**: **single finger = pan** (always, unless the *Finger draws* toggle is on); **two fingers = pinch-zoom + pan** (pivot = pinch midpoint). There is no touch mode that draws in the default configuration. A single touch during an active pen stroke, or within 1.2 s of any pen event, is palm → ignored.
-- **Mouse/trackpad**: draws (with the same tools); wheel + Ctrl = zoom, spacebar+drag = pan.
-- Attach native listeners to `stage.container()`; `setPointerCapture` on `pointerdown`, release on `pointerup`/`pointercancel`. **Abort in-progress strokes on `pointercancel`** — do not commit a partial ink stroke; if a dimension A→B was mid-drag, discard it entirely (B was never chosen).
+
+- **Pen** (`pointerType === 'pen'`): draws with the active tool, always. Every pen `pointermove`
+  refreshes the palm window (`notePenEvent`) and keeps `penSeenThisSession = true`.
+- **Two-gate palm rule — pen present.** Touch is suppressed when **either** gate is closed:
+  **gate 1** = within `palmWindowMs` (1200 ms) of the last pen event (refreshed by every pen event,
+  including moves); **gate 2** = a pen stroke is active. Both gates must be tested independently: a
+  stroke longer than 1200 ms must not re-open the window mid-stroke.
+- **Pen-free path — no pen seen this session.** Palm suppression is **probabilistic, not
+  deterministic**, and the app must say so (gui-ux handoff §13.7). Only two bounded heuristics exist: **(a) edge
+  rejection** — a touch born within `EDGE_REJECT_PX` (24 px) of the container edge is never
+  `'draw'` (pan at most), so a heel on the bezel cannot place a point; **(b) multi-touch debounce** —
+  ≥ `PALM_BURST_COUNT` (3) contacts inside `PALM_BURST_MS` (90 ms) are all `'ignore'` until every
+  pointer lifts. **A tap-tap rhythm (≥ 120 ms apart, one contact at a time) is caught by neither.**
+  Do **not** ship a contact-size threshold filter: W3C Pointer Events 3 states author-side
+  suppression is not possible, `PointerEvent.width/height` defaults to `1` when the hardware cannot
+  report geometry, and Android's own cookbook handles `ACTION_CANCEL` + undo rather than prevention.
+  **The real safety net is undo + rollback on `pointercancel` (below)** — verify the heuristics
+  empirically on the target Surface and log it in the hardware checklist.
+- **Touch can place.** Single touch is `'draw'` when `touchPlaces()` is ON (default) or, for the
+  freehand/highlighter tools only, when `fingerDraws()` is ON. Two fingers = pinch-zoom + pan
+  (pivot = pinch midpoint), always. Single touch with both toggles off = pan.
+- **Second concurrent touch wins.** A second finger during an object drag **cancels the
+  drag, restores the pre-drag position, and starts pan/zoom**; while a placement is pending, a
+  two-finger tap **cancels the placement** (add-to-selection is meaningless mid-placement) — and
+  every action a two-finger gesture performs also exists as an on-screen control (§11.1 #7). The
+  two-finger drag safety gesture is never repurposed.
+- **Mouse/trackpad:** draws (with the same tools); wheel + `Ctrl` = zoom, spacebar+drag = pan.
+- **Attach / capture:** attach native listeners to `stage.container()`; `setPointerCapture` on
+  `pointerdown`, release on `pointerup`/`pointercancel`.
+- **`pointercancel` rollback (the pen-free safety net).** `pointercancel` (palm, OS edge gesture,
+  blur) rolls back the **in-progress gesture only**: discard a partial ink stroke (never commit it);
+  discard a pending placement anchor A (tap B was never chosen); restore the pre-drag position of a
+  dragged object. **A geometry already committed at tap B is never discarded by `pointercancel`** —
+  "cancel keeps the stroke" is a keypad rule, not a gesture rule. Any palm-induced action that does
+  land must be undoable with a labelled undo.
 - Container CSS (required, or the browser steals pen/touch gestures):
   ```css
   .editor-surface { touch-action: none; user-select: none; }
   ```
-- Pinch-zoom is **not built into Konva** — implement in `touchmove` (track active touches; 2 = pinch), pivoting on the pinch midpoint.
-- Use `getCoalescedEvents()` for smooth ink; target **pen-to-ink ≤ 16 ms** perceived. Tool-swap feedback ≤ 100 ms.
+- Pinch-zoom is **not built into Konva** — implement in `touchmove` (track active touches; 2 = pinch),
+  pivoting on the pinch midpoint.
+- Use `getCoalescedEvents()` for smooth ink; **pen-to-ink ≤ 16 ms** perceived; touch feedback (loupe +
+  anchor) at `pointerdown` in the same frame (§8.4). Tool-swap feedback ≤ 100 ms.
 
 ### 8.3 Undo/redo & history (`src/editor/history.ts`)
 
@@ -1544,29 +1656,61 @@ Coalescing rules:
 - Crosshair with a 12px center gap (the exact pixel stays visible). `--sel` ring + shadow.
 - While a pending dimension is active, the loupe tracks the moving tip (point B), never point A.
 
+**Touch loupe variant (new — the pen loupe above is unchanged).** Touch has no hover and the finger
+occludes ~44–56 px of contact, so the touch loupe is a distinct, larger optical aid:
+
+| Property | Touch loupe |
+|---|---|
+| Diameter | **200 px** |
+| Magnification | **4×** (fixed, per the §19.5 rule) → source region = `diameter / 4` = **50 px** |
+| Offset from contact | **136 px** (must clear the finger and its contact disc) |
+| Direction | up-and-away from the **handedness side**, flipped away from the nearest corner (same edge-aware quadrant logic as the pen loupe) |
+| Extra mark | 12 px crosshair gap **+ a 44 px translucent contact disc** showing the finger's true footprint |
+| Leader | **1 px dashed `--sel` leader** from the anchor to the loupe |
+| Timing | instant on `pointerdown`, **full opacity, no fade** |
+| After lift | **freezes on the last anchor for 700 ms**, then fades to 40% |
+| Suppressible | `«Magnifier when you tap»` (default ON) |
+
+> **Arithmetic note (spec fix, log in DECISIONS).** The design source
+> (`touch-first-interaction-model.md` §2.1) phrases this as "4× of a **100×100** source" — those
+> cannot both hold: a 200 px window showing a 100 px source is exactly **2×** (`200 / 100 = 2`), not
+> 4×. Following §19.5's established rule (**magnification is fixed; the source is derived**),
+> magnification stays **4×** and the source becomes `200 / 4 = 50 px`. A 50 px source is still more
+> context than the pen loupe's `160 / 3.5 = 45.7 px`.
+
+**Kept from the pen loupe:** never a hit target; edge-aware (≤ 24 px from any viewport edge); never
+under the hand or the point; never animated.
+
 **Handedness source (v0.3):** a plain first-run question, default Right, overridable in Settings. Do NOT attempt to read the Windows "which hand" pen setting — **no web API exposes it** (M6). Do not ship copy claiming otherwise.
 
 ### 8.5 Tool behaviors (complete spec)
 
 #### Select / Edit (`SelectTool`)
-- **Tap** selects the topmost object under the tip (hit slop padded 8px, +12px along thin strokes). Selection = `--sel` bounding box (2px) + soft 4px outer glow.
+- **Tap** selects the topmost object under the tip (hit slop padded **16 px general, +24 px along thin strokes** under touch-primary; the pen-era 8/12 was too tight for a finger — §7.1 of the touch model). Selection = `--sel` bounding box (2px) + soft 4px outer glow.
 - **Marquee drag** on empty canvas selects all intersecting. `Shift`+tap / two-finger tap adds to selection.
 - **Handles:** 8 (corner = scale, aspect-locked; edge = free stretch; `Shift` = unlock); rotate handle 40px above top edge, snaps 0/15/30/45/90.
-- **Move:** drag the body. Alignment guides (1px `--sel`, 6px magnet) when edges/centers align. Guides are visual only.
+- **Move (drag) — object-first.** A one-finger drag **moves an object** iff the `pointerdown` hit-tests a grabbable object, the active tool is not Erase, no placement is pending, and the object is not locked; otherwise it **pans**. A **second finger always wins**: it cancels the object drag, **restores the pre-drag position**, and starts pan/zoom. Empty canvas pans. **The Pan tool overrides object-first unconditionally.** A contact that lifts within 8 px of travel is a **tap**, never a drag. *(Object-first is a deliberate product-owner decision against the safer selection-first convention; its mitigations are the deterministic predicate, two-finger drag always pans, second-finger restore, and a labelled undo.)* Alignment guides (1px `--sel`, 6px magnet) when edges/centers align. Guides are visual only.
 - **Mini toolbar** (floating pill, 56px, above selection; flips below if <120px headroom): Duplicate · Delete · Lock · Bring to front / Send to back · Copy style · Paste style · tool-specific extras (Edit points for line/polygon/dimension; Replace photo / Focus for insets; Edit text for text). Every action is undoable.
 - **Point editing:** line, dimension, angle, polygon, and freehand (resample) expose editable nodes; dragging updates the DERIVED label live (labels are always derived, §3.3).
 - **Groups:** select multiple → `Group` (`Ctrl+G`); a callout + leader + text moves as one. Visible as a single bounding box with a `⬚` badge.
 - **Locked objects:** unselectable by tap (only via Layers panel), render at 70% opacity with a `🔒` in Layers; trying to move shows a shake + toast `«Locked — unlock in Layers»`.
 
 #### Dimension (`DimensionTool`) — the flagship flow
-1. **Pen down (A):** loupe appears immediately; snapping within 20 screen px of endpoints/vertices/corners locks to a `--sel` node; near 0/45/90 a ghost ray + `«90°»` chip appears.
-2. **Drag to B:** 1:1 live line (zero easing), arrowheads per style, ticks at ends; live label at midpoint (JetBrains Mono 700, dual-outline halo) showing the value; **collision rule** — if the midpoint is within 140px of the tip, push the label 36px along the perpendicular with a 1px leader.
-3. **Pen up (B):** commit the geometry immediately; the ft-in keypad sheet slides up (canvas dims 25%; rail and style panel dim 40% and go non-interactive).
-4. **Keypad (input model in §6.1.1):** slot state machine; live preview from slots; fraction chips set the denominator for this entry AND update the project precision (§2.4/M11: the Dimension panel's Precision control edits the **project-level** `precisionDenominator` — one source of truth); `✓ Use this value` commits (typed values are exact), `⛓ Chain` (commit + start the next dimension from B), cancel paths (`✕`/`Esc`/tap canvas). **Cancel keeps the drawn geometry** — never discard the stroke.
+
+**Two equivalent placement paths share ONE `PlacementController`** (tap/drag unification): `pointerdown`
+= `placeAnchor(A)`; contact drift updates a provisional B; `pointerup` = `placeAnchor(B)`. A **pen drag**
+is "A on down, B on up, with a live provisional"; a **finger tap-tap** is the same machine with the
+provisional never moving. **There is no second code path for touch.**
+
+1. **Pen drag A→B (unchanged):** pen down at A — loupe appears immediately; snapping within 20 screen px of endpoints/vertices/corners locks to a `--sel` node; near 0/45/90 a ghost ray + `«90°»` chip appears. Drag to B with a 1:1 live line (zero easing), arrowheads per style, ticks at ends, live label at midpoint. **Collision rule** — if the midpoint is within 140 px of the tip, push the label 36 px along the perpendicular with a 1 px leader. **Pen up commits B.**
+2. **Touch tap-tap A→B (new — the default verb):** tap A places the anchor pin — a **44 px `--sel` ring collapsing to 12 px over 90 ms** (this collapse *is* the "tap registered" signal) + a `1` index chip + the **touch loupe** (§8.4) + hint chip `«Tap the second point»`. Tap B commits. Same machine, no drag required.
+3. **Commit → 450 ms settle window (new).** Tap B **commits the geometry immediately**, then opens a **450 ms settle window** during which a live `<PlacementHud>` (✕ · Adjust endpoints · ✓ Value) is interactive (≤ 50 ms). `settleTimer = setTimeout(openKeypad, 450)`. **Any canvas `pointerdown` before it fires clears the timer permanently for this placement** — if the contact was within 40 px of an anchor → `RefineEndpoint`; otherwise → pan. **Refining does not re-arm**; the keypad then opens only via the explicit `✓ Value`. Zero extra taps when confident, a full correction window when not. (450 ms = longer than any plausible finger-linger after a lift, and matches the existing 400 ms hold-to-shape / autosave-coalesce windows.)
+4. **Keypad (input model in §6.1.1):** slot state machine; live preview from slots; fraction chips set the denominator for this entry AND update the project-level `precisionDenominator` (M11); `✓ Use this value` commits; `⛓ Chain`; cancel paths (`✕`/`Esc`/tap canvas). **Cancel keeps the drawn geometry** — never discard the stroke. Per §1.5 of the touch model: `✕` at A discards the pending anchor; `✕`/`Esc` at B or in the keypad keeps the geometry as a **Valueless** object.
 5. **Hardware keyboard fast path:** type `12 6 3` + `Enter`; no focus required while the keypad is open (`parseLooseToSlots`, §6.1.1).
 6. **v1 is typed-only (§2.4):** no `≈`, no calibration, no `«Keep measured…»` (deferred with calibration). The drawn line is visual; the value is typed. Do not render the drawn pixel length as a number anywhere.
 
-#### Angle (`AngleTool`) — vertex-first
+#### Angle (`AngleTool`) — vertex-first, 3 taps
+**Tap-tap:** tap the vertex → tap ray-1 tip → tap ray-2 tip (3 taps), reusing the Dimension placement machine; the arc renders live from tap 1; a tap within 44 px of the vertex cancels. **Pen drag** remains available:
 1. Pen down = vertex (loupe active; strong snapping to endpoints).
 2. Drag = first ray (live `--sel` guide).
 3. Lift, then tap/drag = second ray; live arc (radius auto 40% of shorter ray, min 32px, max 120px) with arrows and the degree value at the midpoint.
@@ -1575,16 +1719,17 @@ Coalescing rules:
 6. Committed as a three-point object (vertex + two rays + arc); dragging any endpoint recomputes arc + label live.
 
 #### Line, Arrow/Leader, Rectangle, Ellipse, Polygon
-Shared pattern — **pen-down to start, drag to size, pen-up to commit**; hold steady 400 ms for constraint; all re-editable after commit via Select.
+Shared pattern — **two equivalent paths**: (a) pen/touch **drag** — down to start, drag to size, up to commit; (b) **tap-tap** — tap start, tap end/opposite corner (Line, Arrow, Rectangle, Ellipse), reusing the Dimension tool's `PlacementController` and its 8 px tap slop. Tap counts: **Line/Arrow/Rect/Ellipse = 2 · Polygon = `open` · Angle = 3**. Hold steady 400 ms for constraint; all re-editable after commit via Select. Naming/commit is unchanged by path — a tap-tap line is byte-identical to a dragged one.
 
 - **Line:** A→B, endpoint snapping, live length readout at midpoint, 45° constraint on hold.
 - **Arrow/Leader:** like Line, default single end arrowhead; `elbow` (straight/90°/curved). Optional text slot: after drawing, if Text was the last-used text style, show `«Add label»` at the tail → converts the leader into a callout with an attached text object.
 - **Rectangle:** corner-to-corner or center-out (setting); corner radius (0/4/12/24); live `W × H`; **fill applies with transparency, default no fill** (so the photo stays readable).
 - **Ellipse:** like Rectangle minus corner radius; hold-to-constrain = circle; live `W × H`.
-- **Polygon:** tap-by-tap vertex placement (numbered `--sel` nodes, snapping, rubber-band to previous). Close by tapping the first node (grows a `--sel` ring within 24px) or `Enter`. `Backspace` removes last vertex; double-tap last vertex ends an open path. (Polygon area readout is deferred with calibration, §2.4.)
+- **Polygon:** tap-by-tap vertex placement (numbered `--sel` nodes raised to a **56 px hit**, snapping, rubber-band to previous). Close by tapping the first node (grows a 56 px `--sel` ring within 32 px) or `Enter`. An on-screen **`✓ Done`** HUD button is the discoverable equivalent of `Enter`, and **`«Undo point»`** replaces `Backspace` for touch — every keyboard-only action has an on-screen control (§11.1 #7). `Backspace` still removes the last vertex; double-tap the last vertex ends an open path. (Polygon area readout is deferred with calibration, §2.4.)
 
 #### Freehand & Highlighter (`FreehandTool`)
 - **Freehand:** 1:1 ink via `getCoalescedEvents()`; pressure → width when enabled (min 30% of nominal at 0 pressure); tilt → width for pen; catmull-rom → bezier fit (a 12-point stroke renders smooth). Smoothing 0–100 (default 45).
+- **Pen-fluent, finger-opt-in (touch-primary).** `pressure` and `tilt` are **pen-only signals** — `pressure` is a parallel array filled from pen input (§3.3), so a finger cannot emit either. A finger may draw freehand only when `«Finger draws (freehand)»` is ON (default **OFF**), and then pressure→width is **off**, width uses a fixed floor of **8 mu**, smoothing is **60**, thinning **0**. Say it once in-context: `«Freehand is most precise with the pen.»` **Expression is the pen-only part; state that rather than faking it.**
 - **Perfect shape on hold:** pen still within 8px for 400ms at stroke end → replace with a recognized primitive (line/rect/ellipse). `«⇧ Shape»` chip during hold; moving >8px cancels (keeps the freehand stroke). On by default.
 - **Rendering (v0.3 hardened — verified against perfect-freehand 1.2.3):** store raw points + pressure in `markup.json`; render via perfect-freehand. **The package exports ONLY `getStroke`, `getStrokePoints`, `getStrokeOutlinePoints` — `getSvgPathFromStroke` is NOT exported.** Use this local helper (`src/editor/shapes/svgPath.ts`):
   ```ts
@@ -1628,7 +1773,7 @@ Shared pattern — **pen-down to start, drag to size, pen-up to commit**; hold s
   const path = new Konva.Path({ data: d, fill: style.strokeColor, strokeScaleEnabled: false });
   ```
   Never store the derived path — only raw input points.
-- **Highlighter:** multiply blend, default 30% alpha, chisel tip (tilt changes chisel angle); **auto z-order: inserted below all other markup but above the photo** (a dedicated z-band). Long-press for chisel width + `Straight line` lock.
+- **Highlighter:** multiply blend, default 30% alpha, chisel tip (tilt changes chisel angle); **auto z-order: inserted below all other markup but above the photo** (a dedicated z-band). Long-press for chisel width + `Straight line` lock. **Under touch the `Straight line` lock defaults ON**, turning the Highlighter into the app's touch-native stroke tool: a **tap-tap** A→B straight 24 px chisel bar reusing the placement machine verbatim; freehand highlight stays available via long-press. Chisel-width default for touch = **24**.
 
 #### Text (`TextTool`)
 - Tap → inline caret at tap point, Windows soft keyboard slides up; canvas auto-pans so the caret is never under the keyboard.
@@ -1662,8 +1807,8 @@ Shared pattern — **pen-down to start, drag to size, pen-up to commit**; hold s
 - Objects created *outside* Focus render **above** all insets; objects created *inside* belong to the inset, are clipped to it, and scale/rotate with it.
 
 #### Erase / delete (`EraseTool`) — two modes (long-press to switch)
-- **Object mode:** pen hover/drag outlines the object (`--err` + name chip); tap/drag deletes. **Undo toast (8s), no dialog** (undo exists).
-- **Stroke mode:** erases freehand/highlighter segment-wise by **splitting strokes at the nearest raw input points** (vector-safe, approximate but feels right). Do **not** reach for a polygon-boolean library — it explodes scope and breaks the "keep raw points" rule.
+- **Object mode (works well with touch):** pen hover/drag outlines the object (`--err` + name chip); tap/drag deletes. **Under touch there is no hover**, so the pen preview is replaced by **tap-to-delete + an undo toast naming the object** (`«Undid: Delete dimension 12' 6"»`) — delete immediately, because a delay reads as lag. For a pre-commit signal, **long-press 600 ms** reveals the `--err` outline + name chip *without* deleting. **Undo toast (8s), no dialog** (undo exists).
+- **Stroke mode is pen-only under touch:** segment-wise scissoring needs pen precision. Under touch, **hide stroke mode** and show `«Splitting a stroke needs the pen. Touch can delete the whole stroke.»` A finger in stroke mode deletes whole strokes (tap-to-delete). Erases freehand/highlighter segment-wise by **splitting strokes at the nearest raw input points** (vector-safe, approximate but feels right). Do **not** reach for a polygon-boolean library — it explodes scope and breaks the "keep raw points" rule.
 - Scope chips: `Ink` / `Markup` / `Everything`. `Everything` shows `--err` tint + requires confirm.
 - `Clear sheet markup` lives in the overflow menu (not the rail); dialog lists counts per category + hold-to-confirm.
 
@@ -1779,13 +1924,13 @@ interface EditorState {
 
 ### 11.1 Interaction principles (non-negotiable)
 
-1. **Pen draws, finger navigates** (split by `pointerType`; touch suppressed 1.2 s after any pen event AND during any active pen stroke — §8.2). Toggles: "Finger draws" (off), "Pen navigates" (off).
+1. **Touch taps and moves; the pen draws. Both create geometry** (§8.2). Touch is the primary input; the pen enhances it with pressure, tilt and hover. Touches are suppressed 1.2 s after any pen event AND during any active pen stroke; **with no pen present there is no deterministic palm suppression** — edge rejection + multi-touch debounce are bounded heuristics only, and undo + `pointercancel` rollback are the safety net. Toggles: `«Touch places and moves»` (ON), `«Finger draws (freehand)»` (OFF), `«Magnifier when you tap»` (ON), `«Gloved touch»` (OFF); `«Pen only»` remains an input filter, no longer the only one.
 2. **The photo is never occluded by persistent chrome.** Anything over the canvas is transient (loupe, keypad, popovers, selection toolbar), dismissible by tapping the canvas / `Esc` / completing the action.
 3. **Style is always one tap from the tool** — the Style Chip is a live WYSIWYG render of the next stroke, always on screen.
 4. **Back is always safe** — everything autosaves, so back never prompts/warns/loses work.
 5. **Destructive needs intent** — recoverable = toast + undo (never a dialog); irreversible = dialog with **hold-to-confirm (600 ms)**.
 6. **Marks must survive any photo** — dual-outline text + 92%-opaque control backgrounds over the photo, everywhere.
-7. **No gesture-only actions** — every gesture has an on-screen button.
+7. **No gesture-only or hover-only actions** — every gesture and every pen-hover affordance has an on-screen control (§11.6 #18). Two-finger tap is a secondary path only; the actions it triggers also exist as buttons.
 
 ### 11.2 Target device & layout
 
@@ -1821,9 +1966,9 @@ Physical math (267 ppi @ 200%: 1 CSS px = 0.1904 mm): 48px = 9.1mm (floor), 56px
 | INSERT | Image inset |
 | ERASE | Erase (isolated, `--err` on press, 16px extra gap) |
 
-Button states: default → pen-hover (`--g750` + tooltip) → active (`--hi` fill, white icon, 4px accent bar) → pressed (0.96 scale) → long-press (tool options popover). Disabled only for Erase when everything is locked.
+Button states: default → hover (`--g750` + tooltip; **under touch the Style Chip names the tool and press-and-hold opens the tool's name + options** — there is no hover, §11.6 #18) → active (`--hi` fill, white icon, 4px accent bar) → pressed (0.96 scale) → long-press (tool options popover). Disabled only for Erase when everything is locked.
 
-Radial menu: **only** as an 8-slot recents quick-swap (last 8 distinct tools), invoked by pen barrel-button hold or press-and-hold+flick; absent if the pen reports no barrel button. **Not** a replacement for the rail.
+Radial menu: **only** as an 8-slot recents quick-swap (last 8 distinct tools). **The primary entry path is the rail's press-and-hold** (works for touch, mouse and pen); the pen **barrel-button hold** is an *optional accelerator* on top of it, so the radial is reachable even if the pen reports no barrel button. **Not** a replacement for the rail.
 
 ### 11.5 Style panel
 
@@ -1837,7 +1982,7 @@ Radial menu: **only** as an 8-slot recents quick-swap (last 8 distinct tools), i
 
 1. Vertical tool rail on the pen-hand side (not a bottom bar / left palette).
 2. Rail is a 2-column grid, bottom-anchored, undo/redo at the bottom.
-3. No full-tool-set radial menu — only the 8-slot recents radial, only with a barrel button.
+3. No full-tool-set radial menu — only the 8-slot recents radial. Its **primary entry is the rail's press-and-hold** (every input); the pen barrel-button hold is an optional accelerator.
 4. Style Chip is a WYSIWYG render, not a colored dot.
 5. Style edits apply to selection AND update tool default; mixed = indeterminate; incompatible controls disabled (not hidden).
 6. Dimension loupe on pointerdown with zero delay, edge-aware, never under hand/tip; label offsets with a leader line.
@@ -1852,7 +1997,7 @@ Radial menu: **only** as an 8-slot recents quick-swap (last 8 distinct tools), i
 15. Sunlight mode is a token-level theme, not a filter.
 16. Dual-outline text + 92%-opaque control backgrounds over the photo.
 17. 2px minimum hairlines (no 1px borders).
-18. Pen hover drives tooltips and erase targeting.
+18. Pen hover drives tooltips and erase targeting. **Under touch (no hover) the equivalents are mandatory:** the Style Chip names the tool + shows a WYSIWYG swatch; press-and-hold a rail button for name + options; erase = tap-to-delete + undo toast (long-press to preview without deleting); a proximity halo marks the nearest handle within 56 px. Snap preview survives (snap resolves at `pointerdown` and during refine, shown by the pin + loupe).
 19. Export ends by telling the user to drag the folder into Dropbox.
 20. **Precision is project-level; the Dimension panel edits the project value — never a per-tool-only override** (M11).
 
@@ -1903,9 +2048,9 @@ Modal (880×700 over 60% scrim), step rail `Scope · Format · Destination`:
 
 - WCAG 2.2 AA: 4.5:1 text, 3:1 UI. Sunlight mode = token-level theme (#000/#FFF ≈21:1, 64px floor, no fades).
 - Dual-outline canvas text (`paint-order: stroke; stroke: rgba(11,14,18,.85)` 4px halo behind fill).
-- 2px minimum hairlines; targets 56px (rail/style) / 64px (keypad/shutter/dialog) / 48px floor; 8px gap.
-- Pen hover drives tooltips/erase preview. **Handedness = the first-run question (default Right, overridable in Settings)** — mirrors rail side, style panel side, loupe offset, keypad side, toolbar anchor. Do not read the Windows pen setting (impossible from the web).
-- Full keyboard operability (`:focus-visible` rings, logical tab order, arrow-nudge 1px/10px, direct typing into keypad). Screen reader: `aria-label` naming tool + current style; accessible object tree mirroring Layers.
+- 2px minimum hairlines; targets 56px (rail/style) / 64px (keypad/shutter/dialog) / **48px floor under touch-primary**; **hit slop 16px general / 24px along thin strokes** (raised from the pen-era 8/12px; §7.1 of the touch model); 8px gap.
+- **Under touch there is no hover**; every pen-hover affordance has an explicit touch equivalent (§11.6 #18). **Handedness** is the first-run question (default Right, overridable in Settings) — it mirrors rail side, style-panel side, **loupe offset direction (the touch loupe flips away from the handedness side and the nearest corner)**, keypad side and toolbar anchor. Do not read the Windows pen setting (impossible from the web).
+- Full keyboard operability (`:focus-visible` rings, logical tab order, arrow-nudge 1px/10px, direct typing into keypad). Screen reader: `aria-label` naming tool + current style; accessible object tree mirroring Layers. **Make the canvas container focusable** so arrow-nudge works after a touch selection.
 - Pen-to-ink ≤16ms; tool-swap ≤100ms; audio off by default; offline-correct (no CDN/telemetry).
 
 ---
@@ -1946,7 +2091,7 @@ All user-visible text lives in `src/ui/strings.ts`.
 
 ## 13. Build plan (slices)
 
-Build in order. Do not start a slice until the previous slice's "done when" passes **on a real Surface with a pen** (mouse-only testing misses the important bugs). Each slice leaves the app usable.
+Build in order. Do not start a slice until the previous slice's "done when" passes **on a real Surface** (touch-first; a pen is used where a gate names one). Mouse-only testing misses the important bugs. Each slice leaves the app usable.
 
 > **Session 4 added three slices** — 0.0, 1.4.5 and 1.11 — for work that previously had no
 > owner. `docs/implementation-plan.md` is the authority on order and done-ness and carries
@@ -1964,12 +2109,12 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 
 ### 0.2 — Input spike (do this before any UI)
 **Files:** `src/editor/inputRouter.ts`, a throwaway test canvas.
-**Do:** pen/touch/mouse classification, **hardened palm window (§8.2: every pen event refreshes; touch blocked during active pen strokes)**, `touch-action:none`, pointer capture, pinch-zoom in `touchmove`, coalesced events. **Also enumerate the device's real getUserMedia resolution caps** (A7) and torch/flip behavior — report the numbers, they set the capture toggle labels in slice 1.4.
-**Done when:** pen draws a line; finger pans; **a palm resting on the glass mid-stroke (stroke > 1.2 s) does not pan/zoom/smudge**; ink ≤16ms perceived. **This is the highest-risk part of the product — spike it first.**
+**Do:** pen/touch/mouse classification per the **§8.2 touch-primary contract and its truth table** — the two-gate palm rule (every pen event refreshes the window; touch blocked during active pen strokes) **and the pen-free path** (edge rejection + multi-touch debounce), `touch-action:none`, pointer capture, pinch-zoom in `touchmove`, coalesced events, `pointercancel` rollback, and the sticky intent-at-`pointerdown` rule. **Also enumerate the device's real getUserMedia resolution caps** (A7) and torch/flip behavior — report the numbers, they set the capture toggle labels in slice 1.4.
+**Done when:** **touch places a point (tap-tap) and a pen draws a line; a single finger pans and two fingers pinch-zoom; a drag moves the object under the finger (object-first) and a second finger restores it.** With a pen present, a resting palm mid-stroke (stroke > 1.2 s) does not pan/zoom/smudge, and touch within 1.2 s of a pen event is ignored. **With no pen present** (`[Surface — pending]`, log the result): a heel resting on the glass does not place a point (edge rejection) and a heel burst is debounced, but the heuristics are probabilistic — a stray palm action must be recoverable via undo + `pointercancel`. Ink ≤16ms perceived. **This is the highest-risk part of the product — spike it first.**
 
 ### 0.3 — First-run, Settings, Home shell (NEW — M6/M9)
 **Files:** `src/ui/FirstRun.tsx`, `src/ui/Settings.tsx` (minimal), `src/state/appStore.ts`, `src/ui/ProjectList.tsx` (shell with empty/error states).
-**Do:** the two first-run steps (handedness — plain question, default Right; projects folder — `showDirectoryPicker` with suggested `Documents\FieldMeasure`); settings: handedness, units/precision, theme, density; Home shell renders the project-card grid (empty + loading states; scanning/permission come with slice 1.2's backend).
+**Do:** the two first-run steps (handedness — plain question, default Right; projects folder — `showDirectoryPicker` with suggested `Documents\FieldMeasure`); settings: handedness, **input/model toggles (`«Touch places and moves»` ON · `«Finger draws (freehand)»` OFF · `«Magnifier when you tap»` ON · `«Gloved touch»` OFF · `Pen only`)**, units/precision, theme, density; Home shell renders the project-card grid (empty + loading states; scanning/permission come with slice 1.2's backend).
 **Done when:** first run completes in < 20 s; handedness persists; Home renders an honest empty state; airplane-mode reload still works.
 **Note:** handedness MUST land here — slice 1.4's loupe consumes it.
 
@@ -2000,13 +2145,14 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 
 ### 1.5 — Dimension tool (flagship)
 **Files:** `src/editor/tools/DimensionTool.ts`, `src/editor/Loupe.ts`, `src/editor/history.ts`, `src/ui/DimensionKeypadSheet.tsx`, `src/editor/shapes/`.
-**Do:** pen A→B + loupe (handedness-aware) + **keypad slot model (§6.1.1)** + live preview + derived label + select/move-endpoints/delete + undo/redo (§8.5).
-**Done when:** 4 dims in <60s (gloves off), 90s (gloves on); **hardware `12 6 3` + Enter → `12'-6 3/16"`** (at default 1/16 precision); cancel keeps the stroke; Chain works; **labels re-derive when project precision changes**.
+**Do:** **tap-tap placement (touch) AND pen-drag A→B**, sharing one `PlacementController`; the **450 ms settle window** with the live `<PlacementHud>`; the **touch loupe variant** (200 px / 4× / 136 px offset / contact disc / dashed leader / freeze-on-lift 700 ms) alongside the pen loupe (handedness-aware); **keypad slot model (§6.1.1)** + live preview + derived label + select/move-endpoints/delete + undo/redo (§8.5).
+**Done when:** **tap A, tap B places a dimension, the keypad auto-opens after 450 ms, and any canvas contact inside the settle window cancels the auto-open and keeps the geometry**; pen-drag A→B still commits on pen-up; 4 dims in <60s with touch (gloves off), 90s (gloves on); **hardware `12 6 3` + Enter → `12'-6 3/16"`** (at default 1/16 precision); cancel keeps the stroke (keypad cancel, not `pointercancel`); Chain works; **labels re-derive when project precision changes**.
 
 ### 1.6 — Markup tools
 **Files:** `src/editor/tools/{SelectTool,AngleTool,ShapeTool,FreehandTool,TextTool}.ts`, shapes renderers.
-**Do:** line, arrow, rect, ellipse, polygon, freehand (**local `getSvgPathFromStroke`, `size = mu / s` — §8.5**), highlighter, text, angle (§8.5); selection handles, grouping, locking, layers panel (§8.6).
-**Done when:** every tool draws with the pen, is selectable and undoable; highlighter renders below other markup; **ink width is constant across zoom**.
+**Do:** line, arrow, rect, ellipse, polygon, freehand (**local `getSvgPathFromStroke`, `size = mu / s` — §8.5**), highlighter, text, angle (§8.5); **tap-tap placement for every shape tool** (Line/Arrow/Rect/Ellipse = 2 taps, Polygon = `open` with `✓ Done`/`«Undo point»`, Angle = 3 taps) and **object-first drag** on Select; selection handles, grouping, locking, layers panel (§8.6).
+**Done when:** **every placement tool places with tap-tap AND draws with the pen**, is selectable and undoable; a one-finger drag moves the object under the finger and a second finger restores its prior position; highlighter renders below other markup; **ink width is constant across zoom**.
+**Pressure gate (`[Surface — pen required]`):** `pressure`/`tilt` are **pen-only signals** — `pressure` is a parallel array filled from pen input (§3.3) and is **unreachable from a finger**. The "pressure visibly varies stroke width" check therefore runs **only** on a Surface with a pen and is logged to the hardware checklist. The finger path is asserted instead against its touch fallback: with `«Finger draws (freehand)»` ON, ink uses a **fixed 8 mu width, smoothing 60, thinning 0** — no pressure/tilt code path is entered.
 
 ### 1.7 — Image insets
 **Files:** `src/editor/tools/InsetTool.ts`, inset rendering (Konva.Group + scale + clipFunc, §8.5 coordinate model).
@@ -2048,9 +2194,11 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 | Unit | Vitest | units parse/format, **keypad slot model (§6.1.1) incl. the 500-combo property test**, geometry, snapping, schema round-trip + v0.2 tolerance, filename sanitization (trailing dots, device names, length caps) |
 | Export invariance | Vitest (node-canvas or Playwright) | §4.2 invariant: stroke/glyph bitmap px = `mu × M` at M∈{1,2,3}; page pt = imagePx × 0.75 |
 | Component | Vitest + Testing Library | keypad live-parse preview (slots → preview), toolbar active states, style panel mixed/indeterminate states |
-| E2E | Playwright | open app → import fixture photo → draw a dimension with synthetic pen PointerEvents → reload → confirm persisted → export PDF → non-empty, page size correct |
+| E2E | Playwright | open app → import fixture photo → **place a dimension with tap-tap (synthetic touch PointerEvents) and draw one with synthetic pen PointerEvents** → reload → confirm persisted → export PDF → non-empty, page size correct |
 | Storage (manual + scripted) | Playwright + kill-switch harness | kill mid-`markup.json` write, mid-`photo.jpg` write, mid-`move()` → all recover; two-tab same-project readonly; two-tab different-projects writable |
-| Field | Humans | gloves, bright sun (contrast), 8h offline, battery drain, 50-photo project, pen+touch palm rejection (incl. >1.2 s strokes with a resting palm) |
+| Field | Humans | gloves, bright sun (contrast), 8h offline, battery drain, 50-photo project, **touch-first palm rejection (heel/bezel) and pen+touch palm rejection (incl. >1.2 s strokes with a resting palm)** |
+
+**Touch a11y gates (per slice, §19.6):** target floor **48×48 under touch-primary**; **hit slop 16 px general / 24 px along thin strokes**; every hover-only affordance has an on-screen equivalent (§11.6 #18). Assert computed geometry at both real viewports/DPR 2 in the Playwright suite.
 
 **The four highest-stakes pure modules are snapping, ft-in parsing, the keypad slot model, and the export scaling rules** — a bug in any is a wrong measurement or a wrong artifact. Give all four extensive unit tests.
 
@@ -2058,7 +2206,7 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 
 ## 15. Rules for the AI builder
 
-1. Build slices in order (§13). No slice until the prior slice's "done when" passes on a real Surface with a pen.
+1. Build slices in order (§13). No slice until the prior slice's "done when" passes on a real Surface (touch-first; a pen where the gate names one).
 2. **Never add:** servers, databases, sign-in, analytics/telemetry, cloud SDKs (Dropbox/OneDrive/Google/Graph), Bluetooth/device code, AI features, service-worker caching of user photos.
 3. Runtime dependencies are fixed (§2.2). `crypto.randomUUID()` for ids — no `uuid` package.
 4. **Do not use react-konva.** The canvas is the imperative `EditorCanvas` (Konva.Stage/Layer/Shape). React renders only the chrome around it.
@@ -2270,6 +2418,10 @@ slice 1.9 with a reference implementation and a 20-row test table.
   is fixed at 3.5×** and the source region is derived — `sourcePx = diameterPx / 3.5` (112px →
   32px, 160px → 45.7px, 200px → 57px). Magnification stays constant when the user changes
   loupe size, which is what makes endpoint placement predictable.
+- **The touch loupe (§8.4) follows the same formula at 4×:** `sourcePx = diameterPx / 4` →
+  `200 / 4 = 50px`. The design source's phrase "4× of a **100×100** source" cannot hold (`100px` in a
+  `200px` window is exactly `2×`); magnification stays fixed and the source is derived instead, so
+  the touch loupe still shows more context than the pen loupe's `160 / 3.5 = 45.7px`.
 - **§2.4's "§8.7" cross-reference does not exist** (§8 ends at §8.6). The presets/recents/
   per-tool-memory specification is **§11.5**.
 - **§13/0.3's note said "slice 1.4's loupe"**; the loupe is built in **slice 1.5**.
@@ -2283,9 +2435,12 @@ slice 1.9 with a reference implementation and a 20-row test table.
 §11.12 is scheduled entirely in slice 1.10. Retrofitting focus order, roles, names, and the
 accessible object tree across eight slices of already-built UI is the standard way
 accessibility does not happen. Rule: **every slice that ships UI carries its own a11y
-acceptance** (focus order, visible focus ring, `aria-label` on every control, 44×44 minimum
-target, no keyboard trap). Slice 1.10 keeps the themes, the accessible *object tree* for
-canvas annotations, and the end-to-end audit — not the whole of §11.12.
+acceptance** (focus order, visible focus ring, `aria-label` on every control, **48×48 minimum
+target under touch-primary — raised from 44×44 — and hit slop 16 px general / 24 px along thin
+strokes**, no keyboard trap). The only sanctioned sub-48 exceptions stay the 44 px swatch grid and
+the 44 px Recent chips (C5) — the count stays at **two**; no third exception is created. Slice 1.10
+keeps the themes, the accessible *object tree* for canvas annotations, and the end-to-end audit —
+not the whole of §11.12.
 
 ---
 
@@ -2397,13 +2552,19 @@ list and no grouping anywhere in the document. It is not marked deferred. Defini
 plain — it is a settings list, not a designed surface):
 
 > A single scrolling column, max-width 720px, of labelled groups in this order:
-> **Input** (handedness · `Pen only` toggle · palm-rejection window, read-only display of 1200 ms) ·
+> **Input** (handedness · **`Touch places and moves`** — default ON · **`Finger draws (freehand)`**
+> — default OFF · **`Magnifier when you tap`** — default ON · **`Gloved touch`** — default OFF ·
+> `Pen only` — an input *filter*, and **no longer the only one** · palm-rejection window, read-only
+> display of 1200 ms) ·
 > **Units** (unit system · unit format · *note that precision is per-project, with a link*) ·
 > **Display** (theme · density) · **Storage** (projects-folder path in mono · `Change folder…` ·
 > persistent-storage state · `Trash…`) · **About** (build version + date — §19.2 — and
 > `Third-party notices`).
 > Rows are 56px, label left, control right, 1.5px divider between rows, group headers 13px
 > `--g400` uppercase. No search, no tabs, no icons.
+>
+> **Touch-primary defaults (§8.2):** the pen always draws; touch placement is the default; finger
+> freehand is opt-in; the tap magnifier is on. `Pen only`, when on, ignores touch input entirely.
 
 Anything else a builder wants to add to Settings needs a DECISIONS line first.
 

@@ -2,9 +2,16 @@
 
 > Source: `docs/ui-spec-field-measure-v2-hardened.md` + `docs/preflight-handoff-v0.3-hardened.md`.
 > The complete set of user-visible copy, verbatim, keyed for `src/ui/strings.ts`.
-> Count: 209 distinct strings. Generated 2026-09-21.
+> Count: 223 distinct strings. Generated 2026-09-21; revised for the touch-primary input model 2026-09-21.
 >
-> **Refs.** `U §x:line` = `docs/ui-spec-field-measure-v2-hardened.md`; `P §x:line` = `docs/preflight-handoff-v0.3-hardened.md`.
+> **Touch-primary revision (2026-09-21).** The app is switching from pen-first to **touch-primary**
+> (`docs/gui-ux-readiness-and-design-handoff.md` §13, `docs/touch-first-interaction-model.md`). Rows
+> whose `Source ref` reads **`TF §9`** are **proposed, not final** — the wording is the content owner's
+> (`TF §9`). They are keyed and listed so `src/ui/strings.ts` has somewhere to put them, but they must
+> **not** be treated as approved copy. Gap placeholders flagged **⚠ unapproved** are likewise keys only,
+> never wording to ship.
+>
+> **Refs.** `U §x:line` = `docs/ui-spec-field-measure-v2-hardened.md`; `P §x:line` = `docs/preflight-handoff-v0.3-hardened.md`; `TF §x` = `docs/touch-first-interaction-model.md` (proposed design, **not canonical**).
 > **Verbatim:** every `String` column is reproduced exactly as written between the guillemets — typos, punctuation, `…`, dash characters and inner whitespace preserved. No guillemets appear in the `String` column.
 > **Interpolation:** the `Interpolation` column lists the runtime-filled parts; a blank cell means the string is literal. Example strings keep their literal example text (e.g. `Sheet 04`, `Saved 2:14 PM`) with the varying parts described here.
 
@@ -83,7 +90,7 @@
 | editor.undo | Undo | Undo button; erase/capture/sheet-delete undo toasts | U §8.7:566; U §10.1:633; U §13.3:765 | |
 | editor.clearSheetMarkup | Clear sheet markup… | Overflow menu destructive item (opens the counts + hold-to-confirm dialog) | U §8.7:569 | |
 | editor.layersNameFreehand | Freehand | Layers panel row name for an ink object | U §9:609 | |
-| editor.emptyHint | Tap a tool, then draw on the photo | Editor empty-state canvas hint (new sheet) | U §17:927 | |
+| editor.emptyHint | Tap a tool, then tap the photo | Editor empty-state canvas hint (new sheet) — **touch-primary wording** (was "Tap a tool, then draw on the photo") | U §17:927; TF §9 | |
 | editor.layersEmpty | No markup yet | Layers panel empty state | U §17:930 | |
 | editor.deleteSheet | Delete sheet | Undo semantics copy: post-write capture/import become delete-sheet ops | U §13.2:759 | |
 | editor.replaceWarnFragment | markup may land in the wrong place | Destructive-policy table fragment for the Replace-photo warned dialog | U §13.3:772 | |
@@ -119,7 +126,7 @@
 | keypad.projectPrecisionEighth | Project precision: 1/8 | Keypad chip confirming the project-level precision change | U §8.1:498 | `{denominator}` |
 | keypad.ftToggle | ft | Keypad unit toggle (routes to the feet slot) | P §6.1.1:1126 | |
 | keypad.inToggle | in | Keypad unit toggle (re-scopes entry to inches) | P §6.1.1:1126 | |
-| keypad.offlineNote | Saved locally, will write when the folder is back. | Keypad sheet error state when the folder is unavailable at commit | U §8.1:514 | |
+| keypad.offlineNote | Saved locally, will write when the folder is back. | Keypad sheet error state when the folder is unavailable at commit — **C14 keypad offline note is already quoted** (no change needed) | U §8.1:514 | |
 
 ## dimension
 
@@ -170,7 +177,7 @@
 
 | Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
 |---|---|---|---|---|
-| inset.placeHint | Tap where the inset should go | Hint chip following the pen during inset insertion | U §9:578 | |
+| inset.placeHint | Tap where the inset should go | Hint chip during inset insertion — **touch or pen** (no "following the pen"; touch has no hover) | U §9:578; TF §6.3 | |
 | inset.takePhoto | Take a photo | Insert picker sheet row (launches capture in inset mode) | U §9:580 | |
 | inset.chooseFromDevice | Choose from device | Insert picker sheet row (OS file picker, multi-select) | U §9:581 | |
 | inset.recentPhotos | Recent photos | Insert picker sheet row (4×2 grid of recent project images) | U §9:582 | |
@@ -285,7 +292,59 @@
 
 | Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
 |---|---|---|---|---|
-| settings.penOnly | Pen only | Canvas/settings "pen only" toggle (limits finger gestures) | U §14.7:795 | |
+| settings.penOnly | Pen only | Settings → Input toggle: limits finger gestures to two-finger pan/zoom. **No longer the only input filter** — it sits alongside the four touch toggles below. **Default OFF** under touch-primary (was the default safety mode under pen-first) | U §14.7:795; TF §7.7 | |
+| settings.touchPlaces | Touch places and moves | Settings → Input toggle — permits tap/tap and drag to place and move geometry. **Default ON** | TF §9; TF §0, §7.7; U §14.7:270 | |
+| settings.fingerDraws | Finger draws (freehand) | Settings → Input toggle — permits finger freehand ink (pressure→width off, width floor 8 mu, smoothing 60). **Default OFF** | TF §9; TF §0, §4.2, §7.7; U §14.7:270 | |
+| settings.magnifierOnTap | Magnifier when you tap | Settings → Input toggle — the touch loupe on placement (200px, 4×, contact disc). **Default ON** | TF §9; TF §2.1, §7.7; U §8.1:479 | |
+| settings.glovedTouch | Gloved touch (bigger touch targets) | Settings → Input toggle — hit slop +8px, snap acquire +4px, loupe offset +16px. **Default OFF** | TF §9; TF §7.6, §7.7; U §14.7:270 | |
+
+**Note.** `TF §9` strings in this section are **proposed, not final** (see the touch-primary revision
+note at the top of this file). `settings.penOnly` keeps its existing quoted string; only its scope and
+default context change.
+
+## placement
+
+| Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
+|---|---|---|---|---|
+| placement.firstPoint | Tap the first point | Hint chip, AnchorA-1 | TF §9 | |
+| placement.secondPoint | Tap the second point | Hint chip, AnchorA | TF §9; U §8.1:473,529 | |
+| placement.adjustEndpoints | Adjust endpoints | Placement HUD / keypad sheet | TF §9; U §8.1:491,513 | |
+| placement.adjusting | Adjusting dimension | Top-centre chip in edit mode | TF §9 | |
+| placement.undoPoint | Undo point | Polygon HUD | TF §9; U §8.3:559 | |
+| placement.closeShape | Close shape | Polygon HUD | TF §9; U §8.3:559 (as `✓ Done`) | |
+
+**Note.** `TF §9` strings — **proposed, not final**. `placement.*` is the tap-tap placement grammar's
+copy (`TF §1`); `placement.undoPoint` / `placement.closeShape` replace the keyboard-only `Backspace` /
+`Enter` affordances for Polygon.
+
+## select
+
+| Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
+|---|---|---|---|---|
+| select.touchHint | Drag to move. Two fingers to pan. | One-time hint, first touch selection | TF §9 | |
+
+**Note.** `TF §9` string — **proposed, not final**. Stating the §3.1 drag predicate and the reserved
+two-finger pan in one line.
+
+## touch
+
+| Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
+|---|---|---|---|---|
+| touch.drawnVsTyped | The value you type is the measurement. The line shows where you put it. | One-time hint, first touch dimension | TF §9 | |
+| touch.freehandPenBetter | Freehand is most precise with the pen. | One-time hint, first finger freehand | TF §9; U §7.2:425; U §8.4:563 | |
+
+**Note.** `TF §9` strings — **proposed, not final**. These are the two hand-off honesty lines
+(`TF §8` risks 1 and 7); `touch.drawnVsTyped` is the typed-measurement reframing from
+`docs/gui-ux-readiness-and-design-handoff.md` §13.7.
+
+## erase
+
+| Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
+|---|---|---|---|---|
+| erase.strokeNeedsPen | Splitting a stroke needs the pen. Touch can delete the whole stroke. | Erase panel note shown under touch (stroke mode hidden) | TF §9; TF §4.1 | |
+
+**Note.** `TF §9` string — **proposed, not final**. Under touch, stroke-split erase is pen-only and the
+stroke-mode control is hidden; this note explains why.
 
 ## errors
 
@@ -326,19 +385,26 @@
 These places clearly require user-visible text but the specs provide no guillemet string. The builder would otherwise invent them. (Spec refs use the same `U`/`P` convention.)
 
 1. **Settings screen** — `P §20.5(b)` defines the whole screen (group headers `Input`, `Units`, `Display`, `Storage`, `About`; row labels and controls, `Change folder…`, persistent-storage state text, build version + date, `Third-party notices`) but gives no strings at all. Only `Pen only` is quoted (and that from `U §14.7`).
+   - **⚠ unapproved keys (C14):** `settings.headingInput`, `settings.headingUnits`, `settings.headingDisplay`, `settings.headingStorage`, `settings.headingAbout`, `settings.changeFolder`, `settings.storageProtected`, `settings.storageNotProtected`, `settings.buildVersion`, `settings.thirdPartyNotices` — plus the four touch toggles now quoted-by-proposal in `## settings` above (`TF §9`, default context added). Proposed wording lives in `docs/appendix-strings-gaps.md` §1 and is **not final copy**; the touch toggles need content-owner approval before shipping.
 2. **Theme options** — `U §14.2` (`Standard` / `Sunlight` / `Dim`) and **density options** `U §3.5` (`Field` / `Desk`) are backticked, not quoted.
 3. **Home sort control** — `U §11.1:659` names `Sort: Recent ▾` and the options `Recent` / `Name` / `Size` / `Needs attention`; none are quoted.
+   - **⚠ unapproved keys (C14):** `home.sortLabel`, `home.sortRecent`, `home.sortName`, `home.sortSize`, `home.sortNeedsAttention` (`docs/appendix-strings-gaps.md` §3).
 4. **Home search field** — `U §11.1:658` places a search field with no placeholder or label copy.
+   - **⚠ unapproved key (C14):** `home.searchPlaceholder` (`docs/appendix-strings-gaps.md` §4).
 5. **Unit-format & precision option labels** — `U §7.2:406` (`ft-in` / `in` / `decimal ft`; precision `1/16`→`1"`); only `ft-in` is quoted.
 6. **Style panel section headers and control labels** — `U §7.2` / `P §11.5`: `COLOR`, `WIDTH`, `FILL`, `TRANSPARENCY`, `LINE STYLE`, `ARROWHEADS`, `PRESETS ▾`, `RECENT`; per-tool controls `Border`, `Opacity`, `Corner radius`, `Crop…`, `Replace photo`, `Shadow`, `Arc radius`, `Precision`, `Unit format`, `Elbow`, `Sides`, `Close path`, `Pressure→width`, `Smoothing`, `Perfect shape`, `Chisel width`, `Straight-line lock`, `Bold`, `Align`, `Background`, `Leader`, `Mode`, `Scope`, `Ink`, `Markup`, `Everything` — none quoted.
+   - **⚠ unapproved keys (C14):** `style.sectionColor`, `style.sectionWidth`, `style.sectionFill`, `style.sectionTransparency`, `style.sectionLineStyle`, `style.sectionArrowheads`, `style.presetsMenu`, `style.recentHeader`, plus the per-tool control keys — see the C14 table below and `docs/appendix-strings-gaps.md` §6. The section headers (`COLOR`, `WIDTH`, …) are the placeholder labels, **not** final copy.
 7. **Layers panel** — `U §8.6` / `P §8.6`: group names `Markup`, `Dimensions`, `Shapes`, `Ink`, `Text`, `Photo`; row context menu `Bring to front`, `Send to back`, `Group`, `Ungroup`, `Rename`, `Delete`; the eye and lock toggles need labels — none quoted.
 8. **Selection mini-toolbar** — `U §8.6:557`: `Duplicate`, `Delete`, `Lock`, `Bring to front`, `Send to back`, `Edit points`, `Replace photo`, `Focus`, `Edit text` — none quoted (only `Copy style` / `Paste style` are).
 9. **Editor overflow menu** — `U §5.2:221`: `Duplicate sheet`, `Insert image`, `Add sheet`, `Import file`, `Sheet info`, `Project settings`, `Settings`, `Help`, `Keyboard shortcuts` — none quoted.
 10. **Project / sheet card menus** — `U §11.1:662` and `U §11.2:686`: `Rename`, `Export all`, `Remove from this list`, `Delete files…`, `Open`, `Duplicate`, `Replace photo`, `Delete` (plus cut `Rotate` / deferred `Duplicate project`) — none quoted.
-11. **Tool names and hover tooltips** — `U §6.3:313`: the 14 tool names shown in the pen-hover tooltip pill (`Select`, `Pan & Zoom`, `Dimension`, `Angle`, `Line`, `Arrow / Leader`, `Rectangle`, `Ellipse`, `Polygon`, `Freehand`, `Highlighter`, `Text note`, `Image inset`, `Erase`) — no strings; group `More ▸`/options chevrons likewise.
+11. **Tool names and hover tooltips** — `U §6.3:313`: the 14 tool names shown in the tooltip pill (`Select`, `Pan & Zoom`, `Dimension`, `Angle`, `Line`, `Arrow / Leader`, `Rectangle`, `Ellipse`, `Polygon`, `Freehand`, `Highlighter`, `Text note`, `Image inset`, `Erase`) — no strings; group `More ▸`/options chevrons likewise. **⚠ touch-primary:** pen hover has no touch equivalent (`TF §6.3`); under touch the pill is reached by press-and-hold on the rail, and the Style Chip names the active tool.
+   - **⚠ unapproved keys (C14):** `tool.select`, `tool.panZoom`, `tool.dimension`, `tool.angle`, `tool.line`, `tool.arrowLeader`, `tool.rectangle`, `tool.ellipse`, `tool.polygon`, `tool.freehand`, `tool.highlighter`, `tool.textNote`, `tool.imageInset`, `tool.erase`, `tool.moreGroups` (`docs/appendix-strings-gaps.md` §11).
 12. **Per-tool first-use tips** — `U §4.4:174`: "Contextual tips appear the first time each tool is used (one line, dismissible…)" — the actual tip lines are unspecified.
+   - **⚠ touch-primary:** `docs/appendix-strings-gaps.md` §12 currently proposes **pen-first** tips (`Draw from A to B…`, `Drag to draw a line…`, `Draw with the pen…`). These **must not ship**; they are superseded by the tap-tap drafts under "C14 gap keys touched by the touch-primary change" below. Keys: `tips.select`, `tips.panZoom`, `tips.dimension`, `tips.angle`, `tips.line`, `tips.rectangle`, `tips.freehand`, `tips.textNote`, `tips.imageInset`, `tips.erase` — **⚠ unapproved.**
 13. **Tool long-press option popovers** — `U §6.3:316`: e.g. Rectangle corner radius, Freehand pressure/smoothing/perfect-shape, Dimension precision & calibration, Erase mode — option labels unquoted.
 14. **Capture toggles/tooltips** — `U §10.1:624`: torch/flash, grid overlay, level indicator, camera flip (front/rear), zoom chips `0.5× / 1× / 2×`, and auto-capture-on-level — no labels.
+   - **⚠ unapproved keys (C14):** `capture.torch`, `capture.grid`, `capture.level`, `capture.flip`, `capture.zoomHalf`, `capture.zoomOne`, `capture.zoomTwo`, `capture.autoCapture` (`docs/appendix-strings-gaps.md` §14). Touch-primary adds no capture changes, but the labels are still unfilled.
 15. **Autosave chip tap explanations** — `U §13.1:744–746`: "Explains, offers …" / "Explains and offers Re-pick folder" / "Expands to a full explanation" — the explanation body copy is unspecified.
 16. **Destructive confirm dialogs** — `U §8.7:569`, `U §13.3:768`, `P §8.5`: the `Clear sheet markup…` dialog title/body and per-category checkbox labels; the `Delete files…` dialog title/body and "type the project name" instruction. Only button labels are quoted.
 17. **Export wizard chrome** — `U §12:709`: step rail `1 Scope · 2 Format · 3 Destination`, footer `Back` / `Next`, format radio cards `PDF` / `PNG`, `Select all / none`, token buttons (`{project}` `{sheet}` `{index}` `{date}` `{time}`), per-file `✓ / … / ✕` states — no strings.
@@ -346,12 +412,46 @@ These places clearly require user-visible text but the specs provide no guilleme
 19. **Origin-change recovery body** — `P §21.1:2461`: the explanatory body and the `Pick my projects folder` button are not quoted (only the headline is).
 20. **Folder permission / reconnect states** — `P §5.2:637–638`, `P §5.6:804`: "Project folder needs permission", "Reconnect folder", "Project folder unavailable" — no strings.
 21. **First-run handedness card labels** — `U §4.4:171`: `Right` / `Left` (Right pre-selected) — no strings.
+   - **⚠ unapproved keys (C14):** `firstRun.handednessRight`, `firstRun.handednessLeft` (`docs/appendix-strings-gaps.md` §21). Under touch-primary the handedness answer still mirrors the rail/style panel/loupe/keypad (`TF §7`, `U §14.8`) — the labels themselves do not change.
 22. **Angle commit sheet precision toggles** — `U §8.2:523`: `1°` / `0.5°` / `0.1°`, and the live readout `≈ 43.2°` — unquoted.
 23. **Text tool option values** — `U §8.5:545`: background `none` / `pill` / `solid` / `auto-contrast` and align `L/C/R` — unquoted.
 24. **Project settings sheet field labels** — `U §11.3:692`: name, default units & precision, unit format, default sheet-naming template, default export destination, strip-GPS toggle — labels unquoted.
 25. **`aria-label` for every icon-only control** — `U §14.10:798` only gives one example (`Dimension tool, …`). All other icon-only controls need names with no supplied copy: Layers, Export, zoom `−`/`+`/`Fit`, torch, shutter, grid, level, camera flip, undo/redo, rotate, selection handles, eye/lock toggles, close buttons.
 26. **Empty/loading states without copy** — Home loading skeletons (`U §11.1:668`), Project loading 8 skeleton cards (`U §11.2:688`), Editor photo-decode placeholder + shimmer (`U §17:927`), and the Capture `Adding…` progress context — no accompanying text is specified.
 
+### C14 gap keys touched by the touch-primary change (⚠ all unapproved)
+
+Added 2026-09-21 so the C14 gaps this change depends on carry a key rather than being silently
+invented. Every string in `docs/appendix-strings-gaps.md` is a **builder proposal**; none is approved
+copy and none may ship into `src/ui/strings.ts` until the content owner signs off.
+
+| Gap (item above) | Proposed key(s) — ⚠ unapproved | Placeholder (NOT final copy) | Proposed wording lives in |
+|---|---|---|---|
+| 6 — Style panel section headers | `style.sectionColor`, `style.sectionWidth`, `style.sectionFill`, `style.sectionTransparency`, `style.sectionLineStyle`, `style.sectionArrowheads`, `style.presetsMenu`, `style.recentHeader` (+ per-tool control keys) | the spec's backticked labels (`COLOR`, `WIDTH`, `FILL`, `TRANSPARENCY`, `LINE STYLE`, `ARROWHEADS`, `PRESETS ▾`, `RECENT`) | `appendix-strings-gaps.md` §6 |
+| 11 — Tool tooltips | `tool.select` … `tool.erase`, `tool.moreGroups` | the 14 tool names | `appendix-strings-gaps.md` §11 |
+| 12 — Per-tool first-use tips | `tips.select`, `tips.panZoom`, `tips.dimension`, `tips.angle`, `tips.line`, `tips.rectangle`, `tips.freehand`, `tips.textNote`, `tips.imageInset`, `tips.erase` | **superseded — pen-first drafts must not ship** (see below) | `appendix-strings-gaps.md` §12 (needs rewrite) |
+| 14 — Capture toggles / tooltips | `capture.torch`, `capture.grid`, `capture.level`, `capture.flip`, `capture.zoomHalf`, `capture.zoomOne`, `capture.zoomTwo`, `capture.autoCapture` | `Torch`, `Grid`, `Level`, `Flip camera`, `0.5×`, `1×`, `2×`, `Auto-capture when level` | `appendix-strings-gaps.md` §14 |
+| 21 — First-run handedness cards | `firstRun.handednessRight`, `firstRun.handednessLeft` | `Right` / `Left` | `appendix-strings-gaps.md` §21 |
+
+**Note (C5 — Recents chip size).** C5 (Recents chips `40px → 44px`) is **already applied**
+(commit `5fa9515`, to `U §7.3`/`§14.5`). It is **layout-only**: no UI string carries the Recents-chip
+size, so **no copy change is required** and `style.recentHeader` is unaffected. Retained here only so
+a reader does not expect a string edit for C5.
+
+**Note (pen-presuming copy, `TF §13.4`).** The following existing/proposed copy presumes a pen and
+must be rewritten for touch-primary:
+- `inset.placeHint`'s "following the pen" placement note — **fixed** above to "touch or pen".
+- Gap 11's "pen-hover tooltip pill" — pen hover has no touch analogue (`TF §6.3`); the touch
+  equivalent is the Style Chip naming the tool plus press-and-hold for name + options.
+- Gap 12's proposed tips `Draw from A to B…`, `Drag to draw a line…`, `Draw with the pen…` — these
+  live in `docs/appendix-strings-gaps.md` §12, which this file does not edit. Under `TF §1.1`/`§1.2`
+  the placement tools are **tap-tap** and Freehand is pen-first/opt-in. **Corrected drafts (⚠ not
+  final copy, pending content-owner approval):** `tips.dimension` = "Tap the first point, then the
+  second, then type the measurement."; `tips.line` = "Tap the first point, then the second.";
+  `tips.rectangle` = "Tap two opposite corners."; `tips.angle` = "Tap the vertex, then each end
+  point."; `tips.freehand` = "Draw with the pen — or turn on Finger draws." The gap-12 row in
+  `appendix-strings-gaps.md` must be reconciled by its owner.
+
 ## Summary
 
-**209 distinct strings** — 212 unique guillemet matches (single-line scan) − 9 non-copy exclusions + 3 wrap/missing-guillemet cases (`Make this a separate project`, `Highlighter always sits under other markup`, `Focus`) + 3 nested-guillemet outer strings the scan misses (`Added Sheet 05`, `Camera unavailable in this browser. Open Windows Camera or Import a photo instead.`, `No projects match riv`). The `Interpolation` column documents the runtime-filled parts of otherwise-literal example strings.
+**223 distinct strings** — 212 unique guillemet matches (single-line scan) − 9 non-copy exclusions + 3 wrap/missing-guillemet cases (`Make this a separate project`, `Highlighter always sits under other markup`, `Focus`) + 3 nested-guillemet outer strings the scan misses (`Added Sheet 05`, `Camera unavailable in this browser. Open Windows Camera or Import a photo instead.`, `No projects match riv`) **+ 14 touch-primary rows** (`editor.emptyHint` reworded; `placement.*` ×6, `select.touchHint`, `touch.*` ×2, `erase.strokeNeedsPen`, `settings.*` toggles ×4 — all `TF §9` **proposed, not final**). Gap keys flagged **⚠ unapproved** are not counted; they are placeholders, not strings. The `Interpolation` column documents the runtime-filled parts of otherwise-literal example strings.

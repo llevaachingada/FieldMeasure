@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 4 + 4b)
+**Last updated:** 2026-09-21 (session 5 — touch-first input model + GUI/UX readiness)
 
 ---
 
@@ -11,15 +11,15 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | Pre-flight + planning complete, **hardened ×4** → slice 0.0 (origin — **resolved**, §21.1), then 0.1 (scaffold) |
+| Phase | Pre-flight + planning complete, **hardened ×5** (rounds 1, 2, 4 + session-3 UI review + **session-5 GUI/UX readiness**). **UI/UX is implementation-ready.** Next: slice 0.0 (origin), then 0.1 (scaffold) |
 | Application code | None yet (repo has docs + installed deps only) |
-| Build spec | **v0.3 hardened (r2)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical) |
-| UI spec | **v2 hardened** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical, changelog appendix) |
-| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4 complete** — senior adversarial + hardening review of the plan and architecture |
-| Plan verification | ✅ Session 3 · ✅ **Session 4** — plan re-attacked, hardened, and expanded (3 new slices, 2 new modules, test infrastructure) |
-| Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened** — slice order, files, build order, signatures, tests, gates, rollback |
-| Dependencies | Installed and pinned; **session 4 added dev deps** (`@testing-library/react`, `@testing-library/user-event`, `jsdom`) to §2.2 — **not yet installed**, do it in slice 0.1 |
-| Blocking item | **None.** Origin & distribution was resolved in session 4b (build spec §21.1 / D24). Everything is ready to build. |
+| Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
+| UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
+| Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
+| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4** · ✅ **Round 5 (session 5)** — GUI/UX readiness + touch-primacy audit |
+| Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
+| Dependencies | Installed and pinned; **session-4 dev deps** (`@testing-library/react`, `@testing-library/user-event`, `jsdom`) still **not installed** — do it in slice 0.1 |
+| Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
 | Next action | **Slice 0.0** (execute the §21.1 origin decision — pin `base` + origin guard), then slice 0.1 scaffold |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
@@ -205,6 +205,66 @@ assumes:
    §4, three-strike rule §6), `docs/appendix-scaffold-files.md`, `docs/install-runbook.md`,
    `THIRD-PARTY-NOTICES.md`, and `docs/appendix-strings-gaps.md` (proposed copy for the 26 gaps).
 
+### 2026-09-21 — Session 5: touch-first input model + GUI/UX readiness review
+
+Raised by the product owner: **(a)** review the current architecture and GUI/UX and decide whether to do
+pre-implementation visual design (via Claude Design); **(b)** confirm the app is usable **primarily by
+touch** — tap-tap dimension placement (tap A, tap B) with one-finger drag to adjust.
+
+**Method:** 8 parallel research lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`) plus
+source-verified checks of the Claude Design product claims, then 4 implementation lanes to apply the
+accepted changes. Two new documents:
+**`docs/gui-ux-readiness-and-design-handoff.md`** (the senior report + design handoff) and
+**`docs/touch-first-interaction-model.md`** (the implementable interaction design).
+
+1. **Verdict — no pre-implementation design phase.** The UI spec is already implementable; the
+   outstanding work was *decisions*, not mockups. **Claude Design is real** (Anthropic Labs,
+   2026-04-17, Opus 4.7, codebase-first design systems, Claude Code handoff) — but its output **cannot
+   ship here**: it emits inline-styled standalone HTML, which `style-src 'self'` blocks. Verdict:
+   moodboard-only, optional, non-blocking.
+2. **Tooling verdict.** `@playwright/test` 1.63.0 is **already pinned**, so the regression half was
+   free. Assert exact computed geometry at both real viewports (1440×960, 960×1440) with
+   `deviceScaleFactor: 2`; screenshot-baseline the canvas at 1×/4×/8×; drive synthetic pen input via
+   CDP; and **enforce the CSP as a test**. Rejected: v0/Lovable/Bolt (Tailwind + cloud), Figma
+   Make/Framer (no code export), Storybook/Loki/Chromatic/Percy (stale, or cloud + metered).
+   Optional: Penpot self-hosted (the only surveyed mockup tool emitting class-based CSS).
+3. **Contradiction register (C1–C14)** found in the canonical docs — 6 real defects. **C1–C10 and C13
+   were applied by the repo owner in commit `5fa9515`** (D32–D34 recorded); **C11/C12/C14 applied in
+   this session**.
+4. **Touch-first inversion (the large change).** The app was specified pen-first; it will be used
+   primarily by finger. `U §1.1` becomes *"Touch places and moves. Pen draws. Both create geometry."*
+   Settings gain `«Touch places and moves»` (ON) and `«Finger draws (freehand)»` (OFF). **Tap-tap
+   placement** for every placement tool through **one** `PlacementController`; Dimension commits at
+   tap B, then a **450 ms settle window** auto-opens the keypad **only if no contact occurred**.
+5. **Critical finding — no palm rejection without a pen.** The router's suppression window starts only
+   on a pen event, so a pen-less session had **no suppression at all** (every touch resolved to
+   `'navigate'`). W3C confirms authors cannot suppress palm behaviour and contact geometry is
+   unreliable. Response: bounded heuristics (edge rejection, multi-touch debounce), keep the pen as a
+   suppression signal when present, and make **undo + `pointercancel` rollback the safety net** —
+   never a silent-discard mode.
+6. **Why touch placement is defensible here.** Because measurements are **typed**, a placement error
+   changes *where the line points*, not the measured number — a far smaller blast radius than for a
+   calibrated CAD tool. Tap is at least as accurate as drag per point (CHI 2024). Finger precision is
+   ~1.5 mm (2D) σ with a **systematic contact-centroid offset that cannot be corrected in math**
+   (Windows exposes no intended-point API) — so it is corrected in the UI: snap, loupe, nudge pad.
+7. **Object-first drag** — chosen by the product owner over the research's safer selection-first
+   recommendation; recorded in `DECISIONS.md` **with its counter-argument and mandatory mitigations**
+   (two-finger cancel-and-restore, Pan-tool override, undo labelling the move).
+8. **A defect reintroduced and caught (wrong-measurement class).** The touch loupe was first specified
+   as *"4× of a 100×100 source"* in a 200px window — which is 2×, not 4× — **the same defect class as
+   F8/C4**. Caught in review; corrected to the D30-derived **50px** source in `U §8.1`, its changelog,
+   and the interaction model, with a recorded rule preventing a third occurrence.
+9. **Applied to the canonical docs**, verified: **all gates preserved or strengthened** (6 reworded,
+   15 added, **none deleted**) and all **18** `〔v1 scope: …〕` markers intact. Files: `U` (touch change
+   + C11/C12/C14), `P` (§8.2 touch-primary router + truth table, §2.4, §13 slice gates, §19.6
+   targets), `implementation-plan.md` (0.2/0.3/1.3/1.5/1.6 + gates + checkpoint rows +
+   Konva-in-jsdom note + CSP-as-a-test), `appendix-strings.md` (209 → 223 strings),
+   `HARDWARE-TEST-CHECKLIST.md` (H1 touch-primary, new **H1b** touch-only palm, H13–H18),
+   `CHECKPOINTS.md` (C8/C9/C10), `DECISIONS.md` (**D35–D42** + the session-5 detail section).
+
+**Open after session 5:** C14 final copy wording (content owner), the handedness-question semantics
+reconciliation, and `appendix-strings-gaps.md` §12.
+
 ---
 
 ## Done
@@ -228,10 +288,20 @@ assumes:
   `docs/BUILD-LOG.md`, `AGENTS.md`, `CLAUDE.md`, `docs/appendix-strings.md`.
 - ✅ **Session 4b** — handoff closed: `docs/BUILD-RUNBOOK.md`, `docs/appendix-scaffold-files.md`,
   `docs/install-runbook.md`, `THIRD-PARTY-NOTICES.md`, `docs/appendix-strings-gaps.md`.
+- ✅ **Session 5** — senior GUI/UX readiness review + design handoff
+  (`docs/gui-ux-readiness-and-design-handoff.md`): architecture assessment, Claude Design verdict,
+  pre-code tooling stack, 14-item contradiction register, pre-code decision package.
+- ✅ **Session 5** — touch-first interaction model designed
+  (`docs/touch-first-interaction-model.md`): one `PlacementController`, the 450 ms settle window, the
+  Offset Nudge Pad, the object-first drag predicate, tap precedence, gesture budget, latency budgets.
+- ✅ **Session 5** — **touch inversion applied** across the UI spec, build spec, implementation plan,
+  strings inventory, hardware ledger and checkpoints; **D35–D42** recorded.
+- ✅ **Session 5** — C11/C12/C14 applied (C1–C10/C13 were applied by the owner in `5fa9515`).
+- ✅ **Session 5** — **UI/UX confirmed implementation-ready**; no design gate remains before slice 0.0.
 
 ## In progress
 
-- — (session 4b complete; no code has started)
+- — (session 5 complete; **UI/UX implementation-ready**; no code has started)
 
 ## Next slice (not started)
 
@@ -242,11 +312,13 @@ assumes:
 ## Next (in order)
 
 1. **Slice 0.0** origin & distribution decision (gate: origin pinned in DECISIONS; runbook exists).
-2. Slice 0.1 scaffold → installable, offline PWA shell **+ the three test harnesses + fonts**
-   (gate: airplane-mode reload works; CI green; vitest node+jsdom and Playwright all run).
-3. Slice 0.2 input spike (pen/touch routing + device caps report) — the highest-risk area; do it
-   before any UI (gate: palm gauntlet with a >1.2 s stroke).
-4. Slice 0.3 first-run / settings / Home shell.
+2. Slice 0.1 scaffold → installable, offline PWA shell **+ the three test harnesses + fonts +
+   CSP-as-a-test** (gate: airplane-mode reload works; CI green; vitest **node + jsdom + browser** and
+   Playwright all run).
+3. Slice 0.2 input spike — **now touch-first** (touch places, finger pans, pen parity; device caps
+   report) — the highest-risk area; do it before any UI (gates: touch tap-tap, **touch-only palm gate**,
+   pen palm gauntlet).
+4. Slice 0.3 first-run / settings / Home shell (includes the five input toggles and their defaults).
 5. Slices 1.1 → 1.4, **1.4.5 (editor shell)**, 1.5 → 1.10, **1.11 (release & update)**, then the
    2.0 field pilot — **follow `docs/implementation-plan.md`** for gates and checkpoint tables.
 
@@ -254,8 +326,21 @@ assumes:
 
 ## Open questions
 
-**None.** Session 4b (build spec **§21**) resolved every item that was previously open, "confirm", or
-"needs a human answer". The former questions and their resolutions:
+**Three items are open after session 5 — none of them block slice 0.0 or 0.1:**
+
+1. **C14 final copy wording.** Settings labels, capture toggles, sort/search, style-panel headers and
+   the first-run `Right`/`Left` card labels are marked **placeholder copy** in
+   `docs/ui-spec-field-measure-v2-hardened.md` and `docs/appendix-strings.md`, with proposals in
+   `docs/appendix-strings-gaps.md`. A content owner must approve the wording before it ships —
+   **do not invent final copy in code.**
+2. **Handedness-question semantics.** The committed wording is `«Which hand do you write with?»`
+   (D32 / `5fa9515`), but the touch-first model proposes reframing it to *which hand holds the tablet*
+   — for a touch-first user the answer drives rail side and thumb reach, not pen technique. The two
+   currently disagree across `U`/`P`/`appendix-strings.md` and need **one owner** to reconcile.
+3. **`docs/appendix-strings-gaps.md` §12** needs reconciliation by its owner (flagged by the ledger lane).
+
+**Previously open — all resolved in session 4b** (build spec **§21**). The former questions and their
+resolutions:
 
 | Was open | Resolved in | Decision |
 |---|---|---|
@@ -283,6 +368,20 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   ships, then fold the final strings into `docs/appendix-strings.md`.
 - `THIRD-PARTY-NOTICES.md` exists but several license fields are `verify at scaffold (C1)` — confirm
   them at slice 0.1.
+- **Palm rejection without a pen is probabilistic** (D39). The router has a pen-free path (edge
+  rejection + multi-touch debounce) but it is best-effort. `HARDWARE-TEST-CHECKLIST.md` **H1b** is the
+  gate; undo and `pointercancel` rollback are the safety net. Do not treat it as deterministic, and
+  never add a mode that silently discards input.
+- **Object-first one-finger drag is a deliberate, mitigated risk** (D37) — the touch-placement research
+  recommended selection-first. Re-check in slice 0.2 and on real hardware.
+- **Canvas tests must not run under jsdom** (D40): `getIntersection` returns `null` and `toDataURL`
+  returns a stub, so a hit-testing test "passes" without testing hit testing. Konva tests belong in the
+  Vitest **browser** project.
+- **Loupe geometry rule** (DECISIONS, session-5 correction): never state a loupe's window,
+  magnification and source as three independent numbers — exactly one is free and the other two are
+  derived. The same defect class has now been caught twice.
+- `docs/appendix-strings.md` grew **209 → 223** strings; the new touch strings are **proposed**, not
+  final, and follow the same approval path as `appendix-strings-gaps.md` (see Open questions 1).
 
 ## How to resume
 

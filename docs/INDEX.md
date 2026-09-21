@@ -1,6 +1,6 @@
 # Documentation & File Index
 
-A map of everything in this repository. Last updated **2026-09-21 (session 4 + 4b)**.
+A map of everything in this repository. Last updated **2026-09-21 (session 5 — touch-first input model + GUI/UX readiness)**.
 
 ## Root
 
@@ -21,19 +21,21 @@ A map of everything in this repository. Last updated **2026-09-21 (session 4 + 4
 | `docs/INDEX.md` | This file. |
 | `docs/CONTINUITY.md` | **Project continuity log** — live state, session timeline, next steps, open questions. Read first when resuming. |
 | `docs/preflight-handoff-v0.3-hardened.md` | **PRIMARY BUILD SPEC (canonical).** Hardened after adversarial review rounds 1, 2 and **4**. Its **§2.4 v1 scope table is the single authority on what ships in v1.** Round 2 executed the keypad reference code and fixed a wrong committed test expectation (`12 6` = 150 in, not 148); **round 4 executed it again and found another one** (§6.1's unicode row), plus a silent sign flip, zero/oversized commits, an unlocked "locked" write, and tmp cleanup that never entered the directories tmp files live in. Session-4 additions: changelog rows 21–38, **§5.8** (failure states) and **§19** (origin, SW updates, asset addressing, export guards). Session-4b additions: **§20** (implementation contracts) and **§21** (resolved decisions — nothing left open). |
-| `docs/ui-spec-field-measure-v2-hardened.md` | **UI/UX SPEC (canonical).** Authoritative on look & feel; v1 scope markers `〔v1 scope: …〕` defer to the build spec §2.4; v2 changelog appendix maps every change to its review finding. |
+| `docs/ui-spec-field-measure-v2-hardened.md` | **UI/UX SPEC (canonical), v2.1 touch-first.** Authoritative on look & feel; v1 scope markers `〔v1 scope: …〕` defer to the build spec §2.4; the changelog appendix maps every change to its review finding. **Session 5 inverted the input principle to touch-primary** (tap-tap placement, one-finger drag, touch loupe, nudge pad) and applied C11/C12/C14. |
 | `docs/implementation-plan.md` | **EXECUTION PLAN (canonical for order), v1.2 hardened.** Slice order, dependency graph, per-slice files + build order + signatures + inline tests + checkable gates + rollback notes, checkpoint table, wrong-measurement **and data-loss** tripwires. Session 4 added slices **0.0** (origin), **1.4.5** (editor shell) and **1.11** (release), the `persistQueue`/`migrate` modules, test infrastructure, and executed reference implementations. The build spec is the authority on *what*; this is the authority on *order and done-ness*. |
 | `docs/review-session-4-hardening.md` | **Session-4 senior adversarial & hardening review** — the finding register with evidence and severity: 8 wrong-measurement defects (executed, not reasoned), 6 data-loss defects, and the "ownerless work" class that produced 3 new slices and 2 new modules. Read it before starting a build slice, and read its **method note** before running round 5. |
-| `docs/DECISIONS.md` | Architecture Decision Record (ADR) log, incl. review-driven corrections and the session-4 decisions D21–D31. |
+| `docs/DECISIONS.md` | Architecture Decision Record (ADR) log — review-driven corrections D21–D31, session-4b design decisions D32–D34, and **session-5 decisions D35–D42** (touch-primary input, tap-tap placement, object-first drag, palm-rejection limits, canvas testing + CSP-as-a-test, no-design-phase tooling). |
 | `docs/UNITS.md` | Accepted length input formats, keypad model, rounding rules, examples. |
 | `docs/appendix-strings.md` | **UI strings inventory** — every user-visible string, verbatim, keyed for `src/ui/strings.ts`. |
-| `docs/CHECKPOINTS.md` | **Checkpoints (C1–C7)** — things only measurable once code exists; each names its slice, what to measure, and an action for every result. |
-| `docs/HARDWARE-TEST-CHECKLIST.md` | **Hardware gate ledger** — deferred `[Surface]` gates + the H1–H12 end-of-build checks. |
+| `docs/CHECKPOINTS.md` | **Checkpoints (C1–C10)** — things only measurable once code exists; each names its slice, what to measure, and an action for every result. Session 5 added **C8** (slice 0.2 touch palm), **C9** (1.6 pen-only pressure) and **C10** (touch placement accuracy). |
+| `docs/HARDWARE-TEST-CHECKLIST.md` | **Hardware gate ledger** — deferred `[Surface]` gates + the H1–H18 end-of-build checks. Session 5 added **H1b** (touch-only palm check, the pen-absent router) and **H13–H18** (barrel routing, hover semantics, the OS ~250 ms pinch delay, coalescing rate, Ink API, DPR-2/thermal). |
 | `docs/BUILD-LOG.md` | **Build log** — the agent's cross-session memory; one entry per slice. |
 | `docs/BUILD-RUNBOOK.md` | **Build runbook** — how to work: the slice loop, gate policy, `[Surface]` deferral, three-strike rule. |
 | `docs/appendix-scaffold-files.md` | **Scaffold reference** — the pinned files slice 0.1 must produce (TS 5.x). |
 | `docs/install-runbook.md` | **Install runbook** — one page, non-developer, how a Surface gets the app. |
 | `docs/appendix-strings-gaps.md` | **Proposed copy for the gaps** — wording for the 26 implied-but-unquoted strings (PROPOSED, approve before shipping). |
+| `docs/gui-ux-readiness-and-design-handoff.md` | **Session-5 senior GUI/UX readiness report + design handoff** — architecture assessment, the Claude Design verdict, the pre-code tooling stack, contradiction register C1–C14, the pre-code decision package, and the touch workstream. |
+| `docs/touch-first-interaction-model.md` | **Session-5 touch-first interaction design** — one `PlacementController`, the 450 ms settle window, the touch loupe, the Offset Nudge Pad, the object-first drag predicate, tap precedence, the gesture budget, latency budgets and the required spec deltas. |
 
 ## docs/ — superseded (kept for history)
 
@@ -79,5 +81,7 @@ A map of everything in this repository. Last updated **2026-09-21 (session 4 + 4
    then the session-4 changelog rows 21–38, §5.8, §19, and the session-4b §20–§21).
 7. `docs/ui-spec-field-measure-v2-hardened.md` — the UI.
 8. `docs/appendix-strings.md` — every user-visible string, keyed for `src/ui/strings.ts`.
-9. `docs/CHECKPOINTS.md` — the C1–C7 checkpoints; `docs/BUILD-LOG.md` — where the build stands.
+9. `docs/CHECKPOINTS.md` — the C1–C10 checkpoints; `docs/BUILD-LOG.md` — where the build stands.
 10. `docs/DECISIONS.md` — why things are the way they are.
+11. `docs/touch-first-interaction-model.md` — the touch-first interaction design (read with the UI spec).
+12. `docs/gui-ux-readiness-and-design-handoff.md` — the session-5 GUI/UX readiness review and its reasoning.

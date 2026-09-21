@@ -41,6 +41,14 @@ Status: **Accepted** · Superseded · Proposed.
 | D32 | Tool rail side | Follows **handedness** (writing-hand side): right-handed default → rail right; left-handed → rail left. No manual override in v1 (already deferred). | Accepted |
 | D33 | Width readout unit | Show **true paper points** (`0.75 × mu`): a 4-mu stroke reads "3 pt". Consistent with the §4.2 export invariant. | Accepted |
 | D34 | Hosting | Develop + beta-test on **`localhost`** (secure context); production on **GitHub Pages** (public repo). `FM_BASE` + origin guard make the move non-destructive. | Accepted |
+| D35 | Input model | **Touch-primary**: touch places and moves; the pen enhances (pressure/tilt/hover). Supersedes M4's pen-first framing. | Accepted |
+| D36 | Placement gesture | **Tap-tap is the primary placement verb** for every placement tool; press-drag-release remains supported. | Accepted |
+| D37 | One-finger drag | **Object-first** (grabbable, unlocked object moves; else pan). Deliberate choice over selection-first — mitigations are mandatory. | Accepted |
+| D38 | Two-finger tap | Secondary path only (add to selection; cancel mid-placement); an on-screen equivalent is mandatory per UI §1.7. | Accepted |
+| D39 | Palm rejection | **Probabilistic, not deterministic** without a pen — the router's window only starts on a pen event. Undo + `pointercancel` rollback are the safety net. | Accepted |
+| D40 | Canvas testing | Konva tests run in a **real browser** (jsdom has no canvas — hit-testing "passes" without testing it). CSP is enforced **as a test**. | Accepted |
+| D41 | Pre-code design tooling | **No design phase.** Playwright is the source of truth; Claude Design is moodboard-only (its output cannot ship under `style-src 'self'`). | Accepted |
+| D42 | Contradiction register C11/C12 | C11: `--sel` focus ring vs selection differ by **treatment** (offset ring vs bbox + glow). C12: `--hi` dual-use is **deliberate**; verify legibility on bright/dark photos. | Accepted |
 
 > **Numbering note (session 4):** D16–D20 are referred to elsewhere (the review handoff says
 > "D1–D20") and appear in the Detail sections below, but were never added to this index. Session 4
@@ -292,3 +300,148 @@ contradiction register (C1–C14) was applied to the canonical docs. The decisio
   service worker and `showDirectoryPicker` all work). Production is **GitHub Pages**, which requires a
   **public** repo (or a paid plan for private Pages). `base` stays `FM_BASE`-driven and the origin
   guard (§21.1) makes the localhost→Pages move a recoverable re-pick, not a data loss.
+
+## Session 5 — touch-first input model & pre-code design review (2026-09-21)
+
+Full analysis: **`docs/gui-ux-readiness-and-design-handoff.md`**. Implementable interaction design:
+**`docs/touch-first-interaction-model.md`**. Eight research lanes (4 × `librarian`, 3 × `designer`,
+1 × `explorer`) plus a source-verified check of the Claude Design product claims.
+
+### D35 — Touch is the primary input (supersedes M4's pen-first framing)
+
+The app was specified pen-first: UI §1.1's *"Pen draws, finger navigates"* — called *"the single
+biggest protection against palm and glove smudges"* — with "Finger draws" **off** by default. In fact
+it will be used **primarily by finger**. The principle becomes:
+
+> **Touch places and moves. Pen draws. Both create geometry.**
+
+Settings gain `«Touch places and moves»` (**ON**) and `«Finger draws (freehand)»` (**OFF**); the pen
+always draws and additionally supplies pressure, tilt and hover. Rationale: reach and gloves, plus the
+decisive point below.
+
+**Why this is lower-risk than it looks:** measurements are **typed** feet-inches values, not
+scale-calibrated distances. A placement error therefore changes *where the line points and which
+feature it attaches to* — **not the measured number**. That makes finger-first defensible in v1 in a
+way it would not be for a calibrated CAD takeoff. The failure mode moves from "wrong measurement" to
+"wrong-looking drawing", which is a materially smaller blast radius.
+
+### D36 — Tap-tap placement is the primary placement verb
+
+Tap A → tap B creates the object, for **every** placement tool (Dimension, Angle, Line, Arrow,
+Rectangle, Ellipse, Polygon, Image inset, Text). Press-drag-release remains supported for pen users.
+This generalises the Polygon tool's existing tap-by-tap grammar rather than inventing a new one.
+
+**Dimension specifically:** geometry commits on tap B; a **450 ms settle window** opens with a live
+`✓ Value` / `Adjust endpoints` HUD; the keypad auto-opens **only if no canvas contact occurred** during
+that window, and any contact cancels the auto-open **permanently for that placement**. Cancelling never
+discards the drawn geometry (unchanged UI §8.1 rule). Evidence: tap is **at least as accurate as drag
+per point** (CHI 2024, DOI 10.1145/3613904.3642272), and drag adds a first-point-movement failure mode.
+
+**Mandatory accuracy safeguards** (not optional — they are what makes finger placement trustworthy):
+snap-to-feature (acquire 32px → lock 20px, default Strong under touch); the loupe on tap (200px, 4×,
+136px offset, contact disc, dashed leader, freeze-on-lift 700 ms); and post-place nudge handles with
+an **Offset Nudge Pad** so refinement never covers the point being corrected.
+
+### D37 — One-finger drag is object-first (deliberate, with mandatory mitigations)
+
+A one-finger drag moves the grabbable, unlocked object under the pointer; otherwise it pans.
+Two-finger drag always pans. A second finger **cancels the drag and restores the previous position**.
+The Pan tool overrides object-first unconditionally.
+
+> **Recorded counter-argument (this is a deliberate risk, not an oversight).** The safer convention —
+> and the one the touch-placement research recommended — is **selection-first**: a first tap selects an
+> object and only an *already-selected* object drags. That matches Windows/OneNote/Miro behaviour and
+> Microsoft's explicit guidance *"do not override common gestures"*. Object-first was chosen by the
+> product owner for a lower tap count. **The mitigations above (two-finger cancel-and-restore, Pan-tool
+> override, undo labelling the move) are therefore mandatory**, and the residual risk — silently
+> displacing a measurement when the user meant to pan — must be re-checked in the slice 0.2 spike and
+> on real hardware.
+
+### D38 — Two-finger tap is a secondary path only
+
+It remains (add to selection; cancel mid-placement), but Microsoft warns that multi-finger gestures are
+OS-reserved on Windows and that two-finger tap is OS-associated with right-click. Every action it
+performs must also exist as an on-screen control (UI §1.7 already forbids gesture-only actions).
+Verify the behaviour in the spike; do not depend on it.
+
+### D39 — Palm rejection without a pen is not deterministically solvable
+
+W3C Pointer Events 3 states that authors **cannot suppress** the behaviour, and that detecting these
+scenarios is **out of scope for the specification**. Contact geometry (`PointerEvent.width`/`height`)
+defaults to `1` when the hardware cannot report it, so it cannot be trusted as a palm discriminator.
+The router's suppression window only starts on a **pen event**, so **a pen-less session has no palm
+suppression at all** — every touch resolves to `'navigate'`.
+
+Design response: bounded heuristics (edge rejection, multi-touch debounce) + keep the pen as a
+suppression signal **when one is present** + make **undo and `pointercancel` rollback the real safety
+net** (Android's own documented palm-rejection cookbook does exactly this instead of attempting
+prevention). **Never ship a mode that silently discards input**, and never present a size-threshold
+palm filter as reliable.
+
+### D40 — Canvas testing and CSP enforcement
+
+jsdom has **no canvas implementation**: `getIntersection` returns `null`, `toDataURL` returns a stub,
+and pixel readback is transparent — so a hit-testing test written against jsdom **passes without
+testing hit testing**. Anything touching a `Konva.Stage` must run in a **real browser** (Vitest browser
+mode + Playwright). jsdom remains fine for stores and pure logic.
+
+Separately, the strict CSP (`style-src 'self'`) becomes **a test**: assert zero `[style]` attributes
+and fail on any `securitypolicyviolation`. One nuance worth recording: `style-src 'self'` blocks
+`setAttribute('style', …)` and `el.style.cssText = …` but **not** direct CSSOM assignment
+(`el.style.display = 'none'`). Konva styles its stage that way, so **Konva is not a CSP violation** —
+prove it in the spike with a violation listener rather than assuming.
+
+### D41 — No pre-implementation design phase
+
+The UI spec is already implementable; the outstanding work is **decisions, not mockups**. Design-tool
+conclusions:
+
+- **`@playwright/test` 1.63.0 is already pinned** and is the source of truth: assert **exact computed
+  geometry** at the two real viewports (1440×960 and 960×1440, `deviceScaleFactor: 2`) and
+  screenshot-baseline the canvas at 1×/4×/8×.
+- **Claude Design is moodboard-only.** It is a real product (Anthropic Labs, 2026-04-17, Opus 4.7,
+  codebase-first design systems, Claude Code handoff) — but its output **cannot ship here**: it emits
+  standalone HTML with inline styles, which `style-src 'self'` blocks, and it carries Tailwind in the
+  AI-codegen tools. It also cannot represent an imperative Konva canvas, pen/palm behaviour, or the
+  `0.75 × mu` pt export invariant — so a polished prototype would create false confidence about the
+  hardest 80%.
+- Rejected for shipping output: v0 / Lovable / Bolt (Tailwind + cloud), Figma Make / Framer (no code
+  export), Storybook / Loki / Chromatic / Percy (not in the closed dep list; stale or cloud + metered).
+- Acceptable optional wireframe tools: **Penpot self-hosted** (the only surveyed tool emitting
+  class-based CSS) or **Excalidraw** (offline, honest about being approximate).
+- **Token source of truth:** a hand-authored **DTCG JSON** → committed external `tokens.css`. Style
+  Dictionary v4 is optional and would need a dev-dep spec change.
+
+### D42 — Contradiction register C11/C12 (C14 is copy)
+
+- **C11 — `--sel` cyan serves both the focus ring and selection/manipulation.** Differentiate by
+  **treatment**, not by adding a colour: focus = 2px ring with an offset; selection = 2px bbox + 4px
+  glow.
+- **C12 — `--hi` orange is both the chrome accent and `DEFAULT_STYLE.strokeColor`.** Deliberate: the
+  contexts differ (chrome vs canvas). Record it, and verify legibility over both bright and dark photos.
+- **C14** is unquoted copy (Settings labels, capture toggles, sort/search, panel headers, first-run
+  card labels) and is a content-owner task, tracked in `docs/appendix-strings.md`.
+- *Application note:* C11/C12/C14 land in the UI spec and strings inventory **after** the in-flight
+  touch-change edits release those files, to avoid a second writer.
+
+### Correction (round 5) — the touch loupe was arithmetically impossible
+
+The touch loupe was first specified as *"4× of a 100×100 source"* in a 200px window — which is **2×,
+not 4×**. This is **the same defect class as F8/C4** (the pen loupe's mutually-impossible
+160px / 3.5× / 80px), reintroduced during the touch change and caught in review by the build-spec lane.
+
+Corrected using `D30`'s sanctioned formula, `sourcePx = diameterPx / magnification`:
+
+| | Window | Magnification | Source (**derived**, not stated) |
+|---|---|---|---|
+| Pen loupe (`D30`) | 160px | 3.5× | `160 / 3.5` ≈ **45.7px** |
+| **Touch loupe** | **200px** | **4×** | `200 / 4` = **50px** |
+
+Applied to `U §8.1` (the touch-variant bullet), `U`'s changelog row 19, and
+`docs/touch-first-interaction-model.md` §2.1. All three now state the **derived** source rather than an
+independent number, so they can no longer disagree. The touch loupe genuinely does show slightly more
+context than the pen loupe (50px vs ≈45.7px) *at a higher magnification*, because the window grew too.
+
+> **Rule to carry forward:** never state a loupe's window, magnification and source as three
+> independent numbers. Exactly one of the three is free; the other two must be derived. Fixing the
+> same class of defect twice is why this is recorded rather than just corrected.
