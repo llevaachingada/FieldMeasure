@@ -591,7 +591,7 @@ Two modes, chosen by long-press on the tool (default **Object**):
   - Everything outside the inset dims to 35% opacity.
   - A breadcrumb chip docks at the top-center of the canvas: `«Sheet 04 › Inset 2»` with a `«Done»` button. This chip is the single source of truth for "where am I drawing".
   - The inset gets a `--sel` 2px frame and a `--sel` inner glow.
-  - **All tools now draw into the inset's own markup layer.** The inset is a container: `{ photo, crop, transform, children: MarkupObject[] }`. Insets nest one level deep only (an inset cannot contain an inset) — enforce this and disable the Inset tool inside Focus with a tooltip `«Nested insets aren't supported»`. Depth limits keep the mental model teachable.
+  - **All tools now draw into the inset's own markup layer.** The inset is a container: `{ photo, crop, transform, children: MarkupObject[] }`. Insets nest one level deep only (an inset cannot contain an inset) — enforce this and disable the Inset tool inside Focus with a tooltip `«Nested insets aren't supported»`. Depth limits keep the mental model teachable. 〔v2 hardening — the coordinate model is now fully specified in the preflight §8.5: **children are stored in the inset asset's working-image pixel space** (identical semantics to a sheet); `crop` is a rect in asset px applied via `clipFunc` before the group transform; children are never rewritten when the inset is moved/scaled/rotated/cropped; asset dedupe never merges children (children belong to the annotation, not the asset). Visual behavior is unchanged — this only pins the data model so builders can't guess.〕
   - `Esc` or `Done` exits Focus. Exiting does not change the selection.
 - **Markup layering over the inset:** objects created *outside* Focus belong to the sheet's markup layer and render **above** all insets by default. Objects created *inside* Focus belong to the inset and are clipped to it (`overflow: hidden`, and children scale/rotate with the inset). This gives the two behaviors the crew needs — "draw an arrow pointing *at* the inset" (outside) and "circle the crack *inside* the inset" (inside) — without any z-order puzzle.
 
@@ -628,7 +628,7 @@ Rows: type icon + name (`«Dimension 12' 6"»`, `«Inset 2»`, `«Freehand»`) a
 - Bottom row: `↺ «Retake»` (56px, secondary) · `↻` rotate · `✓ «Use photo»` (64px, `--hi`, primary). 〔v1 scope: `✨ «Auto-enhance»` is deferred — do not build it or reserve a slot for it in v1.〕
 - If this capture was launched from Home/Project, `Use photo` returns to the sheets grid with a toast `«Added «Sheet 05»»` + `↶ «Undo»`.
 - If launched from the inset flow, it returns to the editor with the inset inserted at the tap point, selected.
-- `Retake` while an inset capture is in progress asks nothing — the capture isn't in the project yet, so it's safe to discard. If the capture *is* replacing an existing sheet photo, `Retake` requires a confirm (`«Discard this photo? The sheet's markup will be kept.»` — hold-to-confirm).
+- `Retake` while an inset capture is in progress asks nothing — the capture isn't in the project yet, so it's safe to discard. If the capture *is* replacing an existing sheet photo, `Retake` requires a confirm (`«Discard this photo? The sheet's markup will be kept if the new photo is the same size.»` — hold-to-confirm) 〔v2: replacement with different dimensions routes to the Replace-photo warned dialog (§11.2) — markup survival is never promised blindly〕.
 
 **Autosave on capture:** the photo file is written to `<project>/sheets/<n>/photo.jpg` immediately on accept, with a `«Adding…»` inline progress bar. If the write fails, the sheet stays in memory, the Autosave chip goes `--warn`, and the user is offered `«Save a copy…»` (download the file) so a field photo is never trapped.
 
@@ -743,7 +743,7 @@ There is no Save button, so the Autosave chip is the most important 200 pixels i
 
 Write mechanics the UI must reflect honestly: changes are coalesced and written 400ms after the last edit; thumbnails regenerate 3s after the last edit; writes are serialized per sheet; failures back off (1s, 3s, 10s) and then park in the `Pending` state instead of silently retrying forever. Never show `Saved` optimistically before the write resolves.
 
-**History flyout** (from the chip): a list of local snapshots (auto every 10 minutes of editing, plus one before each destructive action), each row showing time and a one-line summary (`«Before: Clear sheet markup (14 objects)»`), tap to open a read-only preview with `«Restore this version»`. Stored in `<project>/.history/<sheetId>/`, capped at 20 snapshots / 200 MB per project with oldest-first pruning (and the cap is stated in the flyout footer, not hidden).
+**History flyout** (from the chip): a list of local snapshots (auto every 10 minutes of editing, plus one before each destructive action), each row showing time and a one-line summary (`«Before: Clear sheet markup (14 objects)»`), tap to open a read-only preview with `«Restore this version»`. Stored in `<project>/.history/<sheetId>/` (and `.history/_project/` for `project.json`), capped at 20 snapshots / 200 MB per project with oldest-first pruning (and the cap is stated in the flyout footer, not hidden). 〔v2 hardening: restoring a snapshot is a **whole-sheet restore** — this IS the persisted undo mechanism (preflight §8.3/D20); there is no separate per-command journal across restarts.〕
 
 ### 13.2 Undo / redo
 
@@ -759,7 +759,7 @@ Write mechanics the UI must reflect honestly: changes are coalesced and written 
 | Action | Recoverable? | Pattern |
 |---|---|---|
 | Delete an object / stroke | Yes (undo) | Immediate + `«Undo»` toast, 8s. **No dialog.** |
-| Delete a sheet | Yes (to trash + undo) | Immediate + toast `«Sheet deleted · Undo»`, 10s. Files move to `<project>/.trash/`, pruned after 14 days. |
+| Delete a sheet | Yes (to trash + undo) | Immediate + toast `«Sheet deleted · Undo»`, 10s. Files move to `<project>/.trash/`, pruned after 14 days. **Restore UI:** Project ⋯ → `«Trash…»` (list + preview + `«Restore»`) — trash is not a write-only graveyard. |
 | Clear all markup on a sheet | No (in bulk) | Dialog + **hold-to-confirm 600ms** + a checkbox list of what's included. |
 | Delete a project's files | No | Dialog + type the project name + hold-to-confirm. Shows the exact path. |
 | Remove a project from the list | Yes (files untouched) | Immediate + toast, with the clear copy from §11.1. |
@@ -894,7 +894,7 @@ These are the specific things a mechanical implementer is most likely to flatten
 6. **The dimension loupe appears on pointerdown with zero delay, is edge-aware, and never sits under the pen hand or tip.** The live label offsets with a leader line rather than colliding. (§8.1)
 7. **Cancelling the dimension keypad keeps the drawn geometry.** Never discard the stroke. (§8.1)
 8. **The chain button exists.** Chained dimension runs are a headline feature. (§8.1)
-9. **Live ft-in parse preview with the raw unit equivalent**, plus a keyboard fast-path that needs no focus. (§8.1)
+9. **Live ft-in parse preview with the raw unit equivalent**, plus a keyboard fast-path that needs no focus. (§8.1) 〔v2 hardening: the input behind the preview is the **slot state machine** (preflight §6.1.1) — the preview is a pure function of slots; the strict parser round-trips every committed `enteredText`. There is no "guess the parse" layer.〕
 10. **Uncalibrated dimensions show `≈`** and are honest about it. (§8.1) 〔v1 scope: superseded — calibration is deferred, so v1 dimensions never show `≈` (there is nothing to be uncertain about: values are typed). The honesty requirement carries to the Angle tool's readout and any future measured value.〕
 11. **Insets are containers with their own markup layer, nested exactly one level**, with a Focus breadcrumb chip as the only z-context indicator. (§9)
 12. **Highlighter inserts below all other markup automatically.** (§8.4)
@@ -924,8 +924,9 @@ These are the specific things a mechanical implementer is most likely to flatten
 
 ## 18. Open questions (for the orchestrator / product owner)
 
-1. **Calibration** is included as a required sub-flow because uncalibrated "measured" dimensions would be misleading. If it must be cut for v1, dimensioning should be typed-value-first with the drawn length hidden — confirm which.
-2. **PDF vector overlay** (markup as vector on top of a raster photo) is offered as an optional non-default mode; confirm whether the PDF library in scope supports true vector overlays or whether we ship flattened-only.
+1. **Calibration** — ~~required sub-flow~~ **Resolved (v2): deferred for v1; dimensioning is typed-value-only with the drawn length never shown as a number.** The full sub-flow spec is retained at §8.1 for the calibration release. Confirm this is acceptable for the pilot.
+2. **PDF vector overlay** — **Resolved (v2): flattened-only in v1** (checkbox removed from the wizard); vector overlay is a 1.1 candidate. Confirm `@cantoo/pdf-lib`'s vector/dash fidelity when that release is planned.
 3. **GPS**: default is stripped. Confirm whether a site-address field (typed, not geolocated) belongs in sheet meta for reporting.
 4. **Metric units**: not designed in. The ft-in parser and the unit toggles have a clean seam for it, but say so now if metric is needed, because the keypad's fraction chips are ft-in-specific.
 5. **Sheet templates** (e.g. a pre-set dimension style and title block) were not in scope; the preset system can carry most of that value if needed.
+6. **Capture resolution reality** (new, v2): the 0.2 input spike measures the device's true `getUserMedia` caps. If both `High`/`Fast` land at ~4K, decide whether the toggle earns its place, and whether to promote the Windows Camera app import path for high-res shots.
