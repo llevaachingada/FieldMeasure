@@ -140,7 +140,7 @@ Versions below were verified against the npm registry on 2026-09-21. **Pin exact
 
 | Concern | Pick | Verified latest (pin ≤ this) | Notes |
 |---|---|---|---|
-| Language / build | TypeScript + Vite + React | React 18 | |
+| Language / build | TypeScript + Vite + React | React 19 (19.3.0 installed — supersedes the original "React 18" plan; no React-18-only APIs are used; React 19 removes no API this app relies on) | |
 | Canvas | **Konva (imperative, NOT react-konva)** | 10.6.0 | MIT; layer-per-canvas; `getIntersection` hit-testing |
 | UI state | zustand + immer | 5.0.15 / 11.1.18 | `styleByTool`, editor session state |
 | Validation | zod | 4.6.5 | validates `project.json`/`markup.json` on load and before save |
@@ -415,16 +415,18 @@ export const ProjectFileZ = z.object({
 });
 
 /** Guarded parse: corrupt JSON must return { success: false }, NEVER throw —
- *  readJsonValidated (§5.3) relies on this to reach the .history recovery path. */
+ *  readJsonValidated (§5.3) relies on this to reach the .history recovery path.
+ *  Synchronous (zod is sync); readJsonValidated's `parse` param may be sync or
+ *  async — `await` on a plain value is fine either way. */
 export function parseJson<T>(schema: z.ZodType<T>, raw: string):
-  Promise<{ success: true; data: T } | { success: false; error: string }> {
+  { success: true; data: T } | { success: false; error: string } {
   try {
     const res = schema.safeParse(JSON.parse(raw));
-    return Promise.resolve(res.success
+    return res.success
       ? { success: true as const, data: res.data }
-      : { success: false as const, error: JSON.stringify(res.error.issues) });
+      : { success: false as const, error: JSON.stringify(res.error.issues) };
   } catch (e) {
-    return Promise.resolve({ success: false as const, error: String(e) });
+    return { success: false as const, error: String(e) };
   }
 }
 
@@ -614,6 +616,8 @@ Two implementations: `FsaBackend` (File System Access API) and `OpfsBackend` (Or
 import { get, set } from 'idb-keyval';
 import { parseProjectFile, parseMarkupFile } from '../domain/schema';
 
+type MaybePromise<T> = T | Promise<T>;
+
 let backend: StorageBackend;
 
 export async function initStore(): Promise<void> {
@@ -641,7 +645,7 @@ export async function writeAtomic(
   const tmpName = `${name}.tmp`;
   const tmp = await dir.getFileHandle(tmpName, { create: true });
   const w = await tmp.createWritable();
-  await w.write(typeof data === 'string' ? data : data);
+  await w.write(data);                    // accepts string | Blob | BufferSource
   await w.close();                       // flush; then atomic rename
   // FileSystemFileHandle.move() exists in Chromium (files only — NOT on directories).
   // Overwrite-on-move matches POSIX (M109+). Verified on target build in slice 1.2.
@@ -651,10 +655,11 @@ export async function writeAtomic(
 export const writeJsonAtomic = (dir: FileSystemDirectoryHandle, name: string, data: unknown) =>
   writeAtomic(dir, name, JSON.stringify(data, null, 2));
 
-/** Read + validate; on parse failure, recover from history, never silently overwrite. */
+/** Read + validate; on parse failure, recover from history, never silently overwrite.
+ *  `parse` may return synchronously (parseJson does) or a Promise — both are awaited. */
 export async function readJsonValidated<T>(
   dir: FileSystemDirectoryHandle, name: string,
-  parse: (s: string) => Promise<{ success: boolean; data?: T }>,   // see §3.4 parseJson — never throws
+  parse: (s: string) => MaybePromise<{ success: boolean; data?: T }>,   // see §3.4 parseJson — never throws
 ): Promise<T> {
   const fh = await dir.getFileHandle(name, { create: false });
   const raw = await (await fh.getFile()).text();
@@ -663,11 +668,19 @@ export async function readJsonValidated<T>(
   return res.data!;
 }
 
-/** Delete stale *.tmp files left by a crash. Call once on project open. */
-export async function cleanStaleTmp(dir: FileSystemDirectoryHandle): Promise<void> {
-  for await (const [name, h] of (dir as any).entries()) {
-    if (h.kind === 'file' && name.endsWith('.tmp')) await dir.removeEntry(name);
-  }
+/** Delete stale *.tmp files left by a crash. Call once on project open.
+ *  SAFETY (round-2): a tmp file can be another tab's write IN FLIGHT — the write lock
+ *  doesn't protect this unless cleanup takes it too. So: run under the same per-project
+ *  Web Lock AND only delete tmp files whose lastModified is older than 5 minutes. */
+export async function cleanStaleTmp(dir: FileSystemDirectoryHandle, projectId: string): Promise<void> {
+  await navigator.locks.request('fm:project:' + projectId, async () => {
+    const cutoff = Date.now() - 5 * 60_000;
+    for await (const [name, h] of (dir as any).entries()) {
+      if (h.kind !== 'file' || !name.endsWith('.tmp')) continue;
+      const file = await h.getFile();
+      if (file.lastModified < cutoff) await dir.removeEntry(name);
+    }
+  });
 }
 ```
 
@@ -771,11 +784,23 @@ export function formatInches(totalIn: number, denom = 16): string {
   return `${sign}${feet}'-${frac && !inches ? `0 ${frac}` : inchStr}"`;
 }
 
+/** Inches-ONLY format (no feet decomposition; may exceed 12): 124.5 in → `124 1/2"`. */
+export function formatInchesOnly(totalIn: number, denom = 16): string {
+  const sign = totalIn < 0 ? '-' : '';
+  let ticks = Math.round(Math.abs(totalIn) * denom);
+  const inches = Math.floor(ticks / denom);
+  let num = ticks - inches * denom;
+  let den = denom;
+  while (num > 0 && num % 2 === 0 && den % 2 === 0) { num /= 2; den /= 2; }
+  const frac = num ? ` ${num}/${den}` : '';
+  return `${sign}${inches}${frac}"`;
+}
+
 /** Format a canonical mm value for display in the given system + format. */
 export function formatLength(valueMm: number, system: 'imperial' | 'metric', denom = 16, unitFormat: 'ft-in' | 'in' | 'ft-decimal' = 'ft-in'): string {
   if (system === 'metric') return `${valueMm.toFixed(0)} mm`;
   const inches = valueMm / MM_PER_IN;
-  if (unitFormat === 'in') return formatInches(inches, denom);
+  if (unitFormat === 'in') return formatInchesOnly(inches, denom);
   if (unitFormat === 'ft-decimal') return `${(inches / 12).toFixed(2)}'`;
   return formatInches(inches, denom);
 }
@@ -809,31 +834,42 @@ export function pressDigit(st: KeypadState, d: string): KeypadState {
   return next;
 }
 
-/** `.` key: interpret `.5`-style as half — route into the numerator slot as `5/10`? No —
- *  simplest honest behavior: `.` starts a FRACTION (the `«1/2»`…`«1/16»` chips are the
- *  primary path; `.` is a shortcut for halves/decimals):
- *  pressDot moves to numerator with denominator 10 → but construction precision is /16.
- *  DECISION: `.` sets numerator slot active and denominator 2 (i.e. `.` = "point five" intent);
- *  the `«← /16»` chip cycles the denominator as before. Documented so no builder guesses. */
+/** `.` key: starts a fraction (the `«1/2»`…`«1/16»` chips are the primary path; `.` is the
+ *  hardware-typist's shortcut). DECISION: `.` moves to the numerator slot and resets it, with the
+ *  denominator UNCHANGED (project precision). Then `. 5` = 5/16", not 0.5" — the preview shows
+ *  exactly what the slots say, so this is discoverable, not surprising; the fraction chips remain
+ *  the way to pick halves/quarters. (A bare decimal like `124.5` on the hardware path is handled
+ *  by parseLooseToSlots, not by pressDot.) Documented so no builder guesses. */
 export function pressDot(st: KeypadState): KeypadState {
-  return { ...st, activeSlot: 'numerator', numerator: '', denominator: 2 };
+  return { ...st, activeSlot: 'numerator', numerator: '' };
 }
 
 /** Compose the canonical enteredText from slots. This string is what gets stored
- *  (and what the strict parser round-trips on re-edit). */
+ *  (and what the strict parser round-trips on re-edit).
+ *  INVARIANTS (all property-tested):
+ *   1. Every non-empty output strictly parses back to keypadValueInches(st).
+ *   2. Feet+fraction composes as `<f>'-<i> <n>/<d>"` (never drops the fraction).
+ *   3. Inches-mode with only a fraction composes as `<n>/<d>"` (no phantom `0`). */
 export function composeEnteredText(st: KeypadState): string {
+  const fracPart = st.numerator ? `${st.numerator}/${st.denominator}` : '';
+
   if (st.inchesMode) {
-    const frac = st.numerator ? ` ${st.numerator}/${st.denominator}` : '';
-    return st.inches || st.numerator ? `${st.inches || (st.numerator ? '0' : '')}${frac}"` : '';
+    if (!st.inches && !st.numerator) return '';
+    if (!st.inches) return `${fracPart}"`;                  // fraction only: `3/16"`
+    return fracPart ? `${st.inches} ${fracPart}"` : `${st.inches}"`;
   }
-  const frac = st.numerator ? ` ${st.numerator}/${st.denominator}` : '';
+
   if (st.feet) {
-    const inPart = st.inches || (st.numerator ? `0${frac}` : '');
-    return inPart || !st.numerator ? `${st.feet}'-${inPart || '0'}"${inPart.includes('/') ? '' : ''}`.replace(/-"$/, '"') : `${st.feet}'-0${frac}"`;
+    if (st.inches && fracPart) return `${st.feet}'-${st.inches} ${fracPart}"`;   // 10'-4 1/2"
+    if (st.inches) return `${st.feet}'-${st.inches}"`;                          // 10'-4"
+    if (fracPart) return `${st.feet}'-0 ${fracPart}"`;                          // 10'-0 1/2"
+    return `${st.feet}'-0"`;                                                    // 10'-0"
   }
+
   // feet empty → everything is inches
-  const inPart = st.inches || (st.numerator ? `0${frac}` : '');
-  return inPart ? `${inPart}"` : '';
+  if (!st.inches && !st.numerator) return '';
+  if (!st.inches) return `${fracPart}"`;
+  return fracPart ? `${st.inches} ${fracPart}"` : `${st.inches}"`;
 }
 
 /** The live preview: slots → value. The truth; never parse the composed string for display. */
@@ -848,31 +884,58 @@ export function keypadValueInches(st: KeypadState): number | null {
 }
 
 /** Hardware-keyboard / hardware-keypad path: tokenize a raw typed string leniently,
- *  then compose slots. `12 6` → feet 12, inches 6. `12 6 3` → feet 12, inches 6,
- *  numerator 3 (denominator = project precision, cyclable via the `«← /16»` chip).
- *  All-whitespace-separated groups; explicit unit marks always win. */
-export function parseLooseToSlots(raw: string, denominator: number): KeypadState | null {
+ *  then compose slots. Accepted (in order of precedence) — all cases traced against the
+ *  test table below; if you touch this, re-run the traces:
+ *   1. Feet-first (explicit `'`):  `10'` · `10' 4"` · `10'-4 1/2"` · `10' 6 3` (loose numerator,
+ *      denominator = project precision) · `10' 1/2"` (fraction only).
+ *   2. Bare decimal (`124.5`) → inches-mode, raw preserved for `enteredText`.
+ *   3. Fraction alone (`1/2"`) → inches-mode fraction.
+ *   4. Loose integer groups (spaces/dashes): `124` = 124 in (inchesMode) · `12 6` = 12 ft 6 in ·
+ *      `12 6 3` = 12 ft 6 in + 3/16 (project denominator).
+ *  Returns null when nothing sensible matches — the caller disables the commit button. */
+export function parseLooseToSlots(raw: string, denominator: number): { slots: KeypadState; rawDecimal: string | null } | null {
   const s = raw.trim().toLowerCase()
-    .replace(/[\u2019\u2032]/g, "'").replace(/[\u201D\u2033]/g, '"').replace(/\s+/g, ' ');
+    .replace(/[\u2019\u2032]/g, "'").replace(/[\u201D\u2033]/g, '"')
+    .replace(/feet|foot|ft/g, "'").replace(/inches|inch|in(?![a-z])/g, '"')
+    .replace(/\s+/g, ' ');
   if (!s) return null;
-  // explicit forms go straight to compose: run the strict parser for value,
-  // but we still need slots for the chip UI; tokenize explicitly:
-  const m = s.match(/^(?:(\d+)')?\s*(?:(\d+(?:\.\d+)?)\s*)?(?:(\d+)\/(\d+))?\s*(?:"|in\.?)?$/);
-  if (m && (m[1] || m[2] || m[3])) {
-    return {
-      feet: m[1] ?? '', inches: m[2] ?? '', numerator: m[3] ?? '',
-      denominator: m[4] ? Number(m[4]) : denominator,
-      activeSlot: 'inches', inchesMode: false,
-    };
+
+  const mk = (over: Partial<KeypadState>): KeypadState =>
+    ({ feet: '', inches: '', numerator: '', denominator, activeSlot: 'inches', inchesMode: false, ...over });
+
+  // 1. feet-first forms (space allowed before the ' mark: "10 ft 4 in" → "10 ' 4 \"")
+  const fm = s.match(/^(\d+)\s*'\s*[-\s]?\s*(.*)$/);
+  if (fm) {
+    const rest = fm[2].trim();
+    if (rest === '' || rest === '"') return { slots: mk({ feet: fm[1] }), rawDecimal: null };
+    let m = rest.match(/^(\d+)(?:\s*[\s-]\s*(\d+)\/(\d+))?\s*"?$/);   // i [n/d]
+    if (m) return { slots: mk({ feet: fm[1], inches: m[1], numerator: m[2] ?? '',
+      denominator: m[3] ? Number(m[3]) : denominator }), rawDecimal: null };
+    m = rest.match(/^(\d+)\s+(\d+)\s*"?$/);                            // i n (loose numerator, project denom)
+    if (m) return { slots: mk({ feet: fm[1], inches: m[1], numerator: m[2] }), rawDecimal: null };
+    m = rest.match(/^(\d+)\/(\d+)\s*"?$/);                             // n/d only
+    if (m) return { slots: mk({ feet: fm[1], numerator: m[1], denominator: Number(m[2]) }), rawDecimal: null };
+    return null;
   }
-  // loose numeric groups: 1 group = inches; 2 groups = ft in; 3 groups = ft in num(/denom)
-  const parts = s.match(/^(\d+(?:\s+\d+){0,2})(?:\s*\/\s*(\d+))?$/);
-  if (!parts) return null;
-  const groups = parts[1].trim().split(/\s+/).map(Number);
-  if (groups.some(n => !Number.isFinite(n))) return null;
-  if (groups.length === 1) return { feet: '', inches: String(groups[0]), numerator: '', denominator, activeSlot: 'inches', inchesMode: true };
-  if (groups.length === 2) return { feet: String(groups[0]), inches: String(groups[1]), numerator: '', denominator, activeSlot: 'inches', inchesMode: false };
-  return { feet: String(groups[0]), inches: String(groups[1]), numerator: String(groups[2]), denominator: parts[2] ? Number(parts[2]) : denominator, activeSlot: 'inches', inchesMode: false };
+
+  // 2. bare decimal → inches (raw preserved for enteredText)
+  if (/^\d+\.\d+"?$/.test(s)) {
+    const d = s.replace(/"$/, '');
+    return { slots: mk({ inches: d, inchesMode: true }), rawDecimal: d };
+  }
+
+  // 3. fractions without feet: `4-1/2` · `4 1/2` (whole+fraction) · `1/2` (alone)
+  let m = s.match(/^(\d+)[\s-]+(\d+)\/(\d+)"?$/);                  // whole + fraction: 4-1/2, 4 1/2
+  if (m) return { slots: mk({ inches: m[1], numerator: m[2], denominator: Number(m[3]), inchesMode: true }), rawDecimal: null };
+  m = s.match(/^(\d+)\/(\d+)"?$/);                                  // fraction alone: 1/2
+  if (m) return { slots: mk({ numerator: m[1], denominator: Number(m[2]), inchesMode: true }), rawDecimal: null };
+
+  // 4. loose integer groups: `124` = 124 in · `12 6` = 12 ft 6 in · `12 6 3` = 12 ft 6 in + 3/16
+  m = s.match(/^(\d+)(?:[\s-]+(\d+))?(?:[\s-]+(\d+))?"?$/);
+  if (!m) return null;
+  if (m[2] === undefined) return { slots: mk({ inches: m[1], inchesMode: true }), rawDecimal: null };
+  if (m[3] === undefined) return { slots: mk({ feet: m[1], inches: m[2] }), rawDecimal: null };
+  return { slots: mk({ feet: m[1], inches: m[2], numerator: m[3] }), rawDecimal: null };
 }
 ```
 
@@ -880,8 +943,9 @@ export function parseLooseToSlots(raw: string, denominator: number): KeypadState
 - The **live parse preview** renders `formatLength(keypadValueInches(st) × 25.4, ...)` — the slots are the truth; the composed string is display + storage.
 - `«ft»/«in»` toggles: `ft` → `activeSlot = 'feet'`; `in` → `inchesMode = true` (whole entry rescopes; feet slot clears visually with an `«Entry is now inches»` hint chip for 1.5 s).
 - Fraction chips (`1/2…1/16`): set `denominator` AND if `numerator` is empty, move `activeSlot` to `numerator` and show the `«← /16»` cycling hint.
-- Hardware path: every keystroke re-runs `parseLooseToSlots(buffer, project.precisionDenominator)`; `Enter` commits `keypadValueInches` (guaranteed non-null) and stores `composeEnteredText(st)`.
-- **Committed annotations always store BOTH** `valueMm` (from slots) and `enteredText` (composed). The strict parser must round-trip `enteredText` → same `valueMm`; this is a unit test (see below).
+- Hardware path: every keystroke re-runs `parseLooseToSlots(buffer, project.precisionDenominator)` → `{ slots, rawDecimal }`; the preview reads `keypadValueInches(slots)` (for a bare decimal, the value is `Number(rawDecimal)`); `Enter` commits that value as `valueMm` and stores `enteredText = rawDecimal ?? composeEnteredText(slots)`. **Reject `Enter` when the value is null/NaN** (the primary button also disables) — never commit a null.
+- **Committed annotations always store BOTH** `valueMm` (from slots/decimal) and `enteredText` (composed, or the raw decimal). The strict parser must round-trip `enteredText` → same `valueMm` for every composed string; this is a unit test (see below).
+- `composeEnteredText` invariants: (1) every non-empty output strictly parses back to `keypadValueInches(st)`; (2) feet+fraction never drops the fraction; (3) inches-mode fraction-only composes `3/16"` — never `03/16"`.
 
 **Tests (`tests/units.test.ts`)** — carry these forward and add the keypad table:
 
@@ -915,50 +979,77 @@ describe('formatInches', () => {
 describe('formatLength (unit formats)', () => {
   const mm = 3162.3;   // 10'-4 1/2"
   it('ft-in default', () => expect(formatLength(mm, 'imperial', 16, 'ft-in')).toBe(`10'-4 1/2"`));
-  it('inches only', () => expect(formatLength(mm, 'imperial', 16, 'in')).toBe(`10'-4 1/2"`));   // ≥12 in stays ft-in? NO — 'in' means inches-only:
-  // NOTE the test above is WRONG per spec; the correct expectation is `124 1/2"`. Fix in the real test file:
-  it('inches only (correct)', () => expect(formatLength(mm, 'imperial', 16, 'in')).toBe(`124 1/2"`));
+  it('inches only (independent of feet decomposition)', () => expect(formatLength(mm, 'imperial', 16, 'in')).toBe(`124 1/2"`));
   it('decimal feet', () => expect(formatLength(mm, 'imperial', 16, 'ft-decimal')).toBe(`10.38'`));
 });
 
 describe('keypad slot model (fuzzy layer)', () => {
-  it('12 6 → 12 ft 6 in (hardware fast path)', () => {
-    const st = parseLooseToSlots('12 6', 16)!;
-    expect(keypadValueInches(st)).toBeCloseTo(148);
+  it('12 6 → 12 ft 6 in = 150 in (hardware fast path)', () => {
+    const { slots } = parseLooseToSlots('12 6', 16)!;
+    expect(keypadValueInches(slots)).toBeCloseTo(150);
   });
-  it('12 6 3 → 12 ft 6 + 3/16 (denominator = project precision)', () => {
-    const st = parseLooseToSlots('12 6 3', 16)!;
-    expect(keypadValueInches(st)).toBeCloseTo(148 + 3/16);
+  it('12 6 3 → 12 ft 6 in + 3/16 (denominator = project precision)', () => {
+    const { slots } = parseLooseToSlots('12 6 3', 16)!;
+    expect(keypadValueInches(slots)).toBeCloseTo(150 + 3/16);
+  });
+  it(`12' 6 3 → same (explicit feet + loose numerator)`, () => {
+    const { slots } = parseLooseToSlots(`12' 6 3`, 16)!;
+    expect(keypadValueInches(slots)).toBeCloseTo(150 + 3/16);
+  });
+  it(`10 ft 4 in and 4-1/2 parse (unit words + dash forms)`, () => {
+    expect(keypadValueInches(parseLooseToSlots(`10 ft 4 in`, 16)!.slots)).toBeCloseTo(124);
+    expect(keypadValueInches(parseLooseToSlots(`4-1/2`, 16)!.slots)).toBeCloseTo(4.5);
+  });
+  it('bare decimal stays decimal inches (raw preserved)', () => {
+    const r = parseLooseToSlots('124.5', 16)!;
+    expect(r.rawDecimal).toBe('124.5');
+    expect(r.slots.inchesMode).toBe(true);
+  });
+  it.each([
+    // [slots, expected text] — compose invariants
+    [{ feet: '10', inches: '4', numerator: '1', denominator: 2 },  `10'-4 1/2"`],
+    [{ feet: '10', inches: '4', numerator: '', denominator: 16 },   `10'-4"`],
+    [{ feet: '10', inches: '', numerator: '1', denominator: 2 },    `10'-0 1/2"`],
+    [{ feet: '10', inches: '', numerator: '', denominator: 16 },    `10'-0"`],
+    [{ feet: '', inches: '4', numerator: '1', denominator: 2 },     `4 1/2"`],
+    [{ feet: '', inches: '', numerator: '3', denominator: 16 },      `3/16"`],
+    [{ feet: '', inches: '124', numerator: '', denominator: 16 },    `124"`],
+  ] as const)('composeEnteredText %j → %s', (st, expected) => {
+    expect(composeEnteredText(st as unknown as KeypadState)).toBe(expected);
   });
   it('explicit string round-trips through the strict parser', () => {
-    const st = parseLooseToSlots(`12' 6 3/8`, 16)!;
-    const text = composeEnteredText(st);
-    expect(parseImperialToInches(text)).toBeCloseTo(keypadValueInches(st)!);
+    const { slots } = parseLooseToSlots(`12' 6 3/8`, 16)!;
+    const text = composeEnteredText(slots);
+    expect(text).toBe(`12'-6 3/8"`);
+    expect(parseImperialToInches(text)).toBeCloseTo(150.375);   // 12 ft 6 3/8 = 150.375 in — matches the UI spec's `12' 6 3/8" = 150.4 in` example
   });
-  it('digit routing + dot shortcut', () => {
+  it('digit routing + dot-as-fraction', () => {
     let st = emptyKeypadState(16);
-    st = pressDigit(st, '1'); st = pressDigit(st, '2');
-    st = pressDot(st);        // → numerator, denominator 2
-    st = pressDigit(st, '5');
-    expect(keypadValueInches(st)).toBeCloseTo(12.5);
+    st = pressDigit(st, '1'); st = pressDigit(st, '2');   // 12 (inches-mode default start)
+    st = pressDot(st);        // → numerator slot, denominator UNCHANGED (16)
+    st = pressDigit(st, '8');
+    expect(keypadValueInches(st)).toBeCloseTo(12 + 8/16);   // 12 8/16" = 12.5"
   });
-  it('composeEnteredText output always parses (property, 200 random slot combos)', () => {
-    for (let i = 0; i < 200; i++) {
+  it('composeEnteredText output always parses (property, 500 random slot combos)', () => {
+    for (let i = 0; i < 500; i++) {
       const st: KeypadState = {
         feet: String(Math.floor(Math.random() * 30)),
         inches: String(Math.floor(Math.random() * 12)),
         numerator: String(Math.floor(Math.random() * 16)),
-        denominator: 16, activeSlot: 'inches', inchesMode: false,
+        denominator: 16, activeSlot: 'inches',
+        inchesMode: Math.random() < 0.5,
       };
       const text = composeEnteredText(st);
       if (!text) continue;
-      expect(parseImperialToInches(text)).not.toBeNull();
+      const parsed = parseImperialToInches(text);
+      expect(parsed).not.toBeNull();
+      expect(parsed!).toBeCloseTo(keypadValueInches(st)!);   // value round-trip, not just parseability
     }
   });
 });
 ```
 
-> **Note on the intentionally-wrong test above:** the `inches only` first expectation in the real test file must be `124 1/2"` (the `in` format displays total inches). The incorrect line is left visible in the reference to remind the builder that `formatInches` alone cannot produce >12" outputs — implement `in` format as a small wrapper that formats the TOTAL inches (may exceed 12) — e.g. `formatInches(totalInches)` naturally yields `124 1/2"`, so pass `valueMm / MM_PER_IN` directly and skip the feet decomposition. Write the wrapper; don't guess.
+> **Test note:** the compose table above is the acceptance contract for `composeEnteredText` — the v0.3 round-1 code dropped the fraction in the `feet && inches && numerator` case (`10'-4"` instead of `10'-4 1/2"`); these tests exist so that regression can never come back. The property test asserts the **value** round-trip (not just parseability).
 
 ### 6.2 Geometry (`src/domain/geometry.ts`) — image-pixel space
 
@@ -1307,7 +1398,12 @@ Shared pattern — **pen-down to start, drag to size, pen-up to commit**; hold s
 
 - The inset's asset is a **normalized working image** exactly like a sheet photo (§7.1: EXIF-baked, ≤4096px, dimensions fixed at insert).
 - **Child geometry is stored in the asset's working-image pixel space** — identical semantics to a top-level sheet. `geometry.x/y` of the image annotation is the inset's top-left **in sheet px**; `width/height` are the placed size in sheet px; `rotation` degrees around the placed rect's center; `crop` is a rect **in asset px**.
-- **Rendering:** each inset is a `Konva.Group` at `(x, y)`, `rotation`, with group scale set so the cropped region maps to the placed size: `group.scale({ x: width / crop.width, y: height / crop.height })` (default crop = full asset, i.e. `0,0,assetW,assetH`). Apply crop via `clipFunc` (crop is in group-local = asset px, so the clip is applied before the transform — group-local clip + group scale does crop-then-transform in the right order). The asset `Konva.Image` inside is drawn at asset scale (unscaled position, its own pixels). Children are added to the group in **asset px** — they scale/rotate with the group automatically and are clipped automatically.
+- **Rendering:** each inset is a `Konva.Group` at `(x, y)`, `rotation`, with group scale set so the cropped region maps to the placed size: `group.scale({ x: width / crop.width, y: height / crop.height })` (default crop = full asset, i.e. `0,0,assetW,assetH`). Apply crop via `clipFunc` (crop is in group-local = asset px, so the clip is applied before the transform — group-local clip + group scale does crop-then-transform in the right order):
+  ```ts
+  group.clipFunc(ctx => ctx.rect(0, 0, crop.width, crop.height));
+  assetImage.position({ x: -crop.x, y: -crop.y });   // ← the crop window scrolls the asset INTO view
+  ```
+  (**Round-2 fix:** with a non-zero `crop.x/y`, the asset image must be offset `(-crop.x, -crop.y)` inside the group — "drawn at its own pixels, unscaled position" alone would show the wrong region.) Children are added to the group in **asset px** at their true asset-space positions — they scale/rotate with the group automatically, are clipped automatically, and stay glued to the photo content when the crop window moves.
 - **Children are NEVER rewritten** when the inset is moved, scaled, rotated, or cropped. They are pure asset-space data. Changing `crop` moves the visible window over the (fixed) child space — children stay glued to the photo content, which is the field-correct behavior (zooming the crop window is "looking closer at the detail photo," not moving its markup).
 - **Default placement:** 40% of sheet width, centered on the tap point, aspect preserved, rotation 0, handles showing. `crop` omitted (defaults to full asset).
 - **Replace photo:** if the new asset's working-image dimensions are **identical**, swap the asset reference and keep children (visual continuity). If dimensions differ, children cannot be mapped — the dialog states this explicitly and offers `«Keep markup anyway — it may land in the wrong place»` (warned) or `«Remove markup»`. No silent remap. (M7)
@@ -1609,7 +1705,7 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 
 ### 0.1 — Scaffold
 **Files:** `package.json`, `vite.config.ts`, `tsconfig.json`, `.github/workflows/ci.yml`, `public/icons/*`, `src/main.tsx`, `src/App.tsx`, `THIRD-PARTY-NOTICES.md`.
-**Do:** Vite + React 18 + TS; install and pin the fixed deps (§2.2, exact versions, committed lockfile, `npm ci` in CI); Vitest + Playwright; vite-plugin-pwa (manifest + service worker precaching app shell + fonts + icons; **do not cache user photos**); serve the CSP (§2.2). CI = typecheck + test + build.
+**Do:** Vite + React 19 + TS; install and pin the fixed deps (§2.2, exact versions, committed lockfile, `npm ci` in CI); Vitest + Playwright; vite-plugin-pwa (manifest + service worker precaching app shell + fonts + icons; **do not cache user photos**); serve the CSP (§2.2). CI = typecheck + test + build.
 **Done when:** the app URL loads in Edge; "Install app" works; reload in airplane mode still opens the app.
 
 ### 0.2 — Input spike (do this before any UI)
@@ -1630,7 +1726,7 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 
 ### 1.2 — Storage core
 **Files:** `src/fs/{projectStore,backend}.ts`, `src/data/storage.ts`.
-**Do:** FSA backend (pick root, persist handle, queryPermission at init + requestPermission on gesture, reconnect), OPFS backend, **tmp→close→move() atomic write for JSON AND blobs**, read-validate-recover, cleanStaleTmp, **per-project two-tab lock + BroadcastChannel (§5.4)**, flush-on-pagehide, `.history/_project/` snapshots, truncated-photo detection.
+**Do:** FSA backend (pick root, persist handle, queryPermission at init + requestPermission on gesture, reconnect), OPFS backend, **tmp→close→move() atomic write for JSON AND blobs**, read-validate-recover, cleanStaleTmp (aged + lock-guarded), **per-project two-tab lock + BroadcastChannel (§5.4)**, flush-on-pagehide, `.history/_project/` snapshots, truncated-photo detection.
 **Done when:** create a project → a folder appears on disk; kill-switch during a **markup.json write and during a photo.jpg write** → no corruption on reload; a corrupted `project.json` **and** a corrupted `markup.json` auto-recover from `.history/`; two tabs on the same project → second is read-only; **two tabs on different projects → both writable**.
 
 ### 1.3 — Photo on canvas

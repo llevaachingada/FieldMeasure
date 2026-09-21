@@ -6,8 +6,10 @@ built-in camera, draw **feet-inch dimension lines** and rich markup on it, inser
 server, no database, no sign-in, no cloud SDK, no Bluetooth, and no multi-user** — each Surface is
 self-contained, and the user drags the exported folder into Dropbox to share.
 
-> **Status: pre-flight, review-complete.** No functional application code yet. The build spec has been
-> through an adversarial review and hardened to v0.3; dependencies are installed. See
+> **Status: pre-flight + planning complete.** No functional application code yet. The build spec has
+> been through **two** adversarial review rounds (the second executed the spec's reference code and
+> fixed a wrong test expectation and a fraction-dropping bug before they could reach a builder);
+> the implementation plan is written with per-slice gates. Dependencies are installed. See
 > [`docs/CONTINUITY.md`](docs/CONTINUITY.md) for the live project state.
 
 ## Why
@@ -21,8 +23,9 @@ folders.
 
 | Document | Canonical version | Notes |
 |---|---|---|
-| Build spec | [`docs/preflight-handoff-v0.3-hardened.md`](docs/preflight-handoff-v0.3-hardened.md) | **Authoritative.** Its **§2.4 "v1 scope table" is the single authority on what ships in v1.** |
+| Build spec | [`docs/preflight-handoff-v0.3-hardened.md`](docs/preflight-handoff-v0.3-hardened.md) | **Authoritative.** Its **§2.4 "v1 scope table" is the single authority on what ships in v1.** Hardened after two adversarial review rounds (round 2 execution-verified the keypad reference code). |
 | UI/UX spec | [`docs/ui-spec-field-measure-v2-hardened.md`](docs/ui-spec-field-measure-v2-hardened.md) | **Authoritative** on look & feel. |
+| Implementation plan | [`docs/implementation-plan.md`](docs/implementation-plan.md) | **Authoritative on build order.** Slice sequence, dependency graph, per-slice gates, checkpoint table. |
 | Decisions (ADR) | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Why things are the way they are. |
 | Unit rules | [`docs/UNITS.md`](docs/UNITS.md) | Input formats, rounding, examples. |
 | Continuity log | [`docs/CONTINUITY.md`](docs/CONTINUITY.md) | Read first when resuming work. |
@@ -35,11 +38,12 @@ folders.
 
 | Area | State |
 |---|---|
-| Build spec (v0.3, hardened) | ✅ |
+| Build spec (v0.3, hardened ×2 review rounds) | ✅ |
 | UI/UX spec (v2, hardened) | ✅ |
-| Adversarial review | ✅ complete — findings folded into v0.3 / v2 |
+| Adversarial review | ✅ rounds 1 + 2 complete — findings folded in |
+| Implementation plan (slice gates) | ✅ |
 | Decisions log (ADR) | ✅ |
-| Dependencies installed | ✅ (`package.json`, Node 24 LTS) |
+| Dependencies installed | ✅ (`package.json`, Node 24 LTS, React 19.3) |
 | Application code | ❌ not started (build slice 0.1) |
 
 ## Prerequisites

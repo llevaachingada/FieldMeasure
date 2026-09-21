@@ -685,7 +685,7 @@ Rows: type icon + name (`«Dimension 12' 6"»`, `«Inset 2»`, `«Freehand»`) a
 
 ### 11.3 Project settings (sheet)
 
-`⋯ → Project settings`: name, default units & precision, default sheet naming template (`«{date} {time}»`), default export destination (remembered folder), auto-enhance new photos (on/off), strip GPS from new photos (on, default), calibration defaults. Footer: `«Done»`.
+`⋯ → Project settings`: name, default units & precision, unit format (ft-in / in / decimal ft), default sheet naming template (`«{date} {time}»`), default export destination (remembered folder), strip GPS from new photos (on, default). 〔v1 scope: `auto-enhance new photos` (deferred feature) and `calibration defaults` (deferred) are removed from the sheet.〕 Footer: `«Done»`.
 
 ### 11.4 Storage & availability chip (used in Home and Editor top bars)
 
@@ -741,14 +741,14 @@ There is no Save button, so the Autosave chip is the most important 200 pixels i
 | **Read-only** | `⊘ «Read-only»`, `--err` | Explains and offers `«Re-pick folder»`. |
 | **Error** | `! «Couldn't save»`, `--err` + a single `«Retry»` button inside the chip | Expands to a full explanation with `«Retry»` / `«Save a copy…»` / `«Copy error details»`. |
 
-Write mechanics the UI must reflect honestly: changes are coalesced and written 400ms after the last edit; thumbnails regenerate 3s after the last edit; writes are serialized per sheet; failures back off (1s, 3s, 10s) and then park in the `Pending` state instead of silently retrying forever. Never show `Saved` optimistically before the write resolves.
+Write mechanics the UI must reflect honestly: changes are coalesced and written 400ms after the last edit; thumbnails regenerate 3s after the last edit; writes are serialized per sheet (and guarded by a **per-project** Web Lock — two tabs on *different* projects never block each other); failures back off (1s, 3s, 10s) and then park in the `Pending` state instead of silently retrying forever. Never show `Saved` optimistically before the write resolves. 〔v2 hardening: all writes — JSON, photos, assets, thumbnails — use the tmp→rename atomic pattern; the chip reflects the write promise's resolution only.〕
 
 **History flyout** (from the chip): a list of local snapshots (auto every 10 minutes of editing, plus one before each destructive action), each row showing time and a one-line summary (`«Before: Clear sheet markup (14 objects)»`), tap to open a read-only preview with `«Restore this version»`. Stored in `<project>/.history/<sheetId>/` (and `.history/_project/` for `project.json`), capped at 20 snapshots / 200 MB per project with oldest-first pruning (and the cap is stated in the flyout footer, not hidden). 〔v2 hardening: restoring a snapshot is a **whole-sheet restore** — this IS the persisted undo mechanism (preflight §8.3/D20); there is no separate per-command journal across restarts.〕
 
 ### 13.2 Undo / redo
 
 - Location: bottom of the tool rail, two 56px buttons (§5.1). Also `Ctrl+Z` / `Ctrl+Shift+Z`.
-- Undo depth: 100 steps in memory, 20 persisted per sheet across app restarts.
+- Undo depth: 100 steps in memory. Across restarts, "undo" = restoring a `.history` snapshot from the Autosave chip's History flyout (whole-sheet restore — one mechanism, §13.1).
 - Undo **coalesces ink**: a single continuous freehand stroke is one undo step, not 400. Style changes to a selection coalesce within a 600ms window into one step.
 - Every undo button press shows the action name in a toast: `«Undid: Delete dimension 12' 6"»` — this is how a user learns what each step will do without experimentation.
 - The redo stack clears on a new edit (standard) and the button visibly dims at 40% when empty.
@@ -876,7 +876,7 @@ Names are suggestions; the **boundaries** are the specification.
     2026-09-21_1412/…              // the folder the user drags into Dropbox
   .fieldmeasure/
     presets.json                   // travels with the folder
-  .history/                        // capped snapshots
+  .history/                        // capped snapshots (_project/ holds project.json snapshots; <sheetId>/ holds markup.json)
   .trash/                          // 14-day sheet trash
 ```
 
@@ -930,3 +930,29 @@ These are the specific things a mechanical implementer is most likely to flatten
 4. **Metric units**: not designed in. The ft-in parser and the unit toggles have a clean seam for it, but say so now if metric is needed, because the keypad's fraction chips are ft-in-specific.
 5. **Sheet templates** (e.g. a pre-set dimension style and title block) were not in scope; the preset system can carry most of that value if needed.
 6. **Capture resolution reality** (new, v2): the 0.2 input spike measures the device's true `getUserMedia` caps. If both `High`/`Fast` land at ~4K, decide whether the toggle earns its place, and whether to promote the Windows Camera app import path for high-res shots.
+
+---
+
+## Appendix — v2 hardening changelog (what changed in this document and why)
+
+Each change below fixes a verified adversarial-review finding (references are to the review's finding IDs). Inline `〔v1 scope: …〕` markers appear at every affected section.
+
+| # | Change | Sections touched | Finding fixed |
+|---|---|---|---|
+| 1 | **Calibration, `≈` on dimensions, `«Keep measured…»`, `«Not calibrated»` chip, calibrated rulers, polygon area readout → DEFERRED.** v1 is typed-only; the drawn length is never shown as a number. The full sub-flow spec is retained at §8.1 for the calibration release. | §5.4, §7.2, §8.1, §8.3, §16-10 | B4 |
+| 2 | **Keypad input model**: the live preview is a pure function of the slot state machine (preflight §6.1.1) — `12 6` → `12' 6"`, `12' 6 3` → `12' 6 3/16"` (project precision, cyclable), `.` routes to the fraction numerator. Committed `enteredText` always round-trips the strict parser (property-tested). | §8.1, §16-9 | B2 |
+| 3 | **Dimension panel Precision/Unit format edit the project-level values** (one source of truth; chip confirms `«Project precision: …»`). Labels derive at render — never persisted, never stale. | §7.2, §8.1 | M5, M11 |
+| 4 | **Palm rejection hardened**: touch ignored 1.2 s after ANY pen event AND for the entire duration of an active pen stroke (a >1.2 s stroke must not re-open the touch window). | §5.4 | M4 |
+| 5 | **Handedness = plain first-run question (Right default).** The Windows pen setting is not readable from a web page — no copy may claim it. | §4.4, §14.8 | M6 |
+| 6 | **Capture resolution toggle shows the device's real max** (`getUserMedia` caps ~1080p–4K on Windows); Windows Camera app + Import is the high-res path. **Auto-enhance removed from the review screen (deferred).** | §10.1 | M8, B4 |
+| 7 | **`Show in Explorer` / `Open folder` strings eliminated everywhere** — impossible from a PWA. Replaced by `Copy path` + `Reveal folder` (`showDirectoryPicker({ startIn })`). | §11.1, §11.2, §12, §17 | B4 |
+| 8 | **Export wizard**: flatten checkbox + vector overlay + summary-page checkbox removed (always flattened, deferred); **2× quality default**; 3× shows a low-RAM device warning; page = image px × 0.75 pt. | §12 | B1, B4, Minor-3 |
+| 9 | **Replace photo constrained** (identical dims → silent swap; different dims → warned dialog, hold-to-confirm on `Remove markup`). **Sheet-card `Rotate` CUT** (would corrupt the coordinate space). `Import a project` card and `Duplicate project` removed (cut/deferred). | §11.1, §11.2, §13.3, §10.1 | M7, B4 |
+| 10 | **Trash restore UI added** (Project ⋯ → `Trash…`: list, preview, `Restore`). Trash is not a write-only graveyard. | §11.2, §13.3 | Minor-6 |
+| 11 | **Persisted undo = history snapshots** (whole-sheet restore from the Autosave chip); no separate command journal. `.history/_project/` covers `project.json`. | §13.1, §13.2 | M10, M2 |
+| 12 | **Autosave mechanics note**: per-project Web Lock (two tabs on different projects never block each other); all writes atomic (tmp→rename) including photos. | §13.1 | M3, M1 |
+| 13 | **Inset data model pinned** (children in asset working-image px; crop in asset px via `clipFunc` before transform; children never rewritten on inset transforms; dedupe never merges children). Visual spec unchanged. | §9 | B3 |
+| 14 | **Cancel-keeps-stroke gap closed**: a valueless dimension renders with a `«tap to enter value»` ghost label until a value is entered (tapping reopens the keypad). | §8.1 | review follow-up |
+| 15 | **Project settings sheet** trimmed of deferred features; `unit format` added. **Rename copy** states the folder name is cosmetic (the folder is never moved — the API doesn't exist). | §11.3, §11.1 | M7, B5 |
+
+**Unchanged (verified sound in review):** the visual token system, layout/docking math, target sizes, tool grouping/rail anatomy, style panel grammar, accessibility requirements, capture screen chrome, Home/Project states, toast/history/undo patterns, and all "do not simplify" items other than those annotated above.

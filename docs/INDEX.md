@@ -1,6 +1,6 @@
 # Documentation & File Index
 
-A map of everything in this repository. Last updated **2026-09-21**.
+A map of everything in this repository. Last updated **2026-09-21 (session 2)**.
 
 ## Root
 
@@ -18,10 +18,11 @@ A map of everything in this repository. Last updated **2026-09-21**.
 |---|---|
 | `docs/INDEX.md` | This file. |
 | `docs/CONTINUITY.md` | **Project continuity log** — live state, session timeline, next steps, open questions. Read first when resuming. |
-| `docs/preflight-handoff-v0.3-hardened.md` | **PRIMARY BUILD SPEC (canonical).** Hardened after adversarial review. Its **§2.4 v1 scope table is the single authority on what ships in v1.** |
-| `docs/ui-spec-field-measure-v2-hardened.md` | **UI/UX SPEC (canonical).** Authoritative on look & feel; v1 scope markers `〔v1 scope: …〕` defer to the build spec §2.4. |
+| `docs/preflight-handoff-v0.3-hardened.md` | **PRIMARY BUILD SPEC (canonical).** Hardened after adversarial review rounds 1 + 2. Its **§2.4 v1 scope table is the single authority on what ships in v1.** Round 2 executed the keypad reference code and fixed a wrong committed test expectation (`12 6` = 150 in, not 148), a fraction-dropping compose bug, and an inset crop-offset gap. |
+| `docs/ui-spec-field-measure-v2-hardened.md` | **UI/UX SPEC (canonical).** Authoritative on look & feel; v1 scope markers `〔v1 scope: …〕` defer to the build spec §2.4; v2 changelog appendix maps every change to its review finding. |
+| `docs/implementation-plan.md` | **EXECUTION PLAN (canonical for order).** Slice order, dependency graph, per-slice gates (machine-checkable + on-device), checkpoint table, wrong-measurement tripwires. The build spec is the authority on *what*; this is the authority on *order and done-ness*. |
 | `docs/DECISIONS.md` | Architecture Decision Record (ADR) log, incl. review-driven corrections. |
-| `docs/UNITS.md` | Accepted length input formats, rounding rules, examples. |
+| `docs/UNITS.md` | Accepted length input formats, keypad model, rounding rules, examples. |
 
 ## docs/ — superseded (kept for history)
 
@@ -47,17 +48,18 @@ A map of everything in this repository. Last updated **2026-09-21**.
 | `src/domain/` | Pure logic: `types.ts`, `schema.ts`, `units.ts`, `geometry.ts`, `snapping.ts`, `ids.ts`. |
 | `src/fs/` | `projectStore.ts`, `backend.ts` (File System Access API + OPFS). |
 | `src/media/` | `normalizeImage.ts`, `exif.ts`, `thumbnails.ts`. |
-| `src/editor/` | `EditorCanvas.ts`, `inputRouter.ts`, `history.ts`, `Loupe.ts`, `tools/`, `shapes/`. |
+| `src/editor/` | `EditorCanvas.ts`, `inputRouter.ts`, `history.ts`, `Loupe.ts`, `tools/`, `shapes/` (incl. local `svgPath.ts`). |
 | `src/export/` | `pdf.ts`, `png.ts` (zip via `fflate`), `filenames.ts`. |
 | `src/state/` | `appStore.ts`, `editorStore.ts`, `styleByTool.ts`. |
 | `src/ui/` | React chrome (top bar, tool rail, style panel, overlays) + `strings.ts`. |
-| `tests/` | Vitest unit tests + Playwright e2e. |
+| `tests/` | Vitest unit tests (incl. `keypad.test.ts`) + Playwright e2e. |
 | `public/icons/` | Original app icons. |
 
 ## Reading order for a new contributor or AI
 
 1. `README.md` — orientation.
 2. `docs/CONTINUITY.md` — where things stand right now.
-3. `docs/preflight-handoff-v0.3-hardened.md` — the build spec (start with §2.4, the v1 scope table).
-4. `docs/ui-spec-field-measure-v2-hardened.md` — the UI.
-5. `docs/DECISIONS.md` — why things are the way they are.
+3. `docs/implementation-plan.md` — the execution order and gates.
+4. `docs/preflight-handoff-v0.3-hardened.md` — the build spec (start with §2.4, the v1 scope table).
+5. `docs/ui-spec-field-measure-v2-hardened.md` — the UI.
+6. `docs/DECISIONS.md` — why things are the way they are.

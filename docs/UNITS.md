@@ -30,6 +30,22 @@ Rejected: `abc`, `4 1/0` (zero denominator), empty string.
 
 `1245 mm` · `124.5 cm` · `1.245 m` — a bare number is treated as millimeters.
 
+## Keypad input model (v0.3)
+
+The **strict parser** (`parseImperialToInches`) only accepts explicit forms and rejects `12 6` — by
+design. The keypad is the fuzzy layer (slot state machine + `parseLooseToSlots`, build spec §6.1.1):
+
+| Typed (hardware or on-screen) | Means | Composed `enteredText` |
+|---|---|---|
+| `12 6` | 12 ft 6 in | `12'-6"` |
+| `12 6 3` | 12 ft 6 in + 3/16 (project precision) | `12'-6 3/16"` |
+| `12' 6 3/8` | explicit — slots mirror the marks | `12'-6 3/8"` |
+| `124.5` | 124.5 in (bare number = inches) | raw decimal kept |
+| `4-1/2` | 4½ in | `4 1/2"` |
+
+The composed text **must round-trip the strict parser to the same value** (property-tested — build
+spec §6.1). The preview is computed from the slots, never by re-parsing the display string.
+
 ## Formatting (imperial display)
 
 Construction style, rounded to the project's precision denominator (default 1/16"), fraction reduced,
@@ -39,14 +55,20 @@ with carry (`16/16` → next inch, `12"` → next foot):
 - `11.99 in` → `1'-0"`
 - `0.5 in` → `1/2"`
 
+Unit formats (`project.unitFormat`): `ft-in` → `10'-4 1/2"` · `in` → total inches (`124.5 in` →
+`124 1/2"`, no feet decomposition) · `ft-decimal` → `10.38'`.
+
 ## Precision
 
-`precisionDenominator` ∈ {2, 4, 8, 16, 32, 64}; default 16. Stored on the project; the keypad's
-fraction chips set it and remember it for the next dimension.
+`precisionDenominator` ∈ {2, 4, 8, 16, 32, 64}; default 16. **Project-level** (one source of truth):
+the Dimension style panel and the keypad's fraction chips edit the project value; every label derives
+from it at render time. Labels are never persisted — a stale cached label after a precision/unit
+change is a wrong-measurement bug, and the schema has no `label` field at all.
 
 ## Reference
 
-- Parser & formatter: `src/domain/units.ts` (spec §6.1).
-- Tests: `tests/units.test.ts`.
-- **Snapping and ft-in parsing are the two highest-stakes pure modules** — a bug there is a wrong
-  measurement on a job site. Keep their tests exhaustive.
+- Parser, formatter, keypad model: `src/domain/units.ts` (build spec §6.1 + §6.1.1).
+- Tests: `tests/units.test.ts`, `tests/keypad.test.ts`.
+- **The four highest-stakes pure modules: snapping, ft-in parsing, the keypad slot model, and the
+  export scaling rules** — a bug in any is a wrong measurement or a wrong artifact. Keep their tests
+  exhaustive.

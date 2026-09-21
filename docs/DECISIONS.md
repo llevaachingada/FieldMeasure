@@ -85,8 +85,9 @@ The adversarial review produced these corrections (findings B1–B5, M1–M13, M
 into the canonical docs:
 
 - **B1** Export/DPI math redefined (see D5/D6).
-- **B2** Keypad input is a slot state machine + lenient tokenizer (`parseImperialLoose`) over the strict
-  parser: `12 6` → `12'-6"`, `12 6 3` → `12'-6 3/16"`.
+- **B2** Keypad input is a slot state machine + lenient tokenizer (`parseLooseToSlots`) over the strict
+  parser: `12 6` → `12'-6"` (150 in), `12 6 3` → `12'-6 3/16"`. Round-2: the composed text is
+  property-tested (500 combos) to round-trip the strict parser to the same value.
 - **B3** Inset child coordinate space defined (see D12).
 - **B4** New **§2.4 v1 scope table** — the definitive in/deferred/cut list.
 - **B5** `FileSystemDirectoryHandle.move()` removed; `FileSystemFileHandle.move()` confirmed (see D3).
