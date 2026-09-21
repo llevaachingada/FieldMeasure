@@ -624,3 +624,267 @@ browser provider — an optional peer, not auto-installed). Corrected the browse
 `docs/HARDWARE-TEST-CHECKLIST.md` (slice 0.2 + H10); slice 1.4 builds against provisional labels and
 reads the §21.7 row after the on-device measurement. The probe is committed at
 `tests/e2e/device-caps.spec.ts` so hardware re-measurement is a one-command run.
+
+## Session 9 — slice 1.3 photo on canvas (2026-09-21)
+
+### D54 — §4.2 screen scaling seam + the tap-classification contradiction (execution, not reading)
+
+**Screen rules, implemented once.** `src/editor/EditorCanvas.ts` exports the §4.2 screen rules as
+pure helpers — `screenFontSize`, `screenInkSize`, `screenStrokeConfig`, `screenTextConfig`,
+`screenInkConfig`, `inkOutlinePoints` — plus `applyScreenRules(root, scale, { regenerateInk })`, which
+`applyView` calls on **every** zoom change. Strokes keep `strokeWidth = strokeWidthMu` with
+`strokeScaleEnabled:false`; Text nodes carry a `fontSizeMu` attr so `fontSize = fontSizeMu / s` is
+re-applied at each scale; ink nodes carry `inkPoints` + `strokeWidthMu` and their filled outline is
+regenerated at `mu / s`. Ink regeneration is skipped during a pinch/wheel burst and run once on
+`zoomend`/wheel-settle (the throttle §4.2 rule 4 asks for). Nothing is flattened or pre-multiplied.
+`tests/editorCanvas.browser.test.ts` renders a 4-mu stroke, 4-mu ink and an 18-mu label at 1×/4×/8×,
+pixel-scans the layer canvas, and asserts the painted thickness is constant while geometry scales —
+the slice's machine gate.
+
+**Contradiction found by execution.** UI spec §5.4 reads "lifts within **8px** of travel (or ≤400ms) is
+a tap"; the slice-1.3 plan test reads `maxDrift ≤ 8 px && duration ≤ 400 ms → 'tap'` (AND). A plain OR
+classifies a 200 px pan completed in 150 ms as a **tap** — 192 px outside the slop, accepted purely on
+duration — so every fast pan would become a selection. Implemented **AND** (`isTap`), pinned by
+`tests/dragPredicate.test.ts`; the UI-spec wording is corrected to "**and** within **400ms**"
+(AGENTS: fix the wrong expectation with the arithmetic, then the test).
+
+### D55 — Slice 1.3 media, worker, fixture and open-flow decisions
+
+- **Synthetic fixtures, hand-rolled — never a patched header.** `tests/fixtures/make-fixtures.mjs`
+  emits `12mp-portrait-exif6.jpg` (4032×3024 = 12.19 MP stored; orientation 6; DateTimeOriginal; a GPS
+  IFD) with Node built-ins only, and now also regenerates `tiny-2x2.jpg` the same way. A solid mid-grey
+  image has DC = 8·(128−128) = 0 in every block, so a valid baseline grayscale JPEG is hand-emitted
+  from the Annex K Huffman tables (SOI, DQT, SOF0 1-component, standard DHTs, SOS, DC0+EOB per MCU,
+  `0xFF→0xFF00` stuffing) and the APP1/EXIF segment is spliced in as a normal marker.
+  `buildSolidGrayJpeg` handles non-multiple-of-8 dimensions by emitting padding MCUs (identical for a
+  constant image) and the decoder crops to the frame. Both sizes are proven to decode with real
+  mid-grey pixels in `tests/normalizeImage.browser.test.ts` (2×2 and upright 3024×4032). 143 KB
+  committed; the fixture name matches the plan/appendix (`12mp-portrait-exif6.jpg`).
+- **★ corrected (orchestrator review, after an independent oracle review of this slice).** The claim
+  above that the old `tiny-2x2.jpg` "SOF-patched a larger frame onto a 1×1 seed" was **wrong**. The
+  oracle extracted `HEAD:tests/fixtures/tiny-2x2.jpg` binary-safe and parsed it: the 631-byte file was
+  a **genuine encoder JPEG of a 2×2 solid-white image** — JFIF APP0, 2 DQTs, 4 DHTs, SOF0 2×2
+  3-component — and it decoded cleanly in both Chromium and GDI+. It was never broken. (At that
+  degenerate size a 1×1-seed patch would be byte-indistinguishable anyway: one MCU covers the whole
+  cropped frame, which is how the false story became plausible.) The 631→313 rewrite is still worth
+  keeping — deterministic, dependency-free, and now a meaningful mid-grey level rather than white —
+  but it is **hygiene, not the removal of an anti-pattern**. The `make-fixtures.mjs` header comment was
+  corrected to match.
+- **Thumbnail composite is contain-fit on `--mat`, not cover** (§7.3 leaves "composite" open). A sheet
+  thumbnail must show the whole photo; cover would hide exactly the edges a dimension might sit near.
+- **Decode worker is real and machine-proven.** `src/media/decodeWorker.ts`'s stub body is replaced
+  with the real `createImageBitmap` decode (transferred `ImageBitmap`), keeping the slice-0.1 URL
+  convention. It returns `decodedIn: 'decodeWorker.ts'`; `tests/thumbnails.browser.test.ts` asserts the
+  marker, so a refactor that drops the worker fails a test instead of passing on an assumption. The
+  build emits `dist/assets/decodeWorker-*.js` (a separate chunk).
+- **`dragLayer` pixel ratio = `min(devicePixelRatio, 2)`.** §8.1.1's table names only photo / markup /
+  inset / overlay. The drag layer holds the same crisp markup content as `markupLayer`, so it takes the
+  same ratio.
+- **`fit()` is clamped to 0.25×.** A 12 MP portrait photo contain-fitted into a ~1312×908 landscape
+  canvas computes ≈0.225 < `MIN_ZOOM`. Honouring the stated 0.25×–8× range for every path (pill, pinch,
+  fit) means Fit shows slightly less than the whole sheet on very large images; recorded rather than
+  silently allowing a sub-0.25 fit.
+- **Capture time → the new sheet's `createdAt`.** §7.2 says to read capture time "for default sheet
+  naming", but (a) the appendix fixes the default name as `Sheet NN`, and (b) §3.4's `Sheet` has no
+  capture-time field (zod would strip an unknown key). Capture time is read BEFORE `normalizeImage`
+  (proved by test) and used as `createdAt`, which is schema-legal and better than "now"; the title is
+  the appendix's `Sheet NN`.
+- **Damaged-photo state offers Import (adds a sheet).** Replace-in-place is §8.5's Replace-photo flow
+  (later slice); v1.3 only has the import path.
+- **D51 wiring landed.** `src/App.tsx` composes the runtime `projectId` as `${id}:${folderName}` from
+  `ProjectList.onOpenProject`, and `SheetEditor` registers THAT key with `registerOpenProject`, the
+  writer lease (`acquireWriterLease`), the BroadcastChannel and (via `projectStore`) the per-project
+  Web Lock — two same-id folders can no longer collide. A scan entry with no valid id is not openable.
+- **New string keys** (all from the appendices except where marked ⚠): `project.noSheetsEmpty`,
+  `project.readOnlyChip`, `project.sheetNamePrefix` (⚠, the literal word in `Sheet NN`),
+  `capture.importButton`, `capture.importAPhoto`, `errors.photoDamaged`, `errors.retry`,
+  `errors.projectUnavailable` (⚠, appendix gap #20's quoted phrase), `editor.zoomPercent`, `editor.fit`
+  (⚠), `editor.emptyHint`, `editor.back` (⚠), `a11y.zoomIn/zoomOut/zoomFit`, `a11y.zoom` (⚠),
+  `a11y.canvas` (⚠). No wording was invented beyond these marked placeholders.
+- **★ corrected (orchestrator review of this slice).** The line above listed
+  `a11y.zoomIn/zoomOut/zoomFit` as **non**-placeholder. Byte-level checking shows they exist **only** in
+  `appendix-strings-gaps.md` #25 — *proposed* copy — while the approved `## a11yLabels` section holds
+  only `a11y.dimensionTool`. Re-marked ⚠ PROPOSED in `src/ui/strings.ts` so unapproved copy cannot ship
+  as final (CONTINUITY open question 1 / C14). Every other new key's **value** was verified
+  byte-identical to the approved appendix, **em dashes included**.
+  **Process note for future sessions:** the Windows PowerShell console renders U+2014 inconsistently —
+  `Select-String` prints it as `-` while `git diff` prints it as `—` — so a copy check done through the
+  console can invent a string mismatch that does not exist (it did, twice, during this review). Do copy
+  and fixture checks with a byte-level `node` read, never with `Select-String` output.
+- **Bundle note.** Importing Konva into the app bundle took the main chunk to ~547 kB (past Vite's
+  500 kB warning). Non-blocking; lazy-loading `SheetEditor` (Konva off the Home route) is the obvious
+  code-split and is left for the 1.4.5 shell, which will mount `SheetEditor` behind the editor layout.
+- **Surprise (test harness).** The first `--project browser` run timed out initializing the
+  `thumbnails.browser.test.ts` iframe (60 s) while other browser files ran in parallel; a re-run was
+  green and each file passes in isolation (worker included). Recorded as a possible Vitest browser
+  flake to watch, not a product defect.
+
+### D56 — EXIF orientation decode: `from-image`, never `none`/`flipY`, no manual rotation
+
+Confirmed by a dedicated research pass (librarian lane) and by a local Chromium probe:
+
+- **Always** `createImageBitmap(blob, { imageOrientation: 'from-image' })`. In Chromium the Blob
+  default is **already** `'from-image'` (the probe showed `createImageBitmap(blob)` and the explicit
+  form both yield the fixture's upright 3024×4032), so the explicit option is **intent, not a
+  behaviour change** — it stops a future edit from silently opting out.
+- **Never `'none'`.** A flag-disabled/deopted decoder leaves orientation un-baked, so a 4032×3024
+  orientation-6 phone photo would load sideways and **every** stored dimension would land in the wrong
+  place (a wrong-measurement bug, not a cosmetic one).
+- **Never `'flipY'`.** It is a mirror, not an orientation; it cannot express EXIF 6.
+- **No manual rotation anywhere.** All four decode sites — `normalizeImage.decodeOriented`,
+  `decodeWorker.onmessage`, and the two `SheetEditor` loads — pass `from-image`; adding a
+  `rotate()`/transform on top would double-rotate. Enforced by comment at each call site; the
+  `tests/normalizeImage.browser.test.ts` dim assertion (upright 3024×4032) is the behavioural guard.
+- The `ImageBitmap` is the only thing decoded; the working image is re-encoded without metadata, so
+  orientation is baked exactly once on import and never re-applied on load.
+- **`convertToBlob`/`toBlob` drop EXIF (incl. GPS) by construction** — confirmed by research and
+  asserted by execution: both are a fresh Skia encode with no metadata passed, in all Chromium builds
+  (no Android/Windows difference; it is the encoder, not the platform). `tests/normalizeImage.browser.test.ts`
+  verifies this by **re-parsing the normalized output bytes** for an APP1 segment beginning `"Exif\0\0"`
+  and for the GPSInfoIFDPointer tag `0x8825`; the same scanner first proves both are present in the
+  source fixture, so the negative result is meaningful. `exif.ts`'s byte-level `stripExif` is therefore
+  belt-and-braces for any path that must preserve original bytes, not the mechanism the import relies on.
+
+### D57 — EXIF read path: manual APP1 scan, bounded to a ~64 KB head slice
+
+There is **no native metadata API** — `createImageBitmap`/`ImageBitmap` and the File System Access
+`File` expose no EXIF access — so walking the JPEG marker structure by hand is the only read path.
+`src/media/exif.ts` implements exactly that: require `FFD8`, walk markers stopping at `DA`/`D9`, find
+`E1` followed by `"Exif\0\0"`, take the TIFF that starts next, detect `II` (0x4949) / `MM` (0x4D4D),
+check magic `42` at TIFF+2, IFD0 at `TIFF + u32(TIFF+4)`, and read 12-byte `tag/type/count/value`
+entries.
+
+**`readExifInfo` reads only the first `EXIF_SCAN_BYTES` (64 KB)** via `blob.slice`, instead of pulling a
+multi-MB phone photo into memory just for metadata. One APP1 segment is capped at 65533 bytes by the
+JPEG spec, and cameras emit EXIF before ICC/other APPn, so 64 KB covers a full EXIF block plus the JFIF
+APP0 that normally precedes it. The bound cannot cause a wrong measurement: this parser supplies only
+the **capture time** (a default sheet timestamp); **orientation is decoder-side** — baked by
+`createImageBitmap(..., { imageOrientation: 'from-image' })` in `normalizeImage`/`decodeWorker` (D56),
+which reads the tag internally, not through this module. A pathological JPEG that preceded EXIF with
+~64 KB of other APPn data would lose only the timestamp, never the upright pixels.
+`tests/exif.test.ts` proves the bound by spying on `Blob.prototype.arrayBuffer` and asserting no more
+than `EXIF_SCAN_BYTES` is ever materialized from the 143 KB fixture (while still parsing orientation 6).
+`stripExif` is the exception — it rewrites the file, so it must read the whole blob; it is not on the
+import path.
+
+### D58 — The plan's "12 MP → ≤4096 long edge" assertion is trivially true; downscaling is covered explicitly
+
+The slice-1.3 test line "12 MP fixture → ≤4096 px long edge" **never exercises downscaling**: a
+4032×3024 12 MP photo is 3024×4032 after EXIF orientation 6, long edge **4032 < 4096**, so the default
+`normalizeImage` call returns it unchanged. Recorded rather than "fixed" by inventing a >4096 fixture
+that would no longer be 12 MP. The downscale path is covered by execution instead:
+
+- pure `targetSize` (`tests/normalizeImage.test.ts`): `8192×6144 @4096 → 4096×3072` (0.5×);
+  `3024×4032 @1024 → 768×1024` (1024/4032 = 0.253968…, 3024 × that = 768.0); `1×100000 @1 → 1` (never 0).
+- browser (`tests/normalizeImage.browser.test.ts`): `normalizeImage(input, 1024) → 768×1024`, and
+  `normalizeImage(input, 512)` in the content-hash case.
+- the **default** call now asserts the exact unchanged `3024×4032` (and `max(w,h) === 4032`) so the
+  no-op is deliberate and visible; a regression that silently downscaled a 12 MP photo on import would
+  fail it.
+
+A real >4096 phone photo (e.g. a 48 MP sensor in 4:3) would exercise the default clamp on glass; that
+belongs to the hardware checklist's 12 MP gate, not to a synthetic fixture.
+
+### D59 — Pinch wiring: `stage.on('touchmove')` + `preventDefault`, `touch-action:none`, `overscroll-behavior:none`
+
+Konva ships no pinch gesture. `EditorCanvas` hand-rolls it, and the hardening is now explicit:
+
+- **`stage.on('touchstart' | 'touchmove' | 'touchend' | 'touchcancel', …)`** — Konva binds those
+  listeners on `stage.content` with **`{ passive: false }`** (verified in `konva/lib/Stage.js`), and
+  dispatches them synchronously, so `e.evt.preventDefault()` inside the handler is honoured. Pinch
+  therefore lives on the Konva event system, not a side-channel DOM listener.
+- **`touch-action: none`** on the canvas container (`.editor-canvas`, the div handed to `Konva.Stage`)
+  — the scroll/zoom gestures never reach the browser. **`overscroll-behavior: none`** on `body` stops
+  pull-to-refresh and rubber-band chaining while a two-finger pinch is in flight.
+- Only two-finger contacts `preventDefault` and zoom; a single-finger `touchmove` is left alone (the
+  SheetEditor pointer path owns one-finger pan/object-first drag).
+- **Execution caught a real (minor) defect:** the pinch baseline was first established inside
+  `touchmove`, so the *first* move only set `startDistance` and never zoomed. The baseline is now
+  established in `touchstart` (two touches → `beginPinch`), so the first move zooms. Pinned by
+  `tests/editorCanvas.browser.test.ts`: synthesized two-finger `TouchEvent`s assert 100 px → 200 px =
+  2×, pivot = midpoint (image point under the midpoint is unchanged), `touchmove` is `defaultPrevented`,
+  and a single-finger move neither zooms nor preventDefaults.
+
+## Session 9 (continued) — independent review of slice 1.3 (F1–F5), 2026-09-21
+
+An independent `oracle` review was run because 1.3 is the foundation four slices build on and its
+scaling seam is load-bearing. **Method:** the fixture generator was re-run and its output re-derived by
+an independent byte-level JPEG parser + Huffman entropy decoder; both fixtures were cross-decoded with a
+second implementation (GDI+); the Konva 10.6.0 stroke/event internals were traced in `node_modules`; and
+`vitest --project node` and `--project browser` were re-run independently.
+
+**Verified sound, no defect found:**
+- **Fixtures.** Marker structure correct; entropy decodes to exactly `ceil(w/8)×ceil(h/8)` DC0+EOB MCUs
+  (190,512 for the 12 MP; 1 for the 2×2) with correct `0xFF→0xFF00` stuffing and EOI placement; APP1
+  length field includes its own 2 bytes (182 = 180+2); `"Exif\0\0"`, `II`+42+IFD0@8, ascending 12-byte
+  entries, every offset even, `0x8769`→Exif SubIFD / `0x8825`→GPS IFD with zero next-IFD terminators;
+  all tags resolve to the claimed values, and GDI+ reads the same tags. Orientation 6 is genuinely
+  demonstrated (stored 4032×3024 → decoded upright 3024×4032).
+- **§4.2 screen rules.** `applyView` (`EditorCanvas.ts`) is the single chokepoint for every zoom path
+  (pill / setZoom / zoomAt / fit / pinch / wheel), so text is re-counter-scaled on **every** change;
+  ink regenerates from the raw `inkPoints` attr (never from already-outlined points → no double-apply);
+  strokes are never divided (no flatten/pre-multiply). The test is genuine, and the reviewer confirmed
+  from Konva's source that `strokeScaleEnabled:true` would render 4→16→32 px across 1×/4×/8× and fail it
+  — i.e. it would catch the exact regression it names. "Label width constant in CSS px" was, however,
+  proven by attribute arithmetic rather than pixels; see F5 below.
+- **EXIF/normalize path.** `targetSize` arithmetic exact (1024/4032 × 3024 = 768), `sha256Hex` matches
+  the FIPS "abc" vector, and the 64 KB scan bound is load-bearing **only** for capture time: nothing in
+  `src/` consumes `readExifInfo().orientation`/`.hasGps` — orientation is decoder-side at all four
+  `createImageBitmap(..., 'from-image')` sites — so the bound cannot cause a wrong measurement. The
+  EXIF-negative assertion is meaningful because it first proves the source carries the tags.
+- **D51.** All four keys verified (`registerOpenProject`, the writer lease, the BroadcastChannel, and the
+  `writeAtomic` Web Lock) use the same `${id}:${folderName}` runtime key.
+- **D54, D56, D57, D58, D59** — accurate as written.
+
+**D60 — F1 (medium, real defect): one-finger pan on empty canvas was never implemented. FIXED.**
+`SheetEditor`'s `onPointerMove` gated panning on `contact.intent === 'navigate'`, but with the default
+`touchPlaces: ON` the router classifies a touch contact `'draw'`. `decideDragTarget` correctly returned
+`'pan'`, and **nothing consumed it** — so with no grabbable geometry (all of 1.3) every one-finger drag
+did nothing; it worked only from the 24 px edge band or with `touchPlaces` off. Mouse and pen were
+equally dead. This contradicted build spec §8.2 ("otherwise it **pans**"), D37, and slice-1.3 build
+order step 3 — a shipped-behaviour gap the green gate structurally could not see, because
+`dragPredicate.test.ts` tests the pure predicate, not the wiring.
+**Fix:** `onPointerMove` consumes `decideDragTarget`'s result for **any** one-finger contact — `'pan'`
+pans, `'object'` is left to 1.5 — suppressed only while a placement is pending (UI §5.4 gates
+object-first on "no placement is pending", so a pending placement wins). Tap routing is untouched:
+`isTap` still governs taps, so tap-tap placement is unaffected.
+**Guard:** `tests/sheetEditor.browser.test.ts` mounts the **real** `SheetEditor` (real `EditorCanvas`,
+real Konva stage, real native pointer listeners; storage mocked), sizes the host to 800×600 so the edge
+band is real and the contact is born off-edge, drags (400,300)→(520,340) and asserts
+`stage.position()` is (120,40) — plus a second case asserting a pending placement suppresses pan. The
+lane verified this test **fails against the pre-fix code** (`expected +0 to be close to 120`), so it is
+a real guard, not a tautology. **Not proven by it:** object-move and the second-finger restore (no
+object model until 1.5), the pen/mouse variants (same branch, not separately simulated), and the
+edge-born `'navigate'` route.
+
+**D61 — sheetEditor props gain the 1.4.5 rail seam.** `SheetEditorProps` gains optional
+`activeTool: 'select' | 'pan' | 'place'` (default `'select'`) and `placementPending: boolean` (default
+false), read through refs because the pointer handlers are installed in a mount-time effect. `'place'`
+stands for **any** placement tool — it arms placement so double-tap fit is suspended and a pending
+placement suppresses drag navigation. 1.4.5's rail drives these props; 1.5 supplies
+`placementPending`.
+
+**D62 — F2 (low): double-tap fit↔100% is no longer gated on the touch toggle.** `endContact` gated the
+double-tap on `intent === 'draw'`, so a user with `touchPlaces` off (`'navigate'`) got no double-tap fit
+even though UI §5.4 states it unconditionally. Now only a palm/heel `'ignore'` contact is excluded; the
+placement-armed suspension is retained. Guarded in the same new test file (`touchPlaces: false` → one
+`toggleFitOrFull` call; it too fails pre-fix).
+
+**D63 — F3 (low): the second-finger restore is documented as owed, not live.**
+`onSecondFinger(session).restoreTo` is deliberately **not** consumed: 1.3 has no grabbable object model,
+so `preDragPosition` is always `null` and there is nothing to restore. The comments previously claimed
+"the restore path below is already live" — now corrected to state plainly that 1.5 must apply
+`restoreTo` to the dragged node at that point. Recorded here so the obligation cannot be lost.
+
+**D64 — F5 (note): the text half of the §4.2 gate was attribute arithmetic; now also measured, and one
+gap remains.** The label assertion was `text.fontSize() × scale ≈ 18` — it proves the *rule* was
+applied, not that the rendered glyph is 18 CSS px (the stroke and ink halves were genuine pixel
+measurements). `inkBBoxWidth()` now scans the label's own client rect for opaque pixels and records the
+inked bounding-box width at 1×/4×/8×, asserted identical and within a plausible range. **Still
+unproven:** the §8.1.1 dpr-2 path — the test forces `markupPixelRatio: () => 1`, so CSS-px constancy at
+`devicePixelRatio = 2` is inferred, not measured. Watch item; do not mistake it for coverage.
+
+**Also fixed from this review:** the false "old `tiny-2x2.jpg` SOF-patched a seed" narrative in D55
+(★ corrected above) and the matching header comment in `make-fixtures.mjs`.
+
+

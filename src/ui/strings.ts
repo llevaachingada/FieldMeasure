@@ -107,12 +107,58 @@ export const STRINGS = {
   project: {
     duplicateIdBadge: 'Copy',
     makeSeparateProject: 'Make this a separate project',
+    noSheetsEmpty: 'No sheets yet — take a photo to start.',
+    readOnlyChip: "Read-only — changes can't be saved",
+    // ⚠ PROPOSED (C14) — not approved copy: the literal word inside the
+    // `Sheet NN` default name (appendix `project.sheetNameExample` = "Sheet 04",
+    // pattern `Sheet NN`, zero-padded 2, never renumbered).
+    sheetNamePrefix: 'Sheet',
   },
 
-  // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §9)
+  // APPROVED inventory (appendix-strings.md `## capture`)
+  capture: {
+    importButton: 'Import',
+    importAPhoto: 'Import a photo',
+  },
+
+  // APPROVED inventory (appendix-strings.md `## errors`)
+  errors: {
+    photoDamaged: 'Photo damaged — markup preserved. Re-import or replace the photo.',
+    retry: 'Retry',
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings.md gap #20 quotes the
+    // spec phrase "Project folder unavailable" but never keys it).
+    projectUnavailable: 'Project folder unavailable',
+  },
+
   editor: {
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §9)
     menuSettings: 'Settings',
     menuProjectSettings: 'Project settings',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // slice 1.3's minimal editor nav is superseded by the 1.4.5 top bar.
+    back: 'Back',
+    // APPROVED inventory (appendix-strings.md `editor.zoomPercent`, `{zoomPercent}`)
+    zoomPercent: '{zoomPercent}%',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // visible label of the zoom pill's fit button (UI §5.4 shows `⤢ Fit`).
+    fit: 'Fit',
+    // APPROVED inventory (appendix-strings.md `editor.emptyHint`)
+    emptyHint: 'Tap a tool, then tap the photo',
+  },
+
+  // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md #25 supplies these
+  // three labels; the approved `## a11yLabels` section holds only `a11y.dimensionTool`,
+  // so they still await content-owner sign-off).
+  a11y: {
+    zoomOut: 'Zoom out',
+    zoomIn: 'Zoom in',
+    zoomFit: 'Fit to photo',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // accessible name of the zoom-pill group.
+    zoom: 'Zoom',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // the canvas container's accessible name (§19.6).
+    canvas: 'Photo canvas',
   },
 
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §17)

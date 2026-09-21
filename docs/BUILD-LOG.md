@@ -3,10 +3,9 @@
 **The agent's memory across sessions.** Read the last entry to find your place; append one entry per
 slice, in the same commit as the slice.
 
-**Status: slices 0.2 + 1.1 + 0.3 + 1.2 complete — all machine gates green.** In flight: **slice 1.3**
-(photo on canvas, one lane) and **slice 1.9 step 1 only** (filename module, pulled forward —
-**1.9 is NOT complete**). Next action after 1.3 lands: **slice 1.4 ∥ 1.4.5** in
-`docs/implementation-plan.md`.
+**Status: slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 complete — all machine gates green.** Also landed:
+**slice 1.9 step 1 only** (the filename module; **1.9 is NOT complete** — renderStage/pdf/png/wizard
+still land after 1.8). Next action: **slice 1.4 ∥ 1.4.5** in `docs/implementation-plan.md`.
 
 ---
 
@@ -213,3 +212,34 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 **Follow-ups owed (not done):** the DECISIONS entry for the 17→29 gate-text correction, held so it does not race slice 1.3's concurrent `DECISIONS.md` edits.
 
 **Next:** slice 1.3 (in flight), then 1.4 ∥ 1.4.5; the rest of 1.9 (renderStage/pdf/png/wizard) still lands after 1.8.
+
+---
+
+## Slice 1.3 — Photo on canvas
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built:** the media pipeline and the first real canvas — `src/media/normalizeImage.ts` (`normalizeImage` + `sha256Hex`), `src/media/exif.ts` (manual APP1 scan bounded to 64 KB + `stripExif`), `src/media/thumbnails.ts` (640×480 contain-fit composite, 3 s debounce, atomic write) with the real `src/media/decodeWorker.ts` body replacing slice 0.1's stub (URL convention kept); `src/editor/EditorCanvas.ts` (imperative Konva, 5 layers, per-layer `pixelRatio` per §8.1.1, hand-rolled pinch on Konva's touch events, and the §4.2 screen-rules seam); `src/ui/SheetEditor.tsx` (import → normalize → render, pan/zoom/fit 0.25×–8×, double-tap fit↔100%, the locked touch-first drag rules); the App `'editor'` route using the **D51** `${id}:${folderName}` runtime key; and deterministic, dependency-free fixtures (`12mp-portrait-exif6.jpg` 143 KB, plus a regenerated `tiny-2x2.jpg`).
+
+**Machine gates:** 4/4 passing (orchestrator run on the reconciled tree)
+- [x] `npx tsc --noEmit` clean
+- [x] `npx vitest run` — **270 tests / 24 files** green (was 166), incl. browser-project `editorCanvas.browser` 9 and `sheetEditor.browser` 3
+- [x] `npm run build` succeeds (12 precache)
+- [x] `npx playwright test` 5 passed / 4 skipped (unchanged)
+- [x] Slice gates with a machine half: **zoom constancy at 1×/4×/8×** (stroke + ink pixel-measured; label now ink-measured too); EXIF orientation baked upright (3024×4032) and the re-encode proven free of APP1/GPS; the 12 MP fixture decodes at its real size; the object-first/pan predicate **and its wiring** (new `sheetEditor.browser` test); the EXIF read bounded to 64 KB
+
+**Deferred to hardware:** 5 gates → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.3 (12 MP upright + 0.25×–8× smoothness; 20-photo import memory; Explorer GPS-property check; the on-glass touch-drag walk; Performance-panel worker confirmation; the on-device a11y walk). No `[Surface]` result was faked.
+
+**Checkpoints fired:** none — and **C2's fixture TODO is now closed** (the 12 MP EXIF-6 fixture exists and is real, not a stub).
+
+**Decisions recorded:** D54–D64 (DECISIONS "Session 9"): the §4.2 screen seam + the AND-vs-OR tap contradiction; media/worker/fixture/open-flow; EXIF `from-image` and the APP1 read path; the trivially-true "12 MP ≤4096" assertion; pinch wiring + the first-move defect; plus the review round's F1–F5.
+
+**Surprises / review findings** (independent `oracle` review of this slice):
+- **F1 (real defect, fixed):** one-finger pan on empty canvas was **never implemented** — panning was gated on `intent === 'navigate'` while the default `touchPlaces: ON` classifies a touch contact as `'draw'`, so with no grabbable geometry (all of 1.3) every one-finger drag did nothing. It contradicted build spec §8.2, D37 and build-order step 3. Fixed to consume `decideDragTarget` for **any** one-finger contact (a pending placement still wins), with a **wiring** test that mounts the real `SheetEditor` and asserts the stage pans — verified to fail against the pre-fix code.
+- **F2 (fixed):** double-tap fit↔100% was also gated on `'draw'`, so users with `touchPlaces: false` had none.
+- **F3 (documented, owed by 1.5):** the second-finger restore was **not** wired although a comment claimed it was. Comment corrected; the obligation is recorded.
+- **F4 (corrected):** the "the old `tiny-2x2.jpg` SOF-patched a seed" story in D55 was **false** — the old file was a genuine encoder JPEG of a 2×2 white image.
+- **F5 (improved; one gap left):** the §4.2 label assertion was attribute arithmetic rather than a pixel measurement — now ink-measured. The **dpr-2 path of §8.1.1 remains unproven** (the test forces `markupPixelRatio: () => 1`). Watch item, not coverage.
+- **Verified sound** by the same review: the hand-rolled JPEG/EXIF bytes (independently re-parsed and cross-decoded with GDI+), the §4.2 seam (confirmed it would catch `strokeScaleEnabled:true`), the EXIF/normalize path, all four D51 keys, and D54/D56–D59 as written.
+- **Process note:** a Windows-console artefact renders U+2014 as `-` under `Select-String` but `—` under `git diff`; during this review it manufactured two false "wording was rewritten" findings. Copy and fixture checks must be byte-level `node` reads.
+
+**Next:** slice 1.4 ∥ 1.4.5 (two lanes; `src/ui/strings.ts` and `src/App.tsx` owned by the 1.4.5 lane).

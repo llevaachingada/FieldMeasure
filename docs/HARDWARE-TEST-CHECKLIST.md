@@ -89,6 +89,15 @@ Fill this in before the first run — several gates are device-specific.
 | Two tabs, same project → second is read-only. Two tabs, different projects → both writable. | PENDING |
 | Explorer-rename the project folder mid-session → identity survives (card still opens after Locate/repick). | PENDING |
 ### Slice 1.3 — Photo on canvas
+| Gate | Result |
+|---|---|
+| A 12MP phone photo opens upright (EXIF baked) and zooms 0.25×–8× smoothly on a Surface Go. | PENDING — no Surface available (deferred, BUILD-RUNBOOK §4). Machine-adjacent half is green: the synthetic 12 MP orientation-6 fixture decodes upright in Chromium (`tests/normalizeImage.browser.test.ts`) and zoom clamps at 0.25/8 (`tests/editorCanvas.browser.test.ts`). |
+| 20-photo import doesn't crash (memory watch). | PENDING |
+| EXIF: exported/normalized photo contains no GPS (verify in Explorer file properties). | PENDING — machine half green: `tests/normalizeImage.browser.test.ts` + `tests/exif.test.ts` prove the re-encode drops all APP1 metadata (no orientation, no capture time, no GPS). Confirm in Explorer file properties on hardware. |
+| Touch object-drag: one-finger drag on an object moves it; on empty canvas pans; a second finger cancels and restores the previous position; two-finger drag always pans. | PENDING — the pure predicate (`decideDragTarget`, `onSecondFinger`, `isTap`) is machine-tested (`tests/dragPredicate.test.ts`); there is no grabbable geometry until slice 1.5, so the on-glass walk is deferred. |
+| (session 4) The thumbnail decode actually runs in `decodeWorker.ts` — confirm on the Performance panel that decode is off the main thread, don't assume the import wired it up. | MACHINE HALF PASSED — `tests/thumbnails.browser.test.ts` asserts the worker's `decodedIn: 'decodeWorker.ts'` provenance marker, and the production build emits `dist/assets/decodeWorker-*.js`. The Performance-panel observation (off-main-thread confirmation on the Surface) is PENDING. |
+| (a11y §19.6) The canvas container has an accessible name and is not a keyboard trap; zoom controls are reachable and labelled; 48 px minimum touch targets, hit slop 16 px (24 px along thin strokes). | PENDING — markup carries `role="application"` + `aria-label` (canvas) and labelled zoom buttons (`Zoom in` / `Zoom out` / `Fit to photo`); the on-device focus-order, visible-ring and measured-target walk is deferred. |
+
 ### Slice 1.4 — Capture flow
 ### Slice 1.4.5 — Editor shell
 ### Slice 1.5 — Dimension tool

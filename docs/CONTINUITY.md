@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 8 — oracle-style execution review of slices 0.2–1.2: foundation sound, 1.3–1.5 cleared to start)
+**Last updated:** 2026-09-21 (session 9 — slice 1.3 "photo on canvas" shipped after an independent oracle review (F1–F5); slice 1.9 step 1 pulled forward)
 
 ---
 
@@ -11,16 +11,16 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 complete and green** (input router · domain core · first-run/Settings/Home · storage core). Next: slice 1.3 (photo on canvas) |
-| Application code | **Four slices shipped** — touch-first input router, domain core (units/schema/migrate), first-run/Settings/Home shell, and the atomic storage core (backend/projectStore/persistQueue) — 166 unit tests + e2e green |
+| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 complete and green** (input router · domain core · first-run/Settings/Home · storage core · media pipeline + canvas). Next: **1.4 ∥ 1.4.5** |
+| Application code | **Five slices shipped** — touch-first input router, domain core (units/schema/migrate), first-run/Settings/Home shell, the atomic storage core (backend/projectStore/persistQueue), and **1.3** (`normalizeImage`/`exif`/`thumbnails` + the real decode worker, `EditorCanvas` 5-layer §4.2 screen rules, `SheetEditor`, the D51 editor open flow) — **270 tests + e2e green**. Plus slice 1.9 **step 1 only** (`export/filenames.ts`) |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
-| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4** · ✅ **Round 5 (session 5)** · ✅ **Session 7 (orchestrator senior review of 0.2–1.2)** — D48–D53 (zod-CSP, StorageStatus union, backend layout, duplicate-id key, snapshot cadence, kill-switch harness) · ✅ **Session 8 (oracle-style execution review)** — 48/48 traces re-derived, `cleanStaleTmp` comment drift fixed, D51/D52/D53 deferrals confirmed safe |
+| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4** · ✅ **Round 5 (session 5)** · ✅ **Session 7 (orchestrator senior review of 0.2–1.2)** — D48–D53 (zod-CSP, StorageStatus union, backend layout, duplicate-id key, snapshot cadence, kill-switch harness) · ✅ **Session 8 (oracle-style execution review)** — 48/48 traces re-derived, `cleanStaleTmp` comment drift fixed, D51/D52/D53 deferrals confirmed safe · ✅ **Session 9 (independent oracle review of 1.3)** — F1 (empty-canvas pan never implemented) found and fixed with a wiring guard test; F2–F5 fixed/corrected; fixtures, the §4.2 seam, the EXIF path and all four D51 keys verified sound (D54–D64) |
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Slice 1.3** (photo on canvas — `normalizeImage`/EXIF/thumbnails + `EditorCanvas` §4.2 screen rules + `SheetEditor`); then 1.4 + 1.4.5 in parallel (capture ∥ editor shell), then 1.5 (dimension flagship) |
+| Next action | **Slice 1.4 ∥ slice 1.4.5** — two lanes (capture flow ∥ editor shell); `src/ui/strings.ts` and `src/App.tsx` are owned by the 1.4.5 lane. Then 1.5 (dimension flagship) |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -306,6 +306,33 @@ reading the passing tests). Re-traced the four highest-stakes modules plus `sche
 **Next:** slice 1.3 (photo on canvas), then 1.4 ∥ 1.4.5, then 1.5 — see handoff at the end of the
 session.
 
+### 2026-09-21 — Session 9: slice 1.3 "photo on canvas" + independent oracle review
+
+One fixer lane built slice 1.3: the media pipeline (`normalizeImage`/`sha256Hex`, the manual-APP1
+`exif.ts` bounded to a 64 KB head slice, `thumbnails.ts` + the real `decodeWorker.ts` body), the
+imperative `EditorCanvas` (5 layers, per-layer `pixelRatio` per §8.1.1, hand-rolled pinch on Konva’s
+touch events, and the §4.2 screen-rules seam), `SheetEditor`, the App editor route with the **D51**
+`${id}:${folderName}` runtime key, and deterministic dependency-free JPEG/EXIF fixtures. A second
+lane pulled **slice 1.9 step 1** forward (`export/filenames.ts` + its 29-row table) because it has no
+dependency on 1.3 or on the style system.
+
+An independent `oracle` review then re-derived the fixture bytes with its own JPEG parser + Huffman
+decoder, cross-decoded with GDI+, traced Konva’s internals, and re-ran both Vitest projects. It found
+**F1 — one-finger pan on empty canvas was never implemented** (panning gated on
+`intent === 'navigate'` while the default `touchPlaces: ON` classifies touch as `'draw'`), which the
+green gate structurally could not see because the predicate was tested and its wiring was not. F1 and
+F2 were fixed and are now guarded by `tests/sheetEditor.browser.test.ts`, which mounts the real
+`SheetEditor` and asserts the stage actually pans (verified to fail pre-fix). F3 (a comment claiming an
+unwired restore) and F4 (a false "SOF-patched seed" narrative) were corrected; F5 strengthened the
+label half of the §4.2 test. The review confirmed the fixtures, the §4.2 seam, the EXIF path, all four
+D51 keys and D54/D56–D59 as written.
+
+**Machine gates:** `npx tsc --noEmit` 0 · `npx vitest run` **270/270** (24 files) · `npm run build` 0
+(12 precache) · `npx playwright test` 5 passed / 4 fixme. Five `[Surface]` gates logged to
+`docs/HARDWARE-TEST-CHECKLIST.md` (none faked). `docs/DECISIONS.md` D54–D64.
+
+**Next:** slice 1.4 ∥ 1.4.5, then 1.5.
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -340,13 +367,13 @@ session.
 
 ## In progress
 
-- — (session 5 complete; **UI/UX implementation-ready**; no code has started)
+- Nothing in flight as of this update. **Next dispatched: slice 1.4 ∥ slice 1.4.5** (two lanes).
 
 ## Next slice (not started)
 
-- ⏳ **Slice 0.0 — origin & distribution (decision made, §21.1).** No code. Pin `base` from `FM_BASE`,
-  wire the origin-change guard, and write `docs/install-runbook.md`. The decision is recorded; what
-  remains is executing it.
+- ⏳ **Slice 1.4 ∥ slice 1.4.5.** Capture flow (`CameraFlow.tsx`, capture → `normalizeImage` → `writeBlobAtomic`) ∥ the editor shell (`EditorLayout`/`ToolRail`/`TopBar`/`icons/tools/*`/`editorStore.ts`). Two disjoint lanes; `src/ui/strings.ts` and `src/App.tsx` are owned by the 1.4.5 lane.
+- ⏳ Then **1.5** (dimension flagship), then 1.6 → 1.11 → 2.0 per `docs/implementation-plan.md`.
+- Also outstanding: **slice 1.9 steps 2–5** (`renderStage`/`pdf`/`png`/`ExportWizard`) — step 1 is already shipped.
 
 ## Next (in order)
 
