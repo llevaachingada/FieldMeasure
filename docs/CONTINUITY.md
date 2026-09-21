@@ -108,6 +108,18 @@ When any doc conflicts, §2.4 wins.
    numbered build order, signatures at point of use, inline test tables, checkable gates, rollback notes.
    Checkpoint table and wrong-measurement tripwires kept in sync (added the inset crop-detach tripwire).
 
+### 2026-09-21 — Session 3 (continued): UI/UX + layout review; plan re-review
+1. Senior adversarial + architecture review of the UI spec against §2.4/§11/§8. Fixed three findings
+   in the UI spec (see DECISIONS "Session 3 — UI/UX & layout review"): rail-customization drift
+   (Bottom rail / Pin order / Quick Pair deferred — "Bottom" contradicted "do not simplify #1"),
+   camera `«High (device max: <MP>)»` → `«High (device max)»` (no megapixel promise, A7), and the
+   "~37% vs full side style panel" rationale → ~44% (arithmetic shown).
+2. The requested final `@oracle` plan review could not run — the subagent returned **Insufficient
+   Balance**. Fell back to a self-review of the flushed-out plan: re-confirmed slice↔§13 mapping, that
+   every signature restated in the plan matches the spec's reference code (no invented APIs), the
+   numeric derivations (12 6 = 150 in, export invariant 0.75×mu pt, inset crop trace), the dependency
+   graph edges, and the checkpoint/tripwire sync. No new plan defects found.
+
 ---
 
 ## Done

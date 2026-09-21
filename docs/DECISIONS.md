@@ -142,3 +142,20 @@ plan** — the two never left disagreeing:
   18 mu → 13.5 pt); §9.2 page pt = `imagePx × 0.75`; atomic `tmp→close→move()` covers all writes;
   `cleanStaleTmp` is lock-held + 5-min age-gated; per-project lock/`BroadcastChannel`; schema
   `.nullish()`/guarded `parseJson`/`label` absent/`unitFormat` present/v0.2 tolerance.
+
+## Session 3 — UI/UX & layout review (2026-09-21)
+
+Senior adversarial + architecture review of `docs/ui-spec-field-measure-v2-hardened.md` against the
+build spec (§2.4 scope, §11, §8) and UNITS/DECISIONS. Findings fixed in the UI spec (the subordinate doc):
+
+- **Rail customization drift (UI §6.5 + §15).** "Rail side (…Bottom…)", "Pin order", and "Quick Pair"
+  were UI-spec-only features absent from §2.4 and build §11.4. "Bottom" directly contradicts the build
+  spec's "the tool rail never moves" (§11.4) and "do not simplify #1" (vertical rail, not a bottom bar).
+  Deferred all three with a 〔v1 scope〕 marker: v1 rail side = handedness only (§5.1/§14.8); no manual
+  override, no bottom rail, no drag-to-pin, no Quick Pair.
+- **Camera resolution label (UI §10.1).** Copy read `«High (device max: <MP>)»` — the `<MP>` placeholder
+  contradicted the attached "do not promise sensor megapixels" note (A7) and build §11.8's
+  `«High (device max)»`. Corrected to `«High (device max)»` (measured resolution, never the sensor MP).
+- **Aspect-ratio rationale arithmetic (UI §2).** "~37% vs a full side style panel" did not reproduce:
+  full side panel (280 px) → canvas 1032×908 → photo 1032×688 ≈ 0.71M px², vs rail 1.03M px² = **~44%**.
+  Corrected to ~44% with the arithmetic shown in-place.

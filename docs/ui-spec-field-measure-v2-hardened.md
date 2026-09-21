@@ -46,7 +46,7 @@ FieldMeasure is a professional instrument, not a creative toy. It should feel li
 **Aspect-ratio rule (drives the whole layout):** Surface photos are 3:2 (1.5) landscape or 2:3 portrait. Chrome is placed so the remaining canvas aspect stays **close to the photo's aspect**, because matching aspect yields ~35% more photo pixels than a bottom-deck layout at the same footprint. This is why the tool rail is vertical, not horizontal.
 
 - Landscape with rail (128) + collapsed style spine (72): canvas 1240 × 908 = **1.37** (vs 1.5 ideal) → photo occupies ≈1.03 M px².
-- Same device with a bottom deck instead: canvas 1440 × 776 = 1.86 → photo only ≈0.90 M px². **Vertical rail wins by ~15%, and by ~37% vs a full side style panel.**
+- Same device with a bottom deck instead: canvas 1440 × 776 = 1.86 → photo only ≈0.90 M px². **Vertical rail wins by ~15% vs a bottom deck, and by ~44% vs a full side style panel** (photo area: rail 1240×827 ≈ 1.03M px² · bottom deck 1164×776 ≈ 0.90M px² · full side panel 1032×688 ≈ 0.71M px²).
 
 ---
 
@@ -327,7 +327,7 @@ Rationale (be explicit with the builder so this isn't "improved" later):
 
 ### 6.5 Rail customization
 
-`⋯ Overflow → Rail settings`: **Rail side** (Right / Left / Bottom — Bottom reflows to a single horizontal row of 14 at 56px = 784px, valid only ≥1100px wide), **Density** (Field/Desk), and **Pin order** — the user can drag-reorder tools *within* their group only. Group boundaries are fixed (the grouping is the pedagogy; letting it dissolve destroys learnability). Two slots at the bottom of the rail above undo/redo are user-pinnable as a **Quick Pair** (defaults: Dimension, Freehand) which additionally acts as "swap to previous tool" on a single tap of the second slot.
+`⋯ Overflow → Rail settings`: **Density** (Field/Desk). 〔v1 scope: **Rail side**, **Pin order**, and **Quick Pair** are deferred — in v1 the rail side is driven by handedness only (right-handed → rail right, left-handed → mirrored, §5.1/§14.8) and the tool order is fixed (§6.2). There is no manual rail-side override, no bottom rail, no drag-to-pin, and no Quick Pair. The group boundaries stay fixed — the grouping is the pedagogy; letting it dissolve destroys learnability.〕
 
 ### 6.6 Shortcuts
 
@@ -617,7 +617,7 @@ Rows: type icon + name (`«Dimension 12' 6"»`, `«Inset 2»`, `«Freehand»`) a
 **Layout:** camera feed fills the viewport. No top bar. Chrome is minimal and hugs the screen edges so the viewfinder is never crowded:
 
 - **Top-left:** `✕ «Close»` (56px, `--g900` at 60% behind it for legibility over any scene).
-- **Top-right:** a vertical stack of 56px toggles: torch/flash, grid overlay (rule of thirds), level indicator on/off, camera flip (front/rear — default **rear**), and resolution (`«High (device max: <MP>)»` / `«Fast»`). 〔v2 hardening: `getUserMedia` on Windows tablets caps at ~1080p–4K — do not promise sensor megapixels. The `<MP>` value is filled from the 0.2 input spike's measured device max (`enumerateDevices` + track constraints); if the device caps at 1080p, the fallback copy points to the Windows Camera app + Import as the high-res path.〕
+- **Top-right:** a vertical stack of 56px toggles: torch/flash, grid overlay (rule of thirds), level indicator on/off, camera flip (front/rear — default **rear**), and resolution (`«High (device max)»` / `«Fast»`). 〔v2 hardening: `getUserMedia` on Windows tablets caps at ~1080p–4K — do not promise sensor megapixels. The `«device max»` value is filled from the 0.2 input spike's measured max **resolution** (`enumerateDevices` + track constraints), never the sensor's marketing MP; if the device caps at 1080p, the fallback copy points to the Windows Camera app + Import as the high-res path.〕
 - **Center:** a tap-to-focus reticle — a `--sel` 72px ring that appears where tapped, animates a 300ms contract, and holds for 2s. A long-press locks focus/exposure with a `«AE/AF LOCK»` chip.
 - **Horizon/level:** a `--sel` line with end ticks that turns `--ok` when the device is within ±1.5° and can optionally **auto-capture-on-level** (off by default, a real field trick for consistent elevation shots).
 - **Bottom bar (88px + safe padding):** left = `🖼 «Import»` (file picker), center = **shutter** (88px, `--g000` ring with `--hi` inner disc, pressed = 88→80 scale + a 120ms ring flash), right = zoom control (0.5× / 1× / 2× chips + a pinch-enabled slider) and a photo-count badge.
@@ -817,9 +817,9 @@ Names are suggestions; the **boundaries** are the specification.
 │   ├─ <ExportButton/>
 │   └─ <OverflowMenu/>
 ├─ <Workspace>                    // layout container; owns the docking rule (§5.3)
-│   ├─ <ToolRail side="right|left|bottom">
+│   ├─ <ToolRail side="right|left">   // handedness-driven in v1 (no Bottom / manual override — deferred)
 │   │   ├─ <ToolGroup label="MEASURE">  <ToolButton/> × n  </ToolGroup> × 6
-│   │   ├─ <QuickPair slots=[tool,tool]/>
+│   │   ├─ (QuickPair — deferred v1, §6.5)
 │   │   ├─ <UndoRedoCluster/>
 │   │   └─ <RadialQuickMenu/>     // pen-barrel / press-and-hold, 8 recents
 │   ├─ <CanvasViewport>
