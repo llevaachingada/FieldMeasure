@@ -1,15 +1,16 @@
 # Documentation & File Index
 
-A map of everything in this repository. Last updated **2026-09-21 (session 8 — slices 0.2–1.2 shipped + oracle review)**.
+A map of everything in this repository. Last updated **2026-09-21 (session 9 — slice 1.3 shipped + slice 1.9 step 1; oracle review; D54–D66)**.
 
 ## Root
 
 | File | What it is |
 |---|---|
 | `README.md` | Project entry point: what this is, status, canonical docs, constraints. |
-| `AGENTS.md` / `CLAUDE.md` | Agent entry instructions — reading order, authority chain, non-negotiables, when to stop and ask. |
+| `AGENTS.md` | **Agent entry instructions (canonical)** — reading order, authority chain, non-negotiables, working rules, lane protocol, environment quirks, when to stop and ask. |
+| `CLAUDE.md` | **A pointer to `AGENTS.md`, deliberately** — it used to be a second copy and drifted for three sessions while still claiming no code existed. Do not fork the instructions. |
 | `THIRD-PARTY-NOTICES.md` | License notices for every runtime dependency **plus both font OFL texts** (CI checks it exists). |
-| `package.json` | Node project manifest, dependencies pinned. Scripts are still placeholders (slice 0.1 pending). |
+| `package.json` | Node project manifest, dependencies pinned; scripts wired (`dev`, `build`, `preview`, `test`, `e2e`, `typecheck`). |
 | `package-lock.json` | Lockfile — commit it; do not edit by hand; use `npm ci` to install. |
 | `.gitignore` | Ignore rules (`node_modules/`, build output, `.slim/deepwork/`, OS/IDE files). |
 | `.ignore` | OpenCode ignore rules (keeps `.slim/deepwork/` readable locally). |
@@ -30,7 +31,8 @@ A map of everything in this repository. Last updated **2026-09-21 (session 8 —
 | `docs/CHECKPOINTS.md` | **Checkpoints (C1–C10)** — things only measurable once code exists; each names its slice, what to measure, and an action for every result. Session 5 added **C8** (slice 0.2 touch palm), **C9** (1.6 pen-only pressure) and **C10** (touch placement accuracy). |
 | `docs/HARDWARE-TEST-CHECKLIST.md` | **Hardware gate ledger** — deferred `[Surface]` gates + the H1–H18 end-of-build checks. Session 5 added **H1b** (touch-only palm check, the pen-absent router) and **H13–H18** (barrel routing, hover semantics, the OS ~250 ms pinch delay, coalescing rate, Ink API, DPR-2/thermal). |
 | `docs/BUILD-LOG.md` | **Build log** — the agent's cross-session memory; one entry per slice. |
-| `docs/BUILD-RUNBOOK.md` | **Build runbook** — how to work: the slice loop, gate policy, `[Surface]` deferral, three-strike rule. |
+| `docs/BUILD-RUNBOOK.md` | **Build runbook** — how to work: the slice loop, gate policy, `[Surface]` deferral, checkpoint recording in three places, the three-strike rule, and **§11 the parallel-lane protocol** (contended files, per-lane verification, the integration checklist). |
+| `docs/review-brief.md` | **The review brief** — the eight questions every review lane must answer, each with the real defect that put it there (proves-nothing tests, trivial gates, unfaithful DECISIONS claims, stale arithmetic, faked deferral, flattened invariants, unpinned boundaries, environment coupling). Hand it to every `@oracle`/adversarial lane. |
 | `docs/appendix-scaffold-files.md` | **Scaffold reference** — the pinned files slice 0.1 must produce (TS 5.x). |
 | `docs/install-runbook.md` | **Install runbook** — one page, non-developer, how a Surface gets the app. |
 | `docs/appendix-strings-gaps.md` | **Proposed copy for the gaps** — wording for the 26 implied-but-unquoted strings (PROPOSED, approve before shipping). |
@@ -54,7 +56,7 @@ A map of everything in this repository. Last updated **2026-09-21 (session 8 —
 | `.slim/deepwork/` | OpenCode deepwork progress files (session state). |
 | `dist/`, `coverage/`, `playwright-report/`, `test-results/` | Build / test output. |
 
-## Built (slices 0.1–1.2)
+## Built (slices 0.1–1.3, plus slice 1.9 step 1)
 
 | Path | What it holds |
 |---|---|
@@ -66,19 +68,20 @@ A map of everything in this repository. Last updated **2026-09-21 (session 8 —
 | `src/settings/` | `handedness.ts`, `input.ts`, `units.ts`, `theme.ts`, `density.ts`, `projectsRoot.ts`. |
 | `src/data/` | `storage.ts`, `originGuard.ts`. |
 | `src/editor/inputRouter.ts` | Touch-first input router (§8.2). |
-| `src/ui/` | `FirstRun.tsx`, `Settings.tsx`, `ProjectList.tsx`, `strings.ts`. |
-| `src/media/decodeWorker.ts` | Worker stub (bundled + instantiable). |
+| `src/editor/EditorCanvas.ts` | Imperative Konva 5-layer canvas, pinch, pan/zoom/fit, and the **§4.2 screen-scaling seam** (`applyScreenRules` + the `screen*` helpers are the single chokepoint for every zoom path). |
+| `src/ui/` | `FirstRun.tsx`, `Settings.tsx`, `ProjectList.tsx`, `strings.ts`, `SheetEditor.tsx` (slice 1.3: import → normalize → render, the D51 open flow). |
+| `src/media/` | `normalizeImage.ts` (EXIF baked via `from-image`, ≤4096 clamp), `exif.ts` (manual APP1 scan, 64 KB bound, `stripExif`), `thumbnails.ts`, `decodeWorker.ts` (real decode, provenance-marked). |
+| `src/export/filenames.ts` | Slice 1.9 step 1 — the filename sanitizer + NTFS case-insensitive conflict policy (`tests/filenames.test.ts`, 29-row table). |
 | `public/icons/` | Placeholder app icons. |
 
 ## Planned (not yet created)
 
 | Path | What it will hold |
 |---|---|
-| `src/media/` | `normalizeImage.ts`, `exif.ts`, `thumbnails.ts` (slice 1.3). |
-| `src/editor/` | `EditorCanvas.ts` (1.3), `history.ts`, `Loupe.ts`, `tools/`, `shapes/` (incl. local `svgPath.ts`), `inset/` (1.5–1.7). |
-| `src/export/` | `pdf.ts`, `png.ts` (zip via `fflate`), `filenames.ts`, `renderStage.ts` (1.9). |
+| `src/editor/` | `history.ts`, `Loupe.ts`, `tools/`, `shapes/` (incl. local `svgPath.ts`), `inset/` (1.5–1.7). |
+| `src/export/` | `pdf.ts`, `png.ts` (zip via `fflate`), `renderStage.ts` (1.9) — `filenames.ts` has shipped. |
 | `src/state/` | `editorStore.ts` (1.4.5), `styleByTool.ts` (1.8). |
-| `src/ui/` | `SheetEditor.tsx` (1.3), `CameraFlow.tsx` (1.4), `EditorLayout.tsx` + `ToolRail.tsx` + `TopBar.tsx` + `icons/tools/*` (1.4.5), style panel + keypad sheet + export wizard (1.5–1.9). |
+| `src/ui/` | `CameraFlow.tsx` (1.4), `EditorLayout.tsx` + `ToolRail.tsx` + `TopBar.tsx` + `icons/tools/*` (1.4.5), style panel + keypad sheet + export wizard (1.5–1.9). |
 
 ## Reading order for a new contributor or AI
 
@@ -95,3 +98,4 @@ A map of everything in this repository. Last updated **2026-09-21 (session 8 —
 10. `docs/DECISIONS.md` — why things are the way they are.
 11. `docs/touch-first-interaction-model.md` — the touch-first interaction design (read with the UI spec).
 12. `docs/gui-ux-readiness-and-design-handoff.md` — the session-5 GUI/UX readiness review and its reasoning.
+13. `docs/review-brief.md` — hand this to any review lane; it is the checklist of defects that have already shipped here once.

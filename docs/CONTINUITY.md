@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 9 — slice 1.3 "photo on canvas" shipped after an independent oracle review (F1–F5); slice 1.9 step 1 pulled forward)
+**Last updated:** 2026-09-21 (session 9 continued — slices 1.2/1.3 context, process hardening: AGENTS.md state contract, BUILD-RUNBOOK §11/§12, review brief, copy gate, C4 recorded; 1.4/1.4.5 lanes in flight); slice 1.9 step 1 pulled forward)
 
 ---
 
@@ -333,6 +333,39 @@ D51 keys and D54/D56–D59 as written.
 
 **Next:** slice 1.4 ∥ 1.4.5, then 1.5.
 
+### 2026-09-21 — Session 9 (continued): process hardening + docs reality pass
+
+A reflect pass over session 9 produced three document-level fixes and one machine gate:
+
+1. **`AGENTS.md` stopped lying.** It claimed *"There is no application code yet"* five slices in. It now
+   separates *contract* from *state* (state lives in `CONTINUITY.md` + the last `BUILD-LOG` entry), makes
+   CONTINUITY reading-order #1, drops every volatile count, and carries the environment quirks — shell
+   invocation, the console encoding trap, background-task tooling, CRLF — so they stop costing a failed
+   tool call every session. `CLAUDE.md` is now a pointer: it had drifted into a stale second copy with a
+   mojibake header and no referrers.
+2. **`docs/BUILD-RUNBOOK.md` gained §11 (parallel lane protocol) and §12 (review brief)**, and
+   **`docs/review-brief.md`** now holds the eight questions every review lane must answer, each with the
+   real defect that put it there. The lane rules this session re-derived twice are written down.
+3. **Checkpoint bookkeeping is three places per firing** (§8). **C4 was fired in 1.3 and never recorded**;
+   it is now recorded as *not measurable at its slice* — 1.3 shipped no annotation model, so "50
+   annotations on a 4096-px sheet" cannot run until 1.6. No number was invented; the hardware row is
+   logged and the re-run point is set.
+4. **The copy contract is now a gate**: `tests/strings.test.ts` (a parallel lane), so the byte-level
+   appendix match no longer depends on someone reading two 48 KB files carefully in a console that
+   mangles U+2014.
+
+**Correction to this session’s own report:** the claim that C1/C2 had drifted was **false** — they were
+already ✅, and only C4 was unrecorded. The console mangles `—` / `·` / ✅, and the verification asserted
+an end state instead of diffing HEAD. See **D66**; the rule is now *verify doc edits by `git diff`*.
+
+**Open at the time of writing (important):** the **1.4 and 1.4.5 lanes and the copy-gate lane were still
+running** — `src/ui/CameraFlow.tsx`, `EditorLayout.tsx`, `ToolRail.tsx`, `TopBar.tsx`, `cameraCopy.ts`,
+`editorStore.ts`, `src/ui/icons/tools/*`, plus edits to `App.tsx`, `SheetEditor.tsx` and `strings.ts`
+were appearing in the tree while this entry was written. **Their output is unverified and was
+deliberately NOT committed**; it needs its own gated commit. Watch item: the 1.4.5 lane owns
+`src/ui/strings.ts` and is adding copy, so `tests/strings.test.ts` may need reconciling once it stops
+(new keys need a verbatim appendix row or a ⚠ PROPOSED marker).
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -448,6 +481,20 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   derived. The same defect class has now been caught twice.
 - `docs/appendix-strings.md` grew **209 → 223** strings; the new touch strings are **proposed**, not
   final, and follow the same approval path as `appendix-strings-gaps.md` (see Open questions 1).
+
+## Known drift / watch items (session 9)
+
+- **1.4 / 1.4.5 output is in the working tree but unverified and uncommitted.** Two lanes were running at
+  the end of session 9 (`src/ui/CameraFlow.tsx`, `EditorLayout.tsx`, `ToolRail.tsx`, `TopBar.tsx`,
+  `cameraCopy.ts`, `editorStore.ts`, `icons/tools/*`, edits to `App.tsx` / `SheetEditor.tsx` /
+  `strings.ts`). Reconcile them against their plan gates, fold `cameraCopy.ts` into `strings.ts`, wire the
+  deferred camera mount, then run the **full** gate and commit them as their own slices.
+- **`tests/strings.test.ts` (the copy gate) may need reconciling** once the 1.4.5 lane stops editing
+  `strings.ts`: every new key needs a verbatim row in `appendix-strings.md` or a `⚠ PROPOSED (C14)` marker.
+- **C4 is recorded but unmeasured** — re-run after 1.6, when annotations exist (D66, hardware row logged).
+- **`docs/HARDWARE-TEST-CHECKLIST.md` carries a C4 row that is on disk but not yet committed** (the file
+  is lane-owned this wave); confirm it survives the wave commit.
+
 
 ## How to resume
 

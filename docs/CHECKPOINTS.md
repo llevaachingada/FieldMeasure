@@ -63,7 +63,13 @@ numbers and the labels are re-checked on hardware.
 
 ---
 
-## C4 — Konva pixel ratio on a Surface Go · slice 1.3 · ⬜
+## C4 — Konva pixel ratio on a Surface Go · slice 1.3 · ⬜ (fired; **not measurable at its slice**)
+
+**Status — recorded in D66.** Slice 1.3 shipped no annotation model (dimensions arrive in 1.5,
+shapes and ink in 1.6), so "markup-layer redraw while panning a 4096-px sheet carrying ~50
+annotations" **cannot be run yet**. No number was invented to fill the gap. `min(devicePixelRatio, 2)`
+is what ships until hardware says otherwise. Re-run this measurement once annotations exist — the
+row is logged in `docs/HARDWARE-TEST-CHECKLIST.md`.
 
 **Measure:** markup-layer redraw time while panning a 4096-px sheet carrying ~50 annotations, at
 `pixelRatio = min(devicePixelRatio, 2)`. Use the Performance panel; report the median frame time.

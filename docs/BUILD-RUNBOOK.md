@@ -135,7 +135,9 @@ Everything else: decide, record it in `docs/DECISIONS.md`, and keep going.
 - **A checkpoint** (`docs/CHECKPOINTS.md`) is a question only code can answer (what the camera
   reports, how fast a Surface redraws, whether a toolchain version cooperates). It is measured, not
   asked, and **never guessed**. When one fires (slice-loop step 2), measure, read the row, act, and
-  record the number in `docs/DECISIONS.md` in the format given at the bottom of `CHECKPOINTS.md`.
+  record it in **three places, in the same commit**: the number in `docs/DECISIONS.md` (format at the
+  bottom of `CHECKPOINTS.md`), its status flipped in `docs/CHECKPOINTS.md`, and the `Checkpoints
+  fired:` field of the `BUILD-LOG.md` entry. A checkpoint with no DECISIONS heading did not happen.
   Only C7 (field pilot) can legitimately end in "ask the human".
 - **A decision** you make that the spec doesn't already cover gets one line in `docs/DECISIONS.md`
   (build spec §15, rule 11). Do not invent features; v1 scope is §2.4.
@@ -155,6 +157,10 @@ copy but quote none, `docs/appendix-strings.md` has a **Gaps** section and propo
 `docs/appendix-strings-gaps.md` — use the proposal, and if you change it, say so in `BUILD-LOG.md`
 and add the final string to `appendix-strings.md`. **Never invent wording silently.**
 
+The copy contract is **machine-checked**: `tests/strings.test.ts` asserts that every value in
+`src/ui/strings.ts` is verbatim from the approved appendix, or explicitly marked as proposed. Never
+verify copy by reading console output — see the encoding quirks in `AGENTS.md`.
+
 ---
 
 ## 10. Slice 0.0 note (the origin is already decided)
@@ -168,3 +174,62 @@ What remains for slice 0.0 is **execution, not decision**: pin the exact owner/d
 `<owner>` placeholder) into `docs/DECISIONS.md`, state `start_url`/`scope` verbatim for slice 0.1,
 write `docs/install-runbook.md`, and record the update/publish path (slice 1.11's input). The gate
 still holds — an exact origin string and a runbook a non-developer can follow.
+
+---
+
+## 11. Parallel lane protocol
+
+For waves split across specialist lanes (`@fixer`, `@designer`, …) instead of built serially. Read
+this **before** dispatching; the orchestrator owns it.
+
+**Contended files — one writer per wave.** Any file two lanes could touch is *contended*: exactly one
+lane owns it for that wave and every other lane reads only. Re-derive the set at each wave planning —
+new slices add new shared files. The known set today:
+
+```
+src/ui/strings.ts          src/styles.css            src/App.tsx
+src/state/appStore.ts      src/state/editorStore.ts
+docs/HARDWARE-TEST-CHECKLIST.md
+docs/DECISIONS.md  docs/BUILD-LOG.md  docs/CONTINUITY.md  docs/CHECKPOINTS.md
+```
+
+The `docs/` files are **orchestrator-only**: lanes report findings in their final message and the
+orchestrator writes the entry.
+
+**Two lanes, one file → never.** Two writers on one file is not a merge conflict; it is whole-file
+last-writer-wins **loss**, and neither lane can see it. `strings.ts` is the usual offender because
+every UI slice adds copy.
+
+**A lane that needs copy its owner has not written yet** stages it in its own module
+(`src/ui/<slice>Copy.ts`), and the orchestrator folds that into `strings.ts` and deletes the staging
+module at integration.
+
+**Never make one lane import a sibling’s in-flight file.** Each lane’s `tsc` then depends on the
+other’s half-written work, and both burn time on false errors. Pin the interface in both briefs and
+wire the seam (a few lines at most) at integration.
+
+**Per-lane verification is a subset.** A lane runs `npx tsc --noEmit` and
+`npx vitest run --project node --project jsdom`. It must **not** run `npm run build` or
+`npx playwright test`: `dist/` and the dev-server ports are shared and the browser Vitest project will
+collide. A lane must tolerate transient errors in files it does not own, say so, and not "fix" them.
+
+**Integration checklist (once per wave):** fold staged copy → wire the deferred seams → read the
+diffs, not just the reports → full gate on the reconciled tree → review against `docs/review-brief.md`
+→ resolve findings → re-run the full gate → `BUILD-LOG` + `DECISIONS` + `CONTINUITY` (and
+`CHECKPOINTS` if one fired) → commit per slice with the slice number in the subject → push.
+
+**Session reuse.** Reuse a specialist session for a bounded follow-up on the files it just wrote.
+Once a session has shipped a whole slice, start fresh — context exhaustion shows up as sloppy diffs.
+
+---
+
+## 12. Review brief
+
+Every review lane gets **`docs/review-brief.md`**. It is not optional, and it is not a substitute for
+judgement: it lists the eight questions that have each already caught a real defect in this project —
+a test that proves nothing, a trivially-true gate, a DECISIONS claim the code does not support, stale
+arithmetic in a subordinate doc, a faked or unlogged deferral, a flattened invariant, an unpinned
+boundary, and a test coupled to an environment that cannot exercise the path.
+
+The two rules that matter most: **execute, don’t read** (§3’s method note), and a review lane
+**reports only** — the orchestrator resolves and commits.

@@ -937,5 +937,65 @@ document and was corrected (both the build-order line and the gate line), not th
 magnification, source} is free, and the same defect has now been caught **three** times (F8/C4, round 5,
 and here) — so the slice-1.5 lane must state all three numbers **with their arithmetic**, and the gate
 must be checked for **both** loupes.
+### D66 — process hardening from the session-9 reflect pass (and one correction to it)
 
+**C4 — fired in slice 1.3 but NOT MEASURABLE there (recorded, not skipped).** `CHECKPOINTS.md` C4 asks
+for markup-layer redraw time while panning a 4096-px sheet carrying ~50 annotations. Slice 1.3 shipped
+**no annotation model** — dimensions arrive in 1.5, shapes and ink in 1.6 — so the measurement cannot
+run yet. No number was invented to fill the gap: `min(devicePixelRatio, 2)` (already implemented) ships
+until hardware says otherwise, the row is in `docs/HARDWARE-TEST-CHECKLIST.md`, and `CHECKPOINTS.md` C4
+now carries that status plus the re-run point (after 1.6).
 
+**★ Correction to this session’s own reflect report.** That report claimed C1 and C2 had drifted (still
+⬜). **That was wrong.** `git diff` against HEAD shows only C4 changed, and the C1/C2 headings were
+already ✅. Two failures produced the false claim: the console mangles non-ASCII (`—`, `·` and ✅ all
+render as `?` or `-` in PowerShell output), and my *verification* of the "fix" passed only because it
+asserted an end state (✅ present) instead of comparing against HEAD — a gate true by construction,
+defect class #2 in the review brief this very pass added.
+**Rule adopted: verify a document edit by `git diff` against HEAD, never by asserting the desired end
+state.** The C1/C2 claim is withdrawn; the C4 finding stands.
+
+**`AGENTS.md` is now state-honest.** It read *"There is no application code yet"* after five slices had
+shipped. It now (a) states that code exists and sends the reader to `CONTINUITY.md` / the last
+`BUILD-LOG` entry for state, (b) says plainly that the file is the *contract* while those two are the
+*state*, (c) makes `CONTINUITY.md` reading-order #1, and (d) carries no volatile counts (the previous
+wording counted review rounds and would have gone stale again immediately). `CLAUDE.md` was a stale
+second copy — with a mojibake header — and is now a deliberate pointer; nothing referenced it.
+
+**New: `docs/review-brief.md`.** The eight questions every review lane must answer, each carrying the
+real defect that put it there (proves-nothing tests, trivially-true gates, unfaithful DECISIONS claims,
+stale arithmetic in a subordinate doc, faked or unlogged deferral, a flattened invariant, an unpinned
+boundary, environment coupling). It is the pasteable brief for `@oracle` / adversarial lanes;
+`BUILD-RUNBOOK.md` §12 points at it.
+
+**New: `BUILD-RUNBOOK.md` §11 — parallel lane protocol.** Contended files with a one-writer rule
+(re-derived per wave), never two writers on one file (whole-file last-writer-wins **loss**, not a merge
+conflict), the staging module for copy a lane needs before its owner has written it, no cross-import of a
+sibling’s in-flight file, the per-lane verification subset (`tsc` + node/jsdom — never `build` or
+`playwright`, which share `dist/` and the ports), the integration checklist, and the session-reuse rule.
+This was re-derived from scratch twice in one session; it is now written down.
+
+**§8 checkpoint recording is now three places** — DECISIONS number, CHECKPOINTS status, and the
+`Checkpoints fired:` field of the BUILD-LOG entry, in the same commit. A checkpoint with no DECISIONS
+heading did not happen.
+
+**§9: the copy contract is machine-checked** by `tests/strings.test.ts` (added by a parallel lane, and
+verified **non-vacuous by mutation** — three separate mutations produced real failures, then were
+reverted). It imports the real `STRINGS` and compares byte-level: a value with no `{token}` must match
+the appendix exactly; a value containing tokens is compiled to an **anchored** regex whose literal
+chunks are still compared exactly, and every token must be declared in the appendix `Interpolation`
+column — so a placeholder cannot be renamed to one the appendix does not declare. Measured state:
+**113 leaves** — 41 approved, 52 gaps-only, 20 beyond both appendices and therefore required to carry
+the `⚠ PROPOSED (C14)` marker. **No allowlist.** It does not assert that a beyond-appendices key is
+*justified*, and it does not police unused appendix rows.
+
+**Environment quirks moved into `AGENTS.md`** (Windows PATH / `npm.cmd`, no PowerShell heredocs, the
+console U+2014 + `Select-String` trap, the real background-task tooling behaviour, CRLF vs LF), because
+it is the only file guaranteed to be in an agent’s context. The proposed `task_message` claim was
+**corrected before writing**: it is a *lease*, not a one-shot — consecutive sends fail with
+"message/control lease unavailable" and should be retried (5 of 6 landed in this session).
+
+**Not applied, deliberately:** the reflect pass also proposed extending the *global*
+`verification-planning` skill with a "does the path test the wiring, or only the decision?" section.
+The evidence is one repository, and it is a global asset, so it stays un-applied until a second repo
+shows the pattern. `docs/review-brief.md` covers the need in-repo.
