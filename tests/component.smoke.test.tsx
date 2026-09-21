@@ -6,13 +6,16 @@ import App from '../src/App';
 afterEach(cleanup);
 
 // Proves the `jsdom` Vitest project runs and React 19 + Testing Library mount.
+// Slice 0.3 replaced the scaffold screen: with no projects folder stored (and no
+// IndexedDB in jsdom) the shell boots into first run rather than crashing.
 describe('scaffold jsdom harness', () => {
-  it('renders the placeholder screen', async () => {
+  it('boots the app shell into first run', async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(screen.getByRole('heading', { name: /field measure/i })).toBeTruthy();
-    expect(screen.getByText(/scaffold/i)).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: /which hand do you write with/i }),
+    ).toBeTruthy();
 
     // Exercises @testing-library/user-event (its dependency stays load-bearing).
     await user.tab();

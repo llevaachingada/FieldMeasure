@@ -35,7 +35,8 @@ for (const viewport of viewports) {
       });
 
       await page.goto('/');
-      await expect(page.locator('#root')).toContainText('Field Measure');
+      // Slice 0.3: a fresh install boots into first-run. Assert the app mounted.
+      await expect(page.locator('#root')).toContainText('Which hand do you write with?');
 
       // A non-zero count means an inline `style=""` attribute reached the DOM.
       expect(await page.locator('[style]').count()).toBe(0);

@@ -3,7 +3,7 @@
 **The agent's memory across sessions.** Read the last entry to find your place; append one entry per
 slice, in the same commit as the slice.
 
-**Status: slice 0.1 (scaffold) complete — all machine gates green.** Next action: **slice 0.2** (input spike) in `docs/implementation-plan.md`.
+**Status: slices 0.2 + 1.1 + 0.3 complete — all machine gates green.** Next action: **slice 1.2** (storage core) in `docs/implementation-plan.md`.
 
 ---
 
@@ -123,5 +123,26 @@ If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instea
 **Decisions recorded:** D44 — two §3.4 schema corrections found by execution (compilation), not reading.
 
 **Surprises:** (1) §3.4 as written does not typecheck — `AnnotationZ: z.ZodType<Annotation>` fails because `.nullish()` on `fillColor`/`children` yields `| undefined` that §3.3's exact types forbid; fixed to `.nullable()`/`.optional()` (exact translations, no cast, guards untouched). (2) The §6.1.1 compose table has **7** rows, not 8 (the 8th case is the `12' 6 3/8` round-trip). (3) The §6.1/§6.1.1 test block's import list omitted `isCommittableInches` and `KeypadState` — added to the imports. (4) `tests/units.smoke.test.ts` (slice 0.1's STRINGS smoke) left in place; still passes, redundant with the real units tests.
+
+**Next:** slice 1.2 (storage core)
+
+## Slice 0.3 — First-run, Settings, Home shell
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built:** two-step first-run (handedness → projects folder), the Settings screen (Input/Units/Display/Storage/About with the five touch toggles), the Home shell (empty/loading/ready + card grid on placeholder data), five + one typed idb-keyval settings helpers, the zustand `appStore`, and the filled `strings.ts` table.
+
+**Machine gates:** 4/4 passing
+- [x] First run two steps, Right default, auto-advance; Settings round-trip (set → re-render → persisted)
+- [x] Five touch toggles default correctly (`touchPlaces:true, fingerDraws:false, magnifierOnTap:true, glovedTouch:false, penOnly:false`) and persist
+- [x] Home renders the honest empty state; first-run keyboard-completable with `:focus-visible` ring, `aria-label`/`role="switch"`+`aria-checked`, 48px targets + 16px hit slop, no inline styles (CSP-as-a-test green)
+- [x] `npx tsc --noEmit` clean · `npm run build` succeeds · `npx vitest run` green · `npx playwright test` green
+
+**Deferred to hardware:** none (0.3 has no `[Surface]` gates).
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** D45–D47 (Settings/Home copy gaps; `projectsRoot.ts` + `units.ts` type import; Pen-only semantics reconciled to §8.2).
+
+**Surprises:** (1) `showDirectoryPicker`/`DirectoryPickerOptions` are absent from TS 5.9 `lib.dom` — added a minimal ambient shim. (2) jsdom has no IndexedDB — `App` catches the idb-keyval failure and falls back to first-run (keeps the scaffold smoke test green). (3) `tests/component.smoke.test.tsx` + `tests/e2e/{smoke,csp}.spec.ts` asserted the old scaffold text `Field Measure`; updated to the first-run boot (`Which hand do you write with?`) — assertions superseded by 0.3, not weakened. (4) §20.5(b) "Pen only … ignores touch input entirely" conflicts with §8.2 — resolved to §8.2 (touch pans/zooms, never places/draws; D47).
 
 **Next:** slice 1.2 (storage core)
