@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 3)
+**Last updated:** 2026-09-21 (session 4)
 
 ---
 
@@ -11,16 +11,16 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | Pre-flight + planning complete → slice 0.1 (scaffold) |
+| Phase | Pre-flight + planning complete, **hardened ×4** → slice 0.0 (origin decision), then 0.1 (scaffold) |
 | Application code | None yet (repo has docs + installed deps only) |
 | Build spec | **v0.3 hardened (r2)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical) |
 | UI spec | **v2 hardened** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical, changelog appendix) |
-| Adversarial review | ✅ Round 1 folded into v0.3 / v2 · ✅ **Round 2 complete** (execution-verified; findings folded + committed) |
-| Plan verification | ✅ **Session 3 complete** — plan verified against specs + flushed out to per-slice build packets |
-| Implementation plan | ✅ `docs/implementation-plan.md` — slice order, files, build order, signatures, tests, gates, rollback |
-| Dependencies | Installed and pinned (Node 24 LTS, npm 11, `fflate` included; React 19.3 reconciled) |
-| Blocking item | None. Next work is the slice 0.1 scaffold. |
-| Next action | Slice 0.1 scaffold per `docs/implementation-plan.md` (flushed-out; zero-guess) |
+| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4 complete** — senior adversarial + hardening review of the plan and architecture |
+| Plan verification | ✅ Session 3 · ✅ **Session 4** — plan re-attacked, hardened, and expanded (3 new slices, 2 new modules, test infrastructure) |
+| Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened** — slice order, files, build order, signatures, tests, gates, rollback |
+| Dependencies | Installed and pinned; **session 4 added dev deps** (`@testing-library/react`, `@testing-library/user-event`, `jsdom`) to §2.2 — **not yet installed**, do it in slice 0.1 |
+| Blocking item | **Slice 0.0 needs a human decision: the origin the app will be served from (D24).** Everything else is ready to build. |
+| Next action | **Slice 0.0** (origin & distribution decision — half a day, no code), then slice 0.1 scaffold |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -108,6 +108,72 @@ When any doc conflicts, §2.4 wins.
    numbered build order, signatures at point of use, inline test tables, checkable gates, rollback notes.
    Checkpoint table and wrong-measurement tripwires kept in sync (added the inset crop-detach tripwire).
 
+### 2026-09-21 — Session 4: senior adversarial & hardening review; plan expansion
+
+Full finding register with evidence: **`docs/review-session-4-hardening.md`**.
+Method: the specs' reference code was extracted into a JS runtime and **executed** against its own
+committed tables (as rounds 2 and 3 did — and as in both prior rounds, it found defects that reading
+had missed); the storage failure paths were attacked; and the build plan was audited for work that
+**no slice owned** — a class earlier rounds structurally could not find, because they compared the
+plan to the spec and the spec to itself.
+
+**1. Wrong-measurement defects, all executed (fixed in the spec, then propagated to the plan):**
+   - **F1:** §6.1's accepts table asserted `10′-4 ½″` → 124.5; **it returns `null`** — the vulgar
+     fraction is never normalized, and the row's own trailing comment already said "NOT accepted".
+     Same class as round 2's `12 6 → 148`, surviving two further rounds. Moved to rejects.
+   - **F2:** `parseImperialToInches('-5')` returned **+5** (silent sign flip), and
+     `formatInches(-124.5)` produced a string re-parsing to **-115.5**. Lengths are now non-negative.
+   - **F3/F4:** `Enter` was gated on null/NaN only → a bare `0` committed a **0″ dimension**;
+     `12 6 20` committed **151.25″** and `10' 4 99/100` committed 124.99″. New `isCommittableInches`
+     + denominator-enum + numerator-<-denominator validation.
+   - **F5:** the 500-combo property test's generator **never produced an empty slot** (measured
+     0/2000 for each of feet/inches/numerator) — the branches where round 1's fraction-dropping bug
+     lived were untested by the test written to prevent that regression. Rewritten to draw
+     `''`/`'0'`/digits, assert composed-text shape, and assert its own coverage.
+   - **F6:** `'0'` is a truthy string → `12'-6 0/16"`, `0'-4"`, a bare `"` stored as `enteredText`.
+   - **F7:** freehand rendered `p.pressure` on a `Px` that has none (pressure is a **parallel
+     array**) — does not compile under `strict`, and any cast makes every point 0.5, silently
+     killing pressure ink width. Present in the spec **and** repeated in the plan.
+   - **F8:** the loupe's 160px/3.5×/80px numbers are mutually impossible; pinned to a formula.
+   - **Verified:** the corrected code was re-extracted from the spec and executed — **53/53 pass**,
+     run 8× for randomization stability.
+
+**2. Data-loss defects:**
+   - **S1:** `writeAtomic`'s doc comment promised the per-project Web Lock; **the body never took
+     one**, which also falsified `cleanStaleTmp`'s stated safety property.
+   - **S2:** `cleanStaleTmp` scanned the **project root only**, while every tmp file the app writes
+     is in `sheets/<n>/` or `assets/` — slice 1.2's own "no `*.tmp` survivors" gate could never pass.
+   - **S3:** only the *parse* was guarded in `readJsonValidated`; all I/O failures bypassed `.history`.
+   - **S4:** no disk-full handling existed anywhere in four documents. New `storageStatus: 'full'`,
+     and: never prune `.history/`/`.trash/` to make room for a save.
+   - **S6:** duplicate project ids are *expected* (the sanctioned sharing model is copying the
+     folder) yet undefined. Now: separate cards, `«Copy»` badge, never merge.
+   - **S5/S7/S8:** locked rename target, deterministic two-tab arbitration, precise `.history` caps.
+
+**3. Ownerless work → three new slices and two new modules:**
+   - **Slice 0.0 (origin & distribution)** — nothing in four documents said how the app reaches a
+     Surface, and **the origin is the identity boundary** for the persisted folder handle, every
+     setting, OPFS and the SW cache. Changing it later silently orphans all of them while the files
+     survive. **This is the one open item needing a human decision (D24).**
+   - **Slice 1.4.5 (editor shell)** — no slice built the tool rail ("do not simplify #1", 14 tools);
+     1.5/1.6 built tools with nothing to select them from.
+   - **Slice 1.11 (release & update)** — no service-worker update strategy existed.
+   - **`src/state/persistQueue.ts`** — §10 named a "persistence queue" module; no slice listed it, so
+     **nothing would have saved annotations between slices 1.5 and 1.10.**
+   - **`src/domain/migrate.ts`** — §3.1 required per-file migration; no module, signature or slice.
+   - **Test infrastructure** — none existed, while 0.3/1.2/1.3 already depended on it; §14 also
+     mandated Testing Library against a dependency list that declared itself closed and lacked it.
+
+**4. Also fixed:** content-addressed assets (§19.3 — `sha256Hex` was defined and never called);
+   case-insensitive export conflicts (NTFS — `Overwrite` could silently destroy an unrelated
+   export); a computed export memory budget with a hard guard and a designed PDF-splitting remedy;
+   damaged-photo export behaviour; a **29-row** filename test table with an executed reference
+   implementation; accessibility moved from the last slice into every UI slice; UI-spec size
+   conflicts (72px keypad keys, 64px hold-to-confirm); and several cross-reference errors.
+
+**5. Re-verified sound:** the §4.2 export invariant (`0.75 × mu` pt at every M), §9.2's page math,
+   session 3's inset crop/pivot/hit-test model, the keypad's core table, and the formatters' carry.
+
 ### 2026-09-21 — Session 3 (continued): UI/UX + layout review; plan re-review
 1. Senior adversarial + architecture review of the UI spec against §2.4/§11/§8. Fixed three findings
    in the UI spec (see DECISIONS "Session 3 — UI/UX & layout review"): rail-customization drift
@@ -140,21 +206,24 @@ When any doc conflicts, §2.4 wins.
 
 ## In progress
 
-- — (session 3 complete; the next slice, 0.1 scaffold, has not started)
+- — (session 4 complete; no code has started)
 
 ## Next slice (not started)
 
-- ⏳ Slice 0.1 scaffold (Vite config, `tsconfig`, `"type": "module"`, npm scripts, `public/icons/`,
-  CSP, `THIRD-PARTY-NOTICES.md`, CI workflow) — follow the flushed-out `docs/implementation-plan.md`.
+- ⏳ **Slice 0.0 — origin & distribution decision.** No code. Pin the origin the app is served from
+  (scheme + host + port + base path) and write `docs/install-runbook.md`. **Needs a human answer**
+  (see Open questions #4). It is half a day now and a migration later.
 
 ## Next (in order)
 
-1. Slice 0.1 scaffold → installable, offline PWA shell (gate: airplane-mode reload works; CI green).
-2. Slice 0.2 input spike (pen/touch routing + device caps report) — the highest-risk area; do it
+1. **Slice 0.0** origin & distribution decision (gate: origin pinned in DECISIONS; runbook exists).
+2. Slice 0.1 scaffold → installable, offline PWA shell **+ the three test harnesses + fonts**
+   (gate: airplane-mode reload works; CI green; vitest node+jsdom and Playwright all run).
+3. Slice 0.2 input spike (pen/touch routing + device caps report) — the highest-risk area; do it
    before any UI (gate: palm gauntlet with a >1.2 s stroke).
-3. Slice 0.3 first-run / settings / Home shell.
-4. Slices 1.1 → 1.10 in order, then the 2.0 field pilot — **follow
-   `docs/implementation-plan.md`** for gates and checkpoint tables.
+4. Slice 0.3 first-run / settings / Home shell.
+5. Slices 1.1 → 1.4, **1.4.5 (editor shell)**, 1.5 → 1.10, **1.11 (release & update)**, then the
+   2.0 field pilot — **follow `docs/implementation-plan.md`** for gates and checkpoint tables.
 
 ---
 
@@ -166,6 +235,16 @@ Still needs a human decision:
 1. **Metric** — needed at launch, or is feet-inches enough? (Affects the keypad's fraction chips.)
 2. **Job-site address** — add a typed address field to project/sheet meta for reports?
 3. **Sheet templates** — needed at launch, or is the preset system enough?
+4. **🔴 Origin & distribution (D24 — blocks slice 0.0, which blocks everything).** Where is the app
+   served from? A static HTTPS host (recommended), `http://localhost` from a small local server on
+   each Surface, or a LAN HTTPS host with a private CA? A plain `http://` LAN address is **not**
+   viable — it is not a secure context, so no install, no service worker, no `showDirectoryPicker`.
+   This is not a deployment detail: the origin is the identity boundary for the persisted folder
+   handle, all settings, OPFS and the SW cache, and changing it later silently orphans every
+   Surface's setup. See `docs/review-session-4-hardening.md` §C/P4 and build spec §19.1.
+5. **Fraction chip vs project precision (D31 — resolve before slice 1.8).** Tapping a fraction chip
+   during one dimension entry currently re-rounds **every label in the project**. Recommended: scope
+   the chip to that entry and keep project-default changes in the style panel. See the review doc §D.
 
 > Calibration and vector-overlay PDF were resolved by the review (see build spec §2.4 for the
 > definitive v1 in/deferred/cut list).
@@ -183,8 +262,11 @@ Still needs a human decision:
 ## How to resume
 
 1. Read this file.
-2. Read `docs/preflight-handoff-v0.3-hardened.md` — start with **§2.4 (v1 scope table)**, then §13
-   (build slices).
+2. Read `docs/review-session-4-hardening.md` — the most recent review, its findings, and the
+   **method note**: extract every reference code block into a runtime and run it against its own
+   committed table *before* reading prose. Three rounds running, that is what found the real bugs.
+3. Read `docs/preflight-handoff-v0.3-hardened.md` — start with **§2.4 (v1 scope table)**, then the
+   session-4 changelog rows 21–38, **§5.8**, **§19**, then §13 (build slices).
 3. Read `docs/ui-spec-field-measure-v2-hardened.md` for UI detail.
 4. Check `docs/DECISIONS.md` before making a technical choice.
 5. Follow the build slices in order.

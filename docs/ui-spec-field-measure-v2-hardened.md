@@ -39,7 +39,11 @@ FieldMeasure is a professional instrument, not a creative toy. It should feel li
 
 - 48 CSS px = **9.1 mm** (absolute floor, secondary chrome only)
 - 56 CSS px = **10.7 mm** (tool buttons, style controls — clears heavy work gloves)
-- 64 CSS px = **12.2 mm** (keypad keys, shutter, loupe, destructive confirm)
+- 64 CSS px = **12.2 mm** (shutter, dialog primaries, destructive confirm)
+- 72 CSS px = **13.7 mm** (**keypad number keys** — session 4: §8.1's diagram says 72px and this
+  list said 64px. 72 wins: the keypad is the wrong-measurement surface, it is used with gloves,
+  and it has the screen budget. The **loupe** was listed here in error — it is a passive
+  magnifier, never a hit target; its geometry is build spec §19.5.)
 - 88 CSS px = 16.8 mm (camera shutter)
 - Minimum **8 CSS px gap** between adjacent targets.
 
@@ -767,7 +771,7 @@ Write mechanics the UI must reflect honestly: changes are coalesced and written 
 | Discard a capture (retake) | n/a | No dialog unless replacing an existing sheet photo. |
 | Changing a sheet's base photo | Depends | Identical working-image dimensions → silent swap (undo toast). Different dimensions → warned dialog (`«markup may land in the wrong place»`) + hold-to-confirm on `«Remove markup»`. (§11.2 card menu) |
 
-**Hold-to-confirm component spec:** 56px tall minimum, the destructive label sits inside a progress track; holding fills it left→right with `--err` over 600ms while a subtle 60ms tick plays (audio off by default on noisy sites); releasing early cancels with a 150ms drain. Focus is never placed on the destructive button by default — the safe action (`Cancel`) receives initial focus. `Esc` always cancels.
+**Hold-to-confirm component spec:** **64px tall** (session 4: this said "56px tall minimum" while §2 and §14.5 classify destructive confirms in the 64px tier — 64 wins; it is the one control where a mis-tap is unrecoverable), the destructive label sits inside a progress track; holding fills it left→right with `--err` over 600ms while a subtle 60ms tick plays (audio off by default on noisy sites); releasing early cancels with a 150ms drain. Focus is never placed on the destructive button by default — the safe action (`Cancel`) receives initial focus. `Esc` always cancels.
 
 ### 13.4 Toasts
 
@@ -781,7 +785,12 @@ Bottom-center in the editor (bottom-left would collide with the zoom pill), bott
 2. **Sunlight mode** (Settings → Theme: `Standard` / `Sunlight` / `Dim`). Sunlight pushes every token to extremes: pure `#000` chrome, pure `#FFF` text (≈21:1), icons at 2.5px strokes, 64px minimum targets, an optional high-contrast canvas mat (pure black instead of `--mat`), and disabling of all subtle 120ms fades in favor of instant state changes. This is the mode a crew member will actually run outdoors in July, and it must be a first-class theme, not a filter.
 3. **Marks legibility over arbitrary photos — mandatory technique.** Any text drawn on the canvas (dimension labels, angle values, text notes without a background, vertex indices) renders with a **dual outline**: stroke text with `paint-order: stroke; stroke-width: 4px; stroke: rgba(11,14,18,.85)` behind a `fill: currentColor`, plus a 1px inner `--sel` hairline only while actively editing. Any *control* floating over the canvas (loupe ring, tooltips, mini toolbar, zoom pill, hint chips) uses a solid `--g900` at 92% opacity background with a 2px `rgba(255,255,255,.14)` border. Never place a thin translucent control over unpredictable photography.
 4. **Never use 1px borders.** At 200% scaling a 1px CSS border lands inconsistently across device pixel boundaries and disappears in glare. The minimum hairline is **2px** (`--g700`); 1.5px is acceptable only for internal dividers inside panels.
-5. **Targets.** 56px for rail/style controls, 64px for keypad/shutter/dialog primaries, 48px absolute floor, 8px minimum gap. Hit areas may exceed visual size by up to 8px of padding, but never overlap another hit area by more than 0px — check the swatch grid and the rail's rail-edge notch specifically.
+5. **Targets.** 56px for rail/style controls, **72px for keypad number keys**, 64px for
+   shutter/dialog primaries/destructive confirm, 48px absolute floor, 8px minimum gap.
+   〔Session 4: keypad was 64px here and 72px in §8.1's diagram — 72 wins, see §2. The two
+   sanctioned sub-48px exceptions are the 44px colour swatch grid (§7.2) and the 40px Recent
+   style chips (§7.3); both are dense, forgiving, non-destructive, adjacent-miss-is-harmless
+   grids, and **no third exception may be added**.〕 Hit areas may exceed visual size by up to 8px of padding, but never overlap another hit area by more than 0px — check the swatch grid and the rail's rail-edge notch specifically.
 6. **Pen hover.** Surface Pens report hover. Use `pointerover`/`pointermove` with `pointerType === 'pen'` to show tool tooltips, preview erase targets, and highlight handles *without contact*. This reduces mis-strokes and is a real differentiator on this hardware. Hover never triggers an action.
 7. **Palm & glove rejection.** Pen `pointerdown` suppresses touch input for 1200ms. Optional `«Pen only»` canvas setting for crews who want finger gestures limited to two-finger pan/zoom.
 8. **Handedness.** A plain first-run question (Right pre-selected as default), overridable in Settings. 〔v2 hardening: the Windows pen setting is not readable from a web page — never claim or depend on it.〕 It mirrors: rail side, style panel side, loupe offset direction, keypad numeric layout (digits cluster toward the writing hand), mini-toolbar anchor, and the rotation of the align-guide priority. Changing it re-renders in place without losing canvas state.

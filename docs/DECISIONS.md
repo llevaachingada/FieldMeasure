@@ -27,6 +27,22 @@ Status: **Accepted** · Superseded · Proposed.
 | D13 | Erase stroke mode | Split at raw input points | Accepted |
 | D14 | Runtime versions | Node 24 LTS / React 19.3 / TS 7.0.2 / +fflate | Accepted |
 | D15 | Repo docs | README + INDEX + CONTINUITY + DECISIONS + UNITS | Accepted |
+| D21 | Vulgar fractions (`½`, `¼`) | **Not accepted** in v1 — rejected by the parser, commit disables | Accepted |
+| D22 | Length domain | **Non-negative**; `0` and `> 1000 ft` are not committable | Accepted |
+| D23 | Fraction validity | Denominator ∈ {2,4,8,16,32,64}; numerator **<** denominator; else reject | Accepted |
+| D24 | Origin & distribution | **Pinned once, before slice 0.1** (slice 0.0); recommended: static HTTPS host | **Proposed — needs the human decision** |
+| D25 | Service-worker updates | `registerType: 'prompt'`; never `autoUpdate`; flush queue before reload | Accepted |
+| D26 | Asset storage | **Content-addressed**: `assets/<sha256hex>.jpg`, `assetId` = that hash | Accepted |
+| D27 | Save pipeline | A dedicated `src/state/persistQueue.ts` owns debounce/serialize/backoff/flush **and** `storageStatus` | Accepted |
+| D28 | Export conflicts | Case-folded + NFC-normalized comparison (NTFS is case-insensitive) | Accepted |
+| D29 | Accessibility | Per-slice acceptance, not a final slice | Accepted |
+| D30 | Loupe geometry | Magnification fixed at 3.5×; `sourcePx = diameterPx / 3.5` | Accepted |
+| D31 | Fraction chip vs project precision | Chip should scope to the entry; project default moves to the style panel | **Proposed — product decision, resolve before slice 1.8** |
+
+> **Numbering note (session 4):** D16–D20 are referred to elsewhere (the review handoff says
+> "D1–D20") and appear in the Detail sections below, but were never added to this index. Session 4
+> numbered from **D21** to avoid colliding with them. Backfilling D16–D20 into the index is a
+> housekeeping task for whoever next touches this file.
 
 ## Detail
 
@@ -159,3 +175,83 @@ build spec (§2.4 scope, §11, §8) and UNITS/DECISIONS. Findings fixed in the U
 - **Aspect-ratio rationale arithmetic (UI §2).** "~37% vs a full side style panel" did not reproduce:
   full side panel (280 px) → canvas 1032×908 → photo 1032×688 ≈ 0.71M px², vs rail 1.03M px² = **~44%**.
   Corrected to ~44% with the arithmetic shown in-place.
+
+## Session 4 — senior adversarial & hardening review (2026-09-21)
+
+Full register with evidence: **`docs/review-session-4-hardening.md`**. Method: the specs' reference
+code was extracted into a JS runtime and **executed** against its own committed tables, the storage
+failure paths were attacked, and the build plan was audited for work no slice owned. Code-level
+fixes are marked `SESSION-4 FIX (…)` in the build spec; new normative rules are in **§5.8** and
+**§19**; the changelog carries rows 21–38.
+
+**Wrong-measurement defects that survived rounds 1–3** (all executed, not reasoned):
+
+- **F1 — a wrong committed test expectation, again.** §6.1's accepts table asserted
+  `10′-4 ½″ → 124.5`; executed it returns `null` (the vulgar fraction is never normalized), and the
+  row's own trailing comment already said so. Same class as round 2's `12 6 → 148`. Moved to the
+  rejects table (**D21**).
+- **F2 — silent sign flip.** `parseImperialToInches('-5')` returned **+5**; `formatInches(-124.5)`
+  produced a string that re-parses to **-115.5**. The leading-dash strip (for the `10'-4"`
+  separator) ran unconditionally. Lengths are now non-negative (**D22**).
+- **F3/F4 — the keypad committed values the user never typed.** `Enter` was gated on null/NaN only,
+  so a bare `0` committed a 0″ dimension; `12 6 20` committed **151.25″** and `10' 4 99/100`
+  committed 124.99″ at a denominator outside the precision enum. New `isCommittableInches` +
+  fraction validation (**D22**, **D23**).
+- **F5 — the property test covered none of the branches it existed to protect.** Its generator never
+  produced an empty slot (measured 0/2000 for each of feet/inches/numerator) — the empty-slot
+  branches, where round 1's fraction-dropping bug lived, were exercised only by the 7-row table.
+  Rewritten to draw `''`/`'0'`/digits, assert composed-text shape, and **assert its own coverage**.
+- **F6 — `'0'` is a truthy string**, so `composeEnteredText` stored junk (`12'-6 0/16"`, `0'-4"`, a
+  bare `"`). Presence now means a positive value, in both compose and value (they must agree).
+- **F7 — freehand pressure was silently dead.** §8.5 rendered
+  `points.map(p => [p.x, p.y, p.pressure ?? 0.5])`, but `pressure` is a **parallel array** and `Px`
+  has no such member: it does not compile under `strict`, and any cast yields a constant 0.5.
+- **F8 — the loupe's numbers were mutually impossible** (160px window, 3.5×, 80px source). Pinned to
+  a formula (**D30**).
+
+**Data-loss defects:**
+
+- **S1 —** `writeAtomic`'s doc comment promised the per-project Web Lock; **the body never took
+  one**, which also made `cleanStaleTmp`'s stated safety property false. Lock moved into
+  `writeAtomic`; `projectId` is now a required parameter.
+- **S2 —** `cleanStaleTmp` scanned the **project root only**, while every tmp file the app writes
+  lives in `sheets/<n>/` or `assets/` — so slice 1.2's own "no `*.tmp` survivors" gate could never
+  pass. Now a bounded recursive walk.
+- **S3 —** only the *parse* was guarded in `readJsonValidated`; every I/O failure bypassed `.history`
+  recovery entirely. Now routed, with an explicit expected-absence path for new sheets.
+- **S4 —** no disk-full handling existed anywhere. New `storageStatus: 'full'`, and explicitly:
+  **never prune `.history/` or `.trash/` to make room for a save.**
+- **S6 —** duplicate project ids are *expected*, because the sanctioned sharing model is copying the
+  project folder — yet the behaviour was undefined. Now: separate cards, `«Copy»` badge, never merge.
+
+**Ownerless work (the class earlier rounds structurally could not find):**
+
+- **P4/D24 — nothing said how the app reaches a Surface**, and the **origin is the identity boundary**
+  for the persisted folder handle, every setting, OPFS and the SW cache. Changing it later silently
+  orphans all of them while the files survive, so the failure is quiet. New **§19.1** + **slice 0.0**,
+  before the scaffold. **This needs the human decision.**
+- **P2/D27 — nothing saved annotations between slices 1.5 and 1.10.** §10 named a "persistence
+  queue" module; no slice ever listed it. Added to 1.2.
+- **P1 — no slice built the tool rail** ("do not simplify #1", 14 tools). New **slice 1.4.5**.
+- **P3 — test infrastructure did not exist** and three slices depended on it; §14 also mandated
+  Testing Library against a closed dependency list that lacked it. Dev deps added; `node-canvas`
+  dropped for Playwright; configs and fixtures are slice 0.1 deliverables.
+- **P20/D26 — asset dedupe had no mechanism** (`sha256Hex` was defined and never called). Assets are
+  now content-addressed.
+- **P5/D25 — no service-worker update strategy.** New **slice 1.11**.
+- **P7/D28 — export conflict detection was case-sensitive on a case-insensitive filesystem**, so
+  `Overwrite` could silently destroy an unrelated export.
+- **P8/D29 — accessibility was scheduled entirely in the last slice.** Moved into every UI slice.
+
+**Open (product decision, not a defect):** **D31** — a fraction chip currently re-rounds every label
+in the project, from inside one entry, which interacts badly with Chain. Recommendation and rationale
+in the review doc §D; flagged in the plan's 1.8 gate; **not changed unilaterally.**
+
+**Re-verified sound:** the §4.2 export invariant (`0.75 × mu` pt at every M; M=2 → 4 mu = 3 pt,
+18 mu = 13.5 pt), §9.2's page math, the §8.5 inset crop/pivot/hit-test model from session 3, the
+keypad's core table, and the formatters' carry behaviour.
+
+**Method note:** three rounds running have found defects in reference code that passed the previous
+review. Prose review finds prose defects; only execution finds execution defects. Two of this round's
+findings — F1, and the `con.jpg` row in this session's own first-draft filename sanitizer — were
+caught only by running the code.

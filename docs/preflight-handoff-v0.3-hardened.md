@@ -1,7 +1,8 @@
 # Field Measure — Pre-flight Handoff & Implementation Plan (v0.3, hardened)
 
 > **Status:** Pre-flight. No functional code exists yet. Reference code in Part 3+ is a build anchor, not finished code — treat it as the required starting point and verify library versions/APIs when installing packages.
-> **Version:** 0.3-hardened (September 21, 2026) — supersedes `preflight-handoff.md` v0.2. This revision incorporates the adversarial review (findings B1–B5, M1–M13, Minors 1–6): corrected export math, keypad input model, inset child coordinate space, FSA API corrections, validation fixes, and build-plan gaps. Library versions verified against the npm registry on 2026-09-21.
+> **Version:** 0.3-hardened **+ session-4 addendum** (September 21, 2026). Round 4 was a senior adversarial + architecture review; it re-executed this document's reference code and found defects that survived rounds 1–3. Code-level fixes are marked `SESSION-4 FIX (…)` in place; new normative rules are in **§5.8** and **§19**; the full finding register is `docs/review-session-4-hardening.md`. Base version note follows.
+> **Version (base):** 0.3-hardened (September 21, 2026) — supersedes `preflight-handoff.md` v0.2. This revision incorporates the adversarial review (findings B1–B5, M1–M13, Minors 1–6): corrected export math, keypad input model, inset child coordinate space, FSA API corrections, validation fixes, and build-plan gaps. Library versions verified against the npm registry on 2026-09-21.
 > **Audience:** the AI builder. This document is written to be followed end-to-end with zero judgment calls. Anything a builder might reasonably guess at is spelled out here.
 > **Companion:** `docs/ui-spec-field-measure-v2-hardened.md` (detailed UI/UX, v2 hardened). Where the two disagree, this document wins on architecture and data; the UI spec wins on visual presentation and interaction feel. **The v1 scope table (§2.4) wins over both** — it is the single authority on what is built in v1.
 
@@ -32,6 +33,32 @@
 | 19 | perfect-freehand correction: `getSvgPathFromStroke` is **not exported** by the package — a local helper is specified. Ink `size = strokeWidthMu` (the old `× 2` doubled ink width); outlines regenerated per zoom (`size = mu / stageScale`) because fills ignore `strokeScaleEnabled`. | new |
 | 20 | `initStore()` reference no longer calls `requestPermission` without a user gesture; filename sanitizer hardened (trailing dots/spaces, length caps); export memory guidance + 2× default; CSP + license notices + exact pinning (`npm ci`, committed lockfile); trash restore UI specified. | Minors 1–6 |
 
+### Changelog — session-4 hardening (round 4)
+
+Every row below was **executed or hand-traced**, not reasoned about. Severity: 🔴 wrong
+measurement or data loss · 🟠 build-blocking · 🟡 correctness/clarity.
+
+| # | Change | Finding |
+|---|---|---|
+| 21 | 🔴 §6.1 test table: the unicode row `10′-4 ½″` sat in the **accepts** block asserting 124.5. Executed, it returns `null` (the vulgar fraction `½` is never normalized) — its own trailing comment already said "NOT accepted". Moved to the rejects block. This is the same bug class round 2 was created to eliminate, and slice 1.1's gate would have failed on the spec's own table. | F1 |
+| 22 | 🔴 §6.1 strict parser silently flipped signs: `parseImperialToInches('-5')` returned **+5**, and `formatInches(-124.5)` → `-10'-4 1/2"` re-parses to **-115.5**. Negatives are now rejected; the ft-in separator dash is stripped only after a feet mark. | F2 |
+| 23 | 🔴 §6.1.1 commit gate: `Enter` was blocked only on null/NaN, so a bare `0` committed a **0″ dimension**. New `isCommittableInches` requires `0 < v ≤ 1000 ft`. | F3 |
+| 24 | 🔴 §6.1.1 `parseLooseToSlots` accepted a numerator ≥ its denominator and denominators outside the precision enum: `12 6 20` committed **151.25″** and `10' 4 99/100` committed **124.99″** — measurements the user never typed. Both now return `null`. | F4 |
+| 25 | 🟠 §6.1.1 property test: the generator drew every slot from `String(Math.floor(rand*n))`, which **never produces `''`** (measured 0/2000 for each slot). The empty-slot branches — where round 1's fraction-dropping bug lived — were untested by the very test written to prevent that regression. Generator now draws `''`/`'0'`/digits, asserts composed-text **shape**, and asserts its own branch coverage. | F5 |
+| 26 | 🟡 §6.1.1 a slot holding `'0'` is truthy as a string, composing junk `enteredText` like `12'-6 0/16"`, `0'-4"`, and a bare `"`. Presence now means a **positive** value, in both `composeEnteredText` and `keypadValueInches` (they must agree or the preview and the stored text diverge). | F6 |
+| 27 | 🟠 §8.5 freehand: `points.map(p => [p.x, p.y, p.pressure ?? 0.5])` — `Px` has no `pressure`; it is a **parallel array**. Does not compile under `strict: true`, and any cast yields a constant 0.5, silently killing pressure/tilt ink width. Now indexes the parallel array. | F7 |
+| 28 | 🔴 §5.3 `writeAtomic`'s doc comment promised "hold the per-project Web Lock for the whole write" — **the body never took a lock**. `cleanStaleTmp`'s stated safety property was therefore false. The lock is taken in `writeAtomic`, and `projectId` is a required parameter so it cannot be forgotten. | S1 |
+| 29 | 🔴 §5.3 `cleanStaleTmp` iterated the **project root only**, but every tmp file this app writes lives in `sheets/<n>/` or `assets/`. Orphans accumulated forever and slice 1.2's "no `*.tmp` survivors" gate could never pass. Now a bounded recursive walk that skips `.trash/`. | S2 |
+| 30 | 🔴 §5.3 `readJsonValidated` guarded only the **parse**. `getFileHandle`/`getFile().text()` throw on missing, truncated, or externally-locked files — so every I/O failure **bypassed `.history` recovery**. Now routed to recovery, with an explicit "expected absence" path for a new sheet. | S3 |
+| 31 | 🔴 New **§5.8 failure states**: disk-full (never prune the user's `.history`/`.trash` to make room), locked rename target, **duplicate project ids** (near-certain, since the sanctioned sharing model is *copying the project folder*), deterministic two-tab arbitration, and the `.history` cap stated precisely (JSON only). | S4–S8 |
+| 32 | 🔴 New **§19.1 origin and distribution**: v0.3 never said how the app reaches a Surface. The origin is the identity boundary for the persisted folder handle, all settings, OPFS and the SW cache — changing it later silently orphans all of them. Decided before slice 0.1 (new slice 0.0). | P4 |
+| 33 | 🟠 New **§19.2 service-worker update flow**: `registerType: 'prompt'`, never auto-reload, toast suppressed mid-write/mid-measurement, queue flushed before reload (new slice 1.11). | P5 |
+| 34 | 🟠 New **§19.3 asset dedupe**: required in four places with no mechanism — `sha256Hex` was defined and never called. Assets are now **content-addressed** (`assets/<sha256hex>.jpg`, `assetId` = that hash); dedupe is an existence check with no index to corrupt. | P20 |
+| 35 | 🟠 New **§19.4 export**: damaged-photo sheets (undefined before) export as markup on a white page; a computed memory budget with a hard guard and a designed PDF-splitting remedy; **case-insensitive conflict detection** (NTFS: `Sheet.pdf` and `sheet.pdf` are the same file — as specified, `Overwrite` silently destroyed an unrelated export). | P7, P9, P10 |
+| 36 | 🟠 §2.2/§14: §14 mandated Testing Library and slice 0.3 required component tests, but neither was in the dependency list nor installed. Dev deps added; `node-canvas` dropped in favour of Playwright for export invariance. | P3 |
+| 37 | 🟠 §13: three slices added for work no slice owned — **0.0** (origin), **1.4.5** (top bar + tool rail + panel docking: the rail is "do not simplify #1" and nothing built it), **1.11** (release/update). | P1, P4, P5 |
+| 38 | 🟡 §19.5/§19.6: `precisionDenominator` default stated (16); loupe geometry pinned to a formula (its three numbers were mutually impossible); `§8.7` and "slice 1.4's loupe" cross-references corrected; degenerate-angle guard; slice 2.0 given a "Done when"; accessibility moved from a final slice into every UI slice's gate. | F8, P8, P15–P19 |
+
 ---
 
 ## Table of contents
@@ -54,6 +81,7 @@
 16. [Decisions log](#16-decisions-log)
 17. [Risks and mitigations](#17-risks-and-mitigations)
 18. [Open questions](#18-open-questions)
+19. [Session-4 hardening addendum](#19-session-4-hardening-addendum-normative)
 
 ---
 
@@ -217,7 +245,7 @@ Every feature named in either document is IN, DEFERRED, or CUT here. If a UI-spe
       meta.json                          ← captured-at, camera model, cached dimension summary
     002-…/
   assets/
-    <uuid>.jpg                           ← inset + shared images, deduped by content hash
+    <sha256hex>.jpg                      ← inset + shared images; the FILENAME IS the content hash (§19.3)
   exports/
     2026-09-21_1412/…                    ← the folder the user drags into Dropbox
   .fieldmeasure/
@@ -242,7 +270,7 @@ Each file carries its own `schemaVersion`. Migration runs per file on load and i
 | Project | `project.json` | id, title, jobNumber, locationLabel, unitSystem, unitFormat, precisionDenominator, sheet order |
 | Sheet | `project.json` (row) + `sheets/<n>/` | id, title, sortIndex, imageWidth/Height, `calibrationPxPerFoot?` (null in v1), asset refs |
 | Annotation | `sheets/<n>/markup.json` | one JSON object per mark; an inset is an annotation of type `image` with inline `children[]` |
-| Asset | `assets/`, `exports/` | image files, referenced by id + content hash |
+| Asset | `assets/`, `exports/` | image files; **`assetId` IS the sha-256 hex and IS the filename** (§19.3) |
 
 ### 3.3 Domain types (`src/domain/types.ts`)
 
@@ -637,32 +665,85 @@ async function ensureDir(parent: FileSystemDirectoryHandle, name: string) {
 }
 
 /** Atomic write (text or blob): tmp → close → rename over the real file.
- *  Hold the per-project Web Lock for the whole write so a second tab can't
- *  hold a writable on the target during move(). */
-export async function writeAtomic(
-  dir: FileSystemDirectoryHandle, name: string, data: string | Blob,
-): Promise<void> {
-  const tmpName = `${name}.tmp`;
-  const tmp = await dir.getFileHandle(tmpName, { create: true });
-  const w = await tmp.createWritable();
-  await w.write(data);                    // accepts string | Blob | BufferSource
-  await w.close();                       // flush; then atomic rename
-  // FileSystemFileHandle.move() exists in Chromium (files only — NOT on directories).
-  // Overwrite-on-move matches POSIX (M109+). Verified on target build in slice 1.2.
-  await tmp.move(name);
+ *  SESSION-4 FIX (S1): the previous version's doc comment said "hold the per-project Web
+ *  Lock for the whole write" but the body NEVER TOOK A LOCK. cleanStaleTmp's stated safety
+ *  property ("runs under the same lock as writers") was therefore false — the lock excluded
+ *  other cleaners, not writers, so cleanup could still race an in-flight write. The lock is
+ *  taken HERE, and `projectId` is now a required parameter so it cannot be forgotten.
+ *
+ *  SESSION-4 FIX (S5): `move()` fails with a locked target on Windows (Dropbox, antivirus,
+ *  the search indexer). The tmp is KEPT on failure (it holds the good bytes; cleanStaleTmp
+ *  will age it out) and the error is re-thrown tagged so the autosave layer can show
+ *  «File is open in another app — Retry» instead of a generic failure.
+ *
+ *  SESSION-4 FIX (S4): a full disk surfaces as QuotaExceededError (OPFS) or
+ *  NotAllowedError/NotReadableError (FSA). It is tagged 'disk-full' so the Autosave chip
+ *  can enter the dedicated «Disk full» state (§5.8) rather than a silent generic error. */
+export class StorageWriteError extends Error {
+  constructor(public kind: 'disk-full' | 'target-locked' | 'permission' | 'unknown', cause: unknown) {
+    super(`storage write failed: ${kind}`); this.cause = cause;
+  }
 }
 
-export const writeJsonAtomic = (dir: FileSystemDirectoryHandle, name: string, data: unknown) =>
-  writeAtomic(dir, name, JSON.stringify(data, null, 2));
+function classifyWriteError(e: unknown): StorageWriteError['kind'] {
+  const name = (e as DOMException)?.name ?? '';
+  if (name === 'QuotaExceededError') return 'disk-full';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'permission';
+  if (name === 'NoModificationAllowedError' || name === 'InvalidStateError') return 'target-locked';
+  return 'unknown';
+}
+
+export async function writeAtomic(
+  dir: FileSystemDirectoryHandle, name: string, data: string | Blob, projectId: string,
+): Promise<void> {
+  await navigator.locks.request('fm:project:' + projectId, async () => {
+    const tmpName = `${name}.tmp`;
+    const tmp = await dir.getFileHandle(tmpName, { create: true });
+    try {
+      const w = await tmp.createWritable();
+      await w.write(data);                  // accepts string | Blob | BufferSource
+      await w.close();                     // flush; then atomic rename
+    } catch (e) {
+      throw new StorageWriteError(classifyWriteError(e), e);
+    }
+    try {
+      // FileSystemFileHandle.move() exists in Chromium (files only — NOT on directories).
+      // Overwrite-on-move matches POSIX (M109+). Verified on target build in slice 1.2.
+      await tmp.move(name);
+    } catch (e) {
+      // Keep the tmp — it holds the good bytes and the target is still the previous
+      // (valid) file. NEVER delete the target or the tmp here.
+      throw new StorageWriteError(classifyWriteError(e), e);
+    }
+  });
+}
+
+export const writeJsonAtomic = (dir: FileSystemDirectoryHandle, name: string, data: unknown, projectId: string) =>
+  writeAtomic(dir, name, JSON.stringify(data, null, 2), projectId);
 
 /** Read + validate; on parse failure, recover from history, never silently overwrite.
  *  `parse` may return synchronously (parseJson does) or a Promise — both are awaited. */
 export async function readJsonValidated<T>(
   dir: FileSystemDirectoryHandle, name: string,
   parse: (s: string) => MaybePromise<{ success: boolean; data?: T }>,   // see §3.4 parseJson — never throws
+  onMissing?: () => T,                                                   // SESSION-4 (S3)
 ): Promise<T> {
-  const fh = await dir.getFileHandle(name, { create: false });
-  const raw = await (await fh.getFile()).text();
+  // SESSION-4 FIX (S3): only the PARSE was guarded. `getFileHandle(name, {create:false})`
+  // throws NotFoundError for a missing file and `getFile()/text()` throws NotReadableError
+  // on a truncated or externally-locked file — so every I/O failure BYPASSED the .history
+  // recovery path and surfaced as an unhandled rejection. Both now route correctly, and a
+  // genuinely absent file (a brand-new sheet has no markup.json yet) is NOT corruption.
+  let raw: string;
+  try {
+    const fh = await dir.getFileHandle(name, { create: false });
+    raw = await (await fh.getFile()).text();
+  } catch (e) {
+    if ((e as DOMException)?.name === 'NotFoundError') {
+      if (onMissing) return onMissing();          // expected absence → caller's default
+      return recoverFromHistory<T>(dir, name);    // should exist → try recovery
+    }
+    return recoverFromHistory<T>(dir, name);      // NotReadableError etc. → recovery
+  }
   const res = await parse(raw);
   if (!res.success) return recoverFromHistory<T>(dir, name);
   return res.data!;
@@ -673,13 +754,29 @@ export async function readJsonValidated<T>(
  *  doesn't protect this unless cleanup takes it too. So: run under the same per-project
  *  Web Lock AND only delete tmp files whose lastModified is older than 5 minutes. */
 export async function cleanStaleTmp(dir: FileSystemDirectoryHandle, projectId: string): Promise<void> {
+  // SESSION-4 FIX (S2): the previous version iterated the PROJECT ROOT ONLY. Every tmp file
+  // this app actually writes lives in a subdirectory — `sheets/<n>/markup.json.tmp`,
+  // `sheets/<n>/photo.jpg.tmp`, `sheets/<n>/thumb.jpg.tmp`, `assets/<hash>.jpg.tmp` — so
+  // orphaned tmp files accumulated forever and slice 1.2's "no *.tmp survivors" gate could
+  // never pass. Walk recursively, bounded, and never touch `.trash/` (its contents are
+  // user-restorable) or `.history/` (snapshots are written atomically to the same rules).
   await navigator.locks.request('fm:project:' + projectId, async () => {
     const cutoff = Date.now() - 5 * 60_000;
-    for await (const [name, h] of (dir as any).entries()) {
-      if (h.kind !== 'file' || !name.endsWith('.tmp')) continue;
-      const file = await h.getFile();
-      if (file.lastModified < cutoff) await dir.removeEntry(name);
-    }
+    const SKIP = new Set(['.trash']);
+    const walk = async (d: FileSystemDirectoryHandle, depth: number): Promise<void> => {
+      if (depth > 3) return;                       // root / sheets / <sheet> — nothing deeper
+      for await (const [name, h] of (d as any).entries()) {
+        if (h.kind === 'directory') {
+          if (SKIP.has(name)) continue;
+          await walk(h as FileSystemDirectoryHandle, depth + 1);
+          continue;
+        }
+        if (!name.endsWith('.tmp')) continue;
+        const file = await h.getFile();
+        if (file.lastModified < cutoff) await d.removeEntry(name);
+      }
+    };
+    await walk(dir, 0);
   });
 }
 ```
@@ -715,6 +812,48 @@ export async function ensurePersistentStorage(): Promise<boolean> {
 }
 ```
 
+### 5.8 Failure states (SESSION-4 — previously unspecified)
+
+Four failure modes reached the code with no defined behavior. Each now has one state, one
+string, and one gate.
+
+**(a) Disk full.** A full Surface surfaces as `QuotaExceededError` (OPFS) or
+`NotAllowedError`/`NotReadableError` (FSA). `writeAtomic` tags it `'disk-full'` (§5.3).
+`AppState.storageStatus` gains **`'full'`**. The Autosave chip shows
+`«Disk full — free space to save»` with a `Retry` action; the write parks (it does **not**
+consume the 1s/3s/10s backoff budget and then silently give up), the tmp file is kept, and
+**no automatic pruning of `.history/` or `.trash/` is allowed** — deleting the user's
+recovery data to make room for a save is a data-loss path. Offer `Trash…` and
+`Export and clear` as explicit user actions instead.
+
+**(b) Rename target locked.** On Windows, `move()` can fail because Dropbox, antivirus, or
+the search indexer holds the target. Tagged `'target-locked'`; retried on the §5.4 backoff
+(1s/3s/10s); on exhaustion the chip shows `«File is open in another app — Retry»`. The tmp
+is kept and the previous file is left intact — never delete either.
+
+**(c) Duplicate project ids.** Identity is `project.json.id` (§5.6) and the **sanctioned
+sharing model is copying the project folder** (D11 — drag into Dropbox), so two folders
+under one root carrying the same id is expected, not exotic. Previously undefined. Rule: the
+root scan groups by id; when a group has more than one folder, **show every folder as its
+own card**, badge the ones that are not the most-recently-modified with `«Copy»`, and key the
+in-memory project by `id + folderName`. Opening a copy offers `«Make this a separate
+project»` (mint a new `id`, rewrite `project.json` atomically). **Never merge two folders,
+and never write into a folder the user did not open.**
+
+**(d) Two-tab arbitration.** §5.4 says a second tab is invalidated into read-only but never
+said *which* tab loses when both open at once. Rule: on project open, a tab attempts
+`navigator.locks.request('fm:project:' + id, { mode: 'exclusive', ifAvailable: true }, …)`
+and holds it for the session. The tab that gets the lock is the writer; any tab that does
+not is read-only immediately and shows `«Open in another tab — read only»` with a
+`«Take over»` action (which reloads after the other tab releases). Deterministic, no race.
+
+**(e) History cap, stated precisely.** `.history/` snapshots contain **JSON only** — never
+photos, assets, or thumbnails (a photo snapshot would multiply disk use by the snapshot
+count for no recovery value: photos are never edited in place). Caps: **20 snapshots per
+sheet** under `.history/<sheetId>/`, **20** under `.history/_project/`, and a **200 MB
+whole-`.history` backstop**, pruned oldest-first. Cadence: a **10-minute timer reset on each
+successful write**, plus one snapshot immediately before every destructive action.
+
 ---
 
 ## 6. Domain modules
@@ -736,10 +875,17 @@ export function parseImperialToInches(raw: string): number | null {
   const ftIdx = s.indexOf("'");
   if (ftIdx >= 0) {
     feet = Number(s.slice(0, ftIdx).trim() || '0');
-    if (!Number.isFinite(feet)) return null;
+    // F2 (session 4): a NEGATIVE feet value must be rejected, not silently kept.
+    if (!Number.isFinite(feet) || feet < 0) return null;
     s = s.slice(ftIdx + 1);
+    // The leading dash is the ft-in SEPARATOR (10'-4") and is stripped only here.
+    s = s.replace(/"/g, '').replace(/^\s*-\s*/, '').trim();
+  } else {
+    // F2 (session 4): with no feet mark there is no separator, so a leading '-' is a
+    // negative number and must be REJECTED. Stripping it turned "-5" into +5 in.
+    s = s.replace(/"/g, '').trim();
+    if (s.startsWith('-')) return null;
   }
-  s = s.replace(/"/g, '').replace(/^\s*-\s*/, '').trim();
   if (s === '') return ftIdx >= 0 ? feet * 12 : null;
 
   const m = s.match(/^(\d+(?:\.\d+)?)(?:[\s-]+(\d+)\/(\d+))?$|^(\d+)\/(\d+)$/);
@@ -851,35 +997,58 @@ export function pressDot(st: KeypadState): KeypadState {
  *   2. Feet+fraction composes as `<f>'-<i> <n>/<d>"` (never drops the fraction).
  *   3. Inches-mode with only a fraction composes as `<n>/<d>"` (no phantom `0`). */
 export function composeEnteredText(st: KeypadState): string {
-  const fracPart = st.numerator ? `${st.numerator}/${st.denominator}` : '';
+  // SESSION-4 FIX (F6): a slot holding '0' is TRUTHY as a string. The old checks composed
+  // `12'-6 0/16"` and `0'-4"` — junk that is stored verbatim as enteredText. The value
+  // round-trips, so the 500-combo property test passed on it. Presence = a POSITIVE value.
+  const has = (v: string) => v !== '' && Number(v) > 0;
+  const fracPart = has(st.numerator) ? `${st.numerator}/${st.denominator}` : '';
 
   if (st.inchesMode) {
-    if (!st.inches && !st.numerator) return '';
+    if (!st.inches && !has(st.numerator)) return '';
     if (!st.inches) return `${fracPart}"`;                  // fraction only: `3/16"`
     return fracPart ? `${st.inches} ${fracPart}"` : `${st.inches}"`;
   }
 
-  if (st.feet) {
+  if (has(st.feet)) {
     if (st.inches && fracPart) return `${st.feet}'-${st.inches} ${fracPart}"`;   // 10'-4 1/2"
     if (st.inches) return `${st.feet}'-${st.inches}"`;                          // 10'-4"
     if (fracPart) return `${st.feet}'-0 ${fracPart}"`;                          // 10'-0 1/2"
     return `${st.feet}'-0"`;                                                    // 10'-0"
   }
 
-  // feet empty → everything is inches
-  if (!st.inches && !st.numerator) return '';
+  // feet empty (or zero) → everything is inches
+  if (!st.inches && !has(st.numerator)) return '';
   if (!st.inches) return `${fracPart}"`;
   return fracPart ? `${st.inches} ${fracPart}"` : `${st.inches}"`;
 }
 
+/** Allowed fraction denominators (§3.3 `precisionDenominator`). Anything else is a typo,
+ *  not a measurement — session 4 found `10' 4 99/100` silently accepted denominator 100. */
+export const VALID_DENOMINATORS = [2, 4, 8, 16, 32, 64] as const;
+export const isValidDenominator = (d: number): boolean =>
+  (VALID_DENOMINATORS as readonly number[]).includes(d);
+
+/** Largest length v1 will commit: 1000 ft. Beyond this the user mistyped, not measured. */
+export const MAX_LENGTH_IN = 12000;
+
+/** SESSION-4 FIX (F3/F4): the ONLY gate the commit button may use. `Enter` was previously
+ *  blocked on null/NaN alone, so a bare `0` committed a 0" dimension, and `12 6 20`
+ *  committed 151.25" — a measurement the user never typed. Both are wrong-measurement paths. */
+export function isCommittableInches(v: number | null): boolean {
+  return v !== null && Number.isFinite(v) && v > 0 && v <= MAX_LENGTH_IN;
+}
+
 /** The live preview: slots → value. The truth; never parse the composed string for display. */
 export function keypadValueInches(st: KeypadState): number | null {
-  const frac = st.numerator ? Number(st.numerator) / st.denominator : 0;
+  // SESSION-4 (F6): presence tests must MATCH composeEnteredText's, or the preview value and
+  // the stored text disagree. A slot holding '0' contributes 0 but is not "entered".
+  const has = (v: string) => v !== '' && Number(v) > 0;
+  const frac = has(st.numerator) ? Number(st.numerator) / st.denominator : 0;
   if (st.inchesMode) {
-    if (!st.inches && !st.numerator) return null;
+    if (!st.inches && !has(st.numerator)) return null;
     return Number(st.inches || 0) + frac;
   }
-  if (!st.feet && !st.inches && !st.numerator) return null;
+  if (!has(st.feet) && !st.inches && !has(st.numerator)) return null;
   return Number(st.feet || 0) * 12 + Number(st.inches || 0) + frac;
 }
 
@@ -900,42 +1069,53 @@ export function parseLooseToSlots(raw: string, denominator: number): { slots: Ke
     .replace(/\s+/g, ' ');
   if (!s) return null;
 
-  const mk = (over: Partial<KeypadState>): KeypadState =>
-    ({ feet: '', inches: '', numerator: '', denominator, activeSlot: 'inches', inchesMode: false, ...over });
+  /** SESSION-4 FIX (F4): every construction site validates the fraction. An explicit
+   *  denominator outside VALID_DENOMINATORS, or a numerator >= its denominator, is a typo —
+   *  return null so the commit button disables, rather than inventing a length. */
+  const mk = (over: Partial<KeypadState>): KeypadState | null => {
+    const st: KeypadState = { feet: '', inches: '', numerator: '', denominator,
+      activeSlot: 'inches', inchesMode: false, ...over };
+    if (!isValidDenominator(st.denominator)) return null;
+    if (st.numerator !== '' && Number(st.numerator) >= st.denominator) return null;
+    return st;
+  };
+  /** Wrap a slot result; null slots propagate as a null parse. */
+  const ok = (slots: KeypadState | null, rawDecimal: string | null = null) =>
+    slots ? { slots, rawDecimal } : null;
 
   // 1. feet-first forms (space allowed before the ' mark: "10 ft 4 in" → "10 ' 4 \"")
   const fm = s.match(/^(\d+)\s*'\s*[-\s]?\s*(.*)$/);
   if (fm) {
     const rest = fm[2].trim();
-    if (rest === '' || rest === '"') return { slots: mk({ feet: fm[1] }), rawDecimal: null };
+    if (rest === '' || rest === '"') return ok(mk({ feet: fm[1] }));
     let m = rest.match(/^(\d+)(?:\s*[\s-]\s*(\d+)\/(\d+))?\s*"?$/);   // i [n/d]
-    if (m) return { slots: mk({ feet: fm[1], inches: m[1], numerator: m[2] ?? '',
-      denominator: m[3] ? Number(m[3]) : denominator }), rawDecimal: null };
+    if (m) return ok(mk({ feet: fm[1], inches: m[1], numerator: m[2] ?? '',
+      denominator: m[3] ? Number(m[3]) : denominator }));
     m = rest.match(/^(\d+)\s+(\d+)\s*"?$/);                            // i n (loose numerator, project denom)
-    if (m) return { slots: mk({ feet: fm[1], inches: m[1], numerator: m[2] }), rawDecimal: null };
+    if (m) return ok(mk({ feet: fm[1], inches: m[1], numerator: m[2] }));
     m = rest.match(/^(\d+)\/(\d+)\s*"?$/);                             // n/d only
-    if (m) return { slots: mk({ feet: fm[1], numerator: m[1], denominator: Number(m[2]) }), rawDecimal: null };
+    if (m) return ok(mk({ feet: fm[1], numerator: m[1], denominator: Number(m[2]) }));
     return null;
   }
 
   // 2. bare decimal → inches (raw preserved for enteredText)
   if (/^\d+\.\d+"?$/.test(s)) {
     const d = s.replace(/"$/, '');
-    return { slots: mk({ inches: d, inchesMode: true }), rawDecimal: d };
+    return ok(mk({ inches: d, inchesMode: true }), d);
   }
 
   // 3. fractions without feet: `4-1/2` · `4 1/2` (whole+fraction) · `1/2` (alone)
   let m = s.match(/^(\d+)[\s-]+(\d+)\/(\d+)"?$/);                  // whole + fraction: 4-1/2, 4 1/2
-  if (m) return { slots: mk({ inches: m[1], numerator: m[2], denominator: Number(m[3]), inchesMode: true }), rawDecimal: null };
+  if (m) return ok(mk({ inches: m[1], numerator: m[2], denominator: Number(m[3]), inchesMode: true }));
   m = s.match(/^(\d+)\/(\d+)"?$/);                                  // fraction alone: 1/2
-  if (m) return { slots: mk({ numerator: m[1], denominator: Number(m[2]), inchesMode: true }), rawDecimal: null };
+  if (m) return ok(mk({ numerator: m[1], denominator: Number(m[2]), inchesMode: true }));
 
   // 4. loose integer groups: `124` = 124 in · `12 6` = 12 ft 6 in · `12 6 3` = 12 ft 6 in + 3/16
   m = s.match(/^(\d+)(?:[\s-]+(\d+))?(?:[\s-]+(\d+))?"?$/);
   if (!m) return null;
-  if (m[2] === undefined) return { slots: mk({ inches: m[1], inchesMode: true }), rawDecimal: null };
-  if (m[3] === undefined) return { slots: mk({ feet: m[1], inches: m[2] }), rawDecimal: null };
-  return { slots: mk({ feet: m[1], inches: m[2], numerator: m[3] }), rawDecimal: null };
+  if (m[2] === undefined) return ok(mk({ inches: m[1], inchesMode: true }));
+  if (m[3] === undefined) return ok(mk({ feet: m[1], inches: m[2] }));
+  return ok(mk({ feet: m[1], inches: m[2], numerator: m[3] }));
 }
 ```
 
@@ -943,7 +1123,9 @@ export function parseLooseToSlots(raw: string, denominator: number): { slots: Ke
 - The **live parse preview** renders `formatLength(keypadValueInches(st) × 25.4, ...)` — the slots are the truth; the composed string is display + storage.
 - `«ft»/«in»` toggles: `ft` → `activeSlot = 'feet'`; `in` → `inchesMode = true` (whole entry rescopes; feet slot clears visually with an `«Entry is now inches»` hint chip for 1.5 s).
 - Fraction chips (`1/2…1/16`): set `denominator` AND if `numerator` is empty, move `activeSlot` to `numerator` and show the `«← /16»` cycling hint.
-- Hardware path: every keystroke re-runs `parseLooseToSlots(buffer, project.precisionDenominator)` → `{ slots, rawDecimal }`; the preview reads `keypadValueInches(slots)` (for a bare decimal, the value is `Number(rawDecimal)`); `Enter` commits that value as `valueMm` and stores `enteredText = rawDecimal ?? composeEnteredText(slots)`. **Reject `Enter` when the value is null/NaN** (the primary button also disables) — never commit a null.
+- Hardware path: every keystroke re-runs `parseLooseToSlots(buffer, project.precisionDenominator)` → `{ slots, rawDecimal }`; the preview reads `keypadValueInches(slots)` (for a bare decimal, the value is `Number(rawDecimal)`); `Enter` commits that value as `valueMm` and stores `enteredText = rawDecimal ?? composeEnteredText(slots)`. **Reject `Enter` unless `isCommittableInches(value)`** (the primary button disables with it) —
+  null/NaN, **zero, negative, and > 1000 ft are all refused**. Session 4: the old null/NaN-only
+  gate let a bare `0` commit a 0" dimension and let `12 6 20` commit 151.25" (§6.1.1 F3/F4).
 - **Committed annotations always store BOTH** `valueMm` (from slots/decimal) and `enteredText` (composed, or the raw decimal). The strict parser must round-trip `enteredText` → same `valueMm` for every composed string; this is a unit test (see below).
 - `composeEnteredText` invariants: (1) every non-empty output strictly parses back to `keypadValueInches(st)`; (2) feet+fraction never drops the fraction; (3) inches-mode fraction-only composes `3/16"` — never `03/16"`.
 
@@ -961,11 +1143,21 @@ describe('parseImperialToInches (strict parser — the guardian)', () => {
   it.each([
     [`10'`, 120], [`10' 4"`, 124], [`10'-4 1/2"`, 124.5], [`10 ft 4 in`, 124],
     [`4-1/2`, 4.5], [`1/2"`, 0.5], [`124.5`, 124.5],
-    [`10\u2032-4 \u00BD\u2033`, 124.5],   // unicode prime/double-prime + vulgar fraction NOT accepted → see note
+    [`10\u2032 4\u2033`, 124],            // unicode prime/double-prime ARE normalized (see the replace chain)
   ])('parses %s', (input, expected) => {
     expect(parseImperialToInches(input)).toBeCloseTo(expected);
   });
-  it.each([[`abc`], [`4 1/0`], [``], [`12 6`], [`12 6 3`], [`.5`]])('rejects %s (strict layer)', (input) => {
+  it.each([
+    [`abc`], [`4 1/0`], [``], [`12 6`], [`12 6 3`], [`.5`],
+    // SESSION-4 FIX (F1): this row used to sit in the ACCEPTS table asserting 124.5.
+    // Executed, it returns null: \u2032/\u2033 are normalized but the VULGAR FRACTION
+    // \u00BD is not, so the inches regex never matches. The row's own trailing comment
+    // already said "NOT accepted" — the assertion contradicted it. Vulgar fractions are
+    // OUT OF SCOPE for v1 (DECISIONS D21); rejecting is safe (the commit button disables).
+    [`10\u2032-4 \u00BD\u2033`],
+    // SESSION-4 FIX (F2): negatives are rejected — they used to silently become positive.
+    [`-5`], [`-5 1/2`], [`-10' 4"`],
+  ])('rejects %s (strict layer)', (input) => {
     expect(parseImperialToInches(input)).toBeNull();
   });
 });
@@ -1030,21 +1222,67 @@ describe('keypad slot model (fuzzy layer)', () => {
     st = pressDigit(st, '8');
     expect(keypadValueInches(st)).toBeCloseTo(12 + 8/16);   // 12 8/16" = 12.5"
   });
-  it('composeEnteredText output always parses (property, 500 random slot combos)', () => {
+  // SESSION-4 FIX (F5): the old generator drew every slot from `String(Math.floor(rand*n))`,
+  // which NEVER produces ''. Measured over 2000 draws: feet==='' 0 times, inches==='' 0,
+  // numerator==='' 0. The empty-slot branches — exactly where round 1's fraction-dropping
+  // bug lived — were covered only by the 7-row table, never by the property test. It also
+  // drew numerator==='0' ~5% of the time, composing junk like `12'-6 0/16"` that still
+  // value-round-trips, so the assertion passed on garbage. Draw '' explicitly, and assert
+  // on the SHAPE of the composed text as well as its value.
+  const slot = (max: number) => {
+    const r = Math.random();
+    if (r < 0.2) return '';                                  // empty slot — 20% of draws
+    if (r < 0.3) return '0';                                 // zero slot  — 10% of draws
+    return String(Math.floor(Math.random() * max) + 1);
+  };
+  it('composeEnteredText round-trips by VALUE and is well-formed (property, 500 combos)', () => {
+    let sawEmptyFeet = 0, sawEmptyInches = 0, sawEmptyNum = 0;
     for (let i = 0; i < 500; i++) {
       const st: KeypadState = {
-        feet: String(Math.floor(Math.random() * 30)),
-        inches: String(Math.floor(Math.random() * 12)),
-        numerator: String(Math.floor(Math.random() * 16)),
+        feet: slot(30), inches: slot(11), numerator: slot(15),
         denominator: 16, activeSlot: 'inches',
         inchesMode: Math.random() < 0.5,
       };
+      if (st.feet === '') sawEmptyFeet++;
+      if (st.inches === '') sawEmptyInches++;
+      if (st.numerator === '') sawEmptyNum++;
       const text = composeEnteredText(st);
       if (!text) continue;
+      // Shape: never a zero numerator, never a leading-zero feet mark, never a bare `0/d`.
+      expect(text).not.toMatch(/\b0\/\d+/);
+      expect(text).not.toMatch(/^0'/);
       const parsed = parseImperialToInches(text);
       expect(parsed).not.toBeNull();
       expect(parsed!).toBeCloseTo(keypadValueInches(st)!);   // value round-trip, not just parseability
     }
+    // The generator must actually reach the branches it claims to cover.
+    expect(sawEmptyFeet).toBeGreaterThan(20);
+    expect(sawEmptyInches).toBeGreaterThan(20);
+    expect(sawEmptyNum).toBeGreaterThan(20);
+  });
+
+  // SESSION-4: the commit gate (F3/F4) — these are wrong-measurement guards, not niceties.
+  it('rejects a zero-length commit', () => {
+    expect(isCommittableInches(keypadValueInches(parseLooseToSlots('0', 16)!.slots))).toBe(false);
+  });
+  it('rejects numerator >= denominator (typo, not a measurement)', () => {
+    expect(parseLooseToSlots('12 6 20', 16)).toBeNull();     // was 151.25 in, silently
+    expect(parseLooseToSlots('12 6 16', 16)).toBeNull();
+    expect(parseLooseToSlots('12 6 15', 16)).not.toBeNull(); // 15/16 is valid
+  });
+  it('rejects a denominator outside the precision enum', () => {
+    expect(parseLooseToSlots(`10' 4 99/100`, 16)).toBeNull();  // was 124.99 in, silently
+    expect(parseLooseToSlots(`10' 4 3/8`, 16)).not.toBeNull();
+  });
+  it('rejects an absurd length', () => {
+    expect(isCommittableInches(12001)).toBe(false);          // > 1000 ft
+    expect(isCommittableInches(12000)).toBe(true);
+  });
+  it('a zero slot is not a present slot (F6)', () => {
+    expect(composeEnteredText({ feet: '12', inches: '6', numerator: '0', denominator: 16,
+      activeSlot: 'numerator', inchesMode: false })).toBe(`12'-6"`);   // was `12'-6 0/16"`
+    expect(composeEnteredText({ feet: '0', inches: '4', numerator: '', denominator: 16,
+      activeSlot: 'inches', inchesMode: false })).toBe(`4"`);           // was `0'-4"`
   });
 });
 ```
@@ -1375,8 +1613,13 @@ Shared pattern — **pen-down to start, drag to size, pen-up to commit**; hold s
   // size = strokeWidthMu (NOT ×2 — the v0.2 snippet doubled ink width vs shape strokes).
   // Screen: pass size = strokeWidthMu / stageScale and regenerate on zoom change (fills
   // ignore strokeScaleEnabled — §4.2 rule 4). Export: pass size = strokeWidthMu at scale M.
+  // SESSION-4 FIX (F7): geometry stores TWO PARALLEL arrays — `points: Px[]` and
+  // `pressure: number[]` (§3.3/§3.4). `Px` has NO `pressure` member, so the old
+  // `points.map(p => [p.x, p.y, p.pressure ?? 0.5])` does not compile under `strict: true`;
+  // any cast around it yields a constant 0.5 and silently kills pressure/tilt ink width.
+  // Index the parallel array instead. Same fix applies to `highlight` (shared renderer).
   const outline = getStroke(
-    points.map(p => [p.x, p.y, p.pressure ?? 0.5]),
+    points.map((p, i) => [p.x, p.y, pressure[i] ?? 0.5]),
     { size: strokeWidthMu / stage.scaleX(), thinning: 0.5, smoothing: 0.5, streamline: 0.5 },
   );
   const d = getSvgPathFromStroke(outline, true);
@@ -1703,6 +1946,15 @@ All user-visible text lives in `src/ui/strings.ts`.
 
 Build in order. Do not start a slice until the previous slice's "done when" passes **on a real Surface with a pen** (mouse-only testing misses the important bugs). Each slice leaves the app usable.
 
+> **Session 4 added three slices** — 0.0, 1.4.5 and 1.11 — for work that previously had no
+> owner. `docs/implementation-plan.md` is the authority on order and done-ness and carries
+> their full build packets.
+
+### 0.0 — Origin, distribution and install decision (NEW — session 4, §19.1)
+**Files:** `docs/DECISIONS.md` (the decision), `docs/install-runbook.md` (how a Surface gets the app).
+**Do:** choose and **pin** the origin (scheme + host + port + base path) the app will be served from for the life of the product, per §19.1; confirm it is a secure context; write the per-device install runbook (open the URL in Edge → Install → verify airplane-mode reload → pick the projects folder). Nothing is built here — this is a half-day decision that costs a migration if it is made after slice 0.1.
+**Done when:** the origin is written in DECISIONS with its rationale, `start_url` and `scope` for slice 0.1's manifest are stated verbatim, and the runbook exists.
+
 ### 0.1 — Scaffold
 **Files:** `package.json`, `vite.config.ts`, `tsconfig.json`, `.github/workflows/ci.yml`, `public/icons/*`, `src/main.tsx`, `src/App.tsx`, `THIRD-PARTY-NOTICES.md`.
 **Do:** Vite + React 19 + TS; install and pin the fixed deps (§2.2, exact versions, committed lockfile, `npm ci` in CI); Vitest + Playwright; vite-plugin-pwa (manifest + service worker precaching app shell + fonts + icons; **do not cache user photos**); serve the CSP (§2.2). CI = typecheck + test + build.
@@ -1739,6 +1991,11 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 **Do:** full-bleed viewfinder (§11.8): torch/grid/level/flip toggles, real-resolution label from the 0.2 spike, tap-to-focus, shutter, review (Retake · Rotate · Use photo), atomic photo write + failure fallback (`Save a copy…`), camera-unavailable panel.
 **Done when:** capture → review → use → sheet appears with the photo written to disk; killing the app mid-capture-write leaves no partial photo (tmp cleaned); camera-denied path shows the fallback panel; **the resolution toggle shows the device's true max**.
 
+### 1.4.5 — Editor shell: top bar, tool rail, panel docking (NEW — session 4)
+**Files:** `src/ui/TopBar.tsx`, `src/ui/ToolRail.tsx`, `src/ui/EditorLayout.tsx`, `src/ui/icons/tools/*.tsx`.
+**Do:** the chrome every later tool slice needs and **which no previous slice owned** — the vertical tool rail (§11.4: 14 tools, 6 groups, handedness-driven side, **never moves**), the top bar, and the §11.3 panel docking rule (aspect ≥ 1.2 → side; < 1.2 → bottom style bar). The 14 bespoke tool glyphs live here (placeholder glyphs are acceptable to unblock the slice; final art before 2.0). Tools register themselves with the rail; selecting a tool that does not exist yet is a no-op, not a crash.
+**Done when:** the rail renders all 14 tools at 56px with 8px gaps on the handedness side, survives a rotation without moving, docks the style panel per the aspect rule, and every control has a visible focus ring + `aria-label` (§19.6).
+
 ### 1.5 — Dimension tool (flagship)
 **Files:** `src/editor/tools/DimensionTool.ts`, `src/editor/Loupe.ts`, `src/editor/history.ts`, `src/ui/DimensionKeypadSheet.tsx`, `src/editor/shapes/`.
 **Do:** pen A→B + loupe (handedness-aware) + **keypad slot model (§6.1.1)** + live preview + derived label + select/move-endpoints/delete + undo/redo (§8.5).
@@ -1769,8 +2026,14 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 **Do:** §11.11, §11.12 (a11y), §8.3.
 **Done when:** reboot Surface → nothing lost; corrupted file → recovered; trash restore works; sunlight mode legible outdoors.
 
+### 1.11 — Release, update and install (NEW — session 4, §19.2)
+**Files:** `vite.config.ts` (SW registration options), `src/ui/UpdateToast.tsx`, `src/ui/Settings.tsx` (build version), `docs/install-runbook.md`.
+**Do:** `registerType: 'prompt'`; the non-modal `«Update ready — reload when you're done»` toast, **suppressed while a write is in flight, while `pendingOp !== 'none'`, or while the keypad is open**; `Reload` flushes the persistence queue and waits for it to settle before `skipWaiting`; build version + date in Settings.
+**Done when:** a new build deployed to the pinned origin surfaces the toast on the next online launch, never mid-measurement; `Reload` loses no edits (verify with an unflushed queue); airplane-mode reload still works after the update; Settings names the running build.
+
 ### 2.0 — Field pilot
 **Do:** 2 people, 1 week, real jobs, side-by-side with their current tool. Write go/no-go + top 5 fixes.
+**Done when:** (session 4 — every other slice had a gate and this one did not) both pilots completed **at least 3 real jobs each** entirely in this app; **zero wrong-measurement reports** and **zero data-loss reports** across the week; the go/no-go decision and the top-5 fix list are written into `docs/CONTINUITY.md`. A wrong-measurement or data-loss report is an automatic no-go regardless of how the rest of the week went.
 
 **Explicitly out of v1 (deferred/cut — see §2.4 for the full table):** vector-overlay PDF, reference calibration (+`≈`, Keep-measured, calibrated rulers, polygon area), dimensions-summary page, laser meters, metric keypad UI (seam kept), auto-enhance, import-project-bundle, duplicate project, rotate-sheet, sheet templates, rulers/guides.
 
@@ -1868,3 +2131,145 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 ---
 
 *End of handoff. Scope authority in §2.4; build order in §13; data model in §3; reference code in §5–§9; UI authority in `docs/ui-spec-field-measure-v2-hardened.md`; decisions in §16.*
+
+---
+
+## 19. Session-4 hardening addendum (NORMATIVE)
+
+Round 4 was a senior adversarial + architecture review of the implementation plan and the
+architecture behind it. It executed this document's own reference code again (rounds 2 and 3
+did the same and each found real defects), attacked the storage layer's failure paths, and
+audited the build plan for things no slice owns. Code-level findings were fixed **in place**
+in §5, §6.1, §6.1.1 and §8.5 and are marked `SESSION-4 FIX (…)` there. The items below are
+new **normative rules** that had no home in the document.
+
+The full finding register, with evidence and severity, is
+`docs/review-session-4-hardening.md`.
+
+### 19.1 Origin and distribution (was completely unspecified — highest-leverage gap)
+
+Nothing in v0.3 said how this app reaches a Surface. That is not a deployment detail: **the
+origin is the identity boundary for every persistent thing the app owns.** `idb-keyval` (the
+persisted `FileSystemDirectoryHandle` *and* all settings), OPFS, the service-worker cache,
+and the FSA permission grant are **all origin-scoped**. Changing the origin later silently
+orphans every persisted handle and every setting — each user re-picks their projects folder
+and loses handedness/theme/precision, with no error to explain it. Project *files* survive
+(they are on disk), which makes the failure quiet rather than loud.
+
+**Rules:**
+1. **The origin is chosen once, before slice 0.1, and never changed.** Record it in
+   `docs/DECISIONS.md` with the reason. Changing it afterwards is a migration, not a config
+   edit, and requires a written re-pick flow.
+2. Installing a PWA and registering a service worker require a **secure context**:
+   `https://…`, or `http://localhost`. A plain `http://` LAN address (e.g.
+   `http://192.168.1.10:8080`) is **not** a secure context and will not install, will not
+   register a service worker, and will not expose `showDirectoryPicker` — it cannot be the
+   answer.
+3. The three viable origins, with the trade this project actually faces:
+
+   | Option | Install + offline | Update path | Origin stability | Cost |
+   |---|---|---|---|---|
+   | **A. Static HTTPS host** (e.g. GitHub Pages / any static host), installed once per Surface | ✅ full | fetch a new SW on any online launch | stable if the domain is kept | needs network **once** per device, and at each update |
+   | **B. `http://localhost` from a tiny local static server on each Surface** | ✅ (localhost is a secure context) | copy a new build folder per device | stable, but **port-sensitive** — `localhost:5173` ≠ `localhost:8080`, a different origin | a background process per device; "no server" reads badly against §1.4 |
+   | **C. LAN HTTPS host with a private CA** | ✅ | central | stable | certificate management on every Surface |
+
+   **Recommendation: A.** It satisfies §1.4 honestly (the *app* is served; there is still no
+   backend, no database, no account, no sync — the constraint §1.4 actually states), it keeps
+   the origin stable for the life of the product, and offline operation after install is
+   exactly what slice 0.1's airplane-mode gate already proves. B's port fragility is a real
+   data-orphaning hazard for a non-technical crew.
+4. Whatever is chosen: **pin the exact origin string** (scheme, host, port, base path) in
+   DECISIONS, and make `start_url`/`scope` in the PWA manifest match it exactly.
+
+### 19.2 Service-worker update flow (was unspecified)
+
+`vite-plugin-pwa` precaching with no update strategy means a field device can run a stale
+build indefinitely, and an update landing mid-edit can swap assets under an open editor.
+
+- `registerType: 'prompt'` — **never** `autoUpdate`. An automatic reload mid-measurement is
+  a data-risk and a trust-risk.
+- On `needRefresh`, show a **non-modal** toast `«Update ready — reload when you're done»`
+  with `Reload` and `Later`. **Suppress the toast entirely while a write is in flight, while
+  a pending op is open (`pendingOp !== 'none'`), or while the keypad sheet is open.**
+- `Reload` flushes the persistence queue (§5.4) and waits for it to settle *before*
+  `skipWaiting` + reload. Never reload over an unflushed queue.
+- Settings shows the **build version and build date**, so a field report can name the build.
+- The airplane-mode gate (slice 0.1) is re-run after every SW change.
+
+### 19.3 Asset dedupe — content-addressed filenames (mechanism was missing)
+
+Four places require "assets are deduped by content hash" (§3.1, §3.2, §8.5, §13/1.7), but
+`sha256Hex` (§7.1) is defined and **never called**, there is no hash→uuid index in the
+on-disk layout, and `assetId` carries no hash. A builder's only option was to re-hash every
+file in `assets/` on every import.
+
+**Rule: assets are content-addressed.** An asset's filename **is** its hash:
+`assets/<sha256Hex>.jpg`, and `Annotation.assetId` holds that same hash string. Dedupe is
+then a single `getFileHandle(hash + '.jpg', { create: false })` existence check — no index
+file to write, corrupt, or recover. This replaces `assets/<uuid>.jpg` in §3.1.
+`Annotation.assetId` remains `string` (schema unchanged); its *contents* are now specified.
+
+### 19.4 Export: damaged photos, memory budget, filenames
+
+**(a) Damaged-photo sheets (undefined before).** §5.3 defines the damaged state and preserves
+markup, but §9 never said what such a sheet exports as. Rule: it exports as a **white page at
+`Sheet.imageWidth × Sheet.imageHeight`** with the markup rendered on it, and the export
+wizard's result view lists it under `«N sheets exported without their photo»`. Never skip the
+sheet silently (the markup is the measurement record) and never abort the whole export.
+
+**(b) Memory budget, computed.** §9.5 gives 450 MB at 3× as guidance with no guard. State it
+as arithmetic and enforce it:
+
+```
+bitmapBytes ≈ imageWidthPx × imageHeightPx × M² × 4
+  4096 × 3072 @ M=1 →   50 MB
+  4096 × 3072 @ M=2 →  201 MB
+  4096 × 3072 @ M=3 →  453 MB
+  4096 × 4096 @ M=3 →  604 MB   ← the worst case normalizeImage can produce
+```
+- Hard guard: if `bitmapBytes > 512 MB`, refuse M and offer the next lower M with
+  `«This sheet is too large to export at 3× on this device»`. Do not attempt and crash.
+- Render, embed, and **release** one sheet at a time (`close()` the bitmap, drop Konva refs)
+  before starting the next — already stated, now gated.
+- `pdf.save()` materializes the entire document in memory. For a 50-sheet project this is
+  the second budget: if the accumulated embedded-JPEG bytes exceed **250 MB**, split the
+  output into `part-01.pdf`, `part-02.pdf`, … and say so in the result view. This is the
+  designed remedy if slice 1.9's 50-sheet gate fails — not an improvisation at gate time.
+
+**(c) Filename conflicts must be case-insensitive.** §9.4's conflict policy compares against
+`existing: string[]`. **NTFS is case-insensitive**: `Sheet.pdf` and `sheet.pdf` are the same
+file on disk but different strings in JS. As specified, `Overwrite` silently destroys an
+unrelated export and `Add (1)` fails to trigger. Rule: compare
+`name.normalize('NFC').toLowerCase()` on both sides, everywhere conflicts are detected.
+
+**(d) Sanitizer ordering is normative.** §9.4 lists rules but not their order, and order
+changes the result — truncating *after* stripping trailing dots/spaces can re-expose one.
+The mandatory order, per token and then on the joined base, is in the implementation plan's
+slice 1.9 with a reference implementation and a 20-row test table.
+
+### 19.5 Defaults and small corrections
+
+- **`precisionDenominator` defaults to `16` for a new project.** Implied by every fixture and
+  by slice 1.5's "at default 1/16 precision", but never stated normatively until now.
+- **Loupe geometry is a formula, not three loose numbers.** §8.4 gave "160px diameter" +
+  "~3.5×" + "80×80px source region"; those cannot all hold (a 160px window at 3.5× shows a
+  **45.7px** source; an 80px source in a 160px window is exactly **2×**). Rule: **magnification
+  is fixed at 3.5×** and the source region is derived — `sourcePx = diameterPx / 3.5` (112px →
+  32px, 160px → 45.7px, 200px → 57px). Magnification stays constant when the user changes
+  loupe size, which is what makes endpoint placement predictable.
+- **§2.4's "§8.7" cross-reference does not exist** (§8 ends at §8.6). The presets/recents/
+  per-tool-memory specification is **§11.5**.
+- **§13/0.3's note said "slice 1.4's loupe"**; the loupe is built in **slice 1.5**.
+- **`angleDeg` with a degenerate vertex** (`a === v` or `c === v`) returns `0` silently.
+  Callers must treat a zero-length ray as "no angle yet" and not commit it; the Angle tool's
+  commit gate requires both rays ≥ 8 screen px.
+- **Slice 2.0 now has a "Done when"** (§13).
+
+### 19.6 Accessibility is per-slice, not a final slice
+
+§11.12 is scheduled entirely in slice 1.10. Retrofitting focus order, roles, names, and the
+accessible object tree across eight slices of already-built UI is the standard way
+accessibility does not happen. Rule: **every slice that ships UI carries its own a11y
+acceptance** (focus order, visible focus ring, `aria-label` on every control, 44×44 minimum
+target, no keyboard trap). Slice 1.10 keeps the themes, the accessible *object tree* for
+canvas annotations, and the end-to-end audit — not the whole of §11.12.

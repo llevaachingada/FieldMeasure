@@ -24,7 +24,26 @@ A space or dash is required between whole inches and a fraction.
 | `1/2"` | 0.5 in |
 | `124.5` | 124.5 in (bare number = inches) |
 
-Rejected: `abc`, `4 1/0` (zero denominator), empty string.
+Rejected: `abc`, `4 1/0` (zero denominator), empty string, and — **added in session 4** —
+
+| Rejected | Why |
+|---|---|
+| `-5`, `-5 1/2`, `-10' 4"` | **Lengths are non-negative (D22).** `-5` previously returned **+5** — a silent sign flip. The leading dash is the ft-in *separator* and is stripped only after a feet mark. |
+| `10′-4 ½″` | Unicode **primes** (`′ ″`) are normalized; **vulgar fractions** (`½ ¼ ¾`) are not (D21). The spec's test table asserted this parsed to 124.5; executed, it returns `null`. |
+
+## Commit guards (session 4 — these are wrong-measurement gates)
+
+`Enter` is gated on **`isCommittableInches(value)`**, not on null/NaN:
+
+| Rule | Rejected example | What used to happen |
+|---|---|---|
+| value `> 0` | `0` | committed a **0″ dimension** |
+| value `≤ 1000 ft` (`MAX_LENGTH_IN = 12000`) | `999999` | committed |
+| numerator **<** denominator | `12 6 20` | committed **151.25″** — 1.25″ the user never typed, label `12'-7 1/4"` |
+| denominator ∈ {2, 4, 8, 16, 32, 64} | `10' 4 99/100` | committed 124.99″ at an out-of-enum denominator |
+
+A blocked commit must **say why** in the preview area — a disabled button with no explanation reads
+as a broken app in the field.
 
 ## Accepted metric input (when unit system = metric)
 
@@ -42,6 +61,11 @@ design. The keypad is the fuzzy layer (slot state machine + `parseLooseToSlots`,
 | `12' 6 3/8` | explicit — slots mirror the marks | `12'-6 3/8"` |
 | `124.5` | 124.5 in (bare number = inches) | raw decimal kept |
 | `4-1/2` | 4½ in | `4 1/2"` |
+
+**A slot holding `'0'` is not an entered slot (session 4).** `'0'` is a truthy string, so the
+composer used to emit `12'-6 0/16"`, `0'-4"`, and a bare `"`. Presence means a **positive** value,
+and `composeEnteredText` and `keypadValueInches` must use the **same** presence test — if they
+disagree, the live preview and the stored `enteredText` diverge.
 
 The composed text **must round-trip the strict parser to the same value** (property-tested — build
 spec §6.1). The preview is computed from the slots, never by re-parsing the display string.
