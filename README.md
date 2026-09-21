@@ -1,3 +1,2 @@
-# FieldMeasureVW
-
-Field measurement application for Vangarde Wood Works.
+# FieldMeasure
+FieldMeasure app for surface
