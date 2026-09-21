@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 24 (D14)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install (from committed lockfile)
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Vitest's `browser` project runs in a real Chromium, so the browser must be
+      # installed BEFORE `npx vitest run`. (Playwright's e2e run reuses it.)
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Tests (node + jsdom + browser projects)
+        run: npx vitest run
+
+      - name: Build
+        run: npm run build
+
+      - name: End-to-end tests (Chromium only)
+        run: npx playwright test
+
+      - name: Third-party notices exist (spec §2.2)
+        run: test -f THIRD-PARTY-NOTICES.md

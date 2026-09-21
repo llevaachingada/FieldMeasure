@@ -11,16 +11,16 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | Pre-flight + planning complete, **hardened ×5** (rounds 1, 2, 4 + session-3 UI review + **session-5 GUI/UX readiness**). **UI/UX is implementation-ready.** Next: slice 0.0 (origin), then 0.1 (scaffold) |
-| Application code | None yet (repo has docs + installed deps only) |
+| Phase | **Slice 0.1 (scaffold) complete and green.** Next: slice 0.2 (input spike), then 0.3 (first-run/Home) |
+| Application code | **Slice 0.1 scaffold exists** — React 19 + Vite 8 + PWA + three-project Vitest + Playwright; all machine gates green |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
 | Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4** · ✅ **Round 5 (session 5)** — GUI/UX readiness + touch-primacy audit |
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
-| Dependencies | Installed and pinned; **session-4 dev deps** (`@testing-library/react`, `@testing-library/user-event`, `jsdom`) still **not installed** — do it in slice 0.1 |
+| Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Slice 0.0** (execute the §21.1 origin decision — pin `base` + origin guard), then slice 0.1 scaffold |
+| Next action | **Slice 0.2** (input spike — touch-first tap-tap + the two palm gates; the highest-risk slice) |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.

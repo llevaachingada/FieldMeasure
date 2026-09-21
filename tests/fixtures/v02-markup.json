@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "sheetId": "0199b0c4-1111-7c2b-9d0e-3f4a5b6c7d8e",
+  "objects": [
+    {
+      "id": "0199b0c5-2222-7c2b-9d0e-3f4a5b6c7d8e",
+      "type": "dimension",
+      "geometry": {
+        "kind": "dimension",
+        "a": {
+          "x": 820,
+          "y": 1280
+        },
+        "b": {
+          "x": 2920,
+          "y": 1290
+        }
+      },
+      "valueMm": 3162.3,
+      "enteredText": "10'-4 1/2\"",
+      "label": "10'-4 1/2\"",
+      "style": {
+        "strokeColor": "#FF7A18",
+        "strokeWidthMu": 4,
+        "fillColor": null,
+        "fillAlpha": 1,
+        "lineStyle": "solid",
+        "arrowheads": "both",
+        "fontSizeMu": 18,
+        "bold": true
+      },
+      "zIndex": 0,
+      "source": "manual",
+      "assetId": null,
+      "groupId": null,
+      "locked": false
+    }
+  ]
+}

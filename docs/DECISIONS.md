@@ -445,3 +445,17 @@ context than the pen loupe (50px vs ≈45.7px) *at a higher magnification*, beca
 > **Rule to carry forward:** never state a loupe's window, magnification and source as three
 > independent numbers. Exactly one of the three is free; the other two must be derived. Fixing the
 > same class of defect twice is why this is recorded rather than just corrected.
+
+## Checkpoint C1 — Toolchain bring-up (slice 0.1, 2026-09-21)
+
+**Measured:** `npx tsc --noEmit` ✓ · `npm run build` ✓ (vite 8.3.0; PWA: 11 precache entries) ·
+`npx vitest run` ✓ (node 1/1, jsdom 1/1, browser 1/1) · `npx playwright test` ✓ (3/3, incl. the
+CSP-as-a-test at both viewports).
+
+**Decision row taken:** "All pass".
+
+**Action:** resolved and pinned the versions the docs left open — **TypeScript 5.9.3** (per §21.6, not
+7.0.2), `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0,
+`@types/react` / `@types/react-dom` 19.3.0. Added **`@vitest/browser-playwright` 5.0.1** (Vitest 5's
+browser provider — an optional peer, not auto-installed). Corrected the browser-provider config to
+`provider: playwright()` (a function import), not the `'playwright'` string.

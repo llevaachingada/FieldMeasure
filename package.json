@@ -1,45 +1,46 @@
 {
-  "name": "fieldmeasurevw",
-  "version": "1.0.0",
-  "description": "FieldMeasure app for surface",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
+  "name": "field-measure",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Field Measure — local-only, offline PWA for footing and dimension markup (slice 0.1 scaffold).",
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/llevaachingada/FieldMeasure.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/llevaachingada/FieldMeasure/issues"
-  },
-  "homepage": "https://github.com/llevaachingada/FieldMeasure#readme",
   "dependencies": {
-    "@cantoo/pdf-lib": "^2.11.1",
-    "fflate": "^0.8.3",
-    "idb-keyval": "^6.3.0",
-    "immer": "^11.1.18",
-    "konva": "^10.6.0",
-    "lucide-react": "^1.47.0",
-    "perfect-freehand": "^1.2.3",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "zod": "^4.6.5",
-    "zustand": "^5.0.15"
+    "@cantoo/pdf-lib": "2.11.1",
+    "fflate": "0.8.3",
+    "idb-keyval": "6.3.0",
+    "immer": "11.1.18",
+    "konva": "10.6.0",
+    "lucide-react": "1.47.0",
+    "perfect-freehand": "1.2.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "@vitejs/plugin-react": "^6.1.1",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.0",
-    "vite-plugin-pwa": "^1.3.0",
-    "vitest": "^5.0.1"
+    "@playwright/test": "1.63.0",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "@vitest/browser-playwright": "5.0.1",
+    "jsdom": "30.1.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.0",
+    "vite-plugin-pwa": "1.3.0",
+    "vitest": "5.0.1"
   }
 }
