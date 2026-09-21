@@ -52,25 +52,30 @@
  * rule that classifies every real key correctly (113 leaves when written; the file can
  * grow without changing this rule).
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { STRINGS } from '../src/ui/strings';
+import sourceTextRaw from '../src/ui/strings.ts?raw';
+import approvedTextRaw from '../docs/appendix-strings.md?raw';
+import gapsTextRaw from '../docs/appendix-strings-gaps.md?raw';
 
 // ---------------------------------------------------------------------------
 // File reads (byte-level, UTF-8)
 // ---------------------------------------------------------------------------
+//
+// Read through Vite's `?raw` rather than `node:fs`. The repo pins
+// `types: ["vite/client"]` and does not install `@types/node`, so a `node:fs`
+// import cannot typecheck and this gate would break the `tsc --noEmit` gate it
+// is supposed to protect. `?raw` inlines the same bytes at transform time, and
+// `vite/client` supplies its module declaration — no new dependency, and the
+// comparison below is unchanged byte-for-byte.
 
-const rootDir = fileURLToPath(new URL('..', import.meta.url));
-
-function readText(relative: string): string {
-  return readFileSync(path.join(rootDir, relative), 'utf8').replace(/^\uFEFF/, '');
+function readText(raw: string): string {
+  return raw.replace(/^\uFEFF/, '');
 }
 
-const sourceText = readText('src/ui/strings.ts');
-const approvedText = readText('docs/appendix-strings.md');
-const gapsText = readText('docs/appendix-strings-gaps.md');
+const sourceText = readText(sourceTextRaw);
+const approvedText = readText(approvedTextRaw);
+const gapsText = readText(gapsTextRaw);
 
 // ---------------------------------------------------------------------------
 // Appendix table parsing

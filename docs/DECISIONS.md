@@ -1012,3 +1012,28 @@ it is the only file guaranteed to be in an agent’s context. The proposed `task
 `verification-planning` skill with a "does the path test the wiring, or only the decision?" section.
 The evidence is one repository, and it is a global asset, so it stays un-applied until a second repo
 shows the pattern. `docs/review-brief.md` covers the need in-repo.
+
+### D67 — the copy-contract gate broke the typecheck gate (fixed without weakening it)
+
+**Finding.** `tests/strings.test.ts` (added in `b68b74c`) read its three source files with
+`node:fs` / `node:path` / `node:url`. `tsconfig.json` pins `types: ["vite/client"]` and the repo does
+not install `@types/node`, so `npx tsc --noEmit` failed with **TS2307** on `node:fs` and `node:path`
+— the gate written to protect the copy contract had broken the typecheck gate, and `tsc` was no
+longer 0 on `main`. This is the review brief's "red gate nobody noticed" class, and it was
+invisible to `vitest`, which resolves `node:` builtins at runtime regardless of types.
+
+**Fix.** The three reads now use Vite `?raw` imports (`../src/ui/strings.ts?raw`,
+`../docs/appendix-strings.md?raw`, `../docs/appendix-strings-gaps.md?raw`), whose module declaration
+ships with `vite/client` — already in `tsconfig`'s `types`. No new dependency, no assertion changed,
+no row skipped: `?raw` inlines the same UTF-8 bytes at transform time and the comparison logic below
+it is untouched. The `readText` BOM strip is kept.
+
+**Verified.** `npx tsc --noEmit` → **0 errors** (was 2). `npx vitest run --project node
+tests/strings.test.ts` → **3/3 pass**. Because the parser below is unchanged and it still reconciles
+the parsed source keys with the imported `STRINGS` object and still clears the ≥50-leaf guard, a byte
+difference in the read would fail the test rather than pass silently; D66's mutation evidence for the
+comparison logic therefore still applies to the comparison logic.
+
+**Not done, deliberately.** `@types/node` was **not** added. It is a dev-only type package, but the
+dependency list is closed and the `?raw` route needs nothing; `types: ["vite/client"]` stays pinned
+rather than widened to paper over a harness import.
