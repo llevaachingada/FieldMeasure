@@ -15,10 +15,9 @@ self-contained, and the user drags the exported folder into Dropbox to share.
 > in. Round 4 also found the work **no slice owned**: the tool rail, the save pipeline, test
 > infrastructure, and how the app reaches a Surface at all.
 >
-> **One open item blocks the first slice:** the origin the app will be served from
-> ([`DECISIONS.md`](docs/DECISIONS.md) D24) — it is the identity boundary for every persisted handle
-> and setting, so it must be pinned before anything is built. See
-> [`docs/CONTINUITY.md`](docs/CONTINUITY.md) for live state and
+> **No open items block the build.** The origin question ([`DECISIONS.md`](docs/DECISIONS.md) D24) is
+> resolved in build spec **§21.1** (static HTTPS host + origin-agnostic `base` + an origin-change
+> guard). See [`docs/CONTINUITY.md`](docs/CONTINUITY.md) for live state and
 > [`docs/review-session-4-hardening.md`](docs/review-session-4-hardening.md) for the finding register.
 
 ## Why
@@ -32,7 +31,7 @@ folders.
 
 | Document | Canonical version | Notes |
 |---|---|---|
-| Build spec | [`docs/preflight-handoff-v0.3-hardened.md`](docs/preflight-handoff-v0.3-hardened.md) | **Authoritative.** Its **§2.4 "v1 scope table" is the single authority on what ships in v1.** Hardened across rounds 1, 2 and 4 (both 2 and 4 execution-verified the reference code). Session-4 additions: changelog rows 21–38, §5.8, §19. |
+| Build spec | [`docs/preflight-handoff-v0.3-hardened.md`](docs/preflight-handoff-v0.3-hardened.md) | **Authoritative.** Its **§2.4 "v1 scope table" is the single authority on what ships in v1.** Hardened across rounds 1, 2 and 4 (both 2 and 4 execution-verified the reference code). Session-4 additions: changelog rows 21–38, §5.8, §19. Session-4b additions: §20 (implementation contracts), §21 (resolved decisions). |
 | UI/UX spec | [`docs/ui-spec-field-measure-v2-hardened.md`](docs/ui-spec-field-measure-v2-hardened.md) | **Authoritative** on look & feel. |
 | Implementation plan | [`docs/implementation-plan.md`](docs/implementation-plan.md) | **Authoritative on build order** (v1.2 hardened). Slice sequence, dependency graph, per-slice gates, checkpoint table, wrong-measurement and data-loss tripwires. |
 | Latest review | [`docs/review-session-4-hardening.md`](docs/review-session-4-hardening.md) | Session-4 finding register: evidence, severity, and what was fixed. Includes the review **method note**. |
@@ -40,6 +39,11 @@ folders.
 | Unit rules | [`docs/UNITS.md`](docs/UNITS.md) | Input formats, rounding, examples. |
 | Continuity log | [`docs/CONTINUITY.md`](docs/CONTINUITY.md) | Read first when resuming work. |
 | File index | [`docs/INDEX.md`](docs/INDEX.md) | Map of every file. |
+| UI strings | [`docs/appendix-strings.md`](docs/appendix-strings.md) | Complete inventory of user-visible copy, keyed for `src/ui/strings.ts`. |
+| Checkpoints | [`docs/CHECKPOINTS.md`](docs/CHECKPOINTS.md) | C1–C7 — things measurable only once code exists. |
+| Hardware checklist | [`docs/HARDWARE-TEST-CHECKLIST.md`](docs/HARDWARE-TEST-CHECKLIST.md) | `[Surface]` gate ledger + H1–H12 end-of-build checks. |
+| Build log | [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) | Cross-session agent memory; one entry per slice. |
+| Agent instructions | [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md) | Entry instructions for the building agent. |
 
 > The earlier `docs/preflight-handoff.md` (v0.2) and `docs/ui-spec-field-measure.md` (v1) are kept for
 > history only and are **superseded — do not build from them.**
@@ -52,10 +56,10 @@ folders.
 | UI/UX spec (v2, hardened) | ✅ |
 | Adversarial review | ✅ rounds 1, 2 and **4** complete — findings folded in |
 | Implementation plan (slice gates) | ✅ v1.2 hardened — 17 slices, per-slice gates |
-| Origin / distribution decision | ❌ **open — blocks slice 0.0** (D24) |
+| Origin / distribution decision | ✅ **resolved** — static HTTPS host + origin guard (D24 / §21.1) |
 | Decisions log (ADR) | ✅ |
 | Dependencies installed | ✅ (`package.json`, Node 24 LTS, React 19.3) |
-| Application code | ❌ not started (slice 0.0 is a decision; slice 0.1 is the first code) |
+| Application code | ❌ not started (slice 0.0 executes the resolved origin decision; slice 0.1 is the first code) |
 
 ## Prerequisites
 

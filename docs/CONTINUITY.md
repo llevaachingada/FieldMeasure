@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 4)
+**Last updated:** 2026-09-21 (session 4 + 4b)
 
 ---
 
@@ -11,7 +11,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | Pre-flight + planning complete, **hardened ×4** → slice 0.0 (origin decision), then 0.1 (scaffold) |
+| Phase | Pre-flight + planning complete, **hardened ×4** → slice 0.0 (origin — **resolved**, §21.1), then 0.1 (scaffold) |
 | Application code | None yet (repo has docs + installed deps only) |
 | Build spec | **v0.3 hardened (r2)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical) |
 | UI spec | **v2 hardened** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical, changelog appendix) |
@@ -19,8 +19,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Plan verification | ✅ Session 3 · ✅ **Session 4** — plan re-attacked, hardened, and expanded (3 new slices, 2 new modules, test infrastructure) |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened** — slice order, files, build order, signatures, tests, gates, rollback |
 | Dependencies | Installed and pinned; **session 4 added dev deps** (`@testing-library/react`, `@testing-library/user-event`, `jsdom`) to §2.2 — **not yet installed**, do it in slice 0.1 |
-| Blocking item | **Slice 0.0 needs a human decision: the origin the app will be served from (D24).** Everything else is ready to build. |
-| Next action | **Slice 0.0** (origin & distribution decision — half a day, no code), then slice 0.1 scaffold |
+| Blocking item | **None.** Origin & distribution was resolved in session 4b (build spec §21.1 / D24). Everything is ready to build. |
+| Next action | **Slice 0.0** (execute the §21.1 origin decision — pin `base` + origin guard), then slice 0.1 scaffold |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -186,6 +186,24 @@ plan to the spec and the spec to itself.
    numeric derivations (12 6 = 150 in, export invariant 0.75×mu pt, inset crop trace), the dependency
    graph edges, and the checkpoint/tripwire sync. No new plan defects found.
 
+### 2026-09-21 — Session 4b: implementation contracts, resolved decisions, process docs
+
+Closed the remaining under-definitions and every open question, and built the process layer the plan
+assumes:
+
+1. **Build spec §20 — implementation contracts** (things the docs referenced but never defined):
+   `AnnotationPath`, `zIndex` bands/reordering, the erase split algorithm, `groupId`, and the two
+   screens with no owning slice (Project screen → slice 1.2; Settings screen — first layout).
+2. **Build spec §21 — resolved decisions** (nothing is open any more): origin & distribution
+   (**D24**), fraction chip entry-scoped (**D31**), metric deferred, job-site address schema-only,
+   sheet templates cut, **TypeScript pinned 5.x** (supersedes D14), plus the capture-resolution,
+   `Konva.pixelRatio` and `lucide-react` decision tables. §18 rewritten into a resolved registry.
+3. **New process docs:** `docs/CHECKPOINTS.md` (C1–C7), `docs/HARDWARE-TEST-CHECKLIST.md` (H1–H12),
+   `docs/BUILD-LOG.md`, `AGENTS.md` / `CLAUDE.md`, and `docs/appendix-strings.md` (the complete UI
+   copy inventory for `src/ui/strings.ts`).
+4. Still missing: **`docs/BUILD-RUNBOOK.md`** — cited by CHECKPOINTS / HARDWARE-TEST-CHECKLIST /
+   BUILD-LOG / AGENTS (§2/§4/§6). Draft it before slice 0.1.
+
 ---
 
 ## Done
@@ -203,16 +221,20 @@ plan to the spec and the spec to itself.
   packets (files, build order, signatures, inline tests, checkable gates, rollback notes).
 - ✅ Dependencies installed and verified resolvable (`fflate` pinned; React 19.3 reconciled).
 - ✅ Repo documentation scaffolding (README, INDEX, CONTINUITY, DECISIONS, UNITS) updated for all of the above.
+- ✅ **Session 4b** — build spec §20 (implementation contracts) + §21 (resolved decisions) added;
+  §18 rewritten as a resolved registry.
+- ✅ **Session 4b** — process docs added: `docs/CHECKPOINTS.md`, `docs/HARDWARE-TEST-CHECKLIST.md`,
+  `docs/BUILD-LOG.md`, `AGENTS.md`, `CLAUDE.md`, `docs/appendix-strings.md`.
 
 ## In progress
 
-- — (session 4 complete; no code has started)
+- — (session 4b complete; no code has started)
 
 ## Next slice (not started)
 
-- ⏳ **Slice 0.0 — origin & distribution decision.** No code. Pin the origin the app is served from
-  (scheme + host + port + base path) and write `docs/install-runbook.md`. **Needs a human answer**
-  (see Open questions #4). It is half a day now and a migration later.
+- ⏳ **Slice 0.0 — origin & distribution (decision made, §21.1).** No code. Pin `base` from `FM_BASE`,
+  wire the origin-change guard, and write `docs/install-runbook.md`. The decision is recorded; what
+  remains is executing it.
 
 ## Next (in order)
 
@@ -227,27 +249,24 @@ plan to the spec and the spec to itself.
 
 ---
 
-## Open questions (need a human answer)
+## Open questions
 
-Product/scope questions survive the review; several scope items were resolved by the build spec §2.4.
-Still needs a human decision:
+**None.** Session 4b (build spec **§21**) resolved every item that was previously open, "confirm", or
+"needs a human answer". The former questions and their resolutions:
 
-1. **Metric** — needed at launch, or is feet-inches enough? (Affects the keypad's fraction chips.)
-2. **Job-site address** — add a typed address field to project/sheet meta for reports?
-3. **Sheet templates** — needed at launch, or is the preset system enough?
-4. **🔴 Origin & distribution (D24 — blocks slice 0.0, which blocks everything).** Where is the app
-   served from? A static HTTPS host (recommended), `http://localhost` from a small local server on
-   each Surface, or a LAN HTTPS host with a private CA? A plain `http://` LAN address is **not**
-   viable — it is not a secure context, so no install, no service worker, no `showDirectoryPicker`.
-   This is not a deployment detail: the origin is the identity boundary for the persisted folder
-   handle, all settings, OPFS and the SW cache, and changing it later silently orphans every
-   Surface's setup. See `docs/review-session-4-hardening.md` §C/P4 and build spec §19.1.
-5. **Fraction chip vs project precision (D31 — resolve before slice 1.8).** Tapping a fraction chip
-   during one dimension entry currently re-rounds **every label in the project**. Recommended: scope
-   the chip to that entry and keep project-default changes in the style panel. See the review doc §D.
+| Was open | Resolved in | Decision |
+|---|---|---|
+| Origin & distribution (D24) | §21.1 | Static HTTPS host + origin-agnostic `base` + a slice 0.1 origin guard |
+| Fraction chip vs project precision (D31) | §21.2 | Chip is entry-scoped; project precision changes only from the style panel |
+| Metric at launch | §21.3 | No — deferred, seam kept |
+| Job-site address | §21.4 | Schema-only; no UI in v1 |
+| Sheet templates | §21.5 | Cut, confirmed |
+| TypeScript 7 vs 5.x | §21.6 | Pin TS 5.x for v1 (supersedes D14) |
+| Capture resolution toggle | §21.7 | Decision table — 0.2 measures, 1.4 reads the row |
+| `Konva.pixelRatio` on Surface Go | §21.8 | Decision ladder, measured in 1.3 |
+| `lucide-react` 1.x API | §21.9 | Two-line spike in 1.4.5 |
 
-> Calibration and vector-overlay PDF were resolved by the review (see build spec §2.4 for the
-> definitive v1 in/deferred/cut list).
+Calibration and vector-overlay PDF were already resolved by the review (build spec §2.4).
 
 ## Known drift / watch items
 
@@ -258,6 +277,8 @@ Still needs a human decision:
 - Transitive `glob@11.1.0` deprecation warning from the PWA toolchain — not a vulnerability
   (`npm audit` is clean).
 - `THIRD-PARTY-NOTICES.md` is required by the build spec and not yet created.
+- `docs/BUILD-RUNBOOK.md` is cited by `AGENTS.md`, `CHECKPOINTS.md`, `HARDWARE-TEST-CHECKLIST.md` and
+  `BUILD-LOG.md` (§2/§4/§6) but **not yet written** — draft it before slice 0.1.
 
 ## How to resume
 
@@ -270,3 +291,6 @@ Still needs a human decision:
 3. Read `docs/ui-spec-field-measure-v2-hardened.md` for UI detail.
 4. Check `docs/DECISIONS.md` before making a technical choice.
 5. Follow the build slices in order.
+6. At step 2 of each slice, check `docs/CHECKPOINTS.md` for a checkpoint that fires, and log the
+   slice in `docs/BUILD-LOG.md` in the same commit. Copy strings from `docs/appendix-strings.md` into
+   `src/ui/strings.ts` — never invent wording.

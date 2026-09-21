@@ -25,19 +25,19 @@ Status: **Accepted** · Superseded · Proposed.
 | D11 | Sharing | Manual Dropbox drag | Accepted |
 | D12 | Inset nesting | One level, inline children, inset-local coords | Accepted |
 | D13 | Erase stroke mode | Split at raw input points | Accepted |
-| D14 | Runtime versions | Node 24 LTS / React 19.3 / TS 7.0.2 / +fflate | Accepted |
+| D14 | Runtime versions | Node 24 LTS / React 19.3 / **TS 5.x** (was 7.0.2) / +fflate | Accepted |
 | D15 | Repo docs | README + INDEX + CONTINUITY + DECISIONS + UNITS | Accepted |
 | D21 | Vulgar fractions (`½`, `¼`) | **Not accepted** in v1 — rejected by the parser, commit disables | Accepted |
 | D22 | Length domain | **Non-negative**; `0` and `> 1000 ft` are not committable | Accepted |
 | D23 | Fraction validity | Denominator ∈ {2,4,8,16,32,64}; numerator **<** denominator; else reject | Accepted |
-| D24 | Origin & distribution | **Pinned once, before slice 0.1** (slice 0.0); recommended: static HTTPS host | **Proposed — needs the human decision** |
+| D24 | Origin & distribution | **Resolved (§21.1):** static HTTPS host, origin-agnostic `base` (`FM_BASE`), slice 0.1 origin guard | Accepted |
 | D25 | Service-worker updates | `registerType: 'prompt'`; never `autoUpdate`; flush queue before reload | Accepted |
 | D26 | Asset storage | **Content-addressed**: `assets/<sha256hex>.jpg`, `assetId` = that hash | Accepted |
 | D27 | Save pipeline | A dedicated `src/state/persistQueue.ts` owns debounce/serialize/backoff/flush **and** `storageStatus` | Accepted |
 | D28 | Export conflicts | Case-folded + NFC-normalized comparison (NTFS is case-insensitive) | Accepted |
 | D29 | Accessibility | Per-slice acceptance, not a final slice | Accepted |
 | D30 | Loupe geometry | Magnification fixed at 3.5×; `sourcePx = diameterPx / 3.5` | Accepted |
-| D31 | Fraction chip vs project precision | Chip should scope to the entry; project default moves to the style panel | **Proposed — product decision, resolve before slice 1.8** |
+| D31 | Fraction chip vs project precision | **Resolved (§21.2):** chip is entry-scoped; project precision changes only from the style panel | Accepted |
 
 > **Numbering note (session 4):** D16–D20 are referred to elsewhere (the review handoff says
 > "D1–D20") and appear in the Detail sections below, but were never added to this index. Session 4
@@ -97,8 +97,9 @@ Installed via winget + npm, 0 vulnerabilities:
   lucide-react `1.47.0`, fflate `0.8.3`.
 - **Dev:** vite `8.3.0`, @vitejs/plugin-react `6.1.1`, typescript `7.0.2`, vitest `5.0.1`,
   @playwright/test `1.63.0`, vite-plugin-pwa `1.3.0`.
-- **Notes:** the spec's older "React 18" reference is superseded — actual is React 19.3. TypeScript 7
-  vs 5.x to be confirmed at scaffold. `perfect-freehand` does **not** export `getSvgPathFromStroke`
+- **Notes:** the spec's older "React 18" reference is superseded — actual is React 19.3. TypeScript
+  is pinned to **5.x** for v1 (session 4b, §21.6 — supersedes the "to be confirmed at scaffold" note).
+  `perfect-freehand` does **not** export `getSvgPathFromStroke`
   (a local helper is specified). Install with `npm ci` against the committed lockfile.
 
 ## Review-driven corrections (v0.3, 2026-09-21)
@@ -229,7 +230,7 @@ fixes are marked `SESSION-4 FIX (…)` in the build spec; new normative rules ar
 - **P4/D24 — nothing said how the app reaches a Surface**, and the **origin is the identity boundary**
   for the persisted folder handle, every setting, OPFS and the SW cache. Changing it later silently
   orphans all of them while the files survive, so the failure is quiet. New **§19.1** + **slice 0.0**,
-  before the scaffold. **This needs the human decision.**
+  before the scaffold. **Resolved in session 4b (§21.1).**
 - **P2/D27 — nothing saved annotations between slices 1.5 and 1.10.** §10 named a "persistence
   queue" module; no slice ever listed it. Added to 1.2.
 - **P1 — no slice built the tool rail** ("do not simplify #1", 14 tools). New **slice 1.4.5**.
@@ -243,9 +244,9 @@ fixes are marked `SESSION-4 FIX (…)` in the build spec; new normative rules ar
   `Overwrite` could silently destroy an unrelated export.
 - **P8/D29 — accessibility was scheduled entirely in the last slice.** Moved into every UI slice.
 
-**Open (product decision, not a defect):** **D31** — a fraction chip currently re-rounds every label
-in the project, from inside one entry, which interacts badly with Chain. Recommendation and rationale
-in the review doc §D; flagged in the plan's 1.8 gate; **not changed unilaterally.**
+**Resolved (session 4b, §21.2):** **D31** — the fraction chip is **entry-scoped**; tapping `1/2 … 1/16`
+during one entry changes the denominator for that entry only, and the project's `precisionDenominator`
+changes only from the Dimension style panel's Precision control.
 
 **Re-verified sound:** the §4.2 export invariant (`0.75 × mu` pt at every M; M=2 → 4 mu = 3 pt,
 18 mu = 13.5 pt), §9.2's page math, the §8.5 inset crop/pivot/hit-test model from session 3, the
@@ -255,3 +256,18 @@ keypad's core table, and the formatters' carry behaviour.
 review. Prose review finds prose defects; only execution finds execution defects. Two of this round's
 findings — F1, and the `con.jpg` row in this session's own first-draft filename sanitizer — were
 caught only by running the code.
+
+## Session 4b — resolved decisions (2026-09-21)
+
+Build spec **§21** resolved every item that was previously open or "needs a human answer"; the ADR
+index above is updated accordingly. Key resolutions:
+
+- **D24 — origin & distribution (§21.1).** Development on `localhost:5173`/`4173`; production on a
+  pinned static HTTPS host (default `https://<owner>.github.io/FieldMeasure/`, `base: '/FieldMeasure/'`).
+  The build is origin-agnostic (`base` from `process.env.FM_BASE ?? '/'`) and slice 0.1 ships an
+  origin-change guard — a move is loud and recoverable, not a silent first-run.
+- **D31 — fraction chip (§21.2).** Entry-scoped; project precision changes only from the style panel.
+- **D14 — TypeScript (§21.6).** Pin TS 5.x for v1; supersedes the "to be confirmed at scaffold" note.
+- **Also resolved (§21.3–§21.9):** metric deferred; `locationLabel` schema-only (no v1 UI); sheet
+  templates cut; capture-resolution decision table (0.2 measures, 1.4 reads the row); `Konva.pixelRatio`
+  downgrade ladder (measured in 1.3); `lucide-react` verified by a two-line spike in 1.4.5.
