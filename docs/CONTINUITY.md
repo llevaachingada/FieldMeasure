@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 5 — touch-first input model + GUI/UX readiness)
+**Last updated:** 2026-09-21 (session 7 — slices 0.2 + 1.1 + 0.3 + 1.2 committed, pushed, green)
 
 ---
 
@@ -11,16 +11,16 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slice 0.1 (scaffold) complete and green.** Next: slice 0.2 (input spike), then 0.3 (first-run/Home) |
-| Application code | **Slice 0.1 scaffold exists** — React 19 + Vite 8 + PWA + three-project Vitest + Playwright; all machine gates green |
+| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 complete and green** (input router · domain core · first-run/Settings/Home · storage core). Next: slice 1.3 (photo on canvas) |
+| Application code | **Four slices shipped** — touch-first input router, domain core (units/schema/migrate), first-run/Settings/Home shell, and the atomic storage core (backend/projectStore/persistQueue) — 166 unit tests + e2e green |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
-| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4** · ✅ **Round 5 (session 5)** — GUI/UX readiness + touch-primacy audit |
+| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4** · ✅ **Round 5 (session 5)** · ✅ **Session 7 (orchestrator senior review of 0.2–1.2)** — D48–D53 (zod-CSP, StorageStatus union, backend layout, duplicate-id key, snapshot cadence, kill-switch harness) |
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Slice 0.2** (input spike — touch-first tap-tap + the two palm gates; the highest-risk slice) |
+| Next action | **Slice 1.3** (photo on canvas — `normalizeImage`/EXIF/thumbnails + `EditorCanvas` §4.2 screen rules + `SheetEditor`); then 1.4 + 1.4.5 in parallel (capture ∥ editor shell), then 1.5 (dimension flagship) |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -267,6 +267,22 @@ Handedness-question semantics was resolved by the owner this session: keep `«Wh
 with?»`.
 
 ---
+
+### 2026-09-21 — Session 6: slices 0.2 + 1.1 + 0.3 (parallel fixer lanes)
+Three lanes in parallel. **0.2** (input spike): the touch-first input router copied verbatim from §8.2
+(D43) + 15 unit tests + the C3 device-caps probe. **1.1** (domain core): types/schema/units/geometry/
+snapping/ids/migrate + 89 tests — two §3.4 schema bugs found by compilation, not reading (D44).
+**0.3** (first-run/Settings/Home): settings helpers + appStore + three screens + filled `strings.ts`
+(D45–D47). C3 recorded provisional (no camera on the build machine); the 8 `[Surface]` input/palm gates
+logged to the hardware checklist.
+
+### 2026-09-21 — Session 7: slice 1.2 (storage core) + orchestrator senior review
+One fixer lane built the storage core (backend/projectStore/persistQueue/ProjectList rewire, 52 tests),
+then the orchestrator ran a senior adversarial review and fixed five findings (D48–D53): zod v4's JIT
+`Function('')` probe firing `script-src eval` under the CSP (`globalConfig.jitless = true`); the
+`StorageStatus` union missing `'saving'`/`'full'` (reconciled to one canonical union); the §5.1
+root-vs-project-folder ambiguity; the duplicate-id lock/queue key collision risk; and the CDP
+renderer-crash harness timing out (marked `fixme`). 166 tests + tsc + build + e2e green; committed and pushed.
 
 ## Done
 
