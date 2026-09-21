@@ -201,8 +201,9 @@ assumes:
 3. **New process docs:** `docs/CHECKPOINTS.md` (C1–C7), `docs/HARDWARE-TEST-CHECKLIST.md` (H1–H12),
    `docs/BUILD-LOG.md`, `AGENTS.md` / `CLAUDE.md`, and `docs/appendix-strings.md` (the complete UI
    copy inventory for `src/ui/strings.ts`).
-4. Still missing: **`docs/BUILD-RUNBOOK.md`** — cited by CHECKPOINTS / HARDWARE-TEST-CHECKLIST /
-   BUILD-LOG / AGENTS (§2/§4/§6). Draft it before slice 0.1.
+4. **Closed the process gaps:** wrote `docs/BUILD-RUNBOOK.md` (slice loop §2, `[Surface]` deferral
+   §4, three-strike rule §6), `docs/appendix-scaffold-files.md`, `docs/install-runbook.md`,
+   `THIRD-PARTY-NOTICES.md`, and `docs/appendix-strings-gaps.md` (proposed copy for the 26 gaps).
 
 ---
 
@@ -225,6 +226,8 @@ assumes:
   §18 rewritten as a resolved registry.
 - ✅ **Session 4b** — process docs added: `docs/CHECKPOINTS.md`, `docs/HARDWARE-TEST-CHECKLIST.md`,
   `docs/BUILD-LOG.md`, `AGENTS.md`, `CLAUDE.md`, `docs/appendix-strings.md`.
+- ✅ **Session 4b** — handoff closed: `docs/BUILD-RUNBOOK.md`, `docs/appendix-scaffold-files.md`,
+  `docs/install-runbook.md`, `THIRD-PARTY-NOTICES.md`, `docs/appendix-strings-gaps.md`.
 
 ## In progress
 
@@ -276,21 +279,24 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   the icon-name API at first use.
 - Transitive `glob@11.1.0` deprecation warning from the PWA toolchain — not a vulnerability
   (`npm audit` is clean).
-- `THIRD-PARTY-NOTICES.md` is required by the build spec and not yet created.
-- `docs/BUILD-RUNBOOK.md` is cited by `AGENTS.md`, `CHECKPOINTS.md`, `HARDWARE-TEST-CHECKLIST.md` and
-  `BUILD-LOG.md` (§2/§4/§6) but **not yet written** — draft it before slice 0.1.
+- `docs/appendix-strings-gaps.md` is **proposed copy** — a human should approve the wording before it
+  ships, then fold the final strings into `docs/appendix-strings.md`.
+- `THIRD-PARTY-NOTICES.md` exists but several license fields are `verify at scaffold (C1)` — confirm
+  them at slice 0.1.
 
 ## How to resume
 
 1. Read this file.
-2. Read `docs/review-session-4-hardening.md` — the most recent review, its findings, and the
+2. Read `docs/BUILD-RUNBOOK.md` — how to work (slice loop, gate policy, `[Surface]` deferral,
+   three-strike rule).
+3. Read `docs/review-session-4-hardening.md` — the most recent review, its findings, and the
    **method note**: extract every reference code block into a runtime and run it against its own
    committed table *before* reading prose. Three rounds running, that is what found the real bugs.
-3. Read `docs/preflight-handoff-v0.3-hardened.md` — start with **§2.4 (v1 scope table)**, then the
+4. Read `docs/preflight-handoff-v0.3-hardened.md` — start with **§2.4 (v1 scope table)**, then the
    session-4 changelog rows 21–38, **§5.8**, **§19**, then §13 (build slices).
-3. Read `docs/ui-spec-field-measure-v2-hardened.md` for UI detail.
-4. Check `docs/DECISIONS.md` before making a technical choice.
-5. Follow the build slices in order.
-6. At step 2 of each slice, check `docs/CHECKPOINTS.md` for a checkpoint that fires, and log the
+5. Read `docs/ui-spec-field-measure-v2-hardened.md` for UI detail.
+6. Check `docs/DECISIONS.md` before making a technical choice.
+7. Follow the build slices in order.
+8. At step 2 of each slice, check `docs/CHECKPOINTS.md` for a checkpoint that fires, and log the
    slice in `docs/BUILD-LOG.md` in the same commit. Copy strings from `docs/appendix-strings.md` into
    `src/ui/strings.ts` — never invent wording.

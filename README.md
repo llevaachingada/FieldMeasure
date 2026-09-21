@@ -44,6 +44,11 @@ folders.
 | Hardware checklist | [`docs/HARDWARE-TEST-CHECKLIST.md`](docs/HARDWARE-TEST-CHECKLIST.md) | `[Surface]` gate ledger + H1–H12 end-of-build checks. |
 | Build log | [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) | Cross-session agent memory; one entry per slice. |
 | Agent instructions | [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md) | Entry instructions for the building agent. |
+| Build runbook | [`docs/BUILD-RUNBOOK.md`](docs/BUILD-RUNBOOK.md) | How to work: slice loop, gate policy, `[Surface]` deferral, three-strike rule. |
+| Scaffold reference | [`docs/appendix-scaffold-files.md`](docs/appendix-scaffold-files.md) | The pinned files slice 0.1 must produce (TS 5.x). |
+| Install runbook | [`docs/install-runbook.md`](docs/install-runbook.md) | One page, non-developer, how a Surface gets the app. |
+| String gaps (proposed) | [`docs/appendix-strings-gaps.md`](docs/appendix-strings-gaps.md) | Proposed wording for the 26 implied-but-unquoted strings. |
+| Third-party notices | [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Dependency license notices + font OFL texts. |
 
 > The earlier `docs/preflight-handoff.md` (v0.2) and `docs/ui-spec-field-measure.md` (v1) are kept for
 > history only and are **superseded — do not build from them.**
