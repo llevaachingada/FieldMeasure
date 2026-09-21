@@ -625,6 +625,28 @@ browser provider — an optional peer, not auto-installed). Corrected the browse
 reads the §21.7 row after the on-device measurement. The probe is committed at
 `tests/e2e/device-caps.spec.ts` so hardware re-measurement is a one-command run.
 
+## Checkpoint C2 — Test fixtures (slice 0.1, 2026-09-21)
+
+**Measured:** no real phone photo was available on the build machine, so the synthetic path was
+taken. `tests/fixtures/make-fixtures.mjs` — Node built-ins only, no new dependency — hand-emits
+`12mp-portrait-exif6.jpg`: 4032×3024 = **12.19 MP** stored, EXIF orientation tag **6**,
+`DateTimeOriginal`, and a GPS IFD. It also regenerates `tiny-2x2.jpg` (mid-grey, 313 bytes). Also
+committed: `truncated.jpg` (0 bytes), `corrupt-markup.json`, `v02-markup.json`, `v02-project.json`.
+Both generated JPEGs are proven to decode with real pixels (not a stub) in
+`tests/normalizeImage.browser.test.ts` — 2×2 and the upright 3024×4032 — so the fixture set is
+genuinely decoded, not header-patched.
+
+**Decision row taken:** "No photo available" → synthetic fixture + the committed generator script.
+
+**Action:** slice 1.3 built and passed its EXIF/normalize gates against these fixtures. The
+`[Surface]` half — a real phone photo, GPS tag confirmed present before import and confirmed absent
+in Explorer file properties after — is logged in `docs/HARDWARE-TEST-CHECKLIST.md` (slice 1.3 rows
++ H4). Status flipped to ✅ in `docs/CHECKPOINTS.md` (orchestrator, slice 1.4/1.4.5 batch).
+
+**Correction carried from D55:** the earlier claim that `tiny-2x2.jpg` was a "SOF-patched 1×1 seed"
+was false — the old 631-byte file was a genuine encoder JPEG of a 2×2 solid-white image and decoded
+cleanly. The 631→313 rewrite is hygiene, not the removal of an anti-pattern.
+
 ## Session 9 — slice 1.3 photo on canvas (2026-09-21)
 
 ### D54 — §4.2 screen scaling seam + the tap-classification contradiction (execution, not reading)

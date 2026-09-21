@@ -17,7 +17,7 @@ At step 2 of the slice loop (`docs/BUILD-RUNBOOK.md` §2), check whether a check
 
 ---
 
-## C1 — Toolchain bring-up · slice 0.1 · ⬜
+## C1 — Toolchain bring-up · slice 0.1 · ✅
 
 **Measure:** does `npx tsc --noEmit` + `npm run build` + `npx vitest run` all succeed with the pins
 in `docs/appendix-scaffold-files.md`?
@@ -33,7 +33,7 @@ in `docs/appendix-scaffold-files.md`?
 
 ---
 
-## C2 — Test fixtures · slice 0.1 · ⬜
+## C2 — Test fixtures · slice 0.1 · ✅
 
 **Measure:** can you produce `tests/fixtures/12mp-portrait-exif6.jpg` — a large JPEG whose EXIF
 orientation tag is 6 and which carries GPS tags?
