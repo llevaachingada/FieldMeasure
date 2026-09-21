@@ -262,8 +262,9 @@ accepted changes. Two new documents:
    `HARDWARE-TEST-CHECKLIST.md` (H1 touch-primary, new **H1b** touch-only palm, H13–H18),
    `CHECKPOINTS.md` (C8/C9/C10), `DECISIONS.md` (**D35–D42** + the session-5 detail section).
 
-**Open after session 5:** C14 final copy wording (content owner), the handedness-question semantics
-reconciliation, and `appendix-strings-gaps.md` §12.
+**Open after session 5:** C14 final copy wording (content owner) and `appendix-strings-gaps.md` §12.
+Handedness-question semantics was resolved by the owner this session: keep `«Which hand do you write
+with?»`.
 
 ---
 
@@ -326,18 +327,18 @@ reconciliation, and `appendix-strings-gaps.md` §12.
 
 ## Open questions
 
-**Three items are open after session 5 — none of them block slice 0.0 or 0.1:**
+**Two items remain open after session 5 — neither blocks slice 0.0 or 0.1:**
 
 1. **C14 final copy wording.** Settings labels, capture toggles, sort/search, style-panel headers and
    the first-run `Right`/`Left` card labels are marked **placeholder copy** in
    `docs/ui-spec-field-measure-v2-hardened.md` and `docs/appendix-strings.md`, with proposals in
    `docs/appendix-strings-gaps.md`. A content owner must approve the wording before it ships —
    **do not invent final copy in code.**
-2. **Handedness-question semantics.** The committed wording is `«Which hand do you write with?»`
-   (D32 / `5fa9515`), but the touch-first model proposes reframing it to *which hand holds the tablet*
-   — for a touch-first user the answer drives rail side and thumb reach, not pen technique. The two
-   currently disagree across `U`/`P`/`appendix-strings.md` and need **one owner** to reconcile.
-3. **`docs/appendix-strings-gaps.md` §12** needs reconciliation by its owner (flagged by the ledger lane).
+2. **`docs/appendix-strings-gaps.md` §12** needs reconciliation by its owner (flagged by the ledger lane).
+
+**Handedness-question semantics — RESOLVED.** The owner decided (session 5, right-handed): keep
+`«Which hand do you write with?»`. The touch-first model's *"which hand holds the tablet"* reframe is
+**rejected** — every canonical doc already agrees on this wording, so no spec change is required.
 
 **Previously open — all resolved in session 4b** (build spec **§21**). The former questions and their
 resolutions:
