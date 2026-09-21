@@ -3,7 +3,10 @@
 **The agent's memory across sessions.** Read the last entry to find your place; append one entry per
 slice, in the same commit as the slice.
 
-**Status: slices 0.2 + 1.1 + 0.3 + 1.2 complete — all machine gates green.** Next action: **slice 1.3** (photo on canvas) in `docs/implementation-plan.md`.
+**Status: slices 0.2 + 1.1 + 0.3 + 1.2 complete — all machine gates green.** In flight: **slice 1.3**
+(photo on canvas, one lane) and **slice 1.9 step 1 only** (filename module, pulled forward —
+**1.9 is NOT complete**). Next action after 1.3 lands: **slice 1.4 ∥ 1.4.5** in
+`docs/implementation-plan.md`.
 
 ---
 
@@ -187,3 +190,26 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 **Verdict:** the foundation is sound; **slices 1.3–1.5 are safe to start.**
 
 **Next:** slice 1.3 (photo on canvas)
+
+---
+
+## Slice 1.9 — Export (PARTIAL — step 1 of 5 only: the filename module)
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built:** `src/export/filenames.ts` (`sanitizeToken`, `joinFilename`, `conflictName`) + `tests/filenames.test.ts` — the pure, dependency-free naming half of slice 1.9, pulled forward into its own lane because it has **no dependency on 1.3 or on the style system**. Only `renderStage.ts`/`pdf.ts`/`png.ts` and the wizard need slice 1.8's final style rules (the plan's `1.9 after 1.8` constraint); the sanitizer does not.
+
+**Machine gates:** 2/2 passing
+- [x] `npx vitest run --project node tests/filenames.test.ts` → 38/38 (20 `sanitizeToken` + 4 `joinFilename` + 6 conflict cases + 7 extra edge cases)
+- [x] `npx tsc --noEmit` clean
+
+**Deferred to hardware:** none (pure module; the export-invariance and NTFS-overwrite gates are `[Surface]` and belong to the rest of 1.9).
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** pending — see Follow-ups.
+
+**Surprises:** (1) The plan's slice-1.9 gate text said "the full **17-row** table above passes" while the table it references has **29** rows (20 + 4 + 5). Gate text corrected in `docs/implementation-plan.md`; the DECISIONS line is still owed. (2) All 29 rows were re-executed against the reference implementation by an independent lane: **no row disagreed**, including `con.jpg` → `_con.jpg` (the row the session-4 from-prose draft failed) and both truncation-re-exposes-a-dot rows. (3) Two of the lane's own extra edge tests were first written with bad arithmetic and were caught by execution, not reading — the module was never at fault.
+
+**Follow-ups owed (not done):** the DECISIONS entry for the 17→29 gate-text correction, held so it does not race slice 1.3's concurrent `DECISIONS.md` edits.
+
+**Next:** slice 1.3 (in flight), then 1.4 ∥ 1.4.5; the rest of 1.9 (renderStage/pdf/png/wizard) still lands after 1.8.

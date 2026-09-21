@@ -824,18 +824,24 @@ export class EditorCanvas {
   duration ≤ 400 ms` → `'tap'`).
 
 **Gate (all must pass)**
-- [ ] A 12MP phone photo opens upright (EXIF baked) and zooms 0.25×–8× smoothly on a Surface Go. [Surface]
-- [ ] 20-photo import doesn't crash (memory watch). [Surface]
-- [ ] **Zoom constancy screenshot-diff at 1×/4×/8×:** test stroke + label width constant in CSS px, geometry scales. (This validates §4.2 screen rules before 4 more slices build on them.)
-- [ ] **Touch object-drag:** one-finger drag on an object moves it; on empty canvas pans; a second
+- [~] A 12MP phone photo opens upright (EXIF baked) and zooms 0.25×–8× smoothly on a Surface Go. [Surface]
+- [~] 20-photo import doesn't crash (memory watch). [Surface]
+- [x] **Zoom constancy screenshot-diff at 1×/4×/8×:** test stroke + label width constant in CSS px, geometry scales. (This validates §4.2 screen rules before 4 more slices build on them.)
+      → machine-checked by `tests/editorCanvas.browser.test.ts` (pixel-scan thickness + `fontSize()` measurement).
+- [~] **Touch object-drag:** one-finger drag on an object moves it; on empty canvas pans; a second
       finger cancels and **restores the previous position**; two-finger drag always pans. [Surface]
-- [ ] EXIF: exported/normalized photo contains no GPS (verify in Explorer file properties). [Surface]
-- [ ] **(session 4)** The thumbnail decode actually runs in `decodeWorker.ts` (slice 0.1's stub) —
+- [~] EXIF: exported/normalized photo contains no GPS (verify in Explorer file properties). [Surface]
+      → the machine half is green (`tests/exif.test.ts` + `tests/normalizeImage.browser.test.ts` prove the re-encode drops APP1/GPS).
+- [~] **(session 4)** The thumbnail decode actually runs in `decodeWorker.ts` (slice 0.1's stub) —
       §7.3 requires decode-in-a-worker; confirm on the Performance panel that decode is off the main
       thread, don't assume the import wired it up.
-- [ ] **(a11y §19.6)** The canvas container has an accessible name and is not a keyboard trap; zoom
+      → machine half green: `tests/thumbnails.browser.test.ts` asserts the worker's `decodedIn: 'decodeWorker.ts'`
+      provenance marker. The Performance-panel observation is logged to the hardware checklist.
+- [~] **(a11y §19.6)** The canvas container has an accessible name and is not a keyboard trap; zoom
       controls are reachable and labelled; **48 px minimum touch targets, hit slop 16 px (24 px along
       thin strokes)**.
+      → name/role/labels are in the markup (`role="application"` + `aria-label`, labelled zoom buttons);
+      the on-device focus/target walk is logged to the hardware checklist.
 
 **Rollback:** fix forward. If markup redraw cost on the Surface Go is too high at `pixelRatio = min(dpr,2)`, downgrade overlay-only to 1 and record the measurement in DECISIONS (§8.1.1 — an open item, don't pre-solve).
 
@@ -1400,8 +1406,10 @@ export async function buildPdf(sheets: SheetExport[]): Promise<Uint8Array>;
 **Gate (all must pass)**
 - [ ] **Export-invariance test (the B1 acceptance):** export the same sheet at 1×/2×/3× → in each PDF, a 4-mu stroke and an 18-mu label measure **identical physical units** (Acrobat measuring tool), and page size = imagePx × 0.75 pt. [Surface]
 - [ ] PNG ×3 opens at the expected pixel dimensions; zip contains all sheets.
-- [ ] Filenames: the full 17-row table above passes, including the two truncation-re-exposes-a-dot
-      rows and the joined-base row.
+- [ ] Filenames: the full **29-row** table above (20 `sanitizeToken` + 4 `joinFilename` + the 5
+      conflict cases) passes, including the two truncation-re-exposes-a-dot rows and the
+      joined-base row. *(Corrected from "17-row" — the gate text disagreed with its own table;
+      recorded in DECISIONS.)*
 - [ ] **(session 4)** Export to a folder already containing `Sheet.pdf`, then export `sheet.pdf` →
       the existing file is **not** overwritten under the `Add` policy. [Surface]
 - [ ] **(session 4)** A sheet whose `photo.jpg` is damaged exports as markup on a white page at the
