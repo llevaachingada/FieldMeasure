@@ -39,7 +39,7 @@ FieldMeasure is a professional instrument, not a creative toy. It should feel li
 
 - 48 CSS px = **9.1 mm** (absolute floor, secondary chrome only)
 - 56 CSS px = **10.7 mm** (tool buttons, style controls — clears heavy work gloves)
-- 64 CSS px = **12.2 mm** (shutter, dialog primaries, destructive confirm)
+- 64 CSS px = **12.2 mm** (dialog primaries / destructive confirm — the camera **shutter** is 88px, listed below)
 - 72 CSS px = **13.7 mm** (**keypad number keys** — session 4: §8.1's diagram says 72px and this
   list said 64px. 72 wins: the keypad is the wrong-measurement surface, it is used with gloves,
   and it has the screen budget. The **loupe** was listed here in error — it is a passive
@@ -111,7 +111,7 @@ Self-hosted, bundled in the service worker cache (there is no network in the fie
 | Body / list row | Archivo | 15 / 20 | 500 | |
 | Label / chip | Archivo | 13 / 16 | 600 | letter-spacing +0.01em |
 | Group header (rail) | Archivo | 11 / 14 | 700 | ALL CAPS, +0.06em, `--g400` |
-| Number readout (canvas) | JetBrains Mono | 16–28 | 700 | Dual-outline halo |
+| Number readout (canvas) | JetBrains Mono | 16–28 | 700 | Dual-outline halo. Rule: base **16px at 100% zoom**, scales with zoom, **clamped to 28px** max. |
 | Keypad key | JetBrains Mono | 28 / 32 | 600 | Tabular |
 | Parse preview | JetBrains Mono | 18 / 24 | 500 | `12' 6 3/8" = 150.4 in` |
 
@@ -125,7 +125,7 @@ Self-hosted, bundled in the service worker cache (there is no network in the fie
 ### 3.5 Density modes
 
 - **Field** (default): 56px controls, 72px rail, 8px gaps, 15px body.
-- **Desk**: 48px controls, 64px rail, 6px gaps, 14px body. Auto-selected when a mouse/trackpad is the primary pointer and no pen has been seen for 5 minutes; user-overridable in Settings.
+- **Desk**: 48px controls, **≈108px rail** (still a 2-column grid: 2×48 + 6px gutter + ~6px padding), 6px gaps, 14px body. Auto-selected when a mouse/trackpad is the primary pointer and no pen has been seen for 5 minutes; user-overridable in Settings.
 
 ---
 
@@ -146,7 +146,7 @@ Self-hosted, bundled in the service worker cache (there is no network in the fie
 ### 4.2 Navigation model
 
 - **Breadcrumb, always top-left, always tappable:** `Projects / «Riverside Elementary» / «Sheet 04»`. Each segment is a 48px-min target; tapping `Projects` returns Home, tapping the project returns the Sheets grid.
-- **Windows-native back also works:** Alt+Left, Esc (Editor → Project when nothing is pending), touchpad/edge back gestures. Esc first cancels any in-progress action (pending dimension, open popover, selection); only when nothing is pending does it navigate back.
+- **Windows-native back also works:** Alt+Left, touchpad/edge back gestures, and a single **Esc ladder: pending → deselect → exit Focus → navigate** (one level per press, never two). Esc first cancels an in-progress action / pending dimension, then clears the selection, then exits Focus mode, and only when nothing is pending does it navigate back (Editor → Project).
 - **Editor state is preserved per sheet** (zoom, scroll, active tool, open panels, selection). Returning to a sheet must feel like putting down and picking up a page.
 - **No unsaved-work warnings anywhere.** Back is safe. This is a promise the Autosave chip keeps visibly (§10.1).
 - Full-screen flows (Capture, Export) are entered with a 200ms slide-up and exited with a slide-down; during Capture, the top bar is hidden entirely and replaced by a minimal in-viewfinder row.
@@ -220,7 +220,7 @@ The rail is **bottom-anchored**: the tools used most (Dimension, Arrow, Freehand
 | Center | Autosave chip | See §10.1. Always visible, never hidden by overflow. |
 | Right | `⌗ Layers` · `⇧ Export` · `⋯ Overflow` | Layers opens a flyout. Export opens the wizard. Overflow holds: Duplicate sheet, Insert image, Add sheet, Import file, Sheet info, Project settings, Settings, Help, Keyboard shortcuts. |
 
-In **portrait (960 wide)**: `Export` collapses to icon-only, the breadcrumb collapses to a single `‹ «Sheet 04»` chip with the full path shown on tap, and the sheet title truncates to 18 characters. Autosave and Layers are never collapsed.
+In **portrait (960 wide)**: `Export` collapses to icon-only, the breadcrumb collapses to a single `‹ «Sheet 04»` chip with the full path shown on tap, and the sheet title truncates to 18 characters. Autosave and Layers are never collapsed. **Top-bar height is a deliberate `<TopBar>` height variant:** Editor = 52px, Home/Project = 56px (§11.1–§11.2) — this is intentional, do not unify.
 
 ### 5.3 Portrait (960 × 1440)
 
@@ -327,7 +327,7 @@ Rationale (be explicit with the builder so this isn't "improved" later):
 - **Fixed rail wins on gloves.** A radial requires a precise flick-and-release into a wedge. Gloved fingers and a pen tip on a 24° wedge at arm's length is a mis-hit generator. A 56px square is not.
 - **14 tools in a pie is over budget.** At 14 slices, each wedge is 25.7° — below the ~30° comfortable angular target for eyes-free selection. Cramming 14 in also forces a 2-ring pie, which destroys the single-gesture benefit that justifies radials at all.
 - **Fixed rail wins on occlusion.** A radial appears at the pen tip — i.e. over the exact spot the user is measuring. Unacceptable for a measurement tool.
-- **But radials win on one thing:** swapping among the last few tools without moving the eyes off the target point. So we keep exactly that: an **8-slot radial containing the last 8 distinct tools used** (recency-ordered, most recent at 12 o'clock going clockwise), invoked by **pen barrel-button hold** or by **press-and-hold on any rail button and flick** (releases into the wedge). If the pen reports no barrel button, the rail's press-and-hold path is the only entry — and the feature is simply absent rather than broken. Radial slice size: 96px inner radius, 220px outer, 44° wedges, icon + 11px label, current tool highlighted with the `--hi` ring; releasing in the dead-center hub cancels.
+- **But radials win on one thing:** swapping among the last few tools without moving the eyes off the target point. So we keep exactly that: an **8-slot radial containing the last 8 distinct tools used** (recency-ordered, most recent at 12 o'clock going clockwise), invoked by **pen barrel-button hold** or by **press-and-hold on any rail button and flick** (releases into the wedge). If the pen reports no barrel button, the rail's press-and-hold path is the only entry — and the feature is simply absent rather than broken. Radial slice size: 96px inner radius, 220px outer, 44° wedges, icon + 11px label, current tool highlighted with the `--hi` ring; releasing in the dead-center hub cancels. 〔Radial wedges are **drawn at 44°** with a 1° gap, but **hit-testing uses the full 45°** so there is no dead zone — resolved in build spec §20.6; do not "fix" the 44°.〕
 
 ### 6.5 Rail customization
 
@@ -385,7 +385,7 @@ Interaction: **tap** = expand the full style panel; **long-press** = open a comp
 │ ● ● ● ● ● ●                │
 │ [ ◐ Custom… ] [ ⊙ Pick ]   │  ← 48px buttons
 ├────────────────────────────┤
-│ WIDTH            «4 pt»    │
+│ WIDTH            «3 pt»    │
 │ ●────────────────────────  │  ← 44px-tall scrubber, live-preview track
 │ [−]              [+]       │  ← 48px steppers
 ├────────────────────────────┤
@@ -419,10 +419,10 @@ Controls adapt per tool — the panel is **contextual, not a fixed form**:
 
 ### 7.3 Making it fast
 
-- **Swatches are the fastest path:** tap a swatch = instant apply, no confirm. The 12 swatches get 44px targets, which is the one place we go below 48px — justified because swatches are hit *very* frequently and are separated by 6px of dead space with no adjacent destructive action, and because 12 × 56 would not fit the panel width.
-- **Width scrubber:** drag the track to scrub, or tap a position to jump. The track itself renders the current style preview at that width, so scrubbing is live-preview. `[` `]` step by one width increment (1,2,3,4,6,8,12,16,20,24,32,48).
+- **Swatches are the fastest path:** tap a swatch = instant apply, no confirm. The 12 swatches get 44px targets — 44px is the single sub-48px target size the app uses (shared with the Recents chips, §7.3) — justified because swatches are hit *very* frequently and are separated by 6px of dead space with no adjacent destructive action, and because 12 × 56 would not fit the panel width.
+- **Width scrubber:** drag the track to scrub, or tap a position to jump. The track itself renders the current style preview at that width, so scrubbing is live-preview. `[` `]` step by one width increment; the readout shows **true paper points** (`pt = 0.75 × mu`) — stored ladder mu 1,2,3,4,6,8,12,16,20,24,32,48 → displayed pt 0.75,1.5,2.25,3,4.5,6,9,12,15,18,24,36 (so 4 mu reads `«3 pt»`). Storage stays in markup units (§4.2).
 - **Presets** (`PRESETS ▾`): named user presets per tool. A preset stores the full style object. Presets are written to `<project>/.fieldmeasure/presets.json` so they travel with the folder when the user drags it into Dropbox, and can be shared between crews by copying the folder.
-- **Recent styles:** the last 8 style objects used anywhere, deduped, filtered to those valid for the current tool, shown as 40px swatch chips. Recents are the primary fast path after presets — most field markups reuse the last two or three looks.
+- **Recent styles:** the last 8 style objects used anywhere, deduped, filtered to those valid for the current tool, shown as 44px swatch chips. Recents are the primary fast path after presets — most field markups reuse the last two or three looks.
 - **Long-press any control** opens its full editor (the big palette grid, custom color with HEX/HSL, transparency slider, the width ladder). Tap = fast path; long-press = deep path. Never force the deep path.
 - **Live preview always.** Every style change renders on a preview strip inside the panel AND, if a selection exists, on the objects themselves in real time. Scrubbing width or transparency on a 6-object selection must animate smoothly at 60fps.
 - **Apply-to-selection hint:** after any style edit applied to a selection, a one-line hint appears for 4s: `«Applied to 3 objects»` with a `«Also set as default for this tool»` text button that pins the same style as the tool default. This is the explicit, non-destructive way to propagate.
@@ -461,7 +461,7 @@ States: **empty** n/a; **loading** n/a (all local); **error** only if the projec
 - The **magnifier loupe** appears *immediately* (not after a delay — a delay reads as latency).
   - Size: 160px diameter (setting: Off / 112 / 160 / 200).
   - Position: offset **112px from the tip**, in the up-and-away-from-hand direction: for a right-handed user, up-left; for left-handed, up-right. **Edge-aware:** if that placement would push the loupe within 24px of any viewport edge, it flips to the opposite side, then rotates to the available quadrant. It must never sit under the pen hand or under the pen tip.
-  - Content: a circular 3.5× magnified crop of the 80×80px region under the tip, with a 1px `--sel` ring, a `0 8px 32px` shadow, and a crosshair whose center has a 12px gap (so the exact pixel is visible, not covered by the crosshair itself).
+  - Content: a circular 3.5× magnified crop of the region under the tip, with a 1px `--sel` ring, a `0 8px 32px` shadow, and a crosshair whose center has a 12px gap (so the exact pixel is visible, not covered by the crosshair itself). **Magnification is fixed at 3.5× and the source region is derived — `sourcePx = diameterPx / 3.5` (build spec §19.5); at the 160px setting that is ≈45.7px, not the old 80px.**
   - While a pending dimension is active the loupe **freezes its source region** to point B's approach — i.e. it always tracks the moving tip, never point A.
 - **Snapping:** within 20 screen px of an existing endpoint, vertex, or object bounding-box corner, the loupe shows a `--sel` snap node and the crosshair locks. Near 0°/45°/90°, a ghost ray appears with a `«90°»` chip. Snap strength is a setting (Off / Normal / Strong).
 
@@ -735,7 +735,7 @@ Segmented 56px toggles: **`«This sheet»`** (default when in the Editor) / **`�
 
 ### 13.1 Autosave (the trust system)
 
-There is no Save button, so the Autosave chip is the most important 200 pixels in the app. It lives in the top bar center-right in every editing context, is **never** hidden by overflow, never collapses to an icon-only state, and is tappable.
+There is no Save button, so the Autosave chip is the most important 200 pixels in the app. It lives in the top bar **center** in every editing context, is **never** hidden by overflow, never collapses to an icon-only state, and is tappable.
 
 | State | Chip | Behavior on tap |
 |---|---|---|
@@ -785,10 +785,10 @@ Bottom-center in the editor (bottom-left would collide with the zoom pill), bott
 2. **Sunlight mode** (Settings → Theme: `Standard` / `Sunlight` / `Dim`). Sunlight pushes every token to extremes: pure `#000` chrome, pure `#FFF` text (≈21:1), icons at 2.5px strokes, 64px minimum targets, an optional high-contrast canvas mat (pure black instead of `--mat`), and disabling of all subtle 120ms fades in favor of instant state changes. This is the mode a crew member will actually run outdoors in July, and it must be a first-class theme, not a filter.
 3. **Marks legibility over arbitrary photos — mandatory technique.** Any text drawn on the canvas (dimension labels, angle values, text notes without a background, vertex indices) renders with a **dual outline**: stroke text with `paint-order: stroke; stroke-width: 4px; stroke: rgba(11,14,18,.85)` behind a `fill: currentColor`, plus a 1px inner `--sel` hairline only while actively editing. Any *control* floating over the canvas (loupe ring, tooltips, mini toolbar, zoom pill, hint chips) uses a solid `--g900` at 92% opacity background with a 2px `rgba(255,255,255,.14)` border. Never place a thin translucent control over unpredictable photography.
 4. **Never use 1px borders.** At 200% scaling a 1px CSS border lands inconsistently across device pixel boundaries and disappears in glare. The minimum hairline is **2px** (`--g700`); 1.5px is acceptable only for internal dividers inside panels.
-5. **Targets.** 56px for rail/style controls, **72px for keypad number keys**, 64px for
-   shutter/dialog primaries/destructive confirm, 48px absolute floor, 8px minimum gap.
+5. **Targets.** 56px for rail/style controls, **72px for keypad number keys**,
+   88px for the camera shutter, 64px for dialog primaries/destructive confirm, 48px absolute floor, 8px minimum gap.
    〔Session 4: keypad was 64px here and 72px in §8.1's diagram — 72 wins, see §2. The two
-   sanctioned sub-48px exceptions are the 44px colour swatch grid (§7.2) and the 40px Recent
+   sanctioned sub-48px exceptions are the 44px colour swatch grid (§7.2) and the 44px Recent
    style chips (§7.3); both are dense, forgiving, non-destructive, adjacent-miss-is-harmless
    grids, and **no third exception may be added**.〕 Hit areas may exceed visual size by up to 8px of padding, but never overlap another hit area by more than 0px — check the swatch grid and the rail's rail-edge notch specifically.
 6. **Pen hover.** Surface Pens report hover. Use `pointerover`/`pointermove` with `pointerType === 'pen'` to show tool tooltips, preview erase targets, and highlight handles *without contact*. This reduces mis-strokes and is a real differentiator on this hardware. Hover never triggers an action.
@@ -817,7 +817,7 @@ Names are suggestions; the **boundaries** are the specification.
 
 ```
 <AppShell>
-├─ <TopBar>                       // 52px; contents vary by screen
+├─ <TopBar>                       // Editor 52px / Home·Project 56px (intentional height variant); contents vary by screen
 │   ├─ <Breadcrumb segments[]>    // editor: Projects / {project} / {sheet}
 │   ├─ <SheetTitleField>          // inline editable, 18ch truncate in portrait
 │   ├─ <AutosaveChip/>            // + <HistoryFlyout>

@@ -802,7 +802,7 @@ of a test harness.
    in 180 ms.
 5. `TopBar.tsx`: breadcrumb (`Project › Sheet 04`), undo/redo buttons wired to nothing yet (1.5
    brings `history.ts`), and the autosave-chip slot.
-6. Keyboard: `Esc` clears `pendingOp` then selection then exits Focus (one level per press, never
+6. Keyboard: `Esc` follows one ladder — pending → deselect → exit Focus → navigate (one level per press, never
    two); tool hotkeys per UI spec; **arrow-key nudge is 1.10's**, don't pre-build it.
 
 **Signatures:**
@@ -823,7 +823,7 @@ export interface ToolDef { id: ToolId; group: 1|2|3|4|5|6; label: string; Icon: 
 | `panelDockFor(1240, 908)` → aspect 1.366 | `'side'` |
 | `panelDockFor(960, 1388)` → aspect 0.691 | `'bottom'` |
 | `panelDockFor(1200, 1000)` → aspect **exactly 1.2** | `'side'` (the boundary is inclusive — pin it) |
-| handedness `'left'` | rail renders on the right; **rail side is the only rail setting in v1** |
+| handedness `'left'` | rail renders on the **left** (the rail sits on the writing-hand side, §5.1/§14.8); **rail side is the only rail setting in v1** |
 | rotate landscape → portrait | rail side unchanged; dock flips; tool + selection preserved |
 | tap a tool with `implemented: false` | no-op, no throw, rail does not change `activeTool` |
 

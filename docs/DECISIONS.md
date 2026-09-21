@@ -38,6 +38,9 @@ Status: **Accepted** · Superseded · Proposed.
 | D29 | Accessibility | Per-slice acceptance, not a final slice | Accepted |
 | D30 | Loupe geometry | Magnification fixed at 3.5×; `sourcePx = diameterPx / 3.5` | Accepted |
 | D31 | Fraction chip vs project precision | **Resolved (§21.2):** chip is entry-scoped; project precision changes only from the style panel | Accepted |
+| D32 | Tool rail side | Follows **handedness** (writing-hand side): right-handed default → rail right; left-handed → rail left. No manual override in v1 (already deferred). | Accepted |
+| D33 | Width readout unit | Show **true paper points** (`0.75 × mu`): a 4-mu stroke reads "3 pt". Consistent with the §4.2 export invariant. | Accepted |
+| D34 | Hosting | Develop + beta-test on **`localhost`** (secure context); production on **GitHub Pages** (public repo). `FM_BASE` + origin guard make the move non-destructive. | Accepted |
 
 > **Numbering note (session 4):** D16–D20 are referred to elsewhere (the review handoff says
 > "D1–D20") and appear in the Detail sections below, but were never added to this index. Session 4
@@ -271,3 +274,21 @@ index above is updated accordingly. Key resolutions:
 - **Also resolved (§21.3–§21.9):** metric deferred; `locationLabel` schema-only (no v1 UI); sheet
   templates cut; capture-resolution decision table (0.2 measures, 1.4 reads the row); `Konva.pixelRatio`
   downgrade ladder (measured in 1.3); `lucide-react` verified by a two-line spike in 1.4.5.
+
+## Session 4b — design decisions & the contradiction register (2026-09-21)
+
+Three design questions were answered and recorded as **D32–D34**; the `gui-ux-readiness` review's
+contradiction register (C1–C14) was applied to the canonical docs. The decisions:
+
+- **D32 — rail side.** The rail follows **handedness**, which *is* the left/right switch: right-handed
+  users (the default) get the rail on the right, left-handed users on the left — handedness is a
+  first-run question, so switching costs nothing and needs no new control. A free manual override
+  independent of handedness was already deferred (session 3). The implementation plan's 1.4.5 test row
+  had the direction inverted; corrected to match the UI spec.
+- **D33 — width unit.** The width readout shows **true paper points** (`0.75 × mu`): a 4-mu stroke
+  reads "3 pt" — the size it actually prints, on any paper size. This is the §4.2 export invariant
+  (non-negotiable #1), not a new unit. The UI spec's `4 pt` label and the width ladder were corrected.
+- **D34 — hosting.** Develop and beta-test on **`http://localhost`** (a secure context — install,
+  service worker and `showDirectoryPicker` all work). Production is **GitHub Pages**, which requires a
+  **public** repo (or a paid plan for private Pages). `base` stays `FM_BASE`-driven and the origin
+  guard (§21.1) makes the localhost→Pages move a recoverable re-pick, not a data loss.
