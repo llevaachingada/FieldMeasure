@@ -979,7 +979,8 @@ calibration).
    placement precision constant when the user changes loupe size, which is the point of the loupe.
    Offset ~112 px up-and-away-from-hand (edge-aware, flips within 24 px of viewport edge), crosshair
    12 px gap; tracks moving tip B while pending.
-   **Touch loupe variant (touch model §2.1, locked):** 200 px diameter, **4×** of a 100×100 source,
+   **Touch loupe variant (touch model §2.1, locked):** 200 px diameter, **4×** of a **50×50** source
+   (`sourcePx = diameterPx / 4`; 200 / 4 = 50),
    **136 px** offset (clears the finger and its contact disc), a **44 px translucent contact disc**
    showing the finger's true footprint, a 1 px dashed `«--sel»` leader to the anchor, instant full
    opacity (no fade), **freezes on lift for 700 ms then fades to 40%**, suppressed by
@@ -1028,8 +1029,9 @@ export class History {
 - [ ] **Keypad truth table (on-device, hardware keys):** `12 6` + Enter → label `12'-6"`; `12 6 3` → `12'-6 3/16"`; `10'-4 1/2"` → exact; `Esc`/`✕` keeps the stroke with a ghost label; a canvas tap while the keypad is open does nothing. [Surface]
 - [ ] **(session 4) Refusal table (on-device):** `0` + Enter → refused with a reason; `12 6 20` →
       refused (not 151.25″); `-5` → refused; a 1001-ft value → refused. Each shows *why*. [Surface]
-- [ ] **(session 4)** The loupe's magnification is 3.5× at **every** size setting — measure a known
-      feature at 112/160/200 px and confirm the ratio, don't eyeball it. [Surface]
+- [ ] **(session 4)** The **pen** loupe's magnification is 3.5× at **every** size setting (112/160/200 px
+      → source 32 / 45.7 / 57 px) **and** the **touch** loupe is **4×** of a **50 px** source in its
+      200 px window — measure a known feature and confirm **both** ratios, don't eyeball it. [Surface]
 - [ ] **(a11y §19.6)** The keypad is operable from the hardware keyboard alone; focus is trapped
       inside the sheet while it is open and returns to the canvas on close; every key has an
       `aria-label`; the live preview is an `aria-live="polite"` region; **keypad keys are ≥48 px with

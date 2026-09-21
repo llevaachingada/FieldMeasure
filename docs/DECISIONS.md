@@ -887,4 +887,33 @@ unproven:** the §8.1.1 dpr-2 path — the test forces `markupPixelRatio: () => 
 **Also fixed from this review:** the false "old `tiny-2x2.jpg` SOF-patched a seed" narrative in D55
 (★ corrected above) and the matching header comment in `make-fixtures.mjs`.
 
+### D65 — the implementation plan still carried the **pre-correction** touch-loupe numbers (fixed)
+
+Found while preparing the session-9 handoff (orchestrator), by cross-checking the slice-1.5 packet against
+the documents above it. The plan's slice-1.5 build order read *"Touch loupe variant … 200 px diameter,
+**4×** of a **100×100** source"*, and its gate read *"The loupe's magnification is 3.5× at **every** size
+setting"*.
+
+Both are wrong, and this is a **reintroduction** of the exact defect the round-5 correction (DECISIONS
+"Correction (round 5)") already caught — there written as *"200px window, 4×, of a 100×100 source"*, which
+is **2×**, not 4×, and is the same defect class as session-4's F8. The authorities agree with each other
+and disagree with the plan:
+
+| Source | Touch loupe | Arithmetic |
+|---|---|---|
+| UI spec §8.1 (and its changelog row 19) | 200 px, **4×**, **50×50** source | `sourcePx = diameterPx / 4` → 200 / 4 = 50 ✓ |
+| `docs/touch-first-interaction-model.md` §2.1 | 200 px, **4×**, **50 px** source | same ✓ |
+| D30 + the round-5 correction table | 200px, **4×**, `200 / 4` = **50px** | same ✓ |
+| **implementation plan** (before this fix) | 200 px, 4×, **100×100** source | 4× of 100 px needs a **400** px window ✗ |
+
+Also: the pen and touch loupes legitimately have **different** magnifications (3.5× vs 4×), so the gate's
+"3.5× at **every** size setting" was wrong for the touch variant.
+
+**Authority chain applies:** build spec > UI spec > implementation plan, so the **plan** is the wrong
+document and was corrected (both the build-order line and the gate line), not the UI spec.
+`sourcePx = diameterPx / magnification` (D30) is the invariant to keep: exactly one of {window,
+magnification, source} is free, and the same defect has now been caught **three** times (F8/C4, round 5,
+and here) — so the slice-1.5 lane must state all three numbers **with their arithmetic**, and the gate
+must be checked for **both** loupes.
+
 
