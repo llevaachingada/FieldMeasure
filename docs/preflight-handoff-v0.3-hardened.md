@@ -82,6 +82,7 @@ measurement or data loss · 🟠 build-blocking · 🟡 correctness/clarity.
 17. [Risks and mitigations](#17-risks-and-mitigations)
 18. [Open questions](#18-open-questions)
 19. [Session-4 hardening addendum](#19-session-4-hardening-addendum-normative)
+20. [Implementation contracts](#20-implementation-contracts-session-4b--things-the-docs-referenced-but-never-defined)
 
 ---
 
@@ -2273,3 +2274,142 @@ accessibility does not happen. Rule: **every slice that ships UI carries its own
 acceptance** (focus order, visible focus ring, `aria-label` on every control, 44×44 minimum
 target, no keyboard trap). Slice 1.10 keeps the themes, the accessible *object tree* for
 canvas annotations, and the end-to-end audit — not the whole of §11.12.
+
+---
+
+## 20. Implementation contracts (SESSION-4b — things the docs referenced but never defined)
+
+Session 4's first pass fixed defects. This pass closes the remaining **under-definitions**: places
+where the documents name a mechanism, rely on it in several sections, and never say what it is. Each
+one would otherwise be invented by whoever builds it first, differently each time.
+
+### 20.1 `AnnotationPath` — the address of an annotation
+
+§8.3 says undo addresses annotations by `(sheetId, annotationPath)` "where `annotationPath` includes
+`insetId/childId`", and §10's `selection: string[]` says "annotation ids (with path context)".
+Neither says what the string looks like. Definition:
+
+```ts
+/** The address of one annotation within a sheet. Stable across reorders (ids, never indices). */
+export type AnnotationPath =
+  | { kind: 'top'; annotationId: UUID }                      // a sheet-level annotation
+  | { kind: 'child'; insetId: UUID; annotationId: UUID };    // a child inside an image inset
+
+/** Canonical string form — used as a Set/Map key and as the `selection[]` element. */
+export function pathToKey(p: AnnotationPath): string {
+  return p.kind === 'top' ? p.annotationId : `${p.insetId}/${p.annotationId}`;
+}
+export function keyToPath(key: string): AnnotationPath {
+  const i = key.indexOf('/');
+  return i < 0
+    ? { kind: 'top', annotationId: key }
+    : { kind: 'child', insetId: key.slice(0, i), annotationId: key.slice(i + 1) };
+}
+```
+
+Rules: exactly one `/` is possible (insets nest exactly one level, D12); ids are `crypto.randomUUID()`
+and contain no `/`; **never address an annotation by array index** (a reorder invalidates it, which is
+how undo-after-reorder corrupts a sheet). `selection: string[]` holds these keys.
+
+### 20.2 `zIndex` — assignment, bands, and reordering
+
+§3.3 has the field; §8.5 says the highlighter is "inserted below all other markup but above the
+photo (a dedicated z-band)". Nothing says how values are chosen. Definition:
+
+- **Bands** (within a sheet's `objects[]`, and independently within each inset's `children[]`):
+
+  | Band | Range | Contents |
+  |---|---|---|
+  | Highlight | `0 … 999` | `highlight` annotations only |
+  | Main | `1000 … 1_999_999` | everything else, in creation order |
+
+  Insets are **not** a band — they are a separate Konva layer (`insetLayer`, below `markupLayer`),
+  so an inset's `zIndex` orders it only against other insets.
+- **On create:** `zIndex = (max zIndex in that band within this container) + 10`, or the band's base
+  if the band is empty. The gap of 10 leaves room for "send backward" without a full renumber.
+- **On reorder** (layers panel drag, or Bring/Send actions): recompute the affected band's members
+  as `base + 10 × position`. Renumber the **band only**, never the whole sheet.
+- **Render order** = sort by `zIndex` ascending, ties broken by array order. Ties are legal; do not
+  crash or reorder arbitrarily on a tie.
+- **The highlighter band is enforced at creation, not at render** — a highlighter annotation is
+  created with a Highlight-band `zIndex`, so it cannot be dragged above ink in the layers panel.
+  The layers panel must refuse a cross-band drag and say why (`«Highlighter always sits under other
+  markup»`).
+
+### 20.3 Erase, stroke scope — the split algorithm
+
+§8.5 gives the principle ("split at the nearest raw input points", never a polygon-boolean) and D13
+records it, but no algorithm. Definition, for one eraser drag against one `freehand`/`highlight`
+annotation:
+
+1. The eraser has a radius `r` in **image px** (`eraserWidthMu / stageScale`, then ÷ stage scale to
+   image space — the eraser is a screen-sized tool).
+2. Mark every raw point `points[i]` whose distance to **any** sampled eraser position is `< r`.
+3. Split the `points[]`/`pressure[]` arrays at each maximal run of marked points, discarding the
+   marked runs. `pressure[]` is split **at the same indices** — they are parallel arrays (F7).
+4. Each surviving run of **≥ 2 points** becomes a new annotation: a copy of the original with a new
+   `id`, the same `style`, `zIndex` and `groupId`, and its slice of `points`/`pressure`. Runs of
+   0 or 1 points are dropped.
+5. If every point is marked, the annotation is deleted.
+6. The whole drag is **one** undo step (`Command`), whatever the split count.
+
+Deterministic, no geometry library, and it preserves the "raw points only" rule.
+
+### 20.4 `groupId` — grouping semantics
+
+§3.3 has `groupId?: UUID | null` labelled "(Ctrl+G)" and nothing else.
+
+- Grouping sets the same fresh `groupId` on every selected annotation; ungrouping sets it to `null`.
+- A group is **flat** — there is no nesting, and `groupId` never points at another annotation's id.
+- Selecting any member selects the whole group (tap-select); `Alt`+tap selects one member.
+- A group is **not** persisted as an object — it is only this shared field, so a partially deleted
+  group simply has fewer members.
+- Groups do **not** cross containers: a sheet-level annotation and an inset child can never share a
+  `groupId`.
+- Transforms apply to every member; style edits follow the §11.5 selected-vs-tool rule.
+
+### 20.5 Screens that had no owner
+
+Two first-class screens are named in UI spec §4.1 and specified nowhere in the build plan.
+
+**(a) Project screen (`/p/:projectId`) — the sheets grid.** UI §4.1 and §11.9 define it (4 columns at
+1440, card 320×300, 3 at 1200, 2 at portrait 960) and §11.8 has capture "return to the sheets grid",
+but **no slice built it**. It owns: the sheet grid, `Add sheet` (→ capture/import), sheet reorder
+(drag, writes `sortIndex`), sheet rename, delete-to-`.trash`, `Export…` entry, and project info. It
+is now part of **slice 1.2** (it is the screen that makes storage visible) with reorder and trash
+arriving in their own slices.
+
+**(b) Settings screen (`/settings`).** UI §4.1 lists it — "Handedness, input filters, units,
+precision, density, theme, storage" — and, alone among the screens, gives it no layout, no component
+list and no grouping anywhere in the document. It is not marked deferred. Definition (deliberately
+plain — it is a settings list, not a designed surface):
+
+> A single scrolling column, max-width 720px, of labelled groups in this order:
+> **Input** (handedness · `Pen only` toggle · palm-rejection window, read-only display of 1200 ms) ·
+> **Units** (unit system · unit format · *note that precision is per-project, with a link*) ·
+> **Display** (theme · density) · **Storage** (projects-folder path in mono · `Change folder…` ·
+> persistent-storage state · `Trash…`) · **About** (build version + date — §19.2 — and
+> `Third-party notices`).
+> Rows are 56px, label left, control right, 1.5px divider between rows, group headers 13px
+> `--g400` uppercase. No search, no tabs, no icons.
+
+Anything else a builder wants to add to Settings needs a DECISIONS line first.
+
+### 20.6 Smaller pins
+
+- **`readableAngleDeg` boundary:** `deg > 90 || deg < -90` flips. At **exactly** ±90 it does not
+  flip (text reads bottom-to-top). This is intentional and is asserted in the unit test so nobody
+  "fixes" it.
+- **`snapPoint` determinism:** strictly `d < bestD`, so on an exact tie the **first** target in the
+  array wins. Target order must therefore be stable — build the target list in annotation order, not
+  from a Set or an object's key order.
+- **Radial quick-menu wedges:** 8 slots × 45° with a **1° gap** drawn between wedges (the "44°" in
+  UI §6.4 is the drawn wedge, not the hit arc). **Hit testing uses the full 45°** so there is no dead
+  zone between slots.
+- **`Enter` on the Angle commit sheet** commits it, exactly as on the dimension keypad (UI §8.2 says
+  "same shell as the keypad" but never says this outright).
+- **Sheet `sortIndex`:** integers, gaps of 10, renumbered `10 × position` on reorder — the same rule
+  as §20.2, so there is one reordering idiom in the codebase, not two.
+- **New-sheet naming:** `Sheet NN` zero-padded to 2 (`Sheet 04`), where `NN` is `sheets.length + 1`
+  at creation and is **never** renumbered when a sheet is deleted (names are labels, not indices).
+  The on-disk folder is `sheets/<NNN-date-time>/` per §3.1 and is likewise never renamed.
