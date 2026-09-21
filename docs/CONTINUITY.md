@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 2)
+**Last updated:** 2026-09-21 (session 3)
 
 ---
 
@@ -16,10 +16,11 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Build spec | **v0.3 hardened (r2)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical) |
 | UI spec | **v2 hardened** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical, changelog appendix) |
 | Adversarial review | ✅ Round 1 folded into v0.3 / v2 · ✅ **Round 2 complete** (execution-verified; findings folded + committed) |
-| Implementation plan | ✅ `docs/implementation-plan.md` — slice order, gates, checkpoints |
+| Plan verification | ✅ **Session 3 complete** — plan verified against specs + flushed out to per-slice build packets |
+| Implementation plan | ✅ `docs/implementation-plan.md` — slice order, files, build order, signatures, tests, gates, rollback |
 | Dependencies | Installed and pinned (Node 24 LTS, npm 11, `fflate` included; React 19.3 reconciled) |
 | Blocking item | None. Next work is the slice 0.1 scaffold. |
-| Next action | Slice 0.1 scaffold per `docs/implementation-plan.md` |
+| Next action | Slice 0.1 scaffold per `docs/implementation-plan.md` (flushed-out; zero-guess) |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -85,6 +86,28 @@ When any doc conflicts, §2.4 wins.
 3. Wrote `docs/implementation-plan.md` — the multi-slice build plan with gates and checkpoints,
    derived from build spec §13 with the round-2 corrections applied.
 
+### 2026-09-21 — Session 3: plan verification + flush-out (per `docs/handoff-plan-verification.md`)
+1. Adversarially verified `docs/implementation-plan.md` against the canonical specs. Cross-doc greps
+   clean: no "React 18" stragglers in canonical docs, no `148`-class test expectation, no
+   Explorer-open / Windows-pen-setting claims. Every `〔v1 scope〕` marker agrees with §2.4; every spec
+   §13 "Done when" has a plan gate and vice versa.
+2. Re-derived the §4.2 export invariant (`0.75×mu` pt at every M — M=2: 4 mu → 3 pt, 18 mu → 13.5 pt),
+   §9.2 page-pt math, the §8.5 inset crop model, and the storage atomicity/two-tab/schema rules.
+   **Findings fixed in the spec first, then the plan:**
+   - **Inset child `-crop` offset (§8.5 + D12):** children must render at `(cx - crop.x, cy - crop.y)`,
+     the same offset as the asset image, or they detach from the photo content when the crop window moves
+     (round 2 caught the image offset but not the child offset).
+   - **Inset rotation pivot (§8.5):** "rotation around center" vs "group at top-left `(x,y)`" disagreed
+     (Konva rotates about its own origin) — pinned the pivot (`offset({crop.width/2, crop.height/2})` in
+     LOCAL units + `position({x+width/2, y+height/2})`).
+   - **Inset hit-test `+crop` (§8.5 + §8.1):** inverse group transform lands in group-local space; asset
+     px = `local + crop`. Fixed both hit-testing notes.
+   - **Property-test count 200 → 500** (§13/1.1, §14) to match the execution-verified §6.1.1 code.
+   - **Plan dependency graph** drew 0.3 → 1.2 (Home shell hosts project creation) + a 1.1 parallelism note.
+3. Flushed out `docs/implementation-plan.md` into per-slice build packets: files + responsibilities,
+   numbered build order, signatures at point of use, inline test tables, checkable gates, rollback notes.
+   Checkpoint table and wrong-measurement tripwires kept in sync (added the inset crop-detach tripwire).
+
 ---
 
 ## Done
@@ -98,13 +121,19 @@ When any doc conflicts, §2.4 wins.
   inset crop-offset gap, and the React 18/19 mismatch were all fixed before commit.
 - ✅ **`docs/implementation-plan.md`** — dependency graph, 14 slices, machine-checkable +
   on-device gates, checkpoint table, wrong-measurement tripwires.
+- ✅ **Session 3** — plan verified (findings fixed in spec + plan) and flushed out to per-slice build
+  packets (files, build order, signatures, inline tests, checkable gates, rollback notes).
 - ✅ Dependencies installed and verified resolvable (`fflate` pinned; React 19.3 reconciled).
 - ✅ Repo documentation scaffolding (README, INDEX, CONTINUITY, DECISIONS, UNITS) updated for all of the above.
 
 ## In progress
 
+- — (session 3 complete; the next slice, 0.1 scaffold, has not started)
+
+## Next slice (not started)
+
 - ⏳ Slice 0.1 scaffold (Vite config, `tsconfig`, `"type": "module"`, npm scripts, `public/icons/`,
-  CSP, `THIRD-PARTY-NOTICES.md`, CI workflow).
+  CSP, `THIRD-PARTY-NOTICES.md`, CI workflow) — follow the flushed-out `docs/implementation-plan.md`.
 
 ## Next (in order)
 

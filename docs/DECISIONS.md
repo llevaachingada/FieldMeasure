@@ -63,9 +63,15 @@ is universally readable. `pdf-lib` is unmaintained → `@cantoo/pdf-lib`.
 The drawn dimension line is visual; the user types the real tape/laser value. Reference-scale calibration
 (photo-derived lengths) is deferred; `Sheet.calibrationPxPerFoot` remains the future seam.
 
-### D12 — Inset child coordinate space (corrected in v0.3)
+### D12 — Inset child coordinate space (corrected in v0.3; hardened session 3)
 Children are stored in the **inset asset's working-image pixels**. Crop is a rect in asset px applied
 *before* the group transform; children are never rewritten when the inset is transformed.
+
+> **Session-3 hardening:** at render time both the asset image AND every child are offset by
+> `(-crop.x, -crop.y)` in group-local space (group-local origin = the crop window's top-left). A child
+> stored at asset px `(cx, cy)` renders at `(cx - crop.x, cy - crop.y)` — the same offset as the image —
+> so children stay glued to the photo content when the crop window moves. The v0.3 text said "children
+> at their true asset-space positions"; read literally, that mis-aligns children for non-zero `crop.x/y`.
 
 ### D14 — Runtime versions (2026-09-21)
 Installed via winget + npm, 0 vulnerabilities:
@@ -107,3 +113,32 @@ into the canonical docs:
 - **M13** `fflate` added to the fixed runtime deps (PNG zip).
 - **Minors** filename sanitizer hardened; export at 2× default with memory guidance; CSP + license
   notices; exact pinning (`npm ci`); trash restore UI; `THIRD-PARTY-NOTICES.md` required.
+
+## Session 3 — plan verification & flush-out (2026-09-21)
+
+Adversarial verification of `docs/implementation-plan.md` against the canonical specs, then flush-out of
+the plan into per-slice build packets. Findings were fixed **in the spec first, then propagated to the
+plan** — the two never left disagreeing:
+
+- **Inset child `-crop` offset (real defect — spec §8.5 + D12).** Round 2 fixed the asset image's
+  `(-crop.x, -crop.y)` offset but left "children at their true asset-space positions." Hand-traced: with
+  crop `{x:600, y:0, …}` on a 2400×1800 asset, a child stored at asset px `(120,200)` rendered at
+  group-local `(120,200)` aligns with asset px `(720,200)` — children detach from the photo content when
+  the crop window moves. **Fix:** children render at `(cx - crop.x, cy - crop.y)`, the same offset as the
+  image; group-local origin = the crop window's top-left. (Independently re-derived by an oracle review.)
+- **Inset rotation pivot (spec §8.5).** The spec said "rotation around the placed rect's center" while
+  placing the `Konva.Group` at the top-left `(x, y)` — Konva rotates about its own origin, so the two
+  disagreed. Fixed: set the pivot explicitly (`group.offset({ x: crop.width/2, y: crop.height/2 })` in
+  **LOCAL crop-window units, NOT placed units**, paired with `group.position({ x: x + width/2, y: y + height/2 })`),
+  or wrap in a parent group at the placed-rect center carrying the rotation.
+- **Inset hit-test `+crop` (spec §8.5 + §8.1).** The inverse group transform lands in group-local
+  (crop-window) space, not asset space — `asset = local + crop`. Fixed both hit-testing notes (§8.1 and §8.5).
+- **Property-test count 200 → 500.** Spec §13/1.1 and §14 said "200 random slot combos"; the
+  execution-verified §6.1.1 code loops `i < 500` and the plan already said 500. Corrected the two spec
+  references so no builder under-tests the keypad value round-trip.
+- **Plan dependency graph fixed.** Now draws 0.3 → 1.2 (the Home shell hosts project creation, which
+  1.2's gate wires to real storage) and notes that 1.1 (pure) may run in parallel with 0.2/0.3.
+- **Re-verified (oracle, 5/5 PASS):** §4.2 export invariant `0.75×mu pt` at every M (M=2: 4 mu → 3 pt,
+  18 mu → 13.5 pt); §9.2 page pt = `imagePx × 0.75`; atomic `tmp→close→move()` covers all writes;
+  `cleanStaleTmp` is lock-held + 5-min age-gated; per-project lock/`BroadcastChannel`; schema
+  `.nullish()`/guarded `parseJson`/`label` absent/`unitFormat` present/v0.2 tolerance.

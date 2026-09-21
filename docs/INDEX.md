@@ -1,6 +1,6 @@
 # Documentation & File Index
 
-A map of everything in this repository. Last updated **2026-09-21 (session 2)**.
+A map of everything in this repository. Last updated **2026-09-21 (session 3)**.
 
 ## Root
 
@@ -20,7 +20,7 @@ A map of everything in this repository. Last updated **2026-09-21 (session 2)**.
 | `docs/CONTINUITY.md` | **Project continuity log** — live state, session timeline, next steps, open questions. Read first when resuming. |
 | `docs/preflight-handoff-v0.3-hardened.md` | **PRIMARY BUILD SPEC (canonical).** Hardened after adversarial review rounds 1 + 2. Its **§2.4 v1 scope table is the single authority on what ships in v1.** Round 2 executed the keypad reference code and fixed a wrong committed test expectation (`12 6` = 150 in, not 148), a fraction-dropping compose bug, and an inset crop-offset gap. |
 | `docs/ui-spec-field-measure-v2-hardened.md` | **UI/UX SPEC (canonical).** Authoritative on look & feel; v1 scope markers `〔v1 scope: …〕` defer to the build spec §2.4; v2 changelog appendix maps every change to its review finding. |
-| `docs/implementation-plan.md` | **EXECUTION PLAN (canonical for order).** Slice order, dependency graph, per-slice gates (machine-checkable + on-device), checkpoint table, wrong-measurement tripwires. The build spec is the authority on *what*; this is the authority on *order and done-ness*. |
+| `docs/implementation-plan.md` | **EXECUTION PLAN (canonical for order).** Slice order, dependency graph, per-slice files + build order + signatures + inline tests + checkable gates + rollback notes (flushed out session 3), checkpoint table, wrong-measurement tripwires. The build spec is the authority on *what*; this is the authority on *order and done-ness*. |
 | `docs/DECISIONS.md` | Architecture Decision Record (ADR) log, incl. review-driven corrections. |
 | `docs/UNITS.md` | Accepted length input formats, keypad model, rounding rules, examples. |
 
@@ -31,6 +31,7 @@ A map of everything in this repository. Last updated **2026-09-21 (session 2)**.
 | `docs/preflight-handoff.md` | Build spec **v0.2** — superseded by `preflight-handoff-v0.3-hardened.md`. Do not build from it. |
 | `docs/ui-spec-field-measure.md` | UI/UX spec **v1** — superseded by `ui-spec-field-measure-v2-hardened.md`. Do not build from it. |
 | `docs/review-handoff.md` | The adversarial-review brief that produced the v0.3 / v2 hardening. Kept as a record of what was reviewed. |
+| `docs/handoff-plan-verification.md` | Session-3 handoff brief (verify the plan + flush it out). Kept as a record of the session's contract. |
 
 ## Not committed (git-local / generated)
 

@@ -1204,7 +1204,7 @@ Hit-testing:
 - `layer.getIntersection({ x, y })` uses container-space (same as `stage.getPointerPosition()`), honors `listening:false`/visibility/opacity/`hitStrokeWidth`.
 - Set `hitStrokeWidth` (e.g. 24) on thin lines for fat invisible hit areas (fingers/gloves).
 - Tag every shape with `name()` = annotation id; resolve hit results to the owning annotation (children resolve to their inset). Use `hitFunc` for custom hit geometry.
-- **Insets:** hit-testing resolves through the inset group's absolute transform; a hit on an inset child maps container-space → sheet-space via the group, then to asset-space by the inverse transform (the input router must divide the container point by the group's absolute scale/rotation, not just the stage's).
+- **Insets:** hit-testing resolves through the inset group's absolute transform; a hit on an inset child maps container-space → sheet-space via the group, then to **group-local** space by the inverse transform, then to asset-space by **adding `crop`** (`asset = local + crop` — the inverse transform lands in crop-window space, not asset space). The input router must divide the container point by the group's absolute scale/rotation, not just the stage's.
 
 #### 8.1.1 Pixel ratio & text sharpness rule
 
@@ -1398,17 +1398,17 @@ Shared pattern — **pen-down to start, drag to size, pen-up to commit**; hold s
 
 - The inset's asset is a **normalized working image** exactly like a sheet photo (§7.1: EXIF-baked, ≤4096px, dimensions fixed at insert).
 - **Child geometry is stored in the asset's working-image pixel space** — identical semantics to a top-level sheet. `geometry.x/y` of the image annotation is the inset's top-left **in sheet px**; `width/height` are the placed size in sheet px; `rotation` degrees around the placed rect's center; `crop` is a rect **in asset px**.
-- **Rendering:** each inset is a `Konva.Group` at `(x, y)`, `rotation`, with group scale set so the cropped region maps to the placed size: `group.scale({ x: width / crop.width, y: height / crop.height })` (default crop = full asset, i.e. `0,0,assetW,assetH`). Apply crop via `clipFunc` (crop is in group-local = asset px, so the clip is applied before the transform — group-local clip + group scale does crop-then-transform in the right order):
+- **Rendering:** each inset is a `Konva.Group` whose placed rect sits at `(x, y)` (top-left, sheet px) with group scale mapping the cropped region to the placed size: `group.scale({ x: width / crop.width, y: height / crop.height })` (default crop = full asset, i.e. `0,0,assetW,assetH`). **Rotation pivots on the placed rect's CENTER** — Konva rotates a node about its own origin (the rect's top-left if unset), so set the pivot explicitly, or wrap in a parent group at the placed-rect center that carries the rotation. (Pivot: `group.offset({ x: crop.width / 2, y: crop.height / 2 })` — **LOCAL crop-window units, NOT placed units** — paired with `group.position({ x: x + width / 2, y: y + height / 2 })`.) Apply crop via `clipFunc` (a rect in group-local space, where **group-local = the crop window** — origin at the crop rect's top-left; group-local clip + group scale does crop-then-transform in the right order):
   ```ts
   group.clipFunc(ctx => ctx.rect(0, 0, crop.width, crop.height));
   assetImage.position({ x: -crop.x, y: -crop.y });   // ← the crop window scrolls the asset INTO view
   ```
-  (**Round-2 fix:** with a non-zero `crop.x/y`, the asset image must be offset `(-crop.x, -crop.y)` inside the group — "drawn at its own pixels, unscaled position" alone would show the wrong region.) Children are added to the group in **asset px** at their true asset-space positions — they scale/rotate with the group automatically, are clipped automatically, and stay glued to the photo content when the crop window moves.
+  (**Round-2 fix + session-3 hardening:** with a non-zero `crop.x/y`, the asset image must be offset `(-crop.x, -crop.y)` inside the group — "drawn at its own pixels, unscaled position" alone would show the wrong region. **The same `-crop` offset applies to every child**: a child stored at asset px `(cx, cy)` renders at group-local `(cx - crop.x, cy - crop.y)`. Round 2 fixed the image offset but left "children at their true asset-space positions"; read literally as group-local `(cx, cy)`, that mis-aligns children whenever `crop.x/y ≠ 0`.) Children are stored in **asset px** and offset by `-crop` at render only; they scale/rotate with the group automatically, are clipped automatically, and stay glued to the photo content when the crop window moves.
 - **Children are NEVER rewritten** when the inset is moved, scaled, rotated, or cropped. They are pure asset-space data. Changing `crop` moves the visible window over the (fixed) child space — children stay glued to the photo content, which is the field-correct behavior (zooming the crop window is "looking closer at the detail photo," not moving its markup).
 - **Default placement:** 40% of sheet width, centered on the tap point, aspect preserved, rotation 0, handles showing. `crop` omitted (defaults to full asset).
 - **Replace photo:** if the new asset's working-image dimensions are **identical**, swap the asset reference and keep children (visual continuity). If dimensions differ, children cannot be mapped — the dialog states this explicitly and offers `«Keep markup anyway — it may land in the wrong place»` (warned) or `«Remove markup»`. No silent remap. (M7)
 - **Asset dedupe:** assets are deduped by content hash across the project; **children belong to the annotation, not the asset**, so two insets sharing one asset file have independent children. State this so the builder doesn't "fix" dedupe by moving children onto the asset record.
-- **Hit-testing:** container-space → (group absolute transform)⁻¹ → asset px; child hits resolve to `(insetId, childId)`.
+- **Hit-testing:** container-space → (group absolute transform)⁻¹ → **group-local px → + `crop` → asset px**. The inverse group transform lands in group-local (crop-window) space, NOT asset space — add `crop` to reach asset px (`asset.x = local.x + crop.x`, `asset.y = local.y + crop.y`). Child hits resolve to `(insetId, childId)`.
 
 **Flows:**
 - **Insert:** select tool → tap location → bottom sheet: `Take a photo` / `Choose from device` (multi-select = each as its own inset, cascaded 24px down-right) / `Recent photos` (4×2 grid of this project's last 8 — the field-fast path).
@@ -1722,7 +1722,7 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 ### 1.1 — Domain core
 **Files:** `src/domain/{types,schema,units,geometry,snapping,ids}.ts`, `tests/{units,keypad,geometry,snapping,schema}.test.ts`.
 **Do:** everything in §3, §4, §6 — **including the keypad slot model (§6.1.1) and its test table**.
-**Done when:** the tests in §6.1 pass plus your own edge cases; **the keypad property test (200 random slot combos round-trip through the strict parser) passes**; schema round-trips example JSON in §3.5/§3.6 **and tolerates v0.2 files (extra `label` keys stripped, missing `unitFormat` normalized)**.
+**Done when:** the tests in §6.1 pass plus your own edge cases; **the keypad property test (500 random slot combos round-trip through the strict parser) passes**; schema round-trips example JSON in §3.5/§3.6 **and tolerates v0.2 files (extra `label` keys stripped, missing `unitFormat` normalized)**.
 
 ### 1.2 — Storage core
 **Files:** `src/fs/{projectStore,backend}.ts`, `src/data/storage.ts`.
@@ -1780,7 +1780,7 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 
 | Layer | Tool | What it covers |
 |---|---|---|
-| Unit | Vitest | units parse/format, **keypad slot model (§6.1.1) incl. the 200-combo property test**, geometry, snapping, schema round-trip + v0.2 tolerance, filename sanitization (trailing dots, device names, length caps) |
+| Unit | Vitest | units parse/format, **keypad slot model (§6.1.1) incl. the 500-combo property test**, geometry, snapping, schema round-trip + v0.2 tolerance, filename sanitization (trailing dots, device names, length caps) |
 | Export invariance | Vitest (node-canvas or Playwright) | §4.2 invariant: stroke/glyph bitmap px = `mu × M` at M∈{1,2,3}; page pt = imagePx × 0.75 |
 | Component | Vitest + Testing Library | keypad live-parse preview (slots → preview), toolbar active states, style panel mixed/indeterminate states |
 | E2E | Playwright | open app → import fixture photo → draw a dimension with synthetic pen PointerEvents → reload → confirm persisted → export PDF → non-empty, page size correct |
