@@ -946,14 +946,27 @@ run yet. No number was invented to fill the gap: `min(devicePixelRatio, 2)` (alr
 until hardware says otherwise, the row is in `docs/HARDWARE-TEST-CHECKLIST.md`, and `CHECKPOINTS.md` C4
 now carries that status plus the re-run point (after 1.6).
 
-**★ Correction to this session’s own reflect report.** That report claimed C1 and C2 had drifted (still
-⬜). **That was wrong.** `git diff` against HEAD shows only C4 changed, and the C1/C2 headings were
-already ✅. Two failures produced the false claim: the console mangles non-ASCII (`—`, `·` and ✅ all
-render as `?` or `-` in PowerShell output), and my *verification* of the "fix" passed only because it
-asserted an end state (✅ present) instead of comparing against HEAD — a gate true by construction,
-defect class #2 in the review brief this very pass added.
-**Rule adopted: verify a document edit by `git diff` against HEAD, never by asserting the desired end
-state.** The C1/C2 claim is withdrawn; the C4 finding stands.
+****★ Correction — to my own correction. This is the sharpest lesson of the pass.** The reflect report
+claimed C1 and C2 had drifted (still ⬜ long after both had fired). **The report was right.** Proven
+binary-safe: at `1975860` the C1/C2 headings end in **U+2B1C (⬜)**; at `a6a12de` they end in
+**U+2705 (✅)** — a *concurrently running lane* measured C2 and refreshed both headings while this pass
+was being written.
+
+I first declared that finding false, because `git diff -- docs/CHECKPOINTS.md` showed only my own C4
+edit. That check was **invalid**: HEAD had already moved (the lane’s commit had landed), so comparing the
+working tree against the *current* HEAD could not reveal the historical state.
+
+**Two rules adopted:**
+1. **To test whether a finding was true, compare against the revision it was made against** —
+   `git show <sha>:path` — never against current HEAD. With lanes running, HEAD moves underneath you and
+   a *true* finding will look false.
+2. **Never withdraw a finding without that proof.** A false correction is worse than the original error:
+   it deletes knowledge that was correct, and nobody will re-derive it.
+
+A separate and still-valid lesson about my own tooling: the script that "verified" the C1/C2 status
+asserted an end state (✅ is present) instead of comparing before/after, so it passed while doing
+nothing — defect class #2 in the review brief this same pass added. Prefer a before/after comparison
+over an end-state assertion.
 
 **`AGENTS.md` is now state-honest.** It read *"There is no application code yet"* after five slices had
 shipped. It now (a) states that code exists and sends the reader to `CONTINUITY.md` / the last

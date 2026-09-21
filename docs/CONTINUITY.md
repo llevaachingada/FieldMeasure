@@ -354,9 +354,13 @@ A reflect pass over session 9 produced three document-level fixes and one machin
    appendix match no longer depends on someone reading two 48 KB files carefully in a console that
    mangles U+2014.
 
-**Correction to this session’s own report:** the claim that C1/C2 had drifted was **false** — they were
-already ✅, and only C4 was unrecorded. The console mangles `—` / `·` / ✅, and the verification asserted
-an end state instead of diffing HEAD. See **D66**; the rule is now *verify doc edits by `git diff`*.
+**The C1/C2 claim in this session’s reflect report was RIGHT, and the correction I published against
+it was WRONG.** Proven binary-safe: at `1975860` the C1/C2 headings ended in U+2B1C (⬜); at `a6a12de`
+they end in U+2705 (✅) — a **concurrently running lane** refreshed them while this pass was being
+written, so the `git diff` I checked against a *moving* HEAD could not show the historical state and
+made a true finding look false. Rules adopted (D66): **test a finding against the revision it was made
+against** (`git show <sha>:path`), never current HEAD; and **never withdraw a finding without that
+proof**.
 
 **Open at the time of writing (important):** the **1.4 and 1.4.5 lanes and the copy-gate lane were still
 running** — `src/ui/CameraFlow.tsx`, `EditorLayout.tsx`, `ToolRail.tsx`, `TopBar.tsx`, `cameraCopy.ts`,
@@ -491,6 +495,10 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   deferred camera mount, then run the **full** gate and commit them as their own slices.
 - **`tests/strings.test.ts` (the copy gate) may need reconciling** once the 1.4.5 lane stops editing
   `strings.ts`: every new key needs a verbatim row in `appendix-strings.md` or a `⚠ PROPOSED (C14)` marker.
+- **Lanes committed to `main` during this session** — `ab42300` (`refactor(fs): extract the "photo →
+  sheet" write path`) and `a6a12de` (checkpoint status refresh + the C2 record), both pushed as ancestors
+  of `b68b74c`. Neither went through a slice gate or a `BUILD-LOG` entry, so **review them before treating
+  1.4/1.4.5 as shipped**: `src/fs/sheetIntake.ts` is new and `SheetEditor.tsx` was rewired through it.
 - **C4 is recorded but unmeasured** — re-run after 1.6, when annotations exist (D66, hardware row logged).
 - **`docs/HARDWARE-TEST-CHECKLIST.md` carries a C4 row that is on disk but not yet committed** (the file
   is lane-owned this wave); confirm it survives the wave commit.

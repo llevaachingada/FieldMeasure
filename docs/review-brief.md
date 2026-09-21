@@ -14,6 +14,10 @@ project — the prior catch is quoted so the question is not read as hypothetica
 - Read the **code and the diff**, not only the lane's summary. A lane's report is a claim, not evidence.
   When a report and the code disagree, the code is what ships.
 - **No edits.** The review lane reports; the orchestrator resolves and commits.
+- **Test a claim against the revision it was made against** (`git show <sha>:path`), never against
+  current HEAD. With lanes running, HEAD moves underneath you, and a *true* finding will look false.
+  Never withdraw a finding — your own or a lane’s — without that proof: a false correction is worse
+  than the original error.
 - Say plainly which areas you checked and found **sound**. Do not pad with speculative rewrites, style
   preferences, or anything you did not actually run.
 
