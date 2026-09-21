@@ -167,3 +167,23 @@ If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instea
 **Surprises (senior adversarial review, fixed in this commit):** (1) zod v4's JIT compiler probes `Function('')`, firing `script-src eval` under our `'self'` CSP once `schema.ts` reached the browser bundle — fixed with `globalConfig.jitless = true` (latent in 1.1, real in 1.2). (2) `AppState['storageStatus']` lacked `'saving'`/`'full'` and used `'ok'` vs the queue's `'saved'` — reconciled to one canonical union (D49). (3) §5.1 vs §3.1 root-vs-project ambiguity resolved (D50). (4) duplicate-id collision risk in lock/queue/registry keyed by bare `id` (D51). (5) the fixer's own `persistQueue` "Saved forever" status bug — caught by its own test, not reading.
 
 **Next:** slice 1.3 (photo on canvas)
+
+## Session 8 — Oracle-style execution review (0.2–1.2) → clear 1.3–1.5
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built:** nothing new — a full-gate re-run plus execution-based re-derivation of the highest-stakes
+modules. `npx vitest run` 166/166 · `npx tsc --noEmit` clean · `npm run build` (11 precache) ·
+`npx playwright test` 5 passed / 4 fixme. 48/48 unit expectations in `units.ts` re-traced by execution.
+
+**Machine gates:** n/a (review). **Checkpoints fired:** none.
+
+**Findings:** no wrong-measurement or data-loss defect. One doc/code drift fixed (the `cleanStaleTmp`
+comment claimed "never touch `.history/`" while the code correctly recurses into it to clean orphaned
+snapshot `.tmp` files — comment rewritten, behaviour unchanged). D51 (duplicate-id runtime key → 1.3),
+D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirmed safe to defer; the
+`.history/<scope>/<epochMs>-<name>.json` recovery sort verified correct. Full register in
+`docs/DECISIONS.md` "Session 8".
+
+**Verdict:** the foundation is sound; **slices 1.3–1.5 are safe to start.**
+
+**Next:** slice 1.3 (photo on canvas)

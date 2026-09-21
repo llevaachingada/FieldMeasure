@@ -566,6 +566,38 @@ three renderer-crash tests (`Page.crash` + `context.newPage()` reopen) time out 
 combination, so they are marked `test.fixme` with the reason; the real power-loss case is the `[Surface]` H4
 gate. No copy+delete fallback was introduced (§5.6 forbids it).
 
+## Session 8 — oracle-style execution review of slices 0.2–1.2 (2026-09-21)
+
+Full gate re-run green (`npx vitest run` 166/166, `npx tsc --noEmit`, `npm run build` 11 precache,
+`npx playwright test` 5 passed / 4 fixme) and the highest-stakes modules re-traced by **execution**
+(48/48 unit expectations independently re-derived, not read from the passing tests). Verdict:
+**the foundation is sound — slices 1.3–1.5 are safe to start.** No wrong-measurement or data-loss
+defect found. Findings were all either verified-sound or already-recorded deferrals:
+
+- **`cleanStaleTmp` comment/code drift (fixed).** The S2 comment said "never touch `.history/`" but
+  the code recurses into it (the `SKIP` set holds only `.trash`). The code is **correct** — recursing
+  into `.history/` cleans an orphaned snapshot `.tmp` from a crashed write, and valid snapshots never
+  end in `.tmp` so the suffix filter protects them — but the misleading comment could invite a future
+  wrong "fix" that adds `.history` to `SKIP` and re-breaks the "no `*.tmp` survivors" gate. Comment
+  rewritten to state the real behaviour.
+- **`.history/<scope>/<epochMs>-<name>.json` naming — confirmed correct.** `recoverFromHistory` filters
+  `entry.endsWith(name)` then `Number.parseInt(entry, 10)` on the `<epochMs>-` prefix, and sorts
+  newest-first. `parseInt` stops at the `-`, so `1726901234567-markup.json` → `1726901234567`. The
+  `<scope>` directories keep `project.json` and `markup.json` snapshots disjoint. No bug.
+- **D51 (duplicate-id runtime key) — confirmed safe to defer, contract pinned to 1.3.** Nothing opens a
+  project into an editor yet, so the bare-`id` lock/queue/registry keys cannot currently collide. The
+  slice-1.3 editor open flow **must** pass `scanProjects()`'s `ScannedProject.key` (`id:folderName`) as
+  the runtime `projectId` to `registerOpenProject`, `persistQueue`, the Web Lock and the BroadcastChannel.
+- **D52 (snapshot cadence / 200 MB backstop) — confirmed safe to defer to 1.6/1.10.** Atomic `tmp→move`
+  already prevents corruption in the common case, and the "snapshot before destructive action" triggers
+  protect actions (`Clear sheet markup`, `Delete files…`) that do not exist yet. `writeHistorySnapshot` +
+  `recoverFromHistory` + the 20-per-scope cap ship now; only the *trigger* is deferred. Watch item: slice
+  1.5 starts writing `markup.json`, so if corruption recovery is wanted before 1.6, wire at least the
+  before-destructive snapshot then.
+- **D53 (kill-switch renderer-crash harness `fixme`) — confirmed sufficient.** H4 (real power-loss on
+  hardware) covers it; `move()` overwrite is already e2e-verified and the atomic-write correctness is
+  pinned by the S1–S5 fake-FSA tests. Repairing the CDP `Page.crash`+reopen timeout is not worth it now.
+
 ## Checkpoint C1 — Toolchain bring-up (slice 0.1, 2026-09-21)
 
 **Measured:** `npx tsc --noEmit` ✓ · `npm run build` ✓ (vite 8.3.0; PWA: 11 precache entries) ·

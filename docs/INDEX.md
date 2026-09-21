@@ -1,6 +1,6 @@
 # Documentation & File Index
 
-A map of everything in this repository. Last updated **2026-09-21 (session 5 — touch-first input model + GUI/UX readiness)**.
+A map of everything in this repository. Last updated **2026-09-21 (session 8 — slices 0.2–1.2 shipped + oracle review)**.
 
 ## Root
 
@@ -54,21 +54,31 @@ A map of everything in this repository. Last updated **2026-09-21 (session 5 —
 | `.slim/deepwork/` | OpenCode deepwork progress files (session state). |
 | `dist/`, `coverage/`, `playwright-report/`, `test-results/` | Build / test output. |
 
+## Built (slices 0.1–1.2)
+
+| Path | What it holds |
+|---|---|
+| `vitest.config.ts` / `playwright.config.ts` / `tests/fixtures/` / `tests/fakes/` | Test infrastructure: three Vitest projects (node/jsdom/browser), Playwright e2e + CSP-as-a-test, deterministic fixtures, in-memory FSA fakes. |
+| `public/fonts/*.woff2` | Self-hosted Archivo + JetBrains Mono subsets. |
+| `src/domain/` | `types.ts`, `schema.ts` (zod 4, jitless), `units.ts`, `geometry.ts`, `snapping.ts`, `ids.ts`, `migrate.ts`. |
+| `src/fs/` | `backend.ts` (FSA + OPFS), `projectStore.ts` (atomic/locked/recovering write path). |
+| `src/state/` | `appStore.ts`, `persistQueue.ts` (the §5.4 save pipeline). |
+| `src/settings/` | `handedness.ts`, `input.ts`, `units.ts`, `theme.ts`, `density.ts`, `projectsRoot.ts`. |
+| `src/data/` | `storage.ts`, `originGuard.ts`. |
+| `src/editor/inputRouter.ts` | Touch-first input router (§8.2). |
+| `src/ui/` | `FirstRun.tsx`, `Settings.tsx`, `ProjectList.tsx`, `strings.ts`. |
+| `src/media/decodeWorker.ts` | Worker stub (bundled + instantiable). |
+| `public/icons/` | Placeholder app icons. |
+
 ## Planned (not yet created)
 
 | Path | What it will hold |
 |---|---|
-| `vitest.config.ts` / `playwright.config.ts` / `tests/fixtures/` | Test infrastructure — **did not exist before session 4**, while three slices already depended on it (slice 0.1). |
-| `public/fonts/*.woff2` | Self-hosted Archivo + JetBrains Mono subsets (slice 0.1; the UI spec forbids a CDN). |
-| `src/domain/` | Pure logic: `types.ts`, `schema.ts`, `units.ts`, `geometry.ts`, `snapping.ts`, `ids.ts`, **`migrate.ts`** (session 4). |
-| `src/fs/` | `projectStore.ts`, `backend.ts` (File System Access API + OPFS). |
-| `src/media/` | `normalizeImage.ts`, `exif.ts`, `thumbnails.ts`. |
-| `src/editor/` | `EditorCanvas.ts`, `inputRouter.ts`, `history.ts`, `Loupe.ts`, `tools/`, `shapes/` (incl. local `svgPath.ts`). |
-| `src/export/` | `pdf.ts`, `png.ts` (zip via `fflate`), `filenames.ts`. |
-| `src/state/` | `appStore.ts`, `editorStore.ts`, `styleByTool.ts`, **`persistQueue.ts`** (the save pipeline — session 4). |
-| `src/ui/` | React chrome (top bar, tool rail, style panel, overlays) + `strings.ts`. |
-| `tests/` | Vitest unit tests (incl. `keypad.test.ts`) + Playwright e2e. |
-| `public/icons/` | Original app icons. |
+| `src/media/` | `normalizeImage.ts`, `exif.ts`, `thumbnails.ts` (slice 1.3). |
+| `src/editor/` | `EditorCanvas.ts` (1.3), `history.ts`, `Loupe.ts`, `tools/`, `shapes/` (incl. local `svgPath.ts`), `inset/` (1.5–1.7). |
+| `src/export/` | `pdf.ts`, `png.ts` (zip via `fflate`), `filenames.ts`, `renderStage.ts` (1.9). |
+| `src/state/` | `editorStore.ts` (1.4.5), `styleByTool.ts` (1.8). |
+| `src/ui/` | `SheetEditor.tsx` (1.3), `CameraFlow.tsx` (1.4), `EditorLayout.tsx` + `ToolRail.tsx` + `TopBar.tsx` + `icons/tools/*` (1.4.5), style panel + keypad sheet + export wizard (1.5–1.9). |
 
 ## Reading order for a new contributor or AI
 

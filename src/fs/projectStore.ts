@@ -385,8 +385,10 @@ export async function cleanStaleTmp(
   // this app actually writes lives in a subdirectory — `sheets/<n>/markup.json.tmp`,
   // `sheets/<n>/photo.jpg.tmp`, `sheets/<n>/thumb.jpg.tmp`, `assets/<hash>.jpg.tmp` — so
   // orphaned tmp files accumulated forever and slice 1.2's "no *.tmp survivors" gate could
-  // never pass. Walk recursively, bounded, and never touch `.trash/` (its contents are
-  // user-restorable) or `.history/` (snapshots are written atomically to the same rules).
+  // never pass. Walk recursively, bounded, and skip `.trash/` entirely (its contents are
+  // user-restorable). `.history/` IS recursed — a crashed snapshot write leaves an orphaned
+  // `<epochMs>-<name>.tmp` there that must be cleaned like any other tmp; valid snapshots
+  // never end in `.tmp`, so they are protected by the suffix filter below.
   await navigator.locks.request('fm:project:' + projectId, async () => {
     const cutoff = Date.now() - 5 * 60_000;
     const SKIP = new Set(['.trash']);

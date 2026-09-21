@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 7 — slices 0.2 + 1.1 + 0.3 + 1.2 committed, pushed, green)
+**Last updated:** 2026-09-21 (session 8 — oracle-style execution review of slices 0.2–1.2: foundation sound, 1.3–1.5 cleared to start)
 
 ---
 
@@ -16,7 +16,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
-| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4** · ✅ **Round 5 (session 5)** · ✅ **Session 7 (orchestrator senior review of 0.2–1.2)** — D48–D53 (zod-CSP, StorageStatus union, backend layout, duplicate-id key, snapshot cadence, kill-switch harness) |
+| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4** · ✅ **Round 5 (session 5)** · ✅ **Session 7 (orchestrator senior review of 0.2–1.2)** — D48–D53 (zod-CSP, StorageStatus union, backend layout, duplicate-id key, snapshot cadence, kill-switch harness) · ✅ **Session 8 (oracle-style execution review)** — 48/48 traces re-derived, `cleanStaleTmp` comment drift fixed, D51/D52/D53 deferrals confirmed safe |
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
@@ -283,6 +283,28 @@ then the orchestrator ran a senior adversarial review and fixed five findings (D
 `StorageStatus` union missing `'saving'`/`'full'` (reconciled to one canonical union); the §5.1
 root-vs-project-folder ambiguity; the duplicate-id lock/queue key collision risk; and the CDP
 renderer-crash harness timing out (marked `fixme`). 166 tests + tsc + build + e2e green; committed and pushed.
+
+### 2026-09-21 — Session 8: oracle-style execution review (slices 0.2–1.2) → clear 1.3–1.5
+
+Ran the full gate (`vitest` 166/166 · `tsc --noEmit` · `npm run build` 11 precache · `playwright`
+5/4-fixme) and re-derived **48/48** unit expectations from `src/domain/units.ts` by execution (not by
+reading the passing tests). Re-traced the four highest-stakes modules plus `schema.ts`/`migrate.ts`/
+`inputRouter.ts`/`backend.ts`. **Verdict: the foundation is sound; slices 1.3–1.5 are safe to start.**
+
+- No wrong-measurement or data-loss defect. The parser rejects `12 6`, negatives, vulgar fractions,
+  numerator ≥ denominator, and denominators outside {2,4,8,16,32,64}; `formatInches(-124.5)` →
+  `-10'-4 1/2"` re-parses to `null` (asserted). Atomic write takes `fm:project:<id>` inside
+  `writeAtomic`; `createWritable()` exists in exactly one module.
+- **One fix:** `cleanStaleTmp`'s comment claimed "never touch `.history/`" while the code correctly
+  recurses into it (only `.trash` is in the skip set) to clean orphaned snapshot `.tmp` files. Comment
+  rewritten; behaviour unchanged.
+- **Confirmed sound:** the `.history/<scope>/<epochMs>-<name>.json` recovery sorts newest-first via
+  `parseInt` on the epoch prefix; D51 (duplicate-id runtime key, contract pinned to 1.3), D52 (snapshot
+  cadence → 1.6/1.10), and D53 (kill-switch harness → H4) are all safe to defer. Full register in
+  `docs/DECISIONS.md` "Session 8".
+
+**Next:** slice 1.3 (photo on canvas), then 1.4 ∥ 1.4.5, then 1.5 — see handoff at the end of the
+session.
 
 ## Done
 
