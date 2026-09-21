@@ -1,0 +1,45 @@
+{
+  "name": "fieldmeasurevw",
+  "version": "1.0.0",
+  "description": "FieldMeasure app for surface",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/llevaachingada/FieldMeasure.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/llevaachingada/FieldMeasure/issues"
+  },
+  "homepage": "https://github.com/llevaachingada/FieldMeasure#readme",
+  "dependencies": {
+    "@cantoo/pdf-lib": "^2.11.1",
+    "fflate": "^0.8.3",
+    "idb-keyval": "^6.3.0",
+    "immer": "^11.1.18",
+    "konva": "^10.6.0",
+    "lucide-react": "^1.47.0",
+    "perfect-freehand": "^1.2.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^5.0.1"
+  }
+}

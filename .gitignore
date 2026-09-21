@@ -11,3 +11,19 @@ Desktop.ini
 
 # Logs
 *.log
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+*.local
+
+# Test / tooling output
+coverage/
+playwright-report/
+test-results/
+
+# Deepwork state (git-local only)
+.slim/deepwork/
