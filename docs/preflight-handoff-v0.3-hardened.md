@@ -83,6 +83,7 @@ measurement or data loss · 🟠 build-blocking · 🟡 correctness/clarity.
 18. [Open questions](#18-open-questions)
 19. [Session-4 hardening addendum](#19-session-4-hardening-addendum-normative)
 20. [Implementation contracts](#20-implementation-contracts-session-4b--things-the-docs-referenced-but-never-defined)
+21. [Resolved decisions](#21-resolved-decisions-session-4b--nothing-here-is-open-any-more)
 
 ---
 
@@ -2123,11 +2124,22 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 
 ## 18. Open questions
 
-1. ~~**Calibration timing**~~ — **Resolved by §2.4/D8:** v1 is typed-only; calibration (and its `≈`, Keep-measured, rulers, polygon area) is deferred with the schema seam in place.
-2. **Metric** — imperial default with a clean seam; confirm metric isn't needed at launch (it affects the keypad's fraction chips).
-3. **GPS / site address** — GPS stripped by default. Confirm whether a *typed* site-address field belongs in project/sheet meta for reporting. (A typed `locationLabel` already exists in the schema.)
-4. **Sheet templates** — not in scope (§2.4); the preset system carries most of that value. Confirm.
-5. (new) **Capture resolution reality** — after the 0.2 spike reports the device's true caps, decide whether the `«High»` toggle is worth its UI if both modes are ≈4K. If capped at 1080p, consider promoting "Import from Windows Camera app" in the capture fallback copy.
+> **SESSION-4b: there are no open questions left.** Every item below was resolved in **§21**, which
+> gives the decision and the rationale. They are kept here for history. A builder who reaches this
+> section should read §21 and keep building — **nothing in this document requires a human answer
+> before implementation starts.**
+
+| Was open | Resolved in | Decision |
+|---|---|---|
+| Calibration timing | §2.4 / D8 | v1 is typed-only; calibration deferred with the schema seam |
+| Metric at launch | §21.3 | No — deferred, seam kept |
+| GPS / typed site address | §21.4 | Schema field stays; no UI in v1 |
+| Sheet templates | §21.5 | Cut, confirmed |
+| Capture resolution reality | §21.7 | Decision table — 0.2 measures, 1.4 reads the row |
+| Origin & distribution | §21.1 | Static HTTPS host + origin-agnostic `base` + an origin-change guard |
+| TypeScript 7 vs 5.x | §21.6 | Pin 5.x for v1 |
+| `Konva.pixelRatio` downgrade | §21.8 | Decision ladder, measured in 1.3 |
+| Fraction chip vs project precision | §21.2 | Chip is entry-scoped |
 
 ---
 
@@ -2413,3 +2425,123 @@ Anything else a builder wants to add to Settings needs a DECISIONS line first.
 - **New-sheet naming:** `Sheet NN` zero-padded to 2 (`Sheet 04`), where `NN` is `sheets.length + 1`
   at creation and is **never** renumbered when a sheet is deleted (names are labels, not indices).
   The on-disk folder is `sheets/<NNN-date-time>/` per §3.1 and is likewise never renamed.
+
+---
+
+## 21. Resolved decisions (SESSION-4b — nothing here is open any more)
+
+Every item previously marked "open", "confirm", or "needs a human answer" is resolved below with its
+rationale. **A builder never has to stop and ask about any of them.** Each is reversible: the
+rationale names what would change the answer.
+
+### 21.1 Origin and distribution (was D24 — the one blocker)
+
+**Decided.** Three parts:
+
+1. **Development runs on `http://localhost:5173`** (Vite dev) and **`http://localhost:4173`**
+   (preview). Both are secure contexts, so install, service worker and `showDirectoryPicker` all
+   work. **Data created against a dev origin is disposable and is never migrated.** Say so in the
+   runbook; do not build a dev→prod migration.
+2. **Production is a static HTTPS host, and the origin is pinned before the first real user data
+   exists** — i.e. before the pilot, not before slice 0.1. Default choice:
+   `https://<owner>.github.io/FieldMeasure/` with `base: '/FieldMeasure/'`,
+   `start_url: '/FieldMeasure/'`, `scope: '/FieldMeasure/'`. Any other static HTTPS host is a
+   drop-in substitute; only the `base` changes.
+3. **The build is origin-agnostic and the app detects an origin change.** `base` comes from
+   `process.env.FM_BASE ?? '/'` in `vite.config.ts`, so moving hosts is a rebuild, not a code edit.
+   And — this is the part that actually removes the risk — **slice 0.1 ships an origin guard**:
+
+   ```ts
+   // src/data/originGuard.ts — runs before the first render
+   // Stores the origin+base this profile's data was created under. If it changes, the persisted
+   // FileSystemDirectoryHandle, all settings, OPFS and the SW cache are a DIFFERENT, EMPTY world.
+   // Without this the user silently sees first-run again and assumes their work is gone.
+   export async function checkOrigin(): Promise<'ok' | 'first-run' | 'changed'> { /* idb-keyval */ }
+   ```
+   On `'changed'`, show a blocking screen: `«This app moved to a new address»` — explain that
+   projects are safe on disk, that the folder must be picked again, and offer `Pick my projects
+   folder`. **Never silently fall through to first-run.**
+
+**Why this resolves rather than defers:** the original risk was that an origin change silently
+orphans every device. With (3), a change is loud, recoverable in two taps, and costs no data —
+which downgrades the decision from irreversible-architecture to ordinary-config. Build now.
+
+**What would change the answer:** if the repository must stay private and GitHub Pages is
+unavailable for it, substitute any static HTTPS host. The code does not care.
+
+### 21.2 Fraction chip vs project precision (was D31)
+
+**Decided: the chip is entry-scoped.** Tapping `1/2 … 1/16` while entering a dimension sets the
+denominator **for that entry only**. The project's `precisionDenominator` is changed **only** from
+the Dimension style panel's Precision control, which already confirms `«Project precision: 1/16»`.
+
+This does not weaken M11's one-source-of-truth rule: **labels still derive from the project value**,
+always. The entry denominator only governs what fraction the user can express while typing, and what
+`enteredText` records. A value typed as `3/8` with project precision `1/2` stores exactly and
+displays rounded — which is the documented behaviour of derived labels, not a new concession.
+
+**Why:** a chip tap inside one measurement silently re-rounding every label in the project is a
+wrong-display path, and it is worst exactly where the chip is most used — mid-Chain, where the user
+is heads-down and will not notice.
+
+### 21.3 Metric at launch
+
+**Decided: no.** §2.4 already says DEFERRED and the seam (parser, schema, `unitSystem`) is in place.
+The crew measures in feet and inches. Building the metric keypad UI costs the fraction-chip row and
+a second formatter path for zero pilot value. Revisit after the pilot if a real job needs it.
+
+### 21.4 Typed job-site address
+
+**Decided: schema only, no UI in v1.** `Project.locationLabel` stays in the schema and in the zod
+parser (it is already there and already optional). **No field is added to Project Settings in v1** —
+§2.4 does not list it, and a text input that nothing reads is a feature with no consumer. When a
+report or filename token needs it, add the input and the token together.
+
+### 21.5 Sheet templates
+
+**Decided: cut, confirmed.** §2.4 says CUT; the preset system (§11.5) carries the value. Nothing to
+build, nothing to stub.
+
+### 21.6 TypeScript 7 vs 5.x
+
+**Decided: pin TypeScript 5.x for v1.** D14 recorded `7.0.2` as installed and left the choice to
+scaffold time. Resolving it now, in favour of 5.x:
+
+- The toolchain around it — `vitest`, `vite`, `@vitejs/plugin-react`, `@playwright/test`, the
+  `@types/*` ecosystem — is verified against TS 5 and is not verified here against TS 7.
+- Toolchain bring-up is not on the critical path to a beta, and it is the worst possible place for a
+  builder to burn a day.
+- Nothing in this codebase needs a TS 7 feature.
+
+`npx tsc --noEmit` must pass under 5.x with `strict: true`. Revisiting TS 7 is a post-beta task with
+its own branch. **This supersedes D14's "TypeScript 7 vs 5.x to be confirmed at scaffold."**
+
+### 21.7 Capture resolution toggle (was §18.5)
+
+**Decided in advance, so slice 1.4 cannot stall.** After slice 0.2 reports the device's real caps:
+
+| What 0.2 measures | What 1.4 builds |
+|---|---|
+| The two modes differ by **≥ 1.5×** in pixel count | Keep the toggle: `«High (device max)»` / `«Fast»` |
+| They differ by **< 1.5×** | **Drop the toggle**, always capture at max, and record the measured numbers in DECISIONS |
+| Max is **≤ 1080p** | Drop the toggle **and** promote `«Use the Windows Camera app for detail shots»` in the capture fallback copy |
+
+No judgement call at build time — measure, read the row, build it.
+
+### 21.8 `Konva.pixelRatio` on a Surface Go (was §8.1.1)
+
+**Decided in advance.** Slice 1.3 measures markup-layer redraw time at
+`pixelRatio = min(devicePixelRatio, 2)` while panning a 4096-px sheet with ~50 annotations:
+
+- **≤ 16 ms** → keep `min(dpr, 2)` everywhere.
+- **> 16 ms** → drop the **overlay layer only** to `1`, re-measure; if still > 16 ms, drop the markup
+  layer to `1.5`, then `1`. Record each step's measurement in DECISIONS.
+- Never drop the **photo** layer below 1, and never raise any layer above 2.
+
+### 21.9 `lucide-react` 1.x icon API
+
+**Decided: verify once, in slice 1.4.5, with a two-line spike** (import one icon, render it). lucide
+is chrome-only (§2.2); the 14 tool glyphs are bespoke, so a surprise in its API affects a handful of
+chrome icons and nothing measurement-critical. If the named-export API differs from expectation, use
+the generic `<Icon name="…">` form or inline the handful of chrome SVGs and record it. **This must
+not block the slice.**
