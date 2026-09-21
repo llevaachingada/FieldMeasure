@@ -33,7 +33,13 @@ export interface ProjectSummary {
   status: 'ok' | 'missing' | 'unwritable';
 }
 
-export type StorageStatus = 'ok' | 'pending' | 'readonly' | 'offline' | 'error';
+/**
+ * Canonical autosave-chip state (§10 + §5.8a + §11.4). Reconciled in the slice-1.2 review:
+ * §10's `'ok'` became `'saved'` (the chip's own wording), and `'saving'` + `'full'` were added
+ * because §5.8a and §11.4 require them and `src/state/persistQueue.ts` emits them. `'offline'`
+ * is a UI-only one-time reassurance the queue never emits (the app sets it directly).
+ */
+export type StorageStatus = 'saved' | 'saving' | 'pending' | 'readonly' | 'offline' | 'full' | 'error';
 
 export interface AppState extends InputToggles {
   projects: ProjectSummary[];
@@ -77,7 +83,7 @@ export function createInitialAppState(): AppState {
     projects: [],
     currentProjectId: null,
     currentSheetId: null,
-    storageStatus: 'ok',
+    storageStatus: 'saved',
     theme: DEFAULT_THEME,
     density: DEFAULT_DENSITY,
     handedness: DEFAULT_HANDEDNESS,

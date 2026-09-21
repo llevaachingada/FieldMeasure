@@ -744,23 +744,23 @@ export async function ensurePersistentStorage(): Promise<boolean>;
   only after the write promise settles.
 
 **Gate (all must pass)**
-- [ ] Create a project → folder appears on disk with `project.json`.
-- [ ] **Kill-switch ×3:** power-loss mid-`markup.json` write, mid-`photo.jpg` write, mid-`move()` → reload: previous file intact, no `*.tmp` survivors, autosave chip reaches Saved. [Surface]
-- [ ] Corrupt `project.json` **and** `markup.json` by hand → both auto-recover from `.history/`.
-- [ ] Truncate `photo.jpg` by hand → load shows `«Photo damaged — markup preserved…»` state, markup intact.
-- [ ] Two tabs, same project → second is read-only. **Two tabs, different projects → both writable.**
-- [ ] Explorer-rename the project folder mid-session → identity survives (card still opens after Locate/repick).
-- [ ] **(session 4)** Kill-switch leaves **no `*.tmp` anywhere**, including inside `sheets/<n>/` and
+- [~] Create a project → folder appears on disk with `project.json`. [Surface]
+- [~] **Kill-switch ×3:** power-loss mid-`markup.json` write, mid-`photo.jpg` write, mid-`move()` → reload: previous file intact, no `*.tmp` survivors, autosave chip reaches Saved. [Surface]
+- [x] Corrupt `project.json` **and** `markup.json` by hand → both auto-recover from `.history/`.
+- [x] Truncate `photo.jpg` by hand → load shows `«Photo damaged — markup preserved…»` state, markup intact.
+- [~] Two tabs, same project → second is read-only. **Two tabs, different projects → both writable.** [Surface]
+- [~] Explorer-rename the project folder mid-session → identity survives (card still opens after Locate/repick). [Surface]
+- [~] **(session 4)** Kill-switch leaves **no `*.tmp` anywhere**, including inside `sheets/<n>/` and
       `assets/` — check the whole tree, not the project root. [Surface]
-- [ ] **(session 4)** Fill the disk (or stub the quota error) mid-edit → chip shows
+- [~] **(session 4)** Fill the disk (or stub the quota error) mid-edit → chip shows
       `«Disk full — free space to save»`, the edit is not lost, and **`.history/` and `.trash/` are
       untouched**. [Surface]
-- [ ] **(session 4)** Copy a project folder in Explorer → both appear as separate cards, one badged
+- [~] **(session 4)** Copy a project folder in Explorer → both appear as separate cards, one badged
       `«Copy»`; editing one never writes into the other. [Surface]
-- [ ] **(session 4)** Draw nothing but change project meta → `persistQueue` writes once, 400 ms
+- [x] **(session 4)** Draw nothing but change project meta → `persistQueue` writes once, 400 ms
       later; pull the power 200 ms after an edit → the edit is gone but the file is **intact and
       valid** (coalescing loses ≤400 ms by design; corruption is the thing that must never happen).
-- [ ] **(session 4, a11y §19.6)** Every control added in this slice has a visible focus ring and an
+- [x] **(session 4, a11y §19.6)** Every control added in this slice has a visible focus ring and an
       `aria-label`; the read-only and disk-full states are announced, not just coloured; **48 px
       minimum touch targets, 16 px hit slop**.
 

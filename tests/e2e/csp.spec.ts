@@ -30,7 +30,9 @@ for (const viewport of viewports) {
         const w = window as unknown as { __cspViolations: string[] };
         w.__cspViolations = [];
         document.addEventListener('securitypolicyviolation', (event) => {
-          w.__cspViolations.push(`${event.violatedDirective} ${event.blockedURI}`);
+          w.__cspViolations.push(
+            `${event.violatedDirective} ${event.blockedURI} :: ${event.sourceFile}:${event.lineNumber}:${event.columnNumber} :: ${event.sample}`,
+          );
         });
       });
 

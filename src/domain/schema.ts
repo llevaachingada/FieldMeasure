@@ -30,7 +30,15 @@
 // `undefined` and fails validation on objects built from the TS types in §3.3.
 
 import { z } from 'zod';
+import { globalConfig } from 'zod/v4/core';
 import type { Annotation } from './types';
+
+// zod v4 JIT-compiles schemas via `new Function`; our CSP is `script-src 'self'` (no 'unsafe-eval',
+// §2.2), so the compiler's availability probe fires a `securitypolicyviolation` and the CSP-as-a-test
+// (slice 0.1) fails. `jitless` is zod's documented escape hatch for CSP/no-eval environments: it makes
+// schemas run on the interpreted runtime and never reaches `new Function`. Set once, before any schema
+// is parsed (schemas parse lazily on first `safeParse`, so this module-eval position is early enough).
+globalConfig.jitless = true;
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const Px = z.object({ x: z.number(), y: z.number() });

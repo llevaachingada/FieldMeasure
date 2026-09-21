@@ -1,27 +1,46 @@
 /**
- * Home — Projects (UI §11.1; implementation plan slice 0.3 step 4).
+ * Home — Projects (UI §11.1; implementation plan slice 1.2 step 8, session-4 §5.8c).
  *
- * A faithful SHELL: the real folder scan is slice 1.2, so the grid renders from
- * `appStore.projects` (empty on a fresh install → the honest empty state) with
- * `SAMPLE_PROJECTS` exported for the card-layout states. States: empty, loading
- * (6 skeletons) and the card grid (3 cols @1440 / 2 @1200 / 1 @960).
+ * Slice 0.3 shipped this as a shell rendering `appStore.projects`. It now performs the
+ * real scan: read the ROOT projects folder, read every subfolder's `project.json`, and
+ * key each card by the FILE's `id` — never the folder name (Explorer renames are
+ * cosmetic, §5.6).
+ *
+ * Duplicate ids (§5.8c): the sanctioned sharing model is copying a project folder, so
+ * two folders carrying one id is expected. A folder whose id is shared is shown as its
+ * own card, the non-most-recently-modified ones are badged «Copy», in-memory projects
+ * are keyed `id + folderName`, and each copy offers «Make this a separate project»
+ * (mint a new id, rewrite that folder's `project.json` atomically). Two folders are
+ * NEVER merged and a folder the user did not open is NEVER written to.
+ *
+ * States retained from slice 0.3: empty / loading (6 skeletons) / ready + the card
+ * grid (3 cols @1440 / 2 @1200 / 1 @960). The `projects` / `state` props remain as
+ * explicit overrides for layout tests; `scan` / `separate` are injectable so the
+ * component can be tested in jsdom without the File System Access API.
  */
+import { useEffect, useMemo, useState } from 'react';
 import type { ProjectSummary } from '@/state/appStore';
 import { useAppStore } from '@/state/appStore';
+import { makeProjectSeparate, scanProjects, type ScannedProject } from '@/fs/projectStore';
 import { STRINGS, t } from './strings';
 
 export interface ProjectListProps {
-  /** Override the store list (tests / placeholder) — defaults to `appStore.projects`. */
+  /** Override the store list (tests / placeholder) — bypasses the folder scan. */
   projects?: ProjectSummary[];
   /** Explicit state override; `'auto'` derives it from the list length. */
   state?: 'auto' | 'loading' | 'empty' | 'ready';
+  /** Injectable folder scan (tests). Defaults to `projectStore.scanProjects`. */
+  scan?: () => Promise<ScannedProject[]>;
+  /** Injectable «Make this a separate project» (tests). */
+  separate?: (entry: ScannedProject) => Promise<void>;
   onNewProject?: () => void;
   onOpenFolder?: () => void;
-  onOpenProject?: (id: string) => void;
+  /** `folderName` identifies WHICH folder on disk (duplicate ids share an id). */
+  onOpenProject?: (id: string, folderName?: string) => void;
   onOpenSettings?: () => void;
 }
 
-/** Placeholder data for the card grid until slice 1.2 scans the folder. */
+/** Placeholder data for the card-layout states. */
 export const SAMPLE_PROJECTS: ProjectSummary[] = [
   {
     id: 'sample-riverside',
@@ -51,17 +70,109 @@ export const SAMPLE_PROJECTS: ProjectSummary[] = [
 
 const SKELETON_COUNT = 6;
 
+/** What a card renders, from either the scan or an explicit `projects` override. */
+interface CardModel {
+  /** In-memory key: `id + folderName` when scanned (§5.8c). */
+  key: string;
+  id: string;
+  folderName: string;
+  title: string;
+  sheetCount: number;
+  path: string;
+  status: ProjectSummary['status'];
+  /** A duplicate-id folder that is not the most recently modified one. */
+  isCopy: boolean;
+  entry?: ScannedProject;
+}
+
+function fromSummary(project: ProjectSummary): CardModel {
+  return {
+    key: project.id,
+    id: project.id,
+    folderName: '',
+    title: project.title,
+    sheetCount: project.sheetCount,
+    path: project.path,
+    status: project.status,
+    isCopy: false,
+  };
+}
+
+function fromScan(entry: ScannedProject): CardModel {
+  return {
+    key: entry.key,
+    id: entry.id,
+    folderName: entry.folderName,
+    title: entry.title,
+    sheetCount: entry.sheetCount,
+    path: entry.path,
+    status: entry.status === 'ok' ? 'ok' : 'missing',
+    isCopy: entry.isDuplicate && !entry.isMostRecent,
+    entry,
+  };
+}
+
 export default function ProjectList({
   projects,
   state = 'auto',
+  scan,
+  separate,
   onNewProject,
   onOpenFolder,
   onOpenProject,
   onOpenSettings,
 }: ProjectListProps) {
   const storeProjects = useAppStore((s) => s.projects);
-  const list = projects ?? storeProjects;
-  const resolved = state === 'auto' ? (list.length === 0 ? 'empty' : 'ready') : state;
+  const [scanned, setScanned] = useState<ScannedProject[] | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  const scanning = projects === undefined && state === 'auto';
+
+  const runScan = useMemo(
+    () => scan ?? (() => scanProjects()),
+    [scan],
+  );
+
+  useEffect(() => {
+    if (!scanning) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const entries = await runScan();
+        if (alive) setScanned(entries);
+      } catch {
+        // Unreachable/unusable root: fall back to the honest empty state rather than a crash.
+        if (alive) setScanned([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [scanning, runScan]);
+
+  const cards: CardModel[] = useMemo(() => {
+    if (projects !== undefined) return projects.map(fromSummary);
+    if (!scanning) return storeProjects.map(fromSummary);
+    return (scanned ?? []).map(fromScan);
+  }, [projects, scanning, scanned, storeProjects]);
+
+  const resolved =
+    state !== 'auto' ? state : scanning && scanned === null ? 'loading' : cards.length === 0 ? 'empty' : 'ready';
+
+  async function handleSeparate(entry: ScannedProject): Promise<void> {
+    setBusyKey(entry.key);
+    try {
+      const run =
+        separate ?? ((e: ScannedProject) => makeProjectSeparate(e.folderName, e.id).then(() => undefined));
+      await run(entry);
+      const entries = await runScan();
+      setScanned(entries);
+    } catch {
+      // The card stays as-is; the user can retry.
+    } finally {
+      setBusyKey(null);
+    }
+  }
 
   return (
     <main className="home">
@@ -110,31 +221,45 @@ export default function ProjectList({
           <section className="home-section">
             <h2 className="home-section-header">{STRINGS.home.recentHeader}</h2>
             <div className="project-grid">
-              {list.map((project) => (
-                <article key={project.id} className="project-card">
+              {cards.map((card) => (
+                <article className="project-card" key={card.key} data-project-key={card.key}>
                   <button
                     type="button"
                     className="project-card-open hit-slop"
-                    aria-label={project.title}
-                    onClick={() => onOpenProject?.(project.id)}
+                    aria-label={card.title}
+                    onClick={() => onOpenProject?.(card.id, card.folderName || undefined)}
                   >
                     <span className="project-card-thumb" aria-hidden="true" />
-                    <span className="project-card-title">{project.title}</span>
+                    <span className="project-card-title">{card.title}</span>
                     <span className="project-card-meta mono">
                       {t(STRINGS.home.projectCardMeta, {
-                        sheetCount: project.sheetCount,
+                        sheetCount: card.sheetCount,
                         size: '—',
                         time: '—',
                       })}
                     </span>
                     <span className="project-card-path mono">
-                      {t(STRINGS.home.projectCardPath, { path: project.path })}
+                      {t(STRINGS.home.projectCardPath, { path: card.path })}
                     </span>
                   </button>
-                  {project.status !== 'ok' ? (
+                  {card.isCopy ? (
+                    <p className="project-card-status">
+                      <span data-copy-badge="true">{STRINGS.project.duplicateIdBadge}</span>{' '}
+                      <button
+                        type="button"
+                        className="link-button hit-slop"
+                        aria-label={`${STRINGS.project.makeSeparateProject}: ${card.folderName}`}
+                        disabled={busyKey === card.key}
+                        onClick={() => card.entry && void handleSeparate(card.entry)}
+                      >
+                        {STRINGS.project.makeSeparateProject}
+                      </button>
+                    </p>
+                  ) : null}
+                  {card.status !== 'ok' ? (
                     <p className="project-card-status">
                       {STRINGS.home.folderNotFound}{' '}
-                      <button type="button" className="link-button" onClick={onOpenFolder}>
+                      <button type="button" className="link-button hit-slop" onClick={onOpenFolder}>
                         {STRINGS.home.locate}
                       </button>
                     </p>

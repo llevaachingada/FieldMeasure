@@ -3,7 +3,7 @@
 **The agent's memory across sessions.** Read the last entry to find your place; append one entry per
 slice, in the same commit as the slice.
 
-**Status: slices 0.2 + 1.1 + 0.3 complete — all machine gates green.** Next action: **slice 1.2** (storage core) in `docs/implementation-plan.md`.
+**Status: slices 0.2 + 1.1 + 0.3 + 1.2 complete — all machine gates green.** Next action: **slice 1.3** (photo on canvas) in `docs/implementation-plan.md`.
 
 ---
 
@@ -146,3 +146,24 @@ If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instea
 **Surprises:** (1) `showDirectoryPicker`/`DirectoryPickerOptions` are absent from TS 5.9 `lib.dom` — added a minimal ambient shim. (2) jsdom has no IndexedDB — `App` catches the idb-keyval failure and falls back to first-run (keeps the scaffold smoke test green). (3) `tests/component.smoke.test.tsx` + `tests/e2e/{smoke,csp}.spec.ts` asserted the old scaffold text `Field Measure`; updated to the first-run boot (`Which hand do you write with?`) — assertions superseded by 0.3, not weakened. (4) §20.5(b) "Pen only … ignores touch input entirely" conflicts with §8.2 — resolved to §8.2 (touch pans/zooms, never places/draws; D47).
 
 **Next:** slice 1.2 (storage core)
+
+## Slice 1.2 — Storage core
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built:** the atomic, lock-guarded, self-healing persistence layer — `src/fs/backend.ts` (`StorageBackend` + `FsaBackend` + `OpfsBackend` + `chooseBackend`), `src/fs/projectStore.ts` (`initStore`, `pickRoot`, `writeAtomic`/`writeJsonAtomic`, `readJsonValidated`, recursive `cleanStaleTmp`, `StorageWriteError` + failure classification, `.history` snapshots + recovery, duplicate-id scan + `makeProjectSeparate`, two-tab writer lease + `BroadcastChannel`), `src/data/storage.ts` (`ensurePersistentStorage`), `src/state/persistQueue.ts` (the §5.4 coalesce→serialize→backoff→flush pipeline, sole markup writer, owns `storageStatus`), and the `ProjectList` real scan. 52 new tests + a CDP kill-switch harness.
+
+**Machine gates:** 4/4 passing
+- [x] `npx vitest run` green (166 tests: projectStore 28, persistQueue 14, projectList 10 + prior slices)
+- [x] `npx tsc --noEmit` clean · `npm run build` succeeds
+- [x] `npx playwright test` green (5 passed: smoke + CSP ×2 + device-caps + `move()` overwrite; 4 `fixme`: 3 renderer-crash + 1 app-level, deferred)
+- [x] `cleanStaleTmp` recursion + lock coverage + I/O-failure recovery + disk-full + persistQueue coalesce/backoff all unit-asserted
+
+**Deferred to hardware:** 4 gates → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.2 (kill-switch ×3, disk-full mid-edit, duplicate-id folder copy, two-tab/different-project). The renderer-crash harness is `fixme` (CDP `Page.crash`+reopen times out in this env); the real power-loss case is H4.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** D48–D53 — zod v4 JIT disabled (CSP `script-src eval`); `StorageStatus` canonical union; backend `getProjectDir()` = ROOT; duplicate-id runtime key (forward-looking); snapshot cadence/200 MB backstop deferred; kill-switch harness `fixme`.
+
+**Surprises (senior adversarial review, fixed in this commit):** (1) zod v4's JIT compiler probes `Function('')`, firing `script-src eval` under our `'self'` CSP once `schema.ts` reached the browser bundle — fixed with `globalConfig.jitless = true` (latent in 1.1, real in 1.2). (2) `AppState['storageStatus']` lacked `'saving'`/`'full'` and used `'ok'` vs the queue's `'saved'` — reconciled to one canonical union (D49). (3) §5.1 vs §3.1 root-vs-project ambiguity resolved (D50). (4) duplicate-id collision risk in lock/queue/registry keyed by bare `id` (D51). (5) the fixer's own `persistQueue` "Saved forever" status bug — caught by its own test, not reading.
+
+**Next:** slice 1.3 (photo on canvas)

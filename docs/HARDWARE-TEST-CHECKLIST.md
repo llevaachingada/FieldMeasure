@@ -79,6 +79,15 @@ Fill this in before the first run — several gates are device-specific.
 
 ### Slice 0.3 — First-run / Settings / Home
 ### Slice 1.2 — Storage core
+| Gate | Result |
+|---|---|
+| **Kill-switch ×3:** power-loss mid-`markup.json` write, mid-`photo.jpg` write, mid-`move()` → reload: previous file intact, no `*.tmp` survivors, autosave chip reaches Saved. | PENDING — no Surface available (deferred, BUILD-RUNBOOK §4) |
+| Kill-switch leaves **no `*.tmp` anywhere**, including inside `sheets/<n>/` and `assets/` — check the whole tree, not the project root. | PENDING |
+| Fill the disk (or stub the quota error) mid-edit → chip shows `«Disk full — free space to save»`, the edit is not lost, and `.history/` and `.trash/` are untouched. | PENDING |
+| Copy a project folder in Explorer → both appear as separate cards, one badged `«Copy»`; editing one never writes into the other. | PENDING |
+| Create a project → folder appears on disk with `project.json`. | PENDING |
+| Two tabs, same project → second is read-only. Two tabs, different projects → both writable. | PENDING |
+| Explorer-rename the project folder mid-session → identity survives (card still opens after Locate/repick). | PENDING |
 ### Slice 1.3 — Photo on canvas
 ### Slice 1.4 — Capture flow
 ### Slice 1.4.5 — Editor shell

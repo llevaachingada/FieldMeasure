@@ -103,6 +103,12 @@ export const STRINGS = {
     projectPrecision: 'Project precision: {denominator}',
   },
 
+  // APPROVED inventory (appendix-strings.md `## project`)
+  project: {
+    duplicateIdBadge: 'Copy',
+    makeSeparateProject: 'Make this a separate project',
+  },
+
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §9)
   editor: {
     menuSettings: 'Settings',
