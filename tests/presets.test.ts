@@ -83,7 +83,7 @@ describe('presets round-trip through projectStore (§7.3)', () => {
 
     expect(root.has('Riverside/.fieldmeasure/presets.json')).toBe(true);
     expect(root.tmpPaths()).toEqual([]); // atomic write left no tmp survivor
-    expect(locks.requested).toContain('fm:project:p1'); // under the per-project Web Lock
+    expect(locks.requested).toContain('fm:project:p1:write'); // under the per-write mutex (D121)
 
     // "Reload": a fresh read from disk through the same public loader.
     const loaded = await loadPresets('p1');

@@ -719,7 +719,7 @@ function classifyWriteError(e: unknown): StorageWriteError['kind'] {
 export async function writeAtomic(
   dir: FileSystemDirectoryHandle, name: string, data: string | Blob, projectId: string,
 ): Promise<void> {
-  await navigator.locks.request('fm:project:' + projectId, async () => {
+  await navigator.locks.request(writeLockName(projectId), async () => {   // D121: NOT 'fm:project:'+projectId
     const tmpName = `${name}.tmp`;
     const tmp = await dir.getFileHandle(tmpName, { create: true });
     try {
@@ -783,7 +783,7 @@ export async function cleanStaleTmp(dir: FileSystemDirectoryHandle, projectId: s
   // orphaned tmp files accumulated forever and slice 1.2's "no *.tmp survivors" gate could
   // never pass. Walk recursively, bounded, and never touch `.trash/` (its contents are
   // user-restorable) or `.history/` (snapshots are written atomically to the same rules).
-  await navigator.locks.request('fm:project:' + projectId, async () => {
+  await navigator.locks.request(writeLockName(projectId), async () => {   // D121: NOT 'fm:project:'+projectId
     const cutoff = Date.now() - 5 * 60_000;
     const SKIP = new Set(['.trash']);
     const walk = async (d: FileSystemDirectoryHandle, depth: number): Promise<void> => {
@@ -812,7 +812,7 @@ export async function cleanStaleTmp(dir: FileSystemDirectoryHandle, projectId: s
 - **Never show "Saved" optimistically** — the Autosave chip reflects the write promise's resolution.
 - Failures back off **1 s, 3 s, 10 s**, then park in "Pending" (never retry forever).
 - **Flush on `pagehide` / `visibilitychange`** — otherwise the last ~400 ms of debounced work dies on close.
-- **Two-tab guard (per-project):** wrap writes with `navigator.locks.request('fm:project:' + projectId, ...)`; listen on `new BroadcastChannel('fm:project:' + projectId)` to invalidate a second tab into read-only. **Names must include the project id** — a global name would false-conflict two tabs editing two different projects, which Home explicitly supports.
+- **Two-tab guard (per-project):** wrap writes with `navigator.locks.request('fm:project:' + projectId + ':write', ...)` — the **per-write mutex**, which is deliberately **NOT** the lease name (see §5.8d); listen on `new BroadcastChannel('fm:project:' + projectId)` to invalidate a second tab into read-only. **Names must include the project id** — a global name would false-conflict two tabs editing two different projects, which Home explicitly supports. 〔D121: sharing one name between the session writer lease and the per-write mutex **deadlocks every write** — Web Locks are not reentrant, so a plain request for a name the same page already holds queues forever, with no rejection to report. Executed evidence: `tests/writerLease.browser.test.ts`.〕
 
 ### 5.5 Corruption recovery
 
@@ -869,6 +869,15 @@ said *which* tab loses when both open at once. Rule: on project open, a tab atte
 and holds it for the session. The tab that gets the lock is the writer; any tab that does
 not is read-only immediately and shows `«Open in another tab — read only»` with a
 `«Take over»` action (which reloads after the other tab releases). Deterministic, no race.
+
+〔**D121 — the lease name is NOT the write mutex.** `writeAtomic` and `cleanStaleTmp` take
+`fm:project:<id>:write`; the lease keeps `fm:project:<id>`. Sharing one name deadlocked **every**
+write for the session (the editor holds the lease from mount), which surfaced as a capture stuck
+on «Adding…» with nothing rejected and nothing reported. Executed evidence:
+`tests/writerLease.browser.test.ts`. Also executed there: Chromium **grants** an `ifAvailable`
+re-request from the client that already holds the lock, so the exclusion this section provides is
+**cross-tab** — a second `acquireWriterLease` inside one tab succeeds (harmless: one tab is one
+writer), and the real two-tab case is a browser/hardware check.〕
 
 **(e) History cap, stated precisely.** `.history/` snapshots contain **JSON only** — never
 photos, assets, or thumbnails (a photo snapshot would multiply disk use by the snapshot

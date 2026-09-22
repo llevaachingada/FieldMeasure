@@ -1365,3 +1365,45 @@ path) caught in the act; the test was restructured rather than patched, and the 
 instead of hidden.
 
 **Next:** the owner's run with the stage label visible (and a reload first, to clear any stuck Web Lock).
+
+## Fix - the capture HANG root-caused: a Web Lock name collision (the session lease vs the per-write mutex)
+**Date:** 2026-09-22 · **Commit:** this commit
+
+**Built:** nothing user-facing; this is the root cause of the owner's *second* symptom ("stuck on adding…").
+
+**Found:** `acquireWriterLease` holds `fm:project:<id>` **exclusively for the whole editor session** (§5.8d),
+while `writeAtomic` **and** `cleanStaleTmp` requested **the same name** (§5.3). Web Locks are not reentrant, so
+while a sheet is open **every atomic write for that project queues forever** — no rejection, no timeout, nothing
+to report: a capture from a sheet sits on «Adding…», and the editor's own autosave/markup/thumbnail with it. A
+capture from the **grid** (no editor mounted) is unaffected — which is exactly why the first report was a
+*failure* with a message and the second a silent *hang*.
+
+**Fixed:** `writeLockName(projectId)` = `fm:project:<id>:write` for the per-write mutex and the tmp reaper; the
+lease keeps `fm:project:<id>`, so §5.8d's arbitration is unchanged. Spec §5.3/§5.4/§5.8d, the plan's S1
+requirement and **six test assertions that pinned the colliding name** (they encoded the defect) are amended with
+the executed evidence.
+
+**The proof it was invisible:** the new `tests/writerLease.browser.test.ts` (real Chromium, real Web Locks, real
+OPFS, **no mocks**) showed a write under a held lease timing out before the fix and `navigator.locks.query()`
+naming the genuinely-held lease; six browser suites **mock `acquireWriterLease` away**, so no test had ever held
+the real lock while writing.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **94 files / 1317 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 26 precache entries (1519.78 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+
+**Deferred to hardware:** two-tab arbitration (§5.8d) and the capture-from-a-sheet path — logged under slice 1.10.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D121**. A handoff for this issue: **`docs/handoff-capture-save.md`**.
+
+**Surprises:** two. (1) The same lock name was **pinned in the spec in two places** and mirrored by a test
+requirement — a spec-level self-deadlock, not a slip in one module. (2) Executed: Chromium **grants** an
+`ifAvailable` re-request from the client that already holds the lock, so §5.8d's exclusion is cross-tab only —
+worth recording, because the fake had taught the opposite.
+
+**Next:** the owner's run from both the grid and a sheet; then a bounded lock acquisition in `writeAtomic`
+(the remaining class-wide hardening).

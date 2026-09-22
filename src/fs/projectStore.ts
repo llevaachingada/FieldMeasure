@@ -213,13 +213,28 @@ function classifyWriteError(e: unknown): StorageWriteError['kind'] {
   return 'unknown';
 }
 
+/**
+ * The name of the **per-write mutex**.
+ *
+ * DELIBERATELY different from the session writer lease's name (`fm:project:<id>`, §5.8d).
+ * Web Locks are not reentrant and a plain `request` for a name the same page already holds
+ * **queues forever** — no rejection, no timeout, nothing the UI can report. While both used one
+ * name, the editor's session-long lease made *every* atomic write for that project hang, and the
+ * editor's own open sequence died at `cleanStaleTmp`. Found while chasing an owner-reported
+ * capture stuck on «Adding…»; proven in `tests/writerLease.browser.test.ts` — which the browser
+ * suites could not see because six of them mock `acquireWriterLease` away (D121).
+ */
+export function writeLockName(projectId: string): string {
+  return 'fm:project:' + projectId + ':write';
+}
+
 export async function writeAtomic(
   dir: FileSystemDirectoryHandle,
   name: string,
   data: string | Blob,
   projectId: string,
 ): Promise<void> {
-  await navigator.locks.request('fm:project:' + projectId, async () => {
+  await navigator.locks.request(writeLockName(projectId), async () => {
     const tmpName = `${name}.tmp`;
     // REVIEW F2: `getFileHandle(tmp, { create: true })` was OUTSIDE this `try`, so a
     // revoked write grant (`NotAllowedError`) escaped as a RAW DOMException instead of the
@@ -464,7 +479,7 @@ export async function cleanStaleTmp(
   // user-restorable). `.history/` IS recursed — a crashed snapshot write leaves an orphaned
   // `<epochMs>-<name>.tmp` there that must be cleaned like any other tmp; valid snapshots
   // never end in `.tmp`, so they are protected by the suffix filter below.
-  await navigator.locks.request('fm:project:' + projectId, async () => {
+  await navigator.locks.request(writeLockName(projectId), async () => {
     const cutoff = Date.now() - 5 * 60_000;
     const SKIP = new Set(['.trash']);
     const walk = async (d: FileSystemDirectoryHandle, depth: number): Promise<void> => {

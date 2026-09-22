@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 22 — **the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **93 files / 1315 tests** · build 0 (26 precache, 1519.72 KiB) · playwright 5/5 (after the two owner-reported capture fixes: **D119** — the failure overlay was blank and its «Retry» re-ran a guaranteed failure — and **D120** — the save could HANG, so it now names its stage and is bounded). **Both reviews of the wave landed and are discharged** — an executed correctness register (no wrong-measurement, no data-loss; one claim-fidelity inversion and one wiring-seam gap, both fixed) and a **measured** UI/UX review (three Highs, all fixed) — full register and owed items in **D118**. Owed here: the **real end-to-end run on hardware**, and four recorded review items (drag autoscroll, the inert scroll container/top bar, the editor's replace dialog, `aria-pressed` on the hold))
+**Last updated:** 2026-09-22 (session 22 — **the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **94 files / 1317 tests** · build 0 (26 precache, 1519.78 KiB) · playwright 5/5. The capture blocker is **root-caused and fixed**: a Web Lock name collision made every write deadlock while a sheet was open (**D121**, proven by `tests/writerLease.browser.test.ts`). The three rounds of that issue — **D119** (a blank failure overlay, a «Retry» that could never work), **D120** (the hang: no stage label, no bound, stackable writes) and **D121** (the deadlock itself) — are written up for the next session in **`docs/handoff-capture-save.md`**. **Both reviews of the wave landed and are discharged** — an executed correctness register (no wrong-measurement, no data-loss; one claim-fidelity inversion and one wiring-seam gap, both fixed) and a **measured** UI/UX review (three Highs, all fixed) — full register and owed items in **D118**. Owed here: the **real end-to-end run on hardware**, and four recorded review items (drag autoscroll, the inert scroll container/top bar, the editor's replace dialog, `aria-pressed` on the hold))
 
 ---
 
@@ -12,7 +12,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Field | Value |
 |---|---|
 | Phase | **Slices 0.2–1.9 complete (1.9 reviewed, D109); 1.10 in progress; 1.11 landed (D112); the Project screen is built (D111) and now owns sheet trash (D113).** Shipped in 1.10 so far: themes (D104), the trust layer (D107), sheet trash (D113). Still owed: the History flyout, the end-to-end a11y audit, the arrow nudge, D101's halo fix, PDF captions, and the grid's remaining items are now **built** (session 22, D115–D117) — what still owes is the **independent review of that wave**, the **real end-to-end run on hardware**, the paused 1.10 polish, and PDF captions. Then 2.0 |
-| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **93 files / 1315 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1519.72 KiB); playwright 5 passed / 5 skipped. Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows). **Session 22 built the grid's five remaining D111 items** — `src/fs/sheetOps.ts` (reorder/rename/duplicate/replace-photo storage), `src/ui/sheetReorder.ts` (the pure drag arithmetic), `src/ui/StorageChip.tsx` + `src/fs/projectSize.ts` (§11.4 from real disk facts), the grid's card menu / inline rename / drag / warned replace dialog, and the `App` seam that owns the picker and the dimension decision |
+| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **94 files / 1317 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1519.78 KiB); playwright 5 passed / 5 skipped. Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows). **Session 22 built the grid's five remaining D111 items** — `src/fs/sheetOps.ts` (reorder/rename/duplicate/replace-photo storage), `src/ui/sheetReorder.ts` (the pure drag arithmetic), `src/ui/StorageChip.tsx` + `src/fs/projectSize.ts` (§11.4 from real disk facts), the grid's card menu / inline rename / drag / warned replace dialog, and the `App` seam that owns the picker and the dimension decision |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -880,6 +880,23 @@ content-owner items.
    — locks die with the page. A lock-acquisition timeout inside `projectStore` is the deeper fix, recorded in
    D120 and not done here.
 
+9. **Root-caused the same session (D121), by execution: the hang was a Web Lock name collision.** §5.8d has a
+   tab hold **`fm:project:<id>` exclusively for the whole editor session**; §5.3 had **every atomic write** ask
+   for the **same name** (`writeAtomic` *and* `cleanStaleTmp`). Web Locks are not reentrant, so while a sheet was
+   open **every write for that project queued forever** — no rejection, nothing to report. Hence: a capture from
+   a **sheet** hangs on «Adding…» (the camera mounts over the still-mounted editor), the editor's own
+   autosave/markup/thumbnail hang with it, and a capture from the **grid** does not — which is why the first
+   report was a *failure* and the second a silent *hang*. **Fixed**: `writeLockName(projectId)` =
+   `fm:project:<id>:write` for the per-write mutex and the tmp reaper; the lease keeps its name, so §5.8d's
+   arbitration is unchanged. Spec §5.3/§5.4/§5.8d, the plan's S1 requirement and **six test assertions that
+   pinned the colliding name** are amended with the evidence. **The proof it was invisible:** the new
+   `tests/writerLease.browser.test.ts` (real Chromium + real Web Locks + real OPFS, no mocks) showed the write
+   **timing out** under a held lease before the fix, and `navigator.locks.query()` naming the genuinely-held
+   lease — while six browser suites **mock `acquireWriterLease` away**, so no test had ever held the real lock
+   while writing. Also executed: Chromium **grants** a same-client `ifAvailable` re-request, so §5.8d's exclusion
+   is **cross-tab** (recorded; the fake had taught the opposite). Written up for the next session in
+   **`docs/handoff-capture-save.md`**.
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -1226,12 +1243,12 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   from the next real run** — it is what says whether this fix is complete, or whether a fifth cause needs its
   own guard (the `unknown` arm covers `FileSystemFileHandle.move()` being absent, which would mean no atomic
   write is possible in that build).
-- **The hang's cause is narrowed, not proven (D120).** A stuck **Web Lock** is the leading candidate:
-  `writeAtomic` takes `fm:project:<id>` with no timeout and `navigator.locks.request` queues silently, so an
-  earlier stuck write makes every later one wait — and their earlier attempts failed, which is when a stuck
-  holder would have been left behind. **A page reload clears it** (locks die with the page), and the save now
-  names its stage so the next report says whether it hangs before or inside the folder write. A
-  lock-acquisition timeout inside `projectStore` is the deeper fix and is owed.
+- **The capture hang is ROOT-CAUSED and FIXED (D121): a Web Lock name collision** — the session writer lease and
+  the per-write mutex both asked for `fm:project:<id>`, so every write for an open project queued forever. Pinned
+  by `tests/writerLease.browser.test.ts` (real locks, no mocks) and written up in `docs/handoff-capture-save.md`.
+  **Still owed in this area:** `writeAtomic` has **no lock-acquisition timeout** (anything that ever holds the
+  mutex for long would hang writes the same silent way); the owner's **original failure** (a *rejection*, D119)
+  has no captured message line yet; and the two-tab check on hardware.
 - **`⚠ PROPOSED` copy is now thirteen rows:** `capture.folderNotResponding` joined the twelve.
 - **`⚠ PROPOSED` copy is now twelve rows:** `capture.saveFailed` joined the eleven `sheetMenu.*`/review lines.
 - Carried: D105 (judge appearance from the built app, never `npm run dev`), D106 (the export owed list),

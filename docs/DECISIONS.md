@@ -2975,3 +2975,48 @@ test** — the environment-coupling trap `docs/review-brief.md` §8 names. Restr
 pinned as a timer (`createSaveWatchdog`, no camera), the label mapping as a pure function, and the owner's
 symptom (a hung pipeline keeps its stage label and never traps the photo) with **real** timers. The 30 s exit's
 post-timeout button set is *not* machine-verified end to end; the hardware row covers it.
+
+### D121 — the capture HANG was a SELF-DEADLOCK: the session writer lease and the per-write mutex shared one Web Lock name
+
+**Found while chasing the owner's second report** («it still gets stuck on adding…»), and **confirmed by
+execution** — the root cause of the second symptom, and the reason D119's honest-failure work could not help: a
+queued lock never rejects.
+
+**The defect.** §5.8d has a tab hold **`fm:project:<id>` exclusively for the whole editor session**
+(`acquireWriterLease`, `projectStore.ts:530`). §5.3 has **every atomic write** take `fm:project:<id>` as well
+(`writeAtomic`, `projectStore.ts:222`), and the tmp reaper does too (`cleanStaleTmp`, `:467`). Web Locks are
+**not reentrant**, and a plain `request` for a name the same page already holds **queues forever** — no
+rejection, no timer, nothing the UI can report. So the moment the editor is mounted for a project, **every
+atomic write for that project hangs**: the editor's autosave, its markup persistence, its thumbnail,
+`cleanStaleTmp` in its own open sequence, and **a capture taken from a sheet** — the camera opens over the
+still-mounted editor, so the sheet write queues behind the lease and the UI sits on «Adding…». (A capture from
+the **grid**, with no editor mounted, is unaffected — which is why the owner's first report was a *failure*
+with a message, and the second a silent hang.)
+
+**Executed evidence** — real Chromium, real Web Locks, real OPFS, **no mocks**: `tests/writerLease.browser.test.ts`
+- with no lease held: `writeAtomic` settles (the control);
+- with the lease held: `writeAtomic` **times out** — the hang, reproduced;
+- `navigator.locks.query()` while it hangs shows the lease genuinely held
+  (`{mode:'exclusive', name:'fm:project:<id>'}`) with the write queued;
+- `cleanStaleTmp` under the lease: the same timeout;
+- after the fix: both settle, and the control still passes.
+
+**Why the whole suite was blind to it.** Six browser suites **mock `acquireWriterLease` away**
+(`vi.fn(async () => ({ held: true, release: vi.fn() }))`), and the only real lease test
+(`tests/projectStore.test.ts`) exercises two leases against each other — **never a lease plus a write**. Same
+shape as D114/F1: the code and its assertions agreed, and the *combination* was never exercised.
+
+**The fix.** One name per job: `writeLockName(projectId)` = `fm:project:<id>:write` for the per-write mutex and
+the tmp reaper; the lease keeps `fm:project:<id>`, so §5.8d's arbitration semantics are unchanged (it is what a
+*second tab* sees). Amended: build spec §5.3/§5.4/§5.8d, the implementation plan's S1 lock-coverage requirement,
+and the six assertions that pinned the colliding name — **corrected with this evidence**, because they encoded
+the defect: they asserted the write *took the lease's name*.
+
+**Also executed and pinned:** Chromium **grants** an `ifAvailable` re-request from the client that already holds
+the lock, so `acquireWriterLease` twice inside one tab returns two leases and §5.8d's exclusion is **cross-tab**.
+Harmless (one tab is one writer), but recorded so nobody "fixes" the store on a wrong assumption; the real
+two-tab case is a browser/hardware check.
+
+**Still open after this fix:** `writeAtomic` has no lock-acquisition **timeout**, so anything that ever holds
+this mutex for long hangs writes the same silent way. That hardening (and the capture's own bounded wait from
+D120) is what stands between this and a class-wide guarantee.

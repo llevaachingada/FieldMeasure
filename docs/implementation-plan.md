@@ -715,13 +715,13 @@ export async function ensurePersistentStorage(): Promise<boolean>;
 
 **Tests (mostly scripted/manual — storage is I/O-bound):**
 - Atomic write: write → kill mid-`markup.json`, mid-`photo.jpg`, mid-`move()` → reload: previous file intact, no `*.tmp` survivors.
-- `cleanStaleTmp` unit (mock `navigator.locks` + a fake dir): a `.tmp` newer than 5 min survives; one older is removed; runs under `fm:project:<id>`.
+- `cleanStaleTmp` unit (mock `navigator.locks` + a fake dir): a `.tmp` newer than 5 min survives; one older is removed; runs under the per-write mutex `fm:project:<id>:write` — NOT the lease name (D121).
 - **(session 4, S2) `cleanStaleTmp` recursion:** the fake dir must contain
   `sheets/003/markup.json.tmp`, `sheets/003/photo.jpg.tmp`, and `assets/<hash>.jpg.tmp`, all older
   than 5 min → **all three removed**. The previous implementation iterated the project root only, so
   every tmp file this app actually writes was invisible to it and accumulated forever — and slice
   1.2's own "no `*.tmp` survivors" gate could never pass. A `.trash/` tmp must **survive** (skipped).
-- **(session 4, S1) lock coverage:** assert `writeAtomic` requests `fm:project:<id>` — spy on
+- **(session 4, S1) lock coverage:** assert `writeAtomic` requests `fm:project:<id>:write` (D121 — never the lease name) — spy on
   `navigator.locks.request`. Two concurrent `writeAtomic` calls to the same file must serialize
   (assert the second's `createWritable` starts after the first's `move` resolves).
 - **(session 4, S3) I/O failures reach recovery:** a `getFileHandle` that throws `NotFoundError`

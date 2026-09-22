@@ -6,7 +6,9 @@
  * per-name serialization + `ifAvailable`, and OPFS-over-`navigator.storage`.
  *
  * The four session-4 defects this file exists to pin down:
- *   S1 — `writeAtomic` takes `fm:project:<id>` itself (two concurrent writes serialize).
+ *   S1 — `writeAtomic` takes the per-write mutex itself (two concurrent writes serialize).
+ *   D121 — that mutex is `fm:project:<id>:write`, NOT `fm:project:<id>`: the latter is the
+ *   session writer lease, and sharing one name with it deadlocked every write.
  *   S2 — `cleanStaleTmp` walks recursively (sheets/<n>/ and assets/), bounded, skips `.trash`.
  *   S3 — every I/O failure reaches `.history` recovery; `onMissing` is not corruption.
  *   S4/S5 — `StorageWriteError.kind` classification, tmp kept, `.history`/`.trash` untouched.
@@ -92,7 +94,7 @@ describe('writeAtomic — §5.3 S1 lock coverage', () => {
 
     await writeAtomic(asDir(dir), 'markup.json', '{"a":1}', 'p1');
 
-    expect(locks.requested).toEqual(['fm:project:p1']);
+    expect(locks.requested).toEqual(['fm:project:p1:write']);
     expect(dir.textAt('markup.json')).toBe('{"a":1}');
   });
 
@@ -129,9 +131,9 @@ describe('writeAtomic — §5.3 S1 lock coverage', () => {
       writeAtomic(asDir(dir), 'b.json', 'b', 'project-b'),
     ]);
 
-    expect(locks.requested).toContain('fm:project:project-a');
-    expect(locks.requested).toContain('fm:project:project-b');
-    expect(locks.requested).not.toContain('fm:project:__root__');
+    expect(locks.requested).toContain('fm:project:project-a:write');
+    expect(locks.requested).toContain('fm:project:project-b:write');
+    expect(locks.requested).not.toContain('fm:project:__root__:write');
   });
 
   it('writeJsonAtomic pretty-prints with the target name and moves over it', async () => {
@@ -257,14 +259,14 @@ describe('cleanStaleTmp — §5.3 S2 (recursive, aged, lock-guarded)', () => {
     expect(root.tmpPaths()).toEqual(['root/.trash/sheet-9/markup.json.tmp', 'root/sheets/003/thumb.jpg.tmp']);
   });
 
-  it('runs under fm:project:<id>', async () => {
+  it('runs under the per-write mutex, fm:project:<id>:write (D121)', async () => {
     const { root } = agedTree();
     const locks = createFakeLocks();
     restoreNavigator = installFakeNavigator({ locks });
 
     await cleanStaleTmp(asDir(root), 'p9');
 
-    expect(locks.requested).toEqual(['fm:project:p9']);
+    expect(locks.requested).toEqual(['fm:project:p9:write']);
   });
 
   it('is bounded (depth ≤ 3): a tmp deeper than the layout survives', async () => {
@@ -534,7 +536,7 @@ describe('makeProjectSeparate — §5.8c (never write into a folder you did not 
     expect(rewritten.project.title).toBe('Riverside'); // meta preserved
     const untouched = JSON.parse(root.textAt('Riverside/project.json')) as { project: { id: string } };
     expect(untouched.project.id).toBe('dup'); // the other folder is untouched
-    expect(locks.requested).toContain('fm:project:dup'); // writes under the folder's existing id
+    expect(locks.requested).toContain('fm:project:dup:write'); // the folder's existing id, per-write mutex
     expect(root.tmpPaths()).toEqual([]);
   });
 });
