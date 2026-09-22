@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 9 continued — slices 1.2/1.3 context, process hardening: AGENTS.md state contract, BUILD-RUNBOOK §11/§12, review brief, copy gate, C4 recorded; 1.4/1.4.5 lanes in flight); slice 1.9 step 1 pulled forward)
+**Last updated:** 2026-09-21 (session 10 — slices **1.4 ∥ 1.4.5** and **1.5** shipped in two parallel waves; the owner waived the independent oracle review for this batch, so an orchestrator internal review was run instead)
 
 ---
 
@@ -11,16 +11,16 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 complete and green** (input router · domain core · first-run/Settings/Home · storage core · media pipeline + canvas). Next: **1.4 ∥ 1.4.5** |
-| Application code | **Five slices shipped** — touch-first input router, domain core (units/schema/migrate), first-run/Settings/Home shell, the atomic storage core (backend/projectStore/persistQueue), and **1.3** (`normalizeImage`/`exif`/`thumbnails` + the real decode worker, `EditorCanvas` 5-layer §4.2 screen rules, `SheetEditor`, the D51 editor open flow) — **270 tests + e2e green**. Plus slice 1.9 **step 1 only** (`export/filenames.ts`) |
+| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 complete and green** (input router · domain core · first-run/Settings/Home · storage core · media+canvas · capture flow · editor shell · **dimension tool**). The first end-to-end field-capable loop — take a photo, then place a typed dimension — now exists. Next: **1.6 (markup tools)** |
+| Application code | **Eight slices shipped**, ~437 machine tests. 1.5 adds `editor/history.ts`, `editor/shapes/{scene,renderDimension,dimensionLabel}.ts`, `editor/Loupe.ts`, `editor/tools/DimensionTool.ts`, `editor/session.ts` and `ui/DimensionKeypadSheet.tsx`; 1.4 adds `ui/CameraFlow.tsx` + `fs/sheetIntake.ts`; 1.4.5 adds the shell (`EditorLayout`/`ToolRail`/`TopBar`/`editorStore`/14 glyphs). Plus slice 1.9 **step 1 only** (`export/filenames.ts`) |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
-| Adversarial review | ✅ Round 1 · ✅ Round 2 (execution-verified) · ✅ Session-3 plan verification · ✅ **Round 4** · ✅ **Round 5 (session 5)** · ✅ **Session 7 (orchestrator senior review of 0.2–1.2)** — D48–D53 (zod-CSP, StorageStatus union, backend layout, duplicate-id key, snapshot cadence, kill-switch harness) · ✅ **Session 8 (oracle-style execution review)** — 48/48 traces re-derived, `cleanStaleTmp` comment drift fixed, D51/D52/D53 deferrals confirmed safe · ✅ **Session 9 (independent oracle review of 1.3)** — F1 (empty-canvas pan never implemented) found and fixed with a wiring guard test; F2–F5 fixed/corrected; fixtures, the §4.2 seam, the EXIF path and all four D51 keys verified sound (D54–D64) |
+| Adversarial review | ✅ rounds 1–5 · ✅ sessions 7–9 (orchestrator + independent oracle on 1.3, F1–F5) · ✅ **session 10** — the owner **waived** the independent `@oracle` pass for the 1.4/1.4.5/1.5 batch; an orchestrator internal review was run against `docs/review-brief.md` (no stored `label`; the D65 loupe arithmetic; D63 restore live with a browser test; the 450 ms settle; the refusal table) and the full gate is green. **The waiver is recorded in the batch entry — this batch has not had an independent adversarial review.** |
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Slice 1.4 ∥ slice 1.4.5** — two lanes (capture flow ∥ editor shell); `src/ui/strings.ts` and `src/App.tsx` are owned by the 1.4.5 lane. Then 1.5 (dimension flagship) |
+| Next action | **Slice 1.6 — markup tools** (`src/editor/tools/*`, shapes, erase split, layers). **Carry-in:** wire `markup.json` persistence through slice 1.2’s `persistQueue` — 1.5's document is in-memory only, so annotations do not survive a reload yet (D70). |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -369,6 +369,37 @@ were appearing in the tree while this entry was written. **Their output is unver
 deliberately NOT committed**; it needs its own gated commit. Watch item: the 1.4.5 lane owns
 `src/ui/strings.ts` and is adding copy, so `tests/strings.test.ts` may need reconciling once it stops
 (new keys need a verbatim appendix row or a ⚠ PROPOSED marker).
+
+### 2026-09-21 — Session 10: slices 1.4 ∥ 1.4.5 (two lanes) and 1.5 (two lanes)
+
+Two parallel waves, each integrated by the orchestrator before the next began. **Wave 1** —
+4 design lanes: (1.4.5) the editor shell, and (1.4) the capture flow. **Wave 2** — 1.5 split on
+the seam the specs already pin: a `@fixer` machine lane (DimensionTool + Loupe + history +
+shapes + shell wiring) and a `@designer` keypad-sheet lane.
+
+**Before dispatch** the orchestrator closed an ownership gap the handoff left open: neither lane
+owned `SheetEditor.tsx` or the "a photo becomes a sheet" write path, and both needed it. It was
+extracted to `src/fs/sheetIntake.ts` and the existing import path refactored onto it (`ab42300`),
+so two lanes could not write two versions of one data path.
+
+**Copy discipline** (`BUILD-RUNBOOK` §11): each wave had exactly one writer for `strings.ts`; the
+other lane staged copy in its own module (`cameraCopy.ts`, `keypadCopy.ts`), which the
+orchestrator folded **from the appendix bytes** and deleted. The keypad fold was a merge, because
+the machine lane had already added some of the same keys.
+
+**Owner decision:** the independent `@oracle` review of this batch was **waived** (recorded in
+DECISIONS and above). Compensating controls, all executed: the full gate on the reconciled tree;
+an internal review against `docs/review-brief.md`; the lanes were asked for adversarial findings
+and produced real ones (two nested modals; hotkeys leaking through the open keypad; a spec height
+that cannot hold its own contents; stale refusal copy under D31).
+
+**Machine gates:** `tsc` 0 · `vitest` **437 / 36 files** (browser project included) · `build` 0
+(17 precache; Konva split out of the main chunk) · `playwright` 5 passed / 4 skipped.
+**Checkpoints fired:** C5 (lucide API → measured) and C10 (touch placement accuracy → machine half
+proven, on-glass walk deferred). C1/C2 were refreshed earlier in the batch; C4 was already recorded.
+
+**Still owed:** `markup.json` persistence (D70) — annotations are in-memory until a later slice
+connects `persistQueue`; the Offset Nudge Pad (optional for 1.5); and 1.9 steps 2–5.
 
 ## Done
 

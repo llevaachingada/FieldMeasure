@@ -83,7 +83,7 @@ the hardware checklist. Ship `min(dpr, 2)` until hardware says otherwise.
 
 ---
 
-## C5 — `lucide-react` 1.x icon API · slice 1.4.5 · ⬜
+## C5 — `lucide-react` 1.x icon API · slice 1.4.5 · ✅
 
 **Measure:** a two-line spike — import one icon and render it.
 
@@ -177,7 +177,7 @@ widths at the first and last point; then draw a hard stroke and a light stroke a
 
 ---
 
-## C10 — Touch placement accuracy · slice 1.5 · ⬜
+## C10 — Touch placement accuracy · slice 1.5 · ✅ (machine half proven; on-glass walk deferred)
 
 **Measure:** touch-primary, **no pen**. Tap-tap-place 10 dimensions on features (existing endpoints,
 polygon vertices, object bbox corners, edge midpoints). For each, record: **(a)** whether the anchor

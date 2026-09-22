@@ -1037,3 +1037,179 @@ comparison logic therefore still applies to the comparison logic.
 **Not done, deliberately.** `@types/node` was **not** added. It is a dev-only type package, but the
 dependency list is closed and the `?raw` route needs nothing; `types: ["vite/client"]` stays pinned
 rather than widened to paper over a harness import.
+
+### D68 — slice 1.4.5 editor shell: composition, the no-op rule, and what is placeholder
+
+**Composition.** `EditorLayout` owns the frame — 52 px top bar, 56 px tool rail on the
+handedness side, the docked style-chip slot — and hosts `SheetEditor` for the canvas.
+`SheetEditor` keeps the canvas, the zoom pill, the status panels and the **single** hidden file
+input, and exposes two additive shell seams (`onImportReady(trigger)`, `onSheetTitleChange(title)`)
+so the top bar’s «Import file» and the breadcrumb reuse the existing import path and sheet title
+rather than duplicating them. It is still mountable bare, which is what
+`tests/sheetEditor.browser.test.ts` asserts.
+
+**The unimplemented-tool no-op is enforced in two places** — `ToolRail`’s click guard and
+`EditorLayout.selectTool` — so selecting a tool with `implemented: false` cannot change `activeTool`.
+Only `select` and `pan` ship implemented; slice 1.5 flips `dimension`. `sheetEditorToolFor` maps every
+non-select/pan tool to `'place'`, so that flip needs no mapping change.
+
+**`panelDockFor` is the single docking predicate**: `viewportW / viewportH >= 1.2 → 'side'`, else
+`'bottom'`. The boundary is **inclusive** and pinned by test (`panelDockFor(1200, 1000) === 'side'`),
+with a zero/negative-viewport guard returning `'bottom'` instead of dividing by zero. The rail side is
+`railSideFor(handedness)` and never derives from the dock, so rotation cannot move the rail.
+
+**The autosave slot renders nothing** until 1.10 supplies `autosaveChip` — the prop defaults to
+`undefined`, so there is no optimistic "Saved" state to be wrong.
+
+**Placeholder art, recorded so it cannot ship by accident.** The 14 tool glyphs are bespoke
+single-path SVGs (`src/ui/icons/tools/*.tsx`, `currentColor`, 24 px grid) drawn for this slice from the
+UI spec’s group taxonomy. They are **placeholders**: final art is a 2.0 prerequisite (plan
+§1.4.5 step 3).
+
+**Overflow menu.** UI §5.2’s nine items render from `appendix-strings-gaps.md` §9 and are marked
+`⚠ PROPOSED (C14)`. Only `Add sheet` and `Import file` are wired; the rest are labelled no-ops —
+not dead ends, not crashes.
+
+**Bundle.** `App.tsx` lazy-loads `EditorLayout` (which carries Konva) and `CameraFlow`. The main
+chunk fell from ~547 kB to **342.10 kB**; Konva moved into `EditorLayout-*.js` (217.04 kB) and the
+precache went 12 → 16 entries.
+
+## Checkpoint C5 — `lucide-react` 1.x icon API (slice 1.4.5, 2026-09-21)
+
+**Measured:** named exports work. `lucide-react@1.47.0` is already in the runtime list; `SheetEditor`
+has used `Maximize`/`Minus`/`Plus` since slice 1.3, and the new shell uses `Undo2`/`Redo2`
+(`ToolRail`), `ChevronLeft`/`ChevronRight`/`Layers`/`MoreHorizontal`/`Share2` (`TopBar`) and the
+camera glyphs in `CameraFlow`. `npx tsc --noEmit`, the production build and the CSP-as-a-test spec all
+pass with them (the CSP spec would fail on any inline `style`).
+
+**Decision row taken:** "Named exports work (`import { Camera } from 'lucide-react'`) → Use them. Continue."
+
+**Action:** no inline-SVG fallback needed. The 14 tool glyphs stay bespoke SVG per §2.2 — lucide is
+chrome-only, and nothing measurement-critical depends on it.
+
+### D69 — slice 1.4 capture flow: mount, provisional device caps, and the shared write path
+
+**The write path was extracted before the lanes started.** `src/fs/sheetIntake.ts`
+(`addSheetFromPhoto` / `defaultSheetTitle`) owns "a photo becomes a sheet" — `sheets/<id>/photo.jpg`
+then the `project.json` append — and is used by both the editor’s import and the capture flow. Slice
+1.3’s `SheetEditor.handleFile` was refactored onto it in `ab42300`, so two parallel lanes could not
+produce two versions of one data path. Write order is photo-first: a crash in between leaves an orphan
+sheet directory (harmless, tolerated by `scanProjects`) and never a `project.json` entry pointing at a
+missing photo.
+
+**The capture mount is the top bar’s «Add sheet»**, wired by the orchestrator at integration:
+`App.tsx` renders `CameraFlow` as a lazy full-bleed overlay over the editor; `onCaptured` sets
+`editorSheetId`. `SheetEditor` gained an additive optional `sheetId?: string` so «Use photo» lands the
+user on the sheet that was just written — before this, the editor always opened the first non-deleted
+sheet (`sheets[0]`), so a capture into a non-empty project would have appeared to do nothing.
+
+**The camera could not be measured.** The build machine has no usable camera (CHECKPOINTS C3), so
+`PROVISIONAL_DEVICE_MAX` is `null` and the toggle ships the honest generic «High (device max)» /
+«Fast» labels without claiming a resolution. The `useWindowsCameraPromoted` copy fires only when a
+measured max is ≤ 1080p, which an unmeasured device is not. The spec §21.7 row is re-read after H10
+measures the Surface, and the row is logged.
+
+**Copy discipline.** Slice 1.4 staged its strings in `src/ui/cameraCopy.ts` (BUILD-RUNBOOK §11 — 1.4.5
+owned `strings.ts` that wave). The orchestrator folded them into `STRINGS` **from the appendix bytes**
+and deleted the staging module; `storage.saveACopy` is the first key of a new `STRINGS.storage`
+section, and the copy-contract gate (`tests/strings.test.ts`) passes on the folded result.
+
+**Write failure keeps the photo in memory** and offers «Save a copy…», so a field photo is never
+trapped. The sheet is not appended to `project.json` until `photo.jpg` is on disk.
+
+**Deferrals logged, not faked:** five `[Surface]` rows in `docs/HARDWARE-TEST-CHECKLIST.md`, every one
+PENDING with its machine-verifiable half stated (capture→disk→thumbnail, kill-mid-write, camera-denied
+copy, the real device max, and the on-device target/focus walk).
+
+## Checkpoint C10 — Touch placement accuracy (slice 1.5, 2026-09-21)
+
+**Measured:** the **machine half only**. There is no Surface, so no tap can be landed on
+glass. What is machine-proven: the snap acquire **32 px** → lock **20 px** radii
+(`snapAcquirePx`), the **40 px** post-place refine window, the loupe geometry, and the
+second-finger **restore** (D63) — each pinned by tests, with the placement loop itself
+driven in the browser project against a real `Konva.Stage`.
+
+**Decision row taken:** none can be read until the on-glass walk runs. Recorded as
+**not measurable without hardware** (the same treatment C4 got) — never as a pass, and no
+number was invented to fill the gap.
+
+**Action:** the ten `[Surface]` rows are logged in `docs/HARDWARE-TEST-CHECKLIST.md` under
+slice 1.5, and `CHECKPOINTS.md` C10 carries the machine-half wording. The failure mode this
+checkpoint guards is "wrong-looking drawing, right number" — it informs UX and cannot
+corrupt a measured value.
+
+### D70 — slice 1.5 dimension machine: seams, deliberate deviations, and what is not wired
+
+**Loupe arithmetic (D65-consistent, both variants shipped).** Pen magnification is fixed at
+**3.5×** with the source derived: 112/3.5 = **32**, 160/3.5 = **45.714…**, 200/3.5 =
+**57.142…** px. Touch is **200 px / 4× / a 50 px source** (200/4 = 50), **136 px** offset, a
+**44 px** contact disc, freeze **700 ms** then fade to 40 %. The three numbers are stated
+with their arithmetic in `src/editor/Loupe.ts`, as the rules require.
+
+**Keypad mount seam.** The sheet is mounted by **`SheetEditor`**, not `EditorLayout`. This is
+a deliberate deviation from the brief: the component that commits a value must be able to
+reach the imperative tool, and `SheetEditor`’s props are frozen. The shell mirrors the open
+state through the **additive** `editorStore.keypadOpen` to apply the 40 % dim/inert treatment
+(touch model §5.1), and `EditorLayout` defers **both** Escape and the tool hotkeys to the
+open sheet.
+
+**Undo/redo seam.** `src/editor/session.ts` (a command registry + toast bus) is wired to the
+**rail’s** undo/redo, not the top bar: UI §5.1 and build spec §11.4 place them under the
+drawing hand and forbid duplicating them in the top bar. The brief said "TopBar’s undo/redo" —
+the specs win, and `TopBar` carries no undo/redo controls.
+
+**D63 is discharged.** The `'object'` drag target now moves grabbable geometry, records the
+pre-drag position at drag start, and applies `onSecondFinger(...).restoreTo` on cancel, so a
+second finger can never leave an object displaced. Evidence:
+`tests/sheetEditor.dimension.browser.test.ts` drags a dimension 120 px, lands a second
+pointer, and asserts the endpoints return to the pre-drag pair with no commit at the
+displaced position (verified against the real canvas, not jsdom).
+
+**Not wired, and recorded as owed: `markup.json` persistence.** `MarkupScene` keeps the
+annotation document **in memory**; writing it through slice 1.2’s `persistQueue` is not in
+this packet. So annotations do **not** survive a reload yet. This is stated plainly rather
+than left for a reader to infer from a green gate.
+
+**Not built:** the Offset Nudge Pad (the packet marks it optional for 1.5).
+
+### D71 — the keypad sheet: two spec conflicts corrected, and what is unmeasured
+
+**UI §8.1’s "360 px tall" sheet is arithmetically impossible** with §8.1’s own contents:
+48 header + 64 preview + 56 chips + 2×72 keys + 8 row gap + 20 notes + 128 actions + 30
+padding + 40 inter-row gaps = **538 px** (shortfall ≈ 178 px). Clipping a keypad to honour the
+number would have broken a 72 px key. The sheet is sized content-wise
+(`max-height: min(92vh, 620px)`); **the spec’s number needs correcting, not the code**.
+
+**§6.1.1’s `ft` wiring is incomplete.** "`ft` → `activeSlot = 'feet'`" leaves `inchesMode`
+true, and `pressDigit` returns early in inches mode — so after tapping `in`, `ft` was a
+**no-op**. Implemented as `{ inchesMode: false, activeSlot: 'feet' }`, the simplest behaviour
+consistent with a control that works.
+
+**The refusal copy is stale under D31.** The plan hard-codes «Fraction must be smaller than
+1/16», but the entry denominator has been **entry-scoped** (2…64) since D31, so with a `1/2`
+chip active the sentence is wrong. Shipped verbatim as instructed and marked
+`⚠ PROPOSED (C14)`; the recommended replacement is «Fraction must be smaller than
+1/{denominator}» and it **needs content-owner sign-off** (Open question 1 still stands).
+
+**Unmeasured, recorded rather than papered over.** The 48 / 56 / 64 / 72 px target floor is
+**CSS-declared only**: jsdom has no layout, so no honest measurement is possible there, and
+the lane correctly refused to assert "the CSS text says 72 px" as if it were a measurement.
+Same class as D64 (the dpr-2 path): inferred, not measured. Logged to the hardware checklist.
+
+**Unreachable path.** `keypad.offlineNote` can only surface through a throwing commit,
+because the pinned props expose no channel for the store’s folder-unavailable state; §8.1
+wants it beside a `--warn` Autosave chip, which is slice 1.10’s. Flagged so the path is not
+mistaken for tested.
+
+**Lossy re-edit.** Seeded only with `initialValueMm`, re-editing picks the first valid
+denominator that represents the value exactly and otherwise falls back to the project
+precision — so a bare decimal finer than the project precision can round on re-edit. The real
+fix is a future optional `initialEnteredText` prop (the schema already stores `enteredText`).
+
+**Integration fixes.** (1) The shell wrapped the sheet in a second, same-named
+`role="dialog" aria-modal="true"`, nesting two modals and making `getByRole('dialog')`
+ambiguous — the wrapper is now positioning-only. (2) The keypad copy was folded from the
+**appendix bytes** and the staging module deleted; the fold’s own two defects (a self-matching
+identifier replacement that doubled three references, caught by `tsc`; and one row inserted as
+the appendix’s *rendered* example instead of the shipped *template* form, caught by `vitest`)
+were fixed before commit. Neither was a lane defect.

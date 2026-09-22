@@ -528,39 +528,25 @@ pre,
 --------------------------------------------------------------------------- */
 
 .editor {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--g900);
 }
 
-.editor-bar {
-  min-height: 56px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
-  background: var(--g850);
-  border-bottom: 2px solid var(--g700);
-}
-
-.editor-title {
-  margin: 0;
-  flex: 1;
-  font-size: 17px;
-  line-height: 22px;
-  font-weight: 600;
+/* Visually hidden but still in the accessibility tree (never `display:none`). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.editor-readonly {
-  margin: 0;
-  font-size: 13px;
-  line-height: 16px;
-  font-weight: 600;
-  color: var(--warn);
+  border: 0;
 }
 
 /* Visually hidden file input: the visible Import button is the labelled control. */
@@ -659,4 +645,483 @@ pre,
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------------------
+   Slice 1.4.5 — Editor shell: top bar, tool rail, panel docking
+   CSS only (CSP `style-src 'self'`; no inline `style=""` anywhere — every bit of
+   state is carried by a data attribute, never a style prop).
+   Layout geometry lives in `EditorLayout.panelDockFor`; this file only dresses it.
+---------------------------------------------------------------------------- */
+
+.editor-layout {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--g900);
+}
+
+/* DOM order is rail → canvas → panel → top bar (the required tab order, plan gate).
+   `order` puts the top bar back at the visual top without touching tab order. */
+.editor-main {
+  order: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+.editor-center {
+  order: 1;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Rail side = handedness. The panel is always the opposite edge (UI §5.3). */
+.editor-layout[data-rail='left'] .tool-rail {
+  order: 0;
+}
+.editor-layout[data-rail='left'] .style-dock {
+  order: 2;
+}
+.editor-layout[data-rail='right'] .style-dock {
+  order: 0;
+}
+
+/* ---- top bar (52 px Editor variant, UI §5.2) ----------------------------- */
+
+.editor-topbar {
+  order: 0;
+  flex: 0 0 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  background: var(--g850);
+  border-bottom: 2px solid var(--g700);
+}
+
+.topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  max-width: 24ch;
+  padding: 0 10px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.crumb {
+  cursor: pointer;
+}
+button.crumb:hover {
+  background: var(--g750);
+}
+.crumb-sep {
+  flex: 0 0 auto;
+  color: var(--g400);
+}
+.crumb-project {
+  color: var(--g300);
+  font-weight: 500;
+}
+.crumb-sheet {
+  color: var(--g100);
+}
+
+/* Portrait (UI §5.2): the breadcrumb collapses to `‹ Sheet`. */
+.topbar-breadcrumb[data-compact='true'] .crumb-project,
+.topbar-breadcrumb[data-compact='true'] .crumb-sep {
+  display: none;
+}
+.topbar-breadcrumb[data-compact='true'] .crumb-back .crumb-text {
+  display: none;
+}
+
+/* Autosave slot — empty until 1.10. It still spaces the bar honestly. */
+.topbar-autosave {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.topbar-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.topbar-action:hover:not(:disabled) {
+  background: var(--g750);
+}
+.topbar-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.topbar-overflow {
+  position: relative;
+}
+.topbar-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--g800);
+  border: 2px solid var(--g600);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+.topbar-menu-item {
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.topbar-menu-item:hover {
+  background: var(--g750);
+}
+.editor-topbar[data-compact='true'] .topbar-action-label {
+  display: none;
+}
+
+/* ---- tool rail (128 px = 4 + 56 + 8 + 56 + 4, UI §6.2) ------------------- */
+
+.tool-rail {
+  flex: 0 0 128px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 4px;
+  background: var(--g850);
+  overflow-y: auto;
+}
+.tool-rail[data-side='right'] {
+  border-left: 2px solid var(--g700);
+}
+.tool-rail[data-side='left'] {
+  border-right: 2px solid var(--g700);
+}
+
+.tool-rail-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Bottom-anchored: `auto` pushes the groups down when there is room and reaches
+     for the scroll when there is not (which `justify-content: flex-end` cannot do). */
+  margin-top: auto;
+}
+.tool-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Full-width hairline between groups (UI §6.2). Group 6 (ERASE) is additionally
+   isolated: hairline + 16 px of extra gap from its neighbour. */
+.tool-group + .tool-group {
+  border-top: 2px solid var(--g700);
+}
+.tool-group[data-group='6'] {
+  padding-bottom: 8px;
+}
+.tool-group-header {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--g400);
+}
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 56px);
+  gap: 8px;
+  justify-content: center;
+}
+.tool-button {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g300);
+  cursor: pointer;
+  transition: background 120ms cubic-bezier(0.2, 0, 0, 1), transform 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+.tool-button:hover {
+  background: var(--g750);
+  color: var(--g100);
+}
+.tool-button:active {
+  transform: scale(0.96);
+}
+.tool-button.is-active {
+  background: var(--hi);
+  color: var(--g000);
+}
+.tool-button-icon {
+  display: grid;
+  place-items: center;
+}
+/* Active marker: a 4 px accent bar on the rail's inner (canvas-facing) edge. */
+.tool-button.is-active::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--hi);
+}
+.tool-rail[data-side='right'] .tool-button.is-active::after {
+  left: -4px;
+}
+.tool-rail[data-side='left'] .tool-button.is-active::after {
+  right: -4px;
+}
+/* The doomed-to-be-replaced placeholder glyphs read a touch larger than 24 px. */
+.tool-button svg,
+.style-chip svg {
+  width: 26px;
+  height: 26px;
+}
+/* An empty cell is a flat well, never a disabled button (UI §6.2). */
+.tool-well {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: var(--g800);
+}
+
+.tool-rail-history {
+  display: grid;
+  grid-template-columns: repeat(2, 56px);
+  gap: 8px;
+  justify-content: center;
+  padding-top: 8px;
+  border-top: 2px solid var(--g700);
+}
+.rail-history-button {
+  width: 56px;
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g750);
+  color: var(--g100);
+  font: inherit;
+  cursor: pointer;
+}
+.rail-history-button:hover:not(:disabled) {
+  background: var(--g700);
+}
+.rail-history-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.rail-history-label {
+  font-size: 10px;
+  line-height: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ---- style dock (container + chip slot only; panel is slice 1.8) -------- */
+
+.style-dock {
+  background: var(--g850);
+  display: flex;
+}
+.style-dock[data-orientation='vertical'] {
+  flex: 0 0 72px;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+.editor-layout[data-rail='right'] .style-dock[data-orientation='vertical'] {
+  border-right: 2px solid var(--g700);
+}
+.editor-layout[data-rail='left'] .style-dock[data-orientation='vertical'] {
+  border-left: 2px solid var(--g700);
+}
+.style-dock[data-orientation='horizontal'] {
+  order: 2;
+  flex: 0 0 72px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-top: 2px solid var(--g700);
+}
+.style-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.style-dock[data-orientation='vertical'] .style-chip {
+  flex-direction: column;
+  gap: 6px;
+}
+.style-chip-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--hi);
+  color: var(--g900);
+}
+.style-chip-name {
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--g100);
+}
+
+/* Read-only warning floats over the mat (top-bar centre stays empty until 1.10). */
+.editor-readonly {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(18, 24, 30, 0.92);
+  border: 2px solid var(--warn);
+  color: var(--warn);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 180 ms chrome reflow (UI §5.3). Layout flips cannot interpolate, so the dock's
+   own box animates; reduced-motion kills it. */
+@media (prefers-reduced-motion: no-preference) {
+  .style-dock {
+    transition: width 180ms cubic-bezier(0.2, 0, 0, 1), height 180ms cubic-bezier(0.2, 0, 0, 1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-button,
+  .style-dock {
+    transition: none;
+  }
+}
+
+/* ---- Slice 1.5: dimension placement HUD, keypad-open state, toast ---------- */
+
+/* Touch model §5.1: while the value sheet is open the rail and style dock sit at 40%
+   and are non-interactive (a mis-tap while typing must not swap tools). The canvas
+   stays live for pan/pinch only. */
+.editor-layout[data-keypad-open='true'] .tool-rail,
+.editor-layout[data-keypad-open='true'] .style-dock {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.placement-hud {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(14, 19, 24, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  z-index: 6;
+}
+
+.placement-hud-button {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: var(--g750);
+  color: var(--g100);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.placement-hud-primary {
+  background: var(--hi);
+  border-color: var(--hi);
+  color: #ffffff;
+}
+
+.keypad-sheet-mount {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 20;
+}
+
+.editor-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(14, 19, 24, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--g100);
+  font-size: 14px;
+  z-index: 30;
+}
+
+
 

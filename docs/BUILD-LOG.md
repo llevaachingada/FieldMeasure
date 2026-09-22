@@ -243,3 +243,67 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 - **Process note:** a Windows-console artefact renders U+2014 as `-` under `Select-String` but `—` under `git diff`; during this review it manufactured two false "wording was rewritten" findings. Copy and fixture checks must be byte-level `node` reads.
 
 **Next:** slice 1.4 ∥ 1.4.5 (two lanes; `src/ui/strings.ts` and `src/App.tsx` owned by the 1.4.5 lane).
+
+## Slice 1.4 ∥ 1.4.5 — Capture flow ∥ Editor shell
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built** (two parallel `@designer` lanes, integrated by the orchestrator):
+
+- **1.4.5 editor shell** — `src/ui/EditorLayout.tsx` (the §11.3 docking rule as one pure predicate, `panelDockFor`), `ToolRail.tsx` (14 tools / 6 groups at 56 px with 8 px gaps on the handedness side, roving-focus `role="toolbar"`, "unimplemented tool is a no-op" enforced in **two** places), `TopBar.tsx` (52 px, breadcrumb, UI §5.2’s overflow, and the autosave slot that renders **nothing** until 1.10), `src/ui/icons/tools/*.tsx` (14 bespoke glyphs — **placeholders**, recorded as such), `src/state/editorStore.ts` (§10 registry), `SheetEditor`’s two shell seams (`onImportReady`, `onSheetTitleChange`), and a **lazy `App.tsx` editor route** so Konva leaves the Home chunk.
+- **1.4 capture flow** — `src/ui/CameraFlow.tsx` + `camera.css`: full-bleed viewfinder, torch/grid/level/flip/resolution toggles, tap-to-focus reticle with AE/AF lock, 88 px shutter, zoom chips, the review screen (`Retake · Rotate · Use photo`, no auto-enhance), the camera-unavailable panel with the exact copy + both fallbacks, and a write failure that keeps the photo in memory and offers «Save a copy…».
+- **The shared write path** — `src/fs/sheetIntake.ts` (`addSheetFromPhoto`, `defaultSheetTitle`) was extracted **before** the lanes started (commit `ab42300`) so the editor import and the capture flow cannot drift into two versions of one data path.
+
+**Machine gates:** 4/4 passing (orchestrator, on the reconciled tree)
+- [x] `npx tsc --noEmit` clean
+- [x] `npx vitest run` — **330 tests / 29 files** (was 270/24)
+- [x] `npm run build` — 16 precache entries; main chunk ~547 → **342 kB** (Konva moved into `EditorLayout-*.js`)
+- [x] `npx playwright test` 5 passed / 4 skipped (unchanged, CSP-as-a-test green at both viewports)
+- [x] Gate halves with a machine form: the `panelDockFor` table **including the inclusive 1.2 boundary**; rail side follows handedness and never the dock; an unimplemented tool cannot change `activeTool`; the autosave slot renders nothing; capture → review → Use writes `photo.jpg` + one `project.json` sheet + schedules the thumbnail; a failed write leaves `project.json` unchanged and the photo in memory; camera-denied renders the exact copy; copy contract enforced by `tests/strings.test.ts`
+
+**Deferred to hardware:** 7 rows added to `docs/HARDWARE-TEST-CHECKLIST.md` (5 for 1.4, 2 for 1.4.5), every one PENDING with its machine-verifiable half stated. No `[Surface]` result was faked.
+
+**Checkpoints fired:** **C5** (`lucide-react` 1.x icon API, slice 1.4.5) → measured: named exports work (`Undo2`/`Redo2`, `ChevronLeft/Right`, `Layers`, … render; build + CSP test green). Recorded in DECISIONS and flipped in CHECKPOINTS. C4 was already recorded by the owner as "fired but not measurable until annotations exist".
+
+**Decisions recorded:** D67 (the new copy gate broke `tsc`), D68 (shell composition / placeholder art / bundle), D69 (capture mount, provisional device caps, copy fold).
+
+**Surprises:**
+- The owner’s new copy-contract gate (`tests/strings.test.ts`) **broke `tsc --noEmit`** — it read its sources with `node:fs` while `tsconfig` pins `types: ["vite/client"]` and `@types/node` is not installed, so the gate meant to protect copy was failing the typecheck gate. `vitest` could not see it. Fixed with Vite `?raw` imports, no assertion changed (D67).
+- Integration surfaced an ownership gap the handoff left open: `SheetEditor.tsx` and the "a photo becomes a sheet" write path belonged to **neither** lane. Closed by extracting the seam before dispatch rather than letting two lanes write it.
+- `SheetEditor` always opened `sheets[0]`, so a capture into a non-empty project would have appeared to do nothing. An additive `sheetId` seam makes «Use photo» land on the sheet just written.
+- Two lanes’ `strings.ts` needs cannot both write one file: the capture lane staged `cameraCopy.ts` (§11), the orchestrator folded it from the **appendix bytes** and deleted the module.
+
+**Next:** slice 1.5.
+## Slice 1.5 — Dimension tool (flagship)
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built** (two parallel lanes — `@fixer` machine ∥ `@designer` keypad sheet — integrated by the orchestrator):
+
+- **The machine** — `src/editor/history.ts` (Command/History, 100 steps, 600 ms style coalescing, redo clears on a new edit), `src/editor/shapes/` (`scene.ts` in-memory `Annotation[]` + Konva sync + `AnnotationPath`/zIndex bands; `renderDimension.ts`; `dimensionLabel.ts` with the pure 140 px / 36 px collision rule), `src/editor/Loupe.ts` (pen **3.5×** with derived source; touch **200 px / 4× / 50 px source**, 136 px offset, 44 px contact disc, 700 ms freeze → 40%), `src/editor/tools/DimensionTool.ts` (tap-tap commits at B, drag is the same machine, acquire 32 → lock 20 px, live derived label, the **450 ms** settle window, chain, refine-within-40 px), `src/editor/session.ts` (command registry + toast bus), and the `SheetEditor` wiring (keypad mount, focus trap + return, placement announcement, object-first drag).
+- **The keypad sheet** — `src/ui/DimensionKeypadSheet.tsx` + `dimensionKeypad.css`: all arithmetic delegated to the shipped `src/domain/units.ts` primitives (nothing re-implemented), a pure preview, refusal reasons rendered in the preview area, entry-scoped fraction chips (D31), hardware-keyboard entry through `parseLooseToSlots`, focus trap/return, `aria-live` preview.
+- **D63 discharged** — the `'object'` drag target now moves geometry and consumes `onSecondFinger(...).restoreTo`; the pre-drag position is recorded at drag start.
+
+**Machine gates:** 4/4 passing (orchestrator, on the reconciled tree)
+- [x] `npx tsc --noEmit` clean
+- [x] `npx vitest run` — **437 tests / 36 files** (was 330/29), including the **browser** project (real Konva stage) for the tap-tap / settle / D63 machinery
+- [x] `npm run build` — 17 precache; `EditorLayout-*.js` 254.6 kB (Konva + the tools), main chunk 343 kB
+- [x] `npx playwright test` 5 passed / 4 skipped
+- [x] The packet’s machine-checkable gates: pure tap/settle/contact/chain/refine decisions **and their wiring** in the browser project; the keypad truth table (`12 6`, `12 6 3`, `10'-4 1/2"`) asserted on the derived label **and** the committed `valueMm`/`enteredText`; the refusal table (`0`, `12 6 20`, `-5`, 1001 ft) each refused **with a rendered reason**; chain locks at B; precision 1/16 → 1/2 re-derives every label with no stored `label` key anywhere; one stroke = one undo step; undo/redo toasts name the action
+
+**Deferred to hardware:** 10 rows added to `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.5 (tap-tap + settle on glass, the keypad truth/refusal tables with a Type Cover, the measured pen-3.5×/touch-4× loupe ratios, the on-glass target walk, focus/keyboard walk, 4-dims timing, the accuracy walk, and the D37/D63 finger walk). None faked.
+
+**Checkpoints fired:** **C10** (touch placement accuracy) → the machine half is proven and logged; the on-glass walk is deferred (no Surface), so it is recorded as **not measurable without hardware** — never as a pass. CHECKPOINTS flipped with that wording.
+
+**Decisions recorded:** D70 (machine seams, the two deliberate deviations, and the un-wired `markup.json` persistence), D71 (the keypad sheet: the two spec conflicts corrected, and what is unmeasured or unreachable).
+
+**Surprises / findings (from the lanes’ own adversarial notes, resolved at integration):**
+- **Two nested same-named modals** — the shell wrapped the sheet in its own `role="dialog" aria-modal="true"` while the sheet already provided them. Fixed: the wrapper is now positioning-only.
+- **Tool hotkeys fired while the keypad was open** — the shell now defers both Escape and the hotkeys to the open sheet (`editorStore.keypadOpen`).
+- **UI §8.1’s "360 px" sheet height is arithmetically impossible** with §8.1’s own contents (538 px computed). The sheet is sized content-wise; the spec number needs correcting (D71).
+- **§6.1.1’s `ft` wiring is incomplete** (`ft` was a no-op after `in` under `inchesMode`); implemented as the simplest behaviour that works and flagged (D71).
+- **The refusal copy is stale under D31** — the plan hard-codes "1/16" while the denominator is entry-scoped. Shipped verbatim as instructed, marked `⚠ PROPOSED (C14)`, with `1/{denominator}` recommended for content-owner sign-off.
+- **The keypad’s 48–72 px target floor is CSS-declared, not measured** (jsdom has no layout; the browser project does not assert it). Recorded as a coverage gap, not a pass.
+- **The orchestrator’s own copy fold broke twice** and both were caught by the gate before commit: a self-matching `keypad.` → `STRINGS.keypad.` replacement doubled three references (`tsc` caught it), and one row was inserted as the appendix’s *rendered* example instead of the shipped *template* form (`vitest` caught it). Neither was a lane defect.
+
+**Owed, explicitly:** `markup.json` persistence is **not** wired — `MarkupScene` is in-memory only, so annotations do not yet survive a reload. Slice 1.2’s `persistQueue` exists; a later slice must connect it. The Offset Nudge Pad was optional for 1.5 and is not built.
+
+**Next:** slice 1.6 (markup tools).

@@ -1,8 +1,9 @@
 /**
- * App shell routing (implementation plan slice 0.3 step 6; slice 1.3 adds the editor).
+ * App shell routing (implementation plan slice 0.3 step 6; slice 1.3 adds the editor;
+ * slice 1.4.5 wraps it in the lazy `EditorLayout` shell).
  *
  *   first-run → Home → Settings
- *                    └→ Editor (a project's first sheet)
+ *                    └→ Editor (a project's first sheet), lazy-loaded
  *
  * There is no router dependency (closed dep list §2.2): a tiny route state keeps
  * the shell honest until the real navigation lands. First run is considered done
@@ -13,12 +14,24 @@
  * `onOpenProject(id, folderName)`. Passing the bare `id` would let two same-id
  * folders collide in the Web Lock / open-project registry / persistQueue.
  */
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import FirstRun from '@/ui/FirstRun';
 import ProjectList from '@/ui/ProjectList';
 import Settings from '@/ui/Settings';
-import SheetEditor from '@/ui/SheetEditor';
 import { getProjectsRoot } from '@/settings/projectsRoot';
+
+/**
+ * The editor shell (top bar, tool rail, dock and the Konva canvas behind it) is
+ * **lazy-loaded** so Konva leaves the Home route's bundle. Slice 1.3 shipped a
+ * ~547 kB main chunk by importing `SheetEditor` statically; importing the shell
+ * dynamically splits the whole editor — Konva included — into its own chunk.
+ */
+const EditorLayout = lazy(() => import('@/ui/EditorLayout'));
+/**
+ * The capture flow is lazy for the same reason: it pulls `normalizeImage`, `exif`
+ * and the thumbnail scheduler, which the Home route never needs.
+ */
+const CameraFlow = lazy(() => import('@/ui/CameraFlow'));
 
 type Route = 'loading' | 'first-run' | 'home' | 'settings' | 'editor';
 
@@ -31,6 +44,10 @@ interface EditorTarget {
 export default function App() {
   const [route, setRoute] = useState<Route>('loading');
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
+  /** Slice 1.4: the editor's «Add sheet» opens the capture flow over the editor. */
+  const [captureOpen, setCaptureOpen] = useState(false);
+  /** The sheet the editor should open — set to the sheet a capture just wrote. */
+  const [editorSheetId, setEditorSheetId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
@@ -63,14 +80,38 @@ export default function App() {
 
   if (route === 'editor' && editorTarget) {
     return (
-      <SheetEditor
-        projectId={editorTarget.projectId}
-        folderName={editorTarget.folderName}
-        onExit={() => {
-          setEditorTarget(null);
-          setRoute('home');
-        }}
-      />
+      <>
+        <Suspense fallback={<main className="app-boot" aria-busy="true" />}>
+          <EditorLayout
+            projectId={editorTarget.projectId}
+            folderName={editorTarget.folderName}
+            sheetId={editorSheetId}
+            onAddSheet={() => setCaptureOpen(true)}
+            onExit={() => {
+              setCaptureOpen(false);
+              setEditorSheetId(undefined);
+              setEditorTarget(null);
+              setRoute('home');
+            }}
+          />
+        </Suspense>
+        {/* Slice 1.4: the capture flow is a full-bleed overlay over the editor. It
+            writes through the same `addSheetFromPhoto` path as the editor's import, and
+            on accept the editor re-opens on the sheet that was just written. */}
+        {captureOpen ? (
+          <Suspense fallback={null}>
+            <CameraFlow
+              projectId={editorTarget.projectId}
+              folderName={editorTarget.folderName}
+              onCaptured={(sheet) => {
+                setCaptureOpen(false);
+                setEditorSheetId(sheet.id);
+              }}
+              onCancel={() => setCaptureOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+      </>
     );
   }
 
@@ -82,6 +123,8 @@ export default function App() {
         // folder) is not openable; ProjectList still renders it with a Locate action.
         if (!folderName || !id) return;
         setEditorTarget({ projectId: `${id}:${folderName}`, folderName });
+        setEditorSheetId(undefined);
+        setCaptureOpen(false);
         setRoute('editor');
       }}
       onNewProject={() => {

@@ -101,6 +101,63 @@ export const STRINGS = {
   // per-project-precision note in Settings (P §20.5(b)).
   dimension: {
     projectPrecision: 'Project precision: {denominator}',
+    // Slice 1.5 — Style Chip / keypad / live-label copy (all appendix rows, no marker).
+    toolName: 'Dimension',
+    unitFtIn: 'ft-in',
+    ghostLabel: 'tap to enter value',
+    snapChip90: '90°',
+  },
+
+  // APPROVED inventory (appendix-strings.md `## placement`; the appendix itself notes
+  // the `TF §9` rows are "proposed, not final", but they are keyed there, so they are
+  // appendix copy — no builder marker).
+  placement: {
+    firstPoint: 'Tap the first point',
+    secondPoint: 'Tap the second point',
+    adjustEndpoints: 'Adjust endpoints',
+    adjusting: 'Adjusting dimension',
+  },
+
+  // APPROVED inventory (appendix-strings.md `## keypad`). Lane D's keypad sheet owns
+  // the full key surface; these three are the ones slice 1.5's shell renders (the HUD
+  // and the sheet's accessible name) plus the F3/F4 refusal reasons.
+  keypad: {
+    title: 'Enter dimension',
+    useThisValue: 'Use this value',
+    chain: 'Chain: commit & start next from B',
+    // Slice 1.5 — the rest of the sheet’s approved keypad inventory (appendix rows).
+    fractionHalf: '1/2',
+    fractionQuarter: '1/4',
+    fractionEighth: '1/8',
+    fractionSixteenth: '1/16',
+    cycleHint: '← /16',
+    entryNowInches: 'Entry is now inches',
+    // Appendix row value is the RENDERED example (`Project precision: 1/8`) with
+    // `{denominator}` declared in its Interpolation column — so the shipped form is the
+    // template, exactly as `dimension.projectPrecision` already ships. The copy gate
+    // compiles the token to an anchored regex and still checks the wording byte-for-byte.
+    projectPrecisionEighth: 'Project precision: {denominator}',
+    ftToggle: 'ft',
+    inToggle: 'in',
+    offlineNote: 'Saved locally, will write when the folder is back.',
+    // ⚠ PROPOSED (C14) — not approved copy (implementation-plan §1.5 F3/F4 quotes these
+    // three refusal reasons; neither appendix keys them).
+    errorEnterLength: 'Enter a length',
+    errorFractionTooBig: 'Fraction must be smaller than 1/16',
+    errorTooLarge: 'Too large',
+  },
+
+  // APPROVED inventory (appendix-strings.md `## toasts`): `undoAction` is the template.
+  toasts: {
+    undoAction: 'Undid: {actionName}',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix): the action names
+    // interpolated into `toasts.undoAction`; the appendix supplies only the example
+    // "Undid: Delete dimension 12' 6"".
+    actionAddDimension: 'Add dimension',
+    actionMoveDimension: 'Move dimension',
+    actionDeleteDimension: 'Delete dimension',
+    actionSetValue: 'Set dimension value',
+    actionAdjustDimension: 'Adjust dimension',
   },
 
   // APPROVED inventory (appendix-strings.md `## project`)
@@ -119,6 +176,39 @@ export const STRINGS = {
   capture: {
     importButton: 'Import',
     importAPhoto: 'Import a photo',
+    close: 'Close',
+    resolutionHigh: 'High (device max)',
+    resolutionFast: 'Fast',
+    aeAfLock: 'AE/AF LOCK',
+    retake: 'Retake',
+    usePhoto: 'Use photo',
+    discardConfirm: 'Discard this photo? The sheet\'s markup will be kept if the new photo is the same size.',
+    adding: 'Adding…',
+    openWindowsCamera: 'Open Windows Camera',
+    embeddedFallback: 'Camera unavailable in this browser. Open Windows Camera or Import a photo instead.',
+    unavailableFallback: 'Camera unavailable… Open Windows Camera or Import a photo.',
+    unavailable: 'Camera unavailable',
+    useWindowsCameraPromoted: 'Use the Windows Camera app for detail shots',
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §14):
+    // the viewfinder toggles and zoom chips. `capture.autoCapture` is deliberately
+    // absent — auto-capture-on-level is not built in v1 (UI §10.1: off by default).
+    torch: 'Torch',
+    grid: 'Grid',
+    level: 'Level',
+    flip: 'Flip camera',
+    zoomHalf: '0.5×',
+    zoomOne: '1×',
+    zoomTwo: '2×',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix): the OS
+    // camera privacy note the specs require in the camera-unavailable copy
+    // (P §11.8, U §10.1) but never key. The build spec's own phrase, promoted.
+    cameraPrivacyNote: 'Settings → Privacy → Camera → allow desktop apps',
+  },
+
+  // APPROVED inventory (appendix-strings.md `## storage/autosave`) — slice 1.4 uses
+  // only the write-failure action; slice 1.10 fills the autosave chip states.
+  storage: {
+    saveACopy: 'Save a copy…',
   },
 
   // APPROVED inventory (appendix-strings.md `## errors`)
@@ -134,6 +224,23 @@ export const STRINGS = {
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §9)
     menuSettings: 'Settings',
     menuProjectSettings: 'Project settings',
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §9):
+    // the remaining seven editor overflow items (slice 1.4.5 top bar).
+    menuDuplicateSheet: 'Duplicate sheet',
+    menuInsertImage: 'Insert image',
+    menuAddSheet: 'Add sheet',
+    menuImportFile: 'Import file',
+    menuSheetInfo: 'Sheet info',
+    menuHelp: 'Help',
+    menuKeyboardShortcuts: 'Keyboard shortcuts',
+    // APPROVED inventory (appendix-strings.md `editor.breadcrumbProjectSegment`
+    // / `editor.breadcrumbSheetSegment`) — used as the breadcrumb FALLBACKS when a
+    // name is not yet known (the segments become inline-editable in a later slice).
+    breadcrumbProjectSegment: 'Project',
+    breadcrumbSheetSegment: 'Sheet',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // the breadcrumb's leading segment (UI §5.2 shows `‹ Projects`; no key exists).
+    breadcrumbProjects: 'Projects',
     // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
     // slice 1.3's minimal editor nav is superseded by the 1.4.5 top bar.
     back: 'Back',
@@ -144,6 +251,42 @@ export const STRINGS = {
     fit: 'Fit',
     // APPROVED inventory (appendix-strings.md `editor.emptyHint`)
     emptyHint: 'Tap a tool, then tap the photo',
+    // APPROVED inventory (appendix-strings.md `editor.cancel`) — the keypad sheet’s ✕.
+    cancel: 'Cancel',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // the Style Chip's accessible name in the docked container (slice 1.8 fills
+    // the panel; 1.4.5 renders only the chip slot).
+    styleChip: 'Current style',
+  },
+
+  // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §11): the 14
+  // tool names. One name per tool so the rail's tooltip, the `aria-label` and the
+  // Style Chip share a single source.
+  tool: {
+    select: 'Select',
+    panZoom: 'Pan & Zoom',
+    dimension: 'Dimension',
+    angle: 'Angle',
+    line: 'Line',
+    arrowLeader: 'Arrow / Leader',
+    rectangle: 'Rectangle',
+    ellipse: 'Ellipse',
+    polygon: 'Polygon',
+    freehand: 'Freehand',
+    highlighter: 'Highlighter',
+    textNote: 'Text note',
+    imageInset: 'Image inset',
+    erase: 'Erase',
+  },
+
+  // APPROVED inventory (appendix-strings.md `## toolRail`): the six group headers.
+  toolRail: {
+    groupMove: 'MOVE',
+    groupMeasure: 'MEASURE',
+    groupMark: 'MARK',
+    groupAnnotate: 'ANNOTATE',
+    groupInsert: 'INSERT',
+    groupErase: 'ERASE',
   },
 
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md #25 supplies these
@@ -159,6 +302,26 @@ export const STRINGS = {
     // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
     // the canvas container's accessible name (§19.6).
     canvas: 'Photo canvas',
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §25):
+    // accessible names for the icon-only top-bar and rail controls.
+    layers: 'Layers',
+    export: 'Export',
+    undo: 'Undo',
+    redo: 'Redo',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // the overflow trigger and the breadcrumb nav landmark have no supplied copy.
+    moreActions: 'More actions',
+    breadcrumb: 'Breadcrumb',
+    toolRail: 'Tools',
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §25):
+    // the capture screen’s icon-only controls (slice 1.4).
+    torch: 'Torch',
+    shutter: 'Take photo',
+    grid: 'Grid',
+    level: 'Level',
+    cameraFlip: 'Flip camera',
+    rotate: 'Rotate',
+    close: 'Close',
   },
 
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §17)

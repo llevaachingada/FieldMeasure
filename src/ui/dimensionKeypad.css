@@ -1,0 +1,358 @@
+/**
+ * `src/ui/dimensionKeypad.css` — slice 1.5, the ft-in keypad sheet (UI spec §8.1,
+ * touch model §5.1).
+ *
+ * EXTERNAL STYLESHEET, NO INLINE STYLES. The CSP is `style-src 'self'` and the e2e suite
+ * asserts `[style]` count === 0 (design handoff §7.2).
+ *
+ * TOKENS are the "Site Slate" globals from `styles.css` (`--g750`, `--hi`, `--sel`,
+ * `--ok`, `--warn` …). `.btn` / `.hit-slop` / `.mono` / `.visually-hidden` are global too.
+ *
+ * TARGETS (§19.6, touch-primary): keys are 72 px (UI §8.1), the commit button 64 px, the
+ * unit toggles 56 px, the chips 48 px — every control clears the 48 px floor, and
+ * `.hit-slop` adds the 16 px slop where the visual target is smaller.
+ *
+ * The frame is `pointer-events: none`: touch model §5.1 keeps the canvas live for pan and
+ * pinch-zoom while the keypad is open, so nothing here may swallow a canvas gesture that
+ * lands outside the sheet itself.
+ */
+
+.keypad-scrim {
+  position: fixed;
+  inset: auto 0 0 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.keypad-sheet {
+  pointer-events: auto;
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  /* NOT a hard 360 px: UI §8.1's "360 px tall" cannot hold its own diagram (two 72 px key
+     rows = 144 px, + 64 px preview + 56 px chips + 64/56 px actions + gaps). Content-sized,
+     with a viewport cap, so nothing is ever clipped. Reported as a spec inconsistency. */
+  max-height: min(92vh, 620px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 16px;
+  background: var(--g750);
+  border: 1px solid var(--g700);
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -12px 32px rgba(11, 14, 18, 0.6);
+}
+
+/* The grabber handle (UI §8.1). Decorative — never a drag target. */
+.keypad-sheet::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 40px;
+  height: 4px;
+  margin-left: -20px;
+  border-radius: 2px;
+  background: var(--g600);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .keypad-sheet {
+    animation: keypad-slide-up 180ms ease-out;
+  }
+}
+
+@keyframes keypad-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ---- header ------------------------------------------------------------- */
+
+.keypad-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 6px;
+}
+
+.keypad-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+.keypad-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  cursor: pointer;
+}
+
+.keypad-cancel:active {
+  background: var(--g700);
+}
+
+/* ---- live preview: the point of the whole sheet ------------------------- */
+
+.keypad-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 1px solid var(--g700);
+  border-radius: 10px;
+  background: var(--g850);
+}
+
+.keypad-preview--ok {
+  border-color: var(--g600);
+}
+
+.keypad-preview--empty,
+.keypad-preview--badFraction,
+.keypad-preview--tooLarge {
+  border-color: var(--warn);
+}
+
+.keypad-preview-value {
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 700;
+  color: var(--g000);
+}
+
+.keypad-preview--ok .keypad-preview-value {
+  color: var(--ok);
+}
+
+.keypad-preview-unit {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--g400);
+}
+
+.keypad-preview-secondary {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--g300);
+}
+
+.keypad-preview-reason {
+  flex-basis: 100%;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--warn);
+}
+
+/* ---- unit toggles + entry-scoped fraction chips (D31) ------------------- */
+
+.keypad-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.keypad-chips {
+  flex-wrap: wrap;
+}
+
+.keypad-toggle {
+  min-width: 72px;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.keypad-toggle[aria-pressed='true'] {
+  border-color: var(--hi);
+  background: var(--g700);
+  color: var(--g000);
+}
+
+.keypad-chip-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background: var(--g700);
+}
+
+.keypad-chip {
+  min-width: 64px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.keypad-chip[aria-pressed='true'] {
+  border-color: var(--hi);
+  background: var(--g700);
+  color: var(--g000);
+}
+
+/* ---- the digit pad: two rows of 3 + 3 keys, 72 px, 8 px gaps ---------- */
+
+.keypad-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.keypad-grid-row {
+  display: flex;
+  gap: 24px;
+}
+
+.keypad-grid-block {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  gap: 8px;
+}
+
+.keypad-key {
+  width: 72px;
+  height: 72px;
+  border: 2px solid var(--g600);
+  border-radius: 12px;
+  background: var(--g800);
+  color: var(--g000);
+  font: inherit;
+  font-size: 26px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.keypad-key:active {
+  background: var(--g700);
+}
+
+.keypad-key--action {
+  color: var(--g300);
+  font-size: 22px;
+}
+
+/* ---- notes: hints, entry precision, the offline state ------------------ */
+
+.keypad-notes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 20px;
+}
+
+.keypad-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--sel);
+}
+
+.keypad-hint-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--g600);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--g300);
+}
+
+.keypad-project-precision {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--g400);
+}
+
+.keypad-offline {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--warn);
+  background: var(--g800);
+  color: var(--warn);
+  font-size: 13px;
+}
+
+/* ---- actions ------------------------------------------------------------ */
+
+.keypad-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keypad-commit,
+.keypad-chain {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.keypad-commit {
+  min-height: 64px;
+  border: 2px solid var(--hi);
+  background: var(--hi);
+  color: var(--g900);
+  font-size: 18px;
+}
+
+.keypad-commit:active {
+  background: var(--hi-d);
+  border-color: var(--hi-d);
+}
+
+.keypad-chain {
+  min-height: 56px;
+  border: 2px solid var(--g600);
+  background: var(--g800);
+  color: var(--g100);
+  font-size: 16px;
+}
+
+.keypad-chain:active {
+  background: var(--g700);
+}
+
+.keypad-commit:disabled,
+.keypad-chain:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
