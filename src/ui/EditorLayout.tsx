@@ -192,6 +192,14 @@ export interface EditorLayoutProps {
    * file picker on mount and the write path stays single. Consumed once.
    */
   autoImport?: boolean;
+  /**
+   * Slice 1.10: the Project screen's Export hands off with its selection. When present, the
+   * export wizard opens once, already scoped to those sheets — it derives its initial scope
+   * from `selectedSheetIds` (UI §12:712: a grid selection defaults to «Selected sheets»).
+   */
+  initialExportSelection?: readonly string[];
+  /** Called once the hand-off above has been consumed, so the shell can drop its copy. */
+  onInitialExportConsumed?: () => void;
   /** The autosave chip slot content; slice 1.10 supplies it. Default: nothing. */
   autosaveChip?: ReactNode;
   /**
@@ -209,6 +217,8 @@ export default function EditorLayout({
   onAddSheet,
   onImportFile,
   autoImport,
+  initialExportSelection,
+  onInitialExportConsumed,
   autosaveChip,
   sheetId,
 }: EditorLayoutProps) {
@@ -268,6 +278,21 @@ export default function EditorLayout({
     exportOpenRef.current = false;
     setExportOpen(false);
   }, []);
+
+  /** The wizard's initial scope when a Project-screen Export handed it over (UI §12:712). */
+  const [exportSelection, setExportSelection] = useState<readonly string[] | undefined>(undefined);
+
+  // Slice 1.10: consume a grid Export hand-off exactly once. It waits for the export seam to
+  // publish the document (`exportSheets`), because the wizard renders its scope step from that
+  // list — opening before it arrives would show an empty picker. The shell clears its own copy
+  // through `onInitialExportConsumed`, so this can never re-open the wizard on a later render.
+  useEffect(() => {
+    if (!initialExportSelection || initialExportSelection.length === 0) return;
+    if (exportSheets.length === 0) return;
+    setExportSelection(initialExportSelection);
+    openExport();
+    onInitialExportConsumed?.();
+  }, [initialExportSelection, exportSheets.length, openExport, onInitialExportConsumed]);
 
   const [viewport, setViewport] = useState(viewportSize);
   useEffect(() => {
@@ -678,6 +703,7 @@ export default function EditorLayout({
           open
           sheets={exportSheets}
           currentSheetId={exportSheetId}
+          selectedSheetIds={exportSelection}
           initialDestination={exportSession.initialDestination}
           onClose={closeExport}
           chooseDestination={exportSession.chooseDestination}

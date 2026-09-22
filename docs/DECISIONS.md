@@ -2600,3 +2600,47 @@ prompt appears on the next online launch", "the app changes after the update") i
 not machine-testable here. Also recorded as a **coverage gap, not a pass**: the queue→busy bridge in
 `SheetEditor` runs only in the browser project (jsdom has no canvas), so it is verified by reading plus the
 pure ordering test.
+
+### D113 — sheet trash: delete → `.trash/`, the 14-day prune, and the restore UI
+
+**Shipped** (slice 1.10 item 2; UI §13.3:800; build spec §2.4:237 and §20.5/§11.9:2029). The storage half is
+`src/fs/sheetTrash.ts` (`deleteSheet` / `restoreSheet` / `listTrash` / `pruneTrash`); the UI is
+`src/ui/TrashPanel.tsx` plus the grid's card menu and its `⋯ → «Trash…»` entry. **`deletedAt` on the
+`project.json` row is the single trash ledger** — the schema already carried it (`schema.ts:125`,
+`types.ts:80`) and the scan, the intake path and the grid loader already skip such rows, so no second ledger
+was invented. Files MOVE to `<project>/.trash/<id>/`.
+
+**The safety decisions — this is data-critical code, so each is explicit:**
+1. **Copy → verify → only then remove.** FSA has **no directory `move()`** (files only, §5.3), so the move is
+   a copy with a **per-file verification** (size equality, which also catches a zero-byte blob write) followed
+   by a recursive `removeEntry`. A failed copy leaves the original untouched and cleans up only a
+   `.trash/<id>/` that *this call* created — never a legitimate earlier trash entry.
+2. **Prune is strictly older than 14 days** (`at < now − 1_209_600_000`): an entry deleted *exactly* 14 days
+   ago is **kept**, and an unparseable `deletedAt` is kept. It removes the `.trash/<id>/` folders **before**
+   rewriting `project.json`, so an entry is either fully pruned or untouched — never listed with its files
+   gone. It is the **only** thing that ever removes a trash entry: nothing prunes `.history/` or `.trash/` to
+   make room for a save (build spec line 848), and `cleanStaleTmp` still skips `.trash/` (re-pinned by test).
+3. **Restore clears the row before dropping the trash copy** — the lane's deliberate deviation from the
+   spec's stated order. If the atomic `project.json` write failed *after* the copy was gone, the only
+   remaining copy would be stranded behind a `deletedAt` the prune would later erase; row-first makes the
+   worst case a harmless duplicate. The critical rule (never remove before the copy verifies) holds either
+   way.
+4. **An unreadable trash is an empty trash, not a broken screen.** The sheets are the primary content, so a
+   failed `listTrash` renders the panel's empty state rather than taking the grid down.
+
+**The honesty change made at integration.** The lane emitted «Sheet deleted · Undo» **optimistically**,
+immediately after calling the shell — claiming a deletion the write might not have performed, which is the
+same class of bug this session has fixed five times over and the exact rule the autosave chip already
+follows (§13.1: never optimistic). The screen now **awaits the shell's result**: resolve → the approved
+`toasts.sheetDeleted` with a real 10 s Undo that routes to the same restore the panel uses; reject → an urgent
+`trash.deleteFailed` ("Couldn't delete that sheet"), **no success claim and no Undo offered for a deletion
+that did not happen**. Three tests pin it: the toast appears only after resolution; **no toast while the
+write is in flight**; a failure says so and offers no undo.
+
+**Also cleaned up:** both lanes declared a `TrashedSheet` model. The canonical one now lives in the storage
+module and is re-exported by the panel, so the two can never drift (the D94 lesson, applied before it bit).
+
+**Owed, recorded:** the spec's *restore-side* undo toast («restored · undo») needs approved copy — today the
+restore reports itself by the row leaving the panel and the sheet reappearing in the grid; and the panel's
+two-pane layout, its card-`⋯` placement and its real focus/hit-slop behaviour are manual/CSS checks (jsdom
+has no layout engine, D40).

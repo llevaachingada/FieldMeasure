@@ -198,6 +198,7 @@
 }
 
 .sheet-grid-item {
+  position: relative;
   list-style: none;
 }
 
@@ -406,6 +407,56 @@
   height: 22px;
 }
 
+/* ---- the card's «Delete» menu (UI §11.2:720; §13.3:800) ------------------ */
+
+/* The per-card ⋯ trigger. Over the photo (like the badges) so it never fights the name
+   row or the selection toggle: it sits 8 px above the thumbnail's bottom edge, and the
+   48 px select toggle sits in the 60 px name row below — no overlap. */
+.sheet-card-menu-button {
+  position: absolute;
+  right: 8px;
+  bottom: 68px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g900);
+  background: color-mix(in srgb, var(--g900) 82%, transparent);
+  color: var(--g000);
+  cursor: pointer;
+}
+
+.sheet-card-menu-button:hover {
+  background: var(--g750);
+}
+
+.sheet-card-menu-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* The popup lives OUTSIDE `.sheet-card` (which clips for the thumbnail's corners), as a
+   sibling inside `.sheet-grid-item`. */
+.sheet-card-menu {
+  position: absolute;
+  right: 8px;
+  top: 236px;
+  z-index: 20;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--g800);
+  border: 2px solid var(--g600);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
 /* Loading: 8 skeletons (reuses the global `fm-shimmer` keyframes from styles.css). */
 .sheet-card-skeleton {
   border-radius: 10px;
@@ -455,3 +506,254 @@
     animation: none;
   }
 }
+
+/* ---- the trash panel (UI §11.2:711; build spec §11.9:2029) --------------- */
+
+/* A centred modal sheet over a 60 % scrim — the same topmost-modal layer as the export
+   wizard. `z-index: 60` sits above the editor's sheets (40) and this screen's own ⋯ menu. */
+.trash-scrim {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(11, 14, 18, 0.6);
+  z-index: 60;
+}
+
+.trash-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 760px;
+  max-height: 640px;
+  overflow: hidden;
+  background: var(--g750);
+  border: 2px solid var(--g700);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(11, 14, 18, 0.7);
+  color: var(--g000);
+}
+
+.trash-sheet:focus-visible {
+  outline: 2px solid var(--sel);
+  outline-offset: 2px;
+}
+
+.trash-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 2px solid var(--g700);
+}
+
+.trash-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 700;
+}
+
+.trash-close {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  cursor: pointer;
+}
+
+.trash-close:hover {
+  background: var(--g700);
+}
+
+.trash-close svg {
+  width: 22px;
+  height: 22px;
+}
+
+.trash-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trash-state-line {
+  margin: 0;
+  text-align: center;
+  color: var(--g300);
+  font-size: 15px;
+}
+
+.trash-error-line {
+  margin: 0;
+  padding: 12px 16px;
+  border: 2px solid var(--err);
+  border-radius: 12px;
+  color: var(--err);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* List on the left, read-only preview on the right; stacked when narrow (UI §11.2:711 —
+   "list + preview"). */
+.trash-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.trash-list {
+  flex: 1 1 320px;
+  min-width: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trash-row-item {
+  list-style: none;
+}
+
+/* A row is a full-width button: comfortably over the 48 px touch floor, so it needs no
+   hit slop (which would overlap the neighbouring rows — §14.5). */
+.trash-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 8px;
+  border: 2px solid var(--g700);
+  border-radius: 10px;
+  background: var(--g800);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trash-row:hover {
+  background: var(--g750);
+}
+
+/* The currently-previewed row (never a hidden state: colour + a visible border). */
+.trash-row[aria-current='true'] {
+  border-color: var(--sel);
+}
+
+.trash-row-thumb,
+.trash-preview-thumb {
+  flex: 0 0 auto;
+  display: block;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--g750);
+}
+
+.trash-row-thumb {
+  width: 80px;
+  height: 60px;
+}
+
+.trash-preview-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+
+.trash-thumb-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.trash-thumb-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--g700);
+}
+
+.trash-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trash-row-name {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The 14-day promise, per row (§11.2:711 "days-left"). */
+.trash-row-meta,
+.trash-preview-meta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--g300);
+}
+
+.trash-preview {
+  flex: 1 1 280px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 2px solid var(--g700);
+  border-radius: 14px;
+  background: var(--g800);
+}
+
+.trash-preview-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trash-preview-name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-preview-meta {
+  margin: 0;
+}
+
+.trash-restore {
+  width: 100%;
+}
+
+.trash-note {
+  margin: 0;
+  color: var(--g300);
+  font-size: 13px;
+}
+

@@ -78,7 +78,14 @@ export class FakeFile {
     return {
       async write(data) {
         file.hooks.beforeWrite?.(file);
-        staged = typeof data === 'string' ? data : String(data);
+        // Blob/File payloads (photo.jpg, thumb.jpg, markup.json copies) must round-trip as
+        // their BYTES, not `String(blob)` ('[object Blob]'). Sheet trash verifies an
+        // identical-size copy, so the previous coercion made blob writes unrepresentable.
+        // `Blob.text()` is exact for the text-representable fixtures the node tests use;
+        // a non-Blob BufferSource keeps the old string coercion.
+        if (typeof data === 'string') staged = data;
+        else if (typeof (data as Blob).text === 'function') staged = await (data as Blob).text();
+        else staged = String(data);
       },
       async close() {
         file.hooks.beforeClose?.(file);

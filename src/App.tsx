@@ -25,6 +25,7 @@ import { emitToast } from '@/editor/session';
 import ProjectScreen from '@/ui/ProjectScreen';
 import { listProjectSheets, type ProjectSheetCard } from '@/fs/projectSheets';
 import { createProject, readProjectFile, registerOpenProject, resolveOpenProjectDir } from '@/fs/projectStore';
+import { deleteSheet, listTrash, pruneTrash, restoreSheet, type TrashedSheet } from '@/fs/sheetTrash';
 import { STRINGS, t } from '@/ui/strings';
 import { getProjectsRoot } from '@/settings/projectsRoot';
 
@@ -77,6 +78,12 @@ export default function App() {
   const [selectedSheetIds, setSelectedSheetIds] = useState<readonly string[]>([]);
   /** «Import» from the grid opens the editor with its file picker already armed. */
   const [importOnOpen, setImportOnOpen] = useState(false);
+  /** Slice 1.10: the 14-day trash — the panel's list (`undefined` = not loaded yet) and the
+   *  shell-reported restore failure the panel renders honestly. */
+  const [trashItems, setTrashItems] = useState<readonly TrashedSheet[] | undefined>(undefined);
+  const [trashRestoreFailed, setTrashRestoreFailed] = useState(false);
+  /** A grid «Export» hand-off: the selection the wizard must open already scoped to. */
+  const [pendingExportSelection, setPendingExportSelection] = useState<readonly string[] | null>(null);
   /**
    * «New project» runs an async folder create. The flag makes a double-tap a no-op
    * (two clicks before the first create resolves must not mint two projects); the
@@ -108,12 +115,53 @@ export default function App() {
     setRoute('project');
   }
 
+  /** Load (or refresh) the project's 14-day trash for the grid's panel. */
+  async function loadTrash(projectId: string): Promise<void> {
+    try {
+      setTrashItems(await listTrash(projectId));
+    } catch {
+      // An unreadable trash must not take the grid down with it; an empty list is the honest
+      // fallback because the panel distinguishes "not loaded" (`undefined`) from "empty".
+      setTrashItems([]);
+    }
+  }
+
+  /**
+   * Delete a sheet into `.trash/` (UI §13.3 — recoverable, never a silent no-op). It RESOLVES
+   * only once the write has landed: the screen announces «Sheet deleted · Undo» on success and
+   * an honest failure line otherwise, so the toast can never claim a deletion that did not
+   * happen (D113).
+   */
+  async function handleDeleteSheet(id: string): Promise<void> {
+    if (!editorTarget) return;
+    await deleteSheet(editorTarget.projectId, id);
+    setSelectedSheetIds((ids) => ids.filter((x) => x !== id));
+    setProjectRefresh((n) => n + 1);
+    await loadTrash(editorTarget.projectId);
+  }
+
+  /** Restore a trashed sheet (§11.9). A failure is reported to the panel, never swallowed. */
+  async function handleRestoreSheet(id: string): Promise<void> {
+    if (!editorTarget) return;
+    try {
+      await restoreSheet(editorTarget.projectId, id);
+      setTrashRestoreFailed(false);
+      setProjectRefresh((n) => n + 1);
+      await loadTrash(editorTarget.projectId);
+    } catch {
+      setTrashRestoreFailed(true);
+    }
+  }
+
   /**
    * Load the grid's model whenever the screen is shown, or after a capture/import wrote a
    * sheet. A read failure is an honest `error` state — never a silently empty grid.
    */
   useEffect(() => {
     if (route !== 'project' || !editorTarget) return;
+    // §11.9: the 14-day prune runs on project open. Deliberately non-fatal — a failed prune
+    // must never hide the sheets — and it is the ONLY thing that ever removes a trash entry.
+    void pruneTrash(editorTarget.projectId).catch(() => undefined);
     let alive = true;
     void (async () => {
       try {
@@ -124,6 +172,7 @@ export default function App() {
         setProjectTitle(file.project.title);
         setProjectSheets(cards);
         setProjectLoad(cards.length === 0 ? 'empty' : 'ready');
+        void loadTrash(editorTarget.projectId);
       } catch {
         if (alive) setProjectLoad('error');
       }
@@ -229,11 +278,21 @@ export default function App() {
             setRoute('editor');
           }}
           onExport={(ids) => {
-            // Export lives in the editor's wizard, which owns the destination and every
-            // write. Grid-scoped export (the wizard opened with this selection) is owed.
+            // Export lives in the editor's wizard, which owns the destination and every write.
+            // The selection is handed over so the wizard opens ALREADY scoped to it — it derives
+            // its initial scope from `selectedSheetIds` (UI §12:712).
             setSelectedSheetIds(ids);
+            setPendingExportSelection(ids.length > 0 ? ids : null);
             setRoute('editor');
           }}
+          onDeleteSheet={handleDeleteSheet}
+          trash={trashItems}
+          trashRestoreFailed={trashRestoreFailed}
+          onOpenTrash={() => {
+            void loadTrash(editorTarget.projectId);
+          }}
+          onRestoreSheet={handleRestoreSheet}
+          onCloseTrash={() => setTrashRestoreFailed(false)}
           onBack={() => {
             setSelectedSheetIds([]);
             setRoute('home');
@@ -250,6 +309,8 @@ export default function App() {
             folderName={editorTarget.folderName}
             sheetId={editorSheetId}
             autoImport={importOnOpen}
+            initialExportSelection={pendingExportSelection ?? undefined}
+            onInitialExportConsumed={() => setPendingExportSelection(null)}
             onAddSheet={() => {
               setCaptureOrigin('editor');
               setCaptureOpen(true);

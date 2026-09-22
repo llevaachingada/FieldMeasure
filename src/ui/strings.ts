@@ -98,8 +98,38 @@ export const STRINGS = {
   },
 
   // APPROVED inventory (appendix-strings.md `## trash`)
+  // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §10 `sheetMenu.*`;
+  // the two accessible names are beyond both appendices). UI §11.2:720's card menu.
+  sheetMenu: {
+    delete: 'Delete',
+    moreNamed: 'More actions for {title}',
+    deleteNamed: 'Delete {title}',
+  },
+
   trash: {
     open: 'Trash…',
+    // APPROVED inventory (appendix-strings.md `## trash`, line 272) — slice 1.10, the
+    // 14-day trash's restore UI.
+    restore: 'Restore',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): the specs require the
+    // information (UI §11.2:711 "name, deleted date, days-left"; build spec §11.9:2029) but
+    // key none of it, so each row is a builder proposal for the content owner.
+    deletedOn: 'Deleted {date}',
+    daysLeft: '{daysLeft} days left',
+    daysLeftOne: '1 day left',
+    daysLeftNone: 'Prunes today',
+    empty: 'No sheets in the trash.',
+    loading: 'Loading trash…',
+    restoring: 'Restoring…',
+    restoreFailed: "Couldn't restore that sheet",
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): an honest line for a
+    // delete whose write failed. The screen emits it INSTEAD of «Sheet deleted · Undo» —
+    // never alongside (D113).
+    deleteFailed: "Couldn't delete that sheet",
+    previewLabel: 'Preview',
+    restoreNamed: 'Restore {title}',
+    pruneNote: 'Deleted sheets are kept for 14 days.',
   },
 
   // APPROVED inventory (appendix-strings.md `## dimension`) — used as the
@@ -173,6 +203,11 @@ export const STRINGS = {
     // the toast after «Use photo» when the capture was launched from Home/Project, naming
     // the sheet that was just written. Its «↶ Undo» half is owed (no delete path yet).
     addedSheet: 'Added {sheetName}',
+    // APPROVED inventory (appendix-strings.md `toasts.sheetDeleted`, line 287; the middle
+    // dot is U+00B7). UI §13.3:800 — a sheet delete is recoverable: this toast's action is
+    // what makes `ToastHost` hold it for 10 s. Emitted by the SHELL, after the write
+    // resolves — never optimistically by the screen (D113).
+    sheetDeleted: 'Sheet deleted · Undo',
     undoAction: 'Undid: {actionName}',
     // APPROVED inventory (appendix-strings.md `toasts.updateReady`, line 288).
     updateReady: "Update ready — reload when you're done",

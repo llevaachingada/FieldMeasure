@@ -8,6 +8,13 @@
  * state — in a field app the add affordance must be the easiest thing on the screen
  * (UI §11.2).
  *
+ * SHEET TRASH (this lane): the per-card `⋯` → `Delete` affordance (§13.3: recoverable —
+ * immediate, then a 10 s «Sheet deleted · Undo» toast via the shipped `ToastHost`), and the
+ * top bar's `⋯ → «Trash…»` panel (list + read-only preview + `«Restore»`, §11.2:711 /
+ * P §11.9:2029). Both are injected through optional props: absent means no affordance.
+ * DELETE IS NEVER A SILENT NO-OP and never a bare one-tap — it is a two-tap card menu with
+ * a real undo window.
+ *
  * A11Y (per-slice, non-negotiable):
  *   - every control has an accessible name; 48 px minimum targets with `.hit-slop`;
  *     the global `:focus-visible` ring (styles.css) is untouched.
@@ -30,9 +37,10 @@ import { Camera, Check, ChevronLeft, MoreHorizontal, Share2, Upload } from 'luci
 import { emitToast } from '@/editor/session';
 import type { ProjectSheetCard } from '@/fs/projectSheets';
 import { STRINGS, t } from './strings';
+import TrashPanel, { type TrashedSheet } from './TrashPanel';
 import './projectScreen.css';
 
-export type { ProjectSheetCard };
+export type { ProjectSheetCard, TrashedSheet };
 
 export interface ProjectScreenProps {
   projectTitle: string;
@@ -48,6 +56,26 @@ export interface ProjectScreenProps {
   onImport(): void;
   onExport(selectedIds: readonly string[]): void;
   onBack(): void;
+
+  // ---- sheet trash (UI §11.2:711; build spec §11.9:2029; UI §13.3:800) --------
+  // Every prop is additive and optional. ABSENT means the affordance does not render
+  // (D102 honesty: nothing dead-looking).
+  /**
+   * The user confirmed «Delete» on a card (§13.3: recoverable — immediate + undo toast).
+   * Returns when the SHELL's write has resolved, so the screen can announce only what really
+   * happened: resolve → «Sheet deleted · Undo» (10 s); reject → an urgent failure line, and no
+   * claim of success.
+   */
+  onDeleteSheet?(id: string): Promise<void> | void;
+  /** The ⋯ panel's list, already loaded by the shell. `undefined` = "not loaded yet". */
+  trash?: readonly TrashedSheet[];
+  /** The shell reports a failed restore; the panel shows an honest failure line. */
+  trashRestoreFailed?: boolean;
+  /** Load/refresh the trash list when the panel opens. */
+  onOpenTrash?(): void;
+  /** «Restore» in the panel — and the «Undo» half of the delete toast. */
+  onRestoreSheet?(id: string): void;
+  onCloseTrash?(): void;
 }
 
 /** UI §11.2 loading state: 8 skeleton cards, plus the two real add tiles. */
@@ -89,59 +117,168 @@ interface SheetCardRowProps {
   card: ProjectSheetCard;
   selected: boolean;
   selectable: boolean;
+  /** True when `onDeleteSheet` is injected — the card's ⋯ menu (delete affordance) renders. */
+  deletable: boolean;
   onOpen(id: string): void;
   onToggle(id: string): void;
+  onDelete(id: string): void;
 }
 
-function SheetCardRow({ card, selected, selectable, onOpen, onToggle }: SheetCardRowProps) {
+/**
+ * One sheet card (320 × 300). The card itself opens the sheet; a per-card `⋯` opens the
+ * §11.2 card menu. This lane builds only the item it owns — `Delete` (§13.3: recoverable,
+ * immediate + the 10 s undo toast). The rest of the §11.2 card menu (Rename, Duplicate,
+ * Replace photo) is owed by other slices and is deliberately NOT faked here: rendering
+ * disabled copies would stage copy and markup those lanes also touch, and the pinned props
+ * carry no callbacks for them.
+ *
+ * The popup is a SIBLING of `.sheet-card`, inside the `.sheet-grid-item` wrapper: the card
+ * clips its own contents (`overflow: hidden`, for the thumbnail's rounded corners), so a
+ * menu nested inside it would be clipped away.
+ */
+function SheetCardRow({
+  card,
+  selected,
+  selectable,
+  deletable,
+  onOpen,
+  onToggle,
+  onDelete,
+}: SheetCardRowProps) {
   // The «04» badge — 1-based, mono. Runtime number, never a persisted string (appendix
   // excludes `04` as an example value).
   const badge = String(card.index).padStart(2, '0');
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLLIElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuName = t(STRINGS.sheetMenu.moreNamed, { title: card.title });
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not([disabled])')?.focus();
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!rootRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [menuOpen]);
+
+  function closeMenu(returnFocus: boolean): void {
+    setMenuOpen(false);
+    if (returnFocus) triggerRef.current?.focus();
+  }
+
+  function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+    if (event.key === 'Tab') {
+      closeMenu(false);
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const buttons = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])') ?? [],
+    );
+    if (buttons.length === 0) return;
+    event.preventDefault();
+    const index = buttons.findIndex((b) => b === document.activeElement);
+    const next =
+      event.key === 'ArrowDown'
+        ? (index + 1 + buttons.length) % buttons.length
+        : (index - 1 + buttons.length) % buttons.length;
+    buttons[next]?.focus();
+  }
+
   return (
-    <li className="sheet-card" data-selected={selected ? 'true' : 'false'} data-sheet-id={card.id}>
-      <button
-        type="button"
-        className="sheet-card-open"
-        aria-label={card.title}
-        onClick={() => onOpen(card.id)}
-      >
-        <span className="sheet-card-thumb">
-          <SheetThumb thumb={card.thumb} />
-          {selected ? (
-            <span className="sheet-card-check" aria-hidden="true">
-              <Check />
-            </span>
-          ) : (
-            <span className="sheet-card-index mono" aria-hidden="true">
-              {badge}
-            </span>
-          )}
-          {card.insetCount > 0 ? (
-            <span className="sheet-card-insets mono" aria-hidden="true">
-              {t(STRINGS.project.insetBadge, { insetCount: card.insetCount })}
-            </span>
-          ) : null}
-        </span>
-        <span className="sheet-card-bottom">
-          <span className="sheet-card-name">{card.title}</span>
-          <span className="sheet-card-meta mono">
-            {t(STRINGS.project.sheetMeta, {
-              time: card.updatedAtLabel,
-              dimensionCount: card.dimensionCount,
-            })}
-          </span>
-        </span>
-      </button>
-      {selectable ? (
+    <li className="sheet-grid-item" data-sheet-id={card.id} ref={rootRef}>
+      <div className="sheet-card" data-selected={selected ? 'true' : 'false'}>
         <button
           type="button"
-          className="sheet-card-select hit-slop"
-          aria-pressed={selected}
-          aria-label={t(STRINGS.project.selectToggle, { title: card.title })}
-          onClick={() => onToggle(card.id)}
+          className="sheet-card-open"
+          aria-label={card.title}
+          onClick={() => onOpen(card.id)}
         >
-          {selected ? <Check aria-hidden="true" /> : null}
+          <span className="sheet-card-thumb">
+            <SheetThumb thumb={card.thumb} />
+            {selected ? (
+              <span className="sheet-card-check" aria-hidden="true">
+                <Check />
+              </span>
+            ) : (
+              <span className="sheet-card-index mono" aria-hidden="true">
+                {badge}
+              </span>
+            )}
+            {card.insetCount > 0 ? (
+              <span className="sheet-card-insets mono" aria-hidden="true">
+                {t(STRINGS.project.insetBadge, { insetCount: card.insetCount })}
+              </span>
+            ) : null}
+          </span>
+          <span className="sheet-card-bottom">
+            <span className="sheet-card-name">{card.title}</span>
+            <span className="sheet-card-meta mono">
+              {t(STRINGS.project.sheetMeta, {
+                time: card.updatedAtLabel,
+                dimensionCount: card.dimensionCount,
+              })}
+            </span>
+          </span>
         </button>
+        {selectable ? (
+          <button
+            type="button"
+            className="sheet-card-select hit-slop"
+            aria-pressed={selected}
+            aria-label={t(STRINGS.project.selectToggle, { title: card.title })}
+            onClick={() => onToggle(card.id)}
+          >
+            {selected ? <Check aria-hidden="true" /> : null}
+          </button>
+        ) : null}
+        {deletable ? (
+          <button
+            ref={triggerRef}
+            type="button"
+            className="sheet-card-menu-button hit-slop"
+            data-testid={`sheet-card-menu-${card.id}`}
+            aria-label={menuName}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <MoreHorizontal aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+      {deletable && menuOpen ? (
+        <div
+          ref={menuRef}
+          className="sheet-card-menu"
+          role="menu"
+          aria-label={menuName}
+          onKeyDown={onMenuKeyDown}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="project-menu-item"
+            data-card-menu-item="delete"
+            aria-label={t(STRINGS.sheetMenu.deleteNamed, { title: card.title })}
+            onClick={() => {
+              // Return focus to the trigger before the shell removes the card.
+              closeMenu(true);
+              onDelete(card.id);
+            }}
+          >
+            {STRINGS.sheetMenu.delete}
+          </button>
+        </div>
       ) : null}
     </li>
   );
@@ -169,8 +306,15 @@ export default function ProjectScreen({
   onImport,
   onExport,
   onBack,
+  onDeleteSheet,
+  trash,
+  trashRestoreFailed,
+  onOpenTrash,
+  onRestoreSheet,
+  onCloseTrash,
 }: ProjectScreenProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -178,6 +322,10 @@ export default function ProjectScreen({
   const selected = useMemo(() => new Set(selectedIds ?? []), [selectedIds]);
   // A read-only project (UI §11.2) and an unreadable one (state `error`) can't take a write.
   const blocked = readOnly || state === 'error';
+  // The delete affordance exists only when the shell injects the real callback — never a
+  // silent no-op, never a dead-looking control (D102).
+  const deletable = typeof onDeleteSheet === 'function';
+  const trashAvailable = typeof onOpenTrash === 'function';
 
   // The selection in sheet order — `[]` means "every sheet" (onExport contract).
   const selectedInOrder = useMemo(
@@ -229,6 +377,44 @@ export default function ProjectScreen({
     emitToast({ text: STRINGS.project.notSavedToast, urgent: true });
   }
 
+  /**
+   * §13.3 destructive policy: a sheet delete is RECOVERABLE — immediate, then a toast with a
+   * real 10 s Undo window (§13.4's action-carrying timing). The toast is emitted **after the
+   * shell's write resolves**, never optimistically: a screen that announced «Sheet deleted»
+   * before the write landed would be claiming something the system may not have done — the
+   * same rule that keeps the autosave chip from ever being optimistic (§13.1).
+   */
+  async function handleDeleteSheet(id: string): Promise<void> {
+    const remove = onDeleteSheet;
+    if (typeof remove !== 'function') return;
+    try {
+      await remove(id);
+    } catch {
+      // The write failed: say so, and do NOT claim a deletion or offer an undo for one.
+      emitToast({ text: STRINGS.trash.deleteFailed, urgent: true });
+      return;
+    }
+    emitToast({
+      text: STRINGS.toasts.sheetDeleted,
+      action:
+        typeof onRestoreSheet === 'function'
+          ? { label: STRINGS.editor.undo, run: () => onRestoreSheet(id) }
+          : undefined,
+    });
+  }
+
+  /** Open the trash panel: return focus to the ⋯ trigger first, then tell the shell to load. */
+  function openTrash(): void {
+    triggerRef.current?.focus();
+    setTrashOpen(true);
+    onOpenTrash?.();
+  }
+
+  function closeTrash(): void {
+    setTrashOpen(false);
+    onCloseTrash?.();
+  }
+
   const menuItems: OverflowItem[] = [
     {
       key: 'export',
@@ -239,7 +425,14 @@ export default function ProjectScreen({
     { key: 'rename', label: STRINGS.projectMenu.rename, disabled: true },
     { key: 'copyPath', label: STRINGS.projectMenu.copyPath, disabled: true },
     { key: 'revealFolder', label: STRINGS.export.revealFolder, disabled: true },
-    { key: 'trash', label: STRINGS.trash.open, disabled: true },
+    {
+      // UI §11.2:711 — `Trash…` is live once the shell can load `.trash/` (D102: disabled
+      // and labelled otherwise, never hidden).
+      key: 'trash',
+      label: STRINGS.trash.open,
+      disabled: !trashAvailable,
+      run: openTrash,
+    },
     { key: 'deleteProject', label: STRINGS.projectMenu.deleteProject, disabled: true },
     { key: 'projectSettings', label: STRINGS.editor.menuProjectSettings, disabled: true },
   ];
@@ -385,8 +578,10 @@ export default function ProjectScreen({
                       card={card}
                       selected={selected.has(card.id)}
                       selectable={typeof onToggleSelected === 'function'}
+                      deletable={deletable}
                       onOpen={onOpenSheet}
                       onToggle={onToggleSelected ?? (() => {})}
+                      onDelete={handleDeleteSheet}
                     />
                   ))
                 : null}
@@ -419,6 +614,17 @@ export default function ProjectScreen({
             {STRINGS.project.clearSelection}
           </button>
         </div>
+      ) : null}
+
+      {/* The trash restore UI (§11.2:711; P §11.9:2029). The panel owns its own
+          `role="dialog"`/focus trap; this is the only mount point. */}
+      {trashOpen ? (
+        <TrashPanel
+          items={trash}
+          restoreFailed={trashRestoreFailed ?? false}
+          onRestore={onRestoreSheet}
+          onClose={closeTrash}
+        />
       ) : null}
     </main>
   );

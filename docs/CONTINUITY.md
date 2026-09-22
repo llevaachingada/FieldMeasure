@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 20 — **the Project screen exists** (D111): `Home → sheets grid → editor`, with the two add tiles first, per-sheet selection and the capture returning **to the grid** with the approved «Added {sheetName}» toast — the D88 gap the plan had carried since session 4, and build spec §20.5(a)'s "screen that makes storage visible". **Slice 1.11 landed** (D112): a prompt-mode update that **suppresses itself during any measurement** and reloads only after the autosave queue has genuinely settled (a parked failure is a rejection — a reload never runs over an unwritten edit). Gate: tsc 0 · **84 files / 1161 tests** · build 0 (25 precache, 1483.93 KiB) · playwright 5/5. One integration regression caught and fixed: the open-project registry is keyed by the full `${id}:${folderName}` runtime key (D51), so the grid briefly reported every project as an error. Next: the paused 1.10 polish (History flyout, a11y audit, halo fix, PDF captions), the grid's owed items (reorder/rename/duplicate/replace/delete→`.trash/`, grid-scoped export), then 2.0)
+**Last updated:** 2026-09-22 (session 21 — **sheet trash shipped** (D113): delete → `<project>/.trash/` with a **copy → verify → only-then-remove** move (FSA has no directory `move()`), a **strictly-older-than-14-days** prune that runs on project open and is the *only* thing that ever touches trash, and the `⋯ → «Trash…»` panel (name, deleted date, **days left**, read-only preview, «Restore»). **The delete toast is honest**: the screen awaits the shell's write, so «Sheet deleted · Undo» appears only after a real deletion and a failure says so with **no undo offered** — the sixth instance this session of *the UI claiming something the system had not done*. **The grid's Export now hands its selection to the wizard**, closing D111's last owed item. Gate: tsc 0 · **86 files / 1205 tests** · build 0 (25 precache, 1498.09 KiB) · playwright 5/5. Next: the grid's remaining items (reorder, rename, duplicate, replace photo), the paused 1.10 polish, then 2.0)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2–1.9 complete (1.9 reviewed, D109); 1.10 partially shipped — themes (D104) and the trust layer (D107) are in, its polish items are paused by the owner; 1.11 landed (D112); the Project screen is BUILT (D111).** Not built yet: the History flyout, the end-to-end a11y audit, the arrow nudge, the on-screen label-halo fix (D101), PDF captions, `.trash/` + restore, sheet reorder/rename/duplicate/replace, grid-scoped export, and 2.0 |
-| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer + 1.11 + the Project screen**, **84 files / 1161 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1483.93 KiB); playwright 5 passed / 5 skipped. This session: `src/ui/ProjectScreen.tsx` + `projectScreen.css` + `src/fs/projectSheets.ts` (the read-only grid loader), `src/ui/UpdateToast.tsx` + `PWAUpdate.tsx` + `updateReload.ts`, the build-id injection, and the routing that ties them together |
+| Phase | **Slices 0.2–1.9 complete (1.9 reviewed, D109); 1.10 in progress; 1.11 landed (D112); the Project screen is built (D111) and now owns sheet trash (D113).** Shipped in 1.10 so far: themes (D104), the trust layer (D107), sheet trash (D113). Still owed: the History flyout, the end-to-end a11y audit, the arrow nudge, D101's halo fix, PDF captions, and the grid's reorder/rename/duplicate/replace-photo. Then 2.0 |
+| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **86 files / 1205 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1498.09 KiB); playwright 5 passed / 5 skipped. This session: `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune + the panel), the grid's card menu, `trash.*`/`sheetMenu.*` copy folded into `strings.ts`, and the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **The Project screen's owed items** (D111): sheet **reorder** (long-press drag + `sortIndex`), **rename**, **duplicate**, **replace photo**, **delete → `.trash/`** (+ the 14-day prune and its restore UI), **grid-scoped export** (the wizard opened on the selection), returning to the grid after a grid-launched **import**, and the §11.4 storage chip. Then the **paused 1.10 polish**: the History flyout (`writeHistorySnapshot` still has no caller), the end-to-end a11y audit, the arrow nudge, and D101's label-halo fix. Then 2.0. Content-owner items still open: the PDF caption placement (F1) and sign-off on the `Skip` rows (F4) |
+| Next action | **The Project screen's remaining items (D111):** sheet **reorder** (long-press drag + `sortIndex`), **rename**, **duplicate**, **replace photo**, and the §11.4 storage chip; plus D113's owed restore-side undo toast (needs approved copy). Then the **paused 1.10 polish**: the History flyout (`writeHistorySnapshot` still has no caller), the end-to-end a11y audit, the arrow nudge, and D101's label-halo fix; the PDF caption placement (F1) and the `Skip`-row copy sign-off (F4) still need the content owner. Then 2.0 |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -770,6 +770,36 @@ field device current:
 screen's own 29 tests — to prove the screen could read the disk at all. Again: a unit can be right while the
 system is wrong, and only the integration path sees it.
 
+### 2026-09-22 — Session 21: sheet trash (delete → `.trash/`, prune, restore) and an honest delete
+
+The trash slice is the one that makes deleting a bad photo possible **without** losing a measurement record:
+
+1. **Storage (`src/fs/sheetTrash.ts`).** `deletedAt` on the `project.json` row is the single ledger (the
+   schema already carried it; the scan, intake and grid loader already skip such rows). The move is
+   **copy → verify → only then remove**, because FSA has no directory `move()`: a per-file size check
+   catches a partial or zero-byte write, and a failed copy leaves the original untouched. The prune is
+   **strictly older than 14 days** and removes the `.trash/<id>/` folder *before* rewriting `project.json`,
+   so an entry is either fully pruned or untouched — never listed with its files gone.
+2. **The UI (`src/ui/TrashPanel.tsx` + the grid's card menu).** Delete is two deliberate taps; the panel
+   lists trashed sheets with name, deleted date and **days left**, a read-only preview and «Restore». An
+   unreadable trash renders as an empty trash, never a broken grid.
+3. **The delete toast became honest at integration.** The lane emitted «Sheet deleted · Undo»
+   **optimistically** — before the shell's write resolved. That is the same defect class this session has
+   fixed repeatedly: the UI claiming something the system had not done. The screen now **awaits the result**:
+   success → the approved toast with a real 10 s Undo; failure → an urgent failure line with **no undo
+   offered** for a deletion that did not happen. Three tests pin it, including *no toast while the write is
+   in flight*.
+4. **The grid's Export now completes the hand-off.** Its selection travels to the editor, where the wizard
+   opens **already scoped** to those sheets (it derives `'selected'` from `selectedSheetIds`, UI §12:712),
+   instead of dropping the user into an unscoped editor. This closes `D111`'s last owed item.
+5. **A drift hazard removed before it bit:** both lanes declared a `TrashedSheet` model; the storage
+   module's is now canonical and the panel re-exports it (the D94 lesson, applied pre-emptively).
+
+**Lesson.** Six of this session's fixes were one defect: *the interface said something the system had not
+done yet* — a dead button, a lying card meta, an inert tag, an empty archive reported as success, a torch
+that lit nothing, and a delete announced before it happened. Gates cannot catch this class, because the
+assertion and the lie usually agree; only asking "what would this say if the underlying call failed?" does.
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -1056,6 +1086,21 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   verified by read plus the pure ordering test, not by execution.
 - Carried: D105 (dev-mode is unstyled by CSP design — judge appearance from the built app), D106 (export
   owed list), D107 (chip/toast items).
+
+## Known drift / watch items (session 21)
+
+- **D113 owed:** the spec's restore-side undo toast («restored · undo») needs approved copy; and the trash
+  panel's two-pane layout, card-`⋯` placement and real focus/hit-slop behaviour are manual/CSS checks
+  (jsdom has no layout engine).
+- **The Project screen's remaining items (D111):** sheet reorder (drag + `sortIndex`), rename, duplicate,
+  replace photo, and the §11.4 storage chip in the grid top bar.
+- **The paused 1.10 polish:** the History flyout (`writeHistorySnapshot` has no caller), the end-to-end a11y
+  audit, the arrow nudge, and D101's label-halo screen fix.
+- **Content-owner items:** the PDF caption placement (F1, control disabled) and the two `Skip`-row strings (F4).
+- **`[Surface]` and never faked:** the service-worker update lifecycle (D112), the 14-day trash clock on real
+  hardware, real `move()`/NTFS behaviour, H8/H12/H19–H22, the Sunlight porch check, the real touch reorder.
+- Carried: D105 (dev-mode is unstyled by CSP design — judge appearance from the built app), D106 (export owed),
+  D107 (chip/toast items).
 
 ## How to resume
 

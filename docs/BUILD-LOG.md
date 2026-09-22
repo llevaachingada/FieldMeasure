@@ -1037,3 +1037,64 @@ the end-to-end a11y audit — plus the PDF-caption placement decision and the `S
 
 **Next:** the Project screen's owed items (reorder, rename, duplicate, replace photo, delete → `.trash/`,
 grid-scoped export) and the paused 1.10 polish (History flyout, a11y audit, halo fix, PDF captions), then 2.0.
+
+---
+
+## Session 21 — sheet trash (delete → `.trash/`, the 14-day prune, the restore UI)
+**Date:** 2026-09-22 · **Commits:** see `git log` · **Branch:** `main`
+
+**Built:**
+
+- **Sheet trash, storage half (`src/fs/sheetTrash.ts`).** `deleteSheet` / `restoreSheet` / `listTrash` /
+  `pruneTrash`. `deletedAt` on the `project.json` row is the **single** trash ledger — the schema already
+  carried it (`schema.ts:125`, `types.ts:80`) and the scan, the intake path and the grid loader already skip
+  such rows — and the files MOVE to `<project>/.trash/<id>/`. Because FSA has **no directory `move()`**, the
+  move is **copy → verify (per-file size, which also catches a zero-byte blob write) → only then remove**; a
+  failed copy leaves the original untouched and cleans up only a `.trash/<id>/` this call created. The prune
+  is **strictly older than 14 days** (`at < now − 1_209_600_000`; an entry deleted exactly 14 days ago is
+  KEPT, as is an unparseable `deletedAt`), it removes the folders **before** rewriting `project.json` (so an
+  entry is never listed with its files gone), and it is the **only** thing that ever removes a trash entry —
+  nothing prunes `.history/`/`.trash/` to make room, and `cleanStaleTmp` still skips `.trash/` (re-pinned).
+- **Sheet trash, UI half (`src/ui/TrashPanel.tsx` + the grid's card menu).** Delete is **two deliberate
+  taps** from a card's `⋯`; the panel lists trashed sheets with name, deleted date and **days left**, a
+  read-only preview and «Restore». It is one `role="dialog"` with its own focus trap and focus return, and an
+  unreadable trash renders as an *empty* trash rather than taking the grid down.
+- **The delete toast is honest (the integration change).** The lane emitted «Sheet deleted · Undo»
+  **optimistically**, before the shell's write resolved. The screen now **awaits the result**: resolve → the
+  approved `toasts.sheetDeleted` with a real 10 s Undo routing to the same restore the panel uses; reject → an
+  urgent `trash.deleteFailed` ("Couldn't delete that sheet") with **no success claim and no Undo offered for a
+  deletion that did not happen**. Three tests pin it: the toast after resolution, **no toast while the write is
+  in flight**, and a failure that says so.
+- **The grid's Export hand-off (closes D111's last owed item).** The grid's selection travels to the editor
+  and the wizard opens **already scoped** to it — the wizard derives `'selected'` from `selectedSheetIds`
+  (UI §12:712). The hand-off waits for the export seam to publish the sheet list before opening, and the shell
+  clears its copy through `onInitialExportConsumed`, so it can never re-open on a later render.
+- **Copy folded per runbook §11:** `src/ui/trashPanelCopy.ts` was folded into `strings.ts` (`trash.*`,
+  `toasts.sheetDeleted` (APPROVED), `sheetMenu.*`) and **deleted**; `tests/strings.test.ts` stays green. One
+  new row was added by the integration: `trash.deleteFailed` (`⚠ PROPOSED (C14)`).
+- **A drift hazard removed:** both lanes declared a `TrashedSheet` model; the storage module's is now
+  canonical and the panel re-exports it (the D94 lesson, applied before it could bite).
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `CI=true npx vitest run` → **86 files / 1205 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 25 precache entries (1498.09 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+
+**Deferred to hardware:** the 14-day trash clock and real `move()`/NTFS behaviour (plus the carried rows).
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D113** (the trash slice: the copy→verify→remove move, the strict prune boundary, the
+restore ordering deviation, and the honest delete toast).
+
+**Surprises:**
+1. **The sixth instance of one defect class.** Six fixes this session were the same shape: *the interface said
+   something the system had not done* — a dead button, a card meta stating fiction, an inert tag, an empty
+   archive reported as a success, a torch that lit nothing, and now a delete announced before it happened.
+   Gates cannot catch it, because the assertion and the lie usually agree.
+2. **Two lanes independently declared the same model type.** Harmless today, a drift bug tomorrow — caught and
+   collapsed to one canonical definition at integration.
+
+**Next:** the grid's remaining items (reorder, rename, duplicate, replace photo, the storage chip) and the
+paused 1.10 polish (History flyout, a11y audit, halo fix, PDF captions), then 2.0.

@@ -8,12 +8,12 @@
  * asserted is the model, the copy contract, the interaction contract and the a11y contract.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ProjectScreen, { type ProjectScreenProps } from '../src/ui/ProjectScreen';
+import ProjectScreen, { type ProjectScreenProps, type TrashedSheet } from '../src/ui/ProjectScreen';
 import type { ProjectSheetCard } from '../src/fs/projectSheets';
 import { STRINGS, t } from '../src/ui/strings';
-import { resetToastBus, subscribeToastMessage } from '../src/editor/session';
+import { resetToastBus, subscribeToastMessage, type ToastMessage } from '../src/editor/session';
 
 afterEach(() => {
   cleanup();
@@ -285,5 +285,171 @@ describe('accessibility', () => {
     expect(items).toHaveLength(5);
     expect(items[0].querySelector('.sheet-tile-photo')).toBeTruthy();
     expect(items[1].querySelector('.sheet-tile-import')).toBeTruthy();
+  });
+});
+
+describe('sheet delete — recoverable, never a silent no-op (UI §13.3:800)', () => {
+  it('renders NO card menu when onDeleteSheet is absent (absent prop → no affordance)', () => {
+    renderScreen();
+    expect(document.querySelectorAll('.sheet-card-menu-button')).toHaveLength(0);
+    expect(document.querySelectorAll('.sheet-card-menu')).toHaveLength(0);
+  });
+
+  it('deletes only after two deliberate taps, then offers the real 10 s Undo', async () => {
+    const user = userEvent.setup();
+    const toasts: ToastMessage[] = [];
+    const off = subscribeToastMessage((toast) => toasts.push(toast));
+    // D113: the handler resolves — the screen announces only what the shell's write did.
+    const onDeleteSheet = vi.fn(async () => {});
+    const onRestoreSheet = vi.fn();
+    renderScreen({ onDeleteSheet, onRestoreSheet });
+
+    // Not a bare one-tap: the card ⋯ first…
+    await user.click(screen.getByTestId('sheet-card-menu-s2'));
+    expect(onDeleteSheet).not.toHaveBeenCalled();
+
+    // …then Delete.
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: t(STRINGS.sheetMenu.deleteNamed, { title: 'Sheet 02' }),
+      }),
+    );
+
+    expect(onDeleteSheet).toHaveBeenCalledTimes(1);
+    expect(onDeleteSheet).toHaveBeenCalledWith('s2');
+    // The toast appears only once the shell's write has resolved.
+    await waitFor(() => expect(toasts).toHaveLength(1));
+    expect(toasts[0].text).toBe(STRINGS.toasts.sheetDeleted);
+    expect(toasts[0].action?.label).toBe(STRINGS.editor.undo);
+
+    // The Undo is real, not decoration: it routes to the injected restore.
+    toasts[0].action?.run();
+    expect(onRestoreSheet).toHaveBeenCalledWith('s2');
+
+    off();
+  });
+
+  it('never announces the delete before the shell confirms it (no optimistic toast)', async () => {
+    const user = userEvent.setup();
+    const toasts: ToastMessage[] = [];
+    const off = subscribeToastMessage((toast) => toasts.push(toast));
+    // Definite assignment: TS cannot see the assignment inside the promise executor, so the
+    // plain `let … | null` form narrows to `never` at the call site.
+    let release!: () => void;
+    const onDeleteSheet = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    renderScreen({ onDeleteSheet });
+
+    await user.click(screen.getByTestId('sheet-card-menu-s2'));
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: t(STRINGS.sheetMenu.deleteNamed, { title: 'Sheet 02' }),
+      }),
+    );
+
+    expect(onDeleteSheet).toHaveBeenCalledTimes(1);
+    // The write is still in flight: claiming «Sheet deleted» here would be a lie whenever it
+    // failed (the rule the autosave chip follows, §13.1).
+    expect(toasts).toHaveLength(0);
+
+    release?.();
+    await waitFor(() => expect(toasts).toHaveLength(1));
+    expect(toasts[0].text).toBe(STRINGS.toasts.sheetDeleted);
+    off();
+  });
+
+  it('a failed delete says so, claims no success, and offers no undo', async () => {
+    const user = userEvent.setup();
+    const toasts: ToastMessage[] = [];
+    const off = subscribeToastMessage((toast) => toasts.push(toast));
+    const onDeleteSheet = vi.fn(async () => {
+      throw new Error('write failed');
+    });
+    const onRestoreSheet = vi.fn();
+    renderScreen({ onDeleteSheet, onRestoreSheet });
+
+    await user.click(screen.getByTestId('sheet-card-menu-s2'));
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: t(STRINGS.sheetMenu.deleteNamed, { title: 'Sheet 02' }),
+      }),
+    );
+
+    await waitFor(() => expect(toasts).toHaveLength(1));
+    expect(toasts[0].text).toBe(STRINGS.trash.deleteFailed);
+    expect(toasts[0].urgent).toBe(true);
+    expect(toasts[0].action).toBeUndefined();
+    expect(onRestoreSheet).not.toHaveBeenCalled();
+    off();
+  });
+
+  it('the card ⋯ is keyboard-operable and Esc returns focus to its trigger', async () => {
+    const user = userEvent.setup();
+    renderScreen({ onDeleteSheet: vi.fn() });
+
+    const trigger = screen.getByTestId('sheet-card-menu-s1');
+    expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    // Focus moves onto the menu item.
+    expect(document.activeElement?.getAttribute('data-card-menu-item')).toBe('delete');
+
+    await user.keyboard('{Escape}');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe('⋯ → «Trash…» (UI §11.2:711; build spec §11.9:2029)', () => {
+  const TRASHED: TrashedSheet[] = [
+    { id: 't1', title: 'Sheet 09', deletedAt: '2026-09-20T15:00:00.000Z', daysLeft: 12, thumb: null },
+  ];
+
+  it('stays disabled when the shell cannot load the trash (D102, never hidden)', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.moreActions }));
+
+    const item = document.querySelector(
+      '.project-menu-item[data-menu-item="trash"]',
+    ) as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('opens the trash panel, tells the shell, and closes honestly', async () => {
+    const user = userEvent.setup();
+    const onOpenTrash = vi.fn();
+    const onCloseTrash = vi.fn();
+    renderScreen({ onOpenTrash, onRestoreSheet: vi.fn(), trash: TRASHED, onCloseTrash });
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.moreActions }));
+    const item = document.querySelector(
+      '.project-menu-item[data-menu-item="trash"]',
+    ) as HTMLButtonElement;
+    expect(item.disabled).toBe(false);
+    await user.click(item);
+
+    expect(onOpenTrash).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('dialog', { name: STRINGS.trash.open })).toBeTruthy();
+    // One dialog only — this repo has been bitten by nested same-named modals.
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByTestId('trash-row-t1')).toBeTruthy();
+
+    await user.click(screen.getByTestId('trash-close'));
+    expect(onCloseTrash).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('trash-panel')).toBeNull();
+  });
+
+  it('keeps the panel closed until the user opens it (no trash prop leaks onto the screen)', () => {
+    renderScreen({ onOpenTrash: vi.fn(), trash: TRASHED, onRestoreSheet: vi.fn() });
+    expect(screen.queryByTestId('trash-panel')).toBeNull();
   });
 });
