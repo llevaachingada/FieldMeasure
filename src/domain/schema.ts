@@ -88,6 +88,10 @@ export const AnnotationZ: z.ZodType<Annotation> = z.object({
   assetId: z.string().nullish(),
   groupId: z.string().nullish(),
   locked: z.boolean(),
+  // Slice 1.6 wiring: the Layers panel's eye toggle (types.ts `Annotation.visible`).
+  // `.nullish()` so an existing markup.json (which has no `visible`) still parses —
+  // absent = visible, so no migration version bump and no migrate.ts change.
+  visible: z.boolean().nullish(),
   // SPEC CORRECTION (session 4 / slice 1.1): §3.3 types `children` as optional WITHOUT
   // null (`children?: Annotation[]`), so `.optional()` — not `.nullish()` — is the exact
   // translation. `.nullish()` outputs `Annotation[] | null | undefined`, which is not

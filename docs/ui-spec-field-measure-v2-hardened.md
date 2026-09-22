@@ -394,7 +394,7 @@ Interaction: **tap** = expand the full style panel; **long-press** = open a comp
 │ [▣] ══════════  «Dimension»│  ← Style Chip (56)
 ├────────────────────────────┤
 │ COLOR                      │
-│ ● ● ● ● ● ●  (12 swatches) │  ← 2 rows × 6, 44px targets, 6px gaps
+│ ● ● ● ● ● ●  (12 swatches) │  ← 44px targets, 6px gaps; the grid WRAPS to the panel — 6 across would need 6×44+5×6 = 294px > 280px (⚠ CORRECTED session 11, D74)
 │ ● ● ● ● ● ●                │
 │ [ ◐ Custom… ] [ ⊙ Pick ]   │  ← 48px buttons
 ├────────────────────────────┤
@@ -490,7 +490,8 @@ States: **empty** n/a; **loading** n/a (all local); **error** only if the projec
 
 **Step 3 — Commit at B (pen up, or second tap), then the settle window.**
 - The dimension is committed **as geometry immediately** (the drawn line persists) on pen-up **or** on the second tap.
-- **Pen:** the **ft-in keypad sheet** slides up from the bottom edge in 180ms, occupying 360px tall, full width, centered content. The sheet is `--g750`, radius 14px top corners, with a grabber handle.
+- **Pen:** the **ft-in keypad sheet** slides up from the bottom edge in 180ms, full width, centered content, **sized to its contents** (`max-height: min(92vh, 620px)`). The sheet is `--g750`, radius 14px top corners, with a grabber handle.
+  - ⚠ **CORRECTED (session 11).** This bullet previously said "occupying 360px tall". That number is **arithmetically impossible** with this sheet's own contents: 48 header + 64 preview + 56 chips + 2×72 keys + 8 row gap + 20 notes + 128 actions + 30 padding + 40 inter-row gaps = **538 px** (shortfall ≈ 178 px). Clipping to 360 px would break a 72 px key, so the sheet is content-sized. See `DECISIONS.md` **D71** (as built) and **D74** (this correction).
 - **Touch — the 450 ms settle window (new).** On a touch second tap the keypad does **not** open instantly. Geometry commits, and a **450 ms settle window** opens with a live `<PlacementHud>` carrying `«✕»` · `«Adjust endpoints»` · `«✓ Value»`. The keypad **auto-opens only if no canvas contact occurred during the window**; **any `pointerdown` on the canvas before the timer fires cancels the auto-open permanently for that placement.** If that contact was within **40px** of an anchor it enters `RefineEndpoint`; otherwise it pans. Refining does not re-arm — after that the keypad opens only via the explicit `«✓ Value»`. **Committing or cancelling never discards the drawn geometry.** Timing: the HUD is interactive **≤50 ms** after the tap; the keypad is fully open at **630 ms worst case (450 settle + 180 slide)** — but the correction window is live from 50 ms. **Why 450 ms:** longer than any plausible finger-linger after a lift (so natural tap-tap rhythm never trips it), and it matches the existing 400 ms hold-to-shape and 400 ms autosave-coalesce windows. 〔Touch-first, v2.1〕
 - While the keypad is open, the canvas dims by only 25% and remains visible; the freshly drawn dimension stays highlighted with a `--sel` outline and its **drawn length readout** pulses once. 〔Touch-first, v2.1: under touch the canvas stays **live for pan and pinch-zoom only**; taps while the keypad is open do nothing (no place, no select), so a canvas tap no longer doubles as a cancel.〕
 - **Offset Nudge Pad + tug handles (touch refinement).** In `RefineEndpoint` a **120px** circular pad floats **96px away** from the anchor (same edge-aware quadrant logic as the loupe); the finger drags *in the pad*, not on the point, and the anchor moves at **0.35×** in the inner 60px core and **1.0×** in the outer band while the loupe shows the anchor at 4×. Both anchors also carry a **28px visual / 72px hit** tug handle, offset 24px perpendicular to the segment, away from the label. The pad is `--g900`@92% with a 2px `rgba(255,255,255,.14)` border and a chevron showing the drag vector. 〔Touch-first, v2.1〕
@@ -608,7 +609,8 @@ Two modes, chosen by long-press on the tool (default **Object**):
 
 **Insert flow:**
 1. Select the **Image inset** tool. A hint chip follows the pen: `«Tap where the inset should go»`. The canvas shows a `--sel` crosshair guide; crossing guides appear when near the center/edges. 〔Touch-first, v2.1: with no hover the hint chip appears once when the tool is selected rather than following a pointer. Image inset is a **1-tap** tool: tap → the picker sheet.〕
-2. Tap → an **insert picker sheet** (bottom sheet, 320px) with three large options:
+2. Tap → an **insert picker sheet** (bottom sheet, **content-sized**; `max-width: 720px`, `max-height: min(92vh, 720px)`) with three large options:
+   - ⚠ **CORRECTED (session 11).** This bullet previously said "320px". That width cannot hold the sheet's own contents at the 96 px thumbnails specified two lines below: 4 × 96 + 3 × 8 gaps + 2 × 16 padding = **440 px** minimum. The sheet is content-sized with a 720 px cap. See `DECISIONS.md` **D74**.
    - **`📷 «Take a photo»`** (64px row) → launches the in-app Capture flow in inset mode.
    - **`🖼 «Choose from device»`** → an OS file picker filtered to images (jpg/png/heic/webp) with multi-select allowed (multi-select inserts each as its own inset, cascaded 24px down-right, all selected after insert).
    - **`🕘 «Recent photos»`** → a 4×2 grid of the last 8 images captured or used in this project, thumbnails at 96px. This is the field-fast path: the crew usually just took the photo 30 seconds ago.
@@ -638,7 +640,7 @@ Two modes, chosen by long-press on the tool (default **Object**):
 ▸ Inset 1
 ▸ Photo (base — lockable, never deletable)
 ```
-Rows: type icon + name (`«Dimension 12' 6"»`, `«Inset 2»`, `«Freehand»`) at 56px row height, an eye toggle, a lock toggle, and drag-to-reorder (a 400ms long-press starts the drag so it isn't confused with a tap-to-select). Tap a row = select that object (and it pans the canvas to it if off-screen). Long-press a row = `Bring to front` / `Send to back` / `Group` / `Ungroup` / `Rename` / `Delete`. Selecting a markup group in the list is the fastest way to mass-restyle (e.g. select `Dimensions` → change color).
+Rows: type icon + name (`«Dimension 12' 6"»`, `«Inset 2»`, `«Freehand»`) at 56px row height, an eye toggle, a lock toggle, and a **drag grip**. Reordering drags by the **grip** (pointer-only input; keyboard users reorder from the row menu, one position within the row's own group); a **400 ms long-press on the row body** opens the row menu — so drag and menu are never the same gesture. Tap a row = select that object (and it pans the canvas to it if off-screen). Row menu = `Bring to front` / `Send to back` / `Group` / `Ungroup` / `Rename` / `Delete`. ⚠ **CORRECTED (session 11).** The previous wording gave *one* 400 ms row long-press both the drag and the menu, which is self-contradictory; the resolved split is **grip = drag, row body = menu** (see `DECISIONS.md` **D74**, and `LayersPanel.tsx` as built). Selecting a markup group in the list is the fastest way to mass-restyle (e.g. select `Dimensions` → change color).
 
 **States:** *Empty* (no insets → the panel's insert sheet shows the three options with the Recents grid); *Loading* (large photo decode → the inset renders as a `--g750` placeholder with a `«Loading photo…»` shimmer and the sheet count badge shows a spinner; decode happens on a worker so the canvas never stutters); *Error* (unsupported/corrupt file → the placeholder shows `«Couldn't open this image»` with `«Choose another»` and `«Remove»`; the sheet stays otherwise usable).
 

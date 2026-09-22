@@ -63,13 +63,16 @@ numbers and the labels are re-checked on hardware.
 
 ---
 
-## C4 — Konva pixel ratio on a Surface Go · slice 1.3 · ⬜ (fired; **not measurable at its slice**)
+## C4 — Konva pixel ratio on a Surface Go · slice 1.3 · ⬜ (fired; **still awaiting hardware — its obstacle is now gone**)
 
-**Status — recorded in D66.** Slice 1.3 shipped no annotation model (dimensions arrive in 1.5,
-shapes and ink in 1.6), so "markup-layer redraw while panning a 4096-px sheet carrying ~50
-annotations" **cannot be run yet**. No number was invented to fill the gap. `min(devicePixelRatio, 2)`
-is what ships until hardware says otherwise. Re-run this measurement once annotations exist — the
-row is logged in `docs/HARDWARE-TEST-CHECKLIST.md`.
+**Status — D66, updated in session 11.** Slice 1.3 shipped no annotation model, so "markup-layer
+redraw while panning a 4096-px sheet carrying ~50 annotations" could not be run. **It is runnable
+now**: slice 1.6 added shapes, ink, text and the Layers panel, so a ~50-annotation sheet is
+constructible. It remains **⬜** because the decision it feeds is a *Surface Go* decision (the §21.8
+ladder: ≤16 ms keep, else drop overlay → 1, then markup → 1.5, then 1) and no Surface Go is
+available. The machine half is dispatched as its own lane and will be recorded as **provisional**,
+not as a pass — a dev-machine frame time does not decide a tablet ladder. `min(devicePixelRatio, 2)`
+is what ships until hardware says otherwise.
 
 **Measure:** markup-layer redraw time while panning a 4096-px sheet carrying ~50 annotations, at
 `pixelRatio = min(devicePixelRatio, 2)`. Use the Performance panel; report the median frame time.

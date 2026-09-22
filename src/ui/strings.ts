@@ -408,12 +408,25 @@ export const STRINGS = {
     groupShapes: 'Shapes',
     groupInk: 'Ink',
     groupText: 'Text',
+    // appendix-strings-gaps.md §7 (`layers.groupPhoto`) — the synthetic photo-base row.
+    groupPhoto: 'Photo',
     menuBringFront: 'Bring to front',
     menuSendBack: 'Send to back',
     menuGroup: 'Group',
     menuUngroup: 'Ungroup',
     menuRename: 'Rename',
     menuDelete: 'Delete',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): the undo-toast
+    // action names for the eye/lock toggles. Derived from the gaps §7/§25 templates
+    // `a11y.visibilityToggle` / `a11y.lockToggle`; the caller composes `${action} ${name}`.
+    actionToggleVisible: 'Show or hide',
+    actionToggleLock: 'Lock or unlock',
+  },
+
+  inset: {
+    // APPROVED inventory (appendix-strings.md `inset.layersName`, `{insetName}`) — the
+    // Layers panel row name for an inset (U §9:609).
+    layersName: 'Inset {insetName}',
   },
 } as const;
 

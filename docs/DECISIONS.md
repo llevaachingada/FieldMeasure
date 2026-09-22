@@ -1301,3 +1301,142 @@ describes.
 `tsc` and **526 tests were green** (vitest’s transform path is lenient; rolldown’s is not). Repaired
 to U+2014 and a full-tree sweep confirmed no other file carried the damage. **This is the standing
 argument for keeping the build in the gate even when every test is green.**
+
+### D74 — three UI-spec corrections (two impossible numbers, one self-contradicting gesture)
+
+Three claims in `docs/ui-spec-field-measure-v2-hardened.md` were wrong and are corrected in that
+file (AGENTS.md: fix the subordinate document, log it here). The shipped code was right in all three
+cases; **no application code changed**.
+
+**(1) §8.1's keypad sheet "occupying 360px tall" is arithmetically impossible** with its own
+contents: 48 header + 64 preview + 56 chips + 2×72 keys + 8 row gap + 20 notes + 128 actions + 30
+padding + 40 inter-row gaps = **538 px** (shortfall ≈ 178 px). Honouring 360 px would clip a 72 px
+key — a touch-target regression, not a cosmetic one. As built (D71): content-sized,
+`max-height: min(92vh, 620px)`.
+
+**(2) §9's insert picker sheet "bottom sheet, 320px" cannot hold its own contents.** With the
+thumbnails the same paragraph specifies: 4 × 96 (four columns) + 3 × 8 gaps + 2 × 16 padding =
+**440 px** minimum. As built (lane B2): content-sized, `max-width: 720px`, `max-height:
+min(92vh, 720px)`. The same class as (1) — a container dimension that its own children outgrow.
+
+**(3) §9's Layers rows gave ONE 400 ms row long-press both the reorder drag and the row menu**
+("a 400ms long-press starts the drag so it isn't confused with a tap-to-select" … "Long-press a row
+= Bring to front / … / Delete"). Those cannot both be true: the same gesture cannot begin a drag and
+open a menu. Resolved to **grip = drag, row body = menu** — which is what `src/ui/LayersPanel.tsx`
+already does and already documents in its header. The grip is pointer-only input (decorative,
+`aria-hidden`, not focusable); keyboard users reorder from the row menu.
+
+**(4) §7.2's panel diagram claimed "2 rows × 6, 44px targets, 6px gaps" inside a "280px" panel.** The
+swatch grid alone needs 6 × 44 + 5 × 6 = **294 px**, which exceeds the panel *before* its own padding
+(~260 px of content width). The panel width is fine; the diagram's "2 rows × 6" is not. As built
+(lane C2): `repeat(auto-fill, 44px)` + 6 px gaps, which lays out **5/5/2** at this width. The
+annotation in the diagram now says so.
+
+**(5) The appendix's rendered example for `style.widthReadout` was `4 pt`; its own cited source is
+`«3 pt»`.** U §7.2:401 shows `«3 pt»` and §7.3 fixes `pt = 0.75 × mu`, so 4 mu → **3 pt** — the
+appendix row appears to have carried the **mu** value under a **pt** label, i.e. the unit-confusion
+class this project treats as a defect even in an example. Corrected in `appendix-strings.md`
+(`4 pt` → `3 pt`, and the source ref `U §7.2:388` → `U §7.2:401`, which is where the readout
+actually is). The copy gate is unaffected: with `{widthPt}` declared, the row is matched as the
+anchored pattern `^.+ pt$`, which `3 pt` satisfies.
+
+**Why this is a decision and not an edit:** these are subordinate-document defects, so the authority
+chain (build spec §2.4 > build spec > UI spec > plan) makes the spec the thing to fix — and per the
+project's own rule, a wrong number in a spec that a builder would otherwise implement literally is
+the same defect class as a wrong test expectation. Watch item #4 in `handoff-session-11.md` is
+closed on all five counts.
+
+### D75 — slice 1.6 wiring closure: the `visible` field, the rename no-op, and what remains owed
+
+**`Annotation.visible?: boolean | null` is now part of the document** (`src/domain/types.ts`),
+with the matching `AnnotationZ.visible: z.boolean().nullish()` (`src/domain/schema.ts`). Two
+additive edits to a module the repo map calls frozen; the session-11 handoff authorised the schema
+half, and `types.ts` is required because `AnnotationZ` is declared `z.ZodType<Annotation>` under
+`strict` — a schema-only change would parse but could not be *stored* on an `Annotation`.
+
+`.nullish()` is load-bearing: `z.object` **strips** unknown keys, so without the schema field a
+reloaded `markup.json` would silently drop the eye state. Absent/null means visible, so every
+existing `markup.json` still parses — **no migration version bump and no `migrate.ts` change**. The
+rejected alternative (session-only visibility, never serialized) is named in the handoff and
+rejected because the eye toggle would lie across a reload.
+
+**Rename is a deliberate no-op** (`MarkupScene.rename` + `SheetEditor.panelRename`). `Annotation`
+has no name field and names are DERIVED at render time (AGENTS #2); the only editable title in the
+product is `SheetFile.title`. `rename` exists so the shell has one honest place to route the panel's
+`onRename`, and it deliberately does **not** emit `onChange` (nothing changed). Owed: either remove
+Rename from the row menu, or sanction a stored name field — a spec change, not a code one.
+
+**Marquee is armed for non-touch pointers only.** The handoff implied a marquee on any empty-canvas
+drag; the shipped F1 rule requires a **touch** empty-canvas drag to **pan** (D… session 9 / F1), and
+that test must not break. Pen/mouse keep the marquee.
+
+**Locked objects toast on `pointerdown`, not on tap** — the touch "shake" equivalent, so a locked
+object cannot be dragged before the message appears.
+
+**The photo row is synthetic.** The sheet's photo is not an `Annotation`, so its row is built by
+`layersRows.ts` and is `deletable: false` (§20.2). Its **lock cannot persist** (there is no
+annotation to carry it) — owed until 1.7 models the photo. Note the handoff's `deletable: a.type !==
+'image'` snippet is **wrong** per §20.2: the *photo* is non-deletable; image insets are deletable.
+
+**The mini-toolbar is a DOM overlay in the existing `.placement-hud` slot.** `miniToolbarPosition`
+would give a computed anchor, but placing it needs an inline `style`, which the CSP forbids and the
+CSP-as-a-test enforces. Recorded as owed rather than silently dropped.
+
+**Copy folded from the appendix bytes** (staging module deleted): `inset.layersName` (APPROVED,
+`appendix-strings.md`), plus `layers.groupPhoto` (gaps §7) and `layers.actionToggleVisible` /
+`layers.actionToggleLock` (beyond both appendices) — the last three carry `⚠ PROPOSED (C14)`.
+
+**Still owed after this closure:** object **groups** (no group model exists in `SelectTool`,
+`scene.ts` or the panel — Group/Ungroup stay disabled); inset and inset-child rows are code-complete
+but unreachable until 1.7 attaches `children` and image rendering.
+
+### D76 — the Layers reorder seam: group-index vs §20.2 band-index, and a pre-existing off-by-one
+
+**The defect (found in wave review, reproduced before it was fixed).** `LayersPanel.resolveDrop`
+returns `toIndex` as an index inside the dragged row's **group block**; `MarkupScene.moveInBand`
+read it as an index inside the object's **§20.2 z-band**, and there are only two of those
+(`isLowerBand`: `highlight` = lower, everything else = main). The panel's groups are finer
+(`dimensions|shapes|ink|text|insets|photo`), so with ≥2 groups in the main band the two index spaces
+disagree. Trace, executed against the pre-fix code: Dim A z=1000, Dim B z=1010, Rect R z=1020 →
+rows front-first `[R, B, A]`, blocks `[{shapes:[R]}, {dimensions:[B, A]}]`; dragging A onto B gives
+`toIndex = 0`, and `moveInBand(A, 0)` produced painter order `[B, R, A]` — **A ended up above a rect
+it was never dropped over**, and the panel then re-grouped it above Shapes.
+
+**Second defect, same root.** `layerGroupFor` maps **both** `freehand` (main band) and `highlight`
+(lower band) to `ink`, so one panel block spans two §20.2 bands. `resolveDrop` accepted such a drop
+as "same block", and `moveInBand` then filtered members by `isLowerBand` and **silently did nothing**
+— no move and no refusal copy. The wave's own gate ("a cross-band reorder is refused with the
+approved copy") was therefore **not truly met** for the ink case, which is why this was fixed rather
+than logged.
+
+**The fix: an anchor-based primitive, band-safe by construction.** `moveInBand` is deleted.
+`moveInBandBefore(pathKey, anchorKey | null): boolean` places `pathKey` immediately **in front of**
+`anchorKey` (taking the anchor's slot) and returns `false`, changing nothing, when the anchor is
+unknown/self/**in the other band**; `null` means the front of `pathKey`'s own band.
+`moveInBandToBack(pathKey)` covers the end-of-group case. `SheetEditor.panelReorder` translates the
+panel's `(key, toIndex)` into an anchor with `blockFor`, maps a rest index `>= reduced.length` to the
+back, and raises `editor.highlighterBandMessage` when the primitive refuses. Because both the moved
+object and the anchor are filtered to one band, **a cross-band move is now unexpressible** instead of
+being silently mis-applied.
+
+**Direction correction (the implementer was right, the brief was wrong).** The brief said "place
+immediately *behind* the anchor". That is jointly unsatisfiable with the required test and with
+Bring-to-front: `(key, 0)` is shared by "drop on the group's front row" and "Bring to front", and
+with *behind* semantics the object either fails to reach the front or jumps over the unrelated rect.
+Implemented as *in front of* the anchor, which makes `toIndex` the documented rest index.
+
+**Resulting semantics of the four entry points.** Drag-drop: the row rests at the dropped row's
+index. **Bring to front**: front-most **of its own group** — not of the sheet — because `(key, 0)` is
+shared with a drop on the group's front row. Send to back: see below. Keyboard `Alt`+Arrow: one
+position inside the group; past the end → back of the band.
+
+**Off-by-one corrected (pre-existing, became user-visible when the panel was mounted).**
+`LayersPanel` computed Send-to-back as `reduced.length - 1`. For a group `[dim-1, dim-2, dim-3]`,
+removing `dim-1` leaves length 2, and rest index 1 lands the row **between** dim-2 and dim-3 —
+second-from-back, not the back. The true back is rest index `2 = reduced.length`, which is the same
+sentinel the keyboard path already produces for "past the end". Corrected in `LayersPanel.tsx`
+(`length`, guarded `> 0`) **and** in its pinned expectation (`layersPanel.test.tsx`, `('dim-1', 1)` →
+`('dim-1', 2)`) — the old comment asserted the wrong arithmetic ("the back position is 1"), and the
+test was right to change only because the spec's intent for *Send to back* is the back. The shell
+could not have fixed this: `(key, reduced.length - 1)` is byte-identical to Alt+ArrowDown arriving at
+the group's last-but-one slot, so no shell translation can distinguish the two.

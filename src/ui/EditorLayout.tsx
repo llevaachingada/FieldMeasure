@@ -148,6 +148,7 @@ export default function EditorLayout({
   const activeTool = useEditorStore((s) => s.activeTool);
   const pendingOp = useEditorStore((s) => s.pendingOp);
   const keypadOpen = useEditorStore((s) => s.keypadOpen);
+  const layersOpen = useEditorStore((s) => s.layersOpen);
 
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => subscribeToast(setToast), []);
@@ -228,6 +229,12 @@ export default function EditorLayout({
       }
       if (event.key === 'Escape') {
         const store = useEditorStore.getState();
+        // The Layers flyout closes on Escape rather than advancing a rung (keypad first,
+        // which already returned above). Ctrl+Z / hotkeys are deliberately NOT swallowed.
+        if (store.layersOpen) {
+          store.setLayersOpen(false);
+          return;
+        }
         const step = escapeStep({
           pendingOp: store.pendingOp,
           hasSelection: store.selection.length > 0,
@@ -252,6 +259,7 @@ export default function EditorLayout({
       data-dock={dock}
       data-rail={railSide}
       data-keypad-open={keypadOpen ? 'true' : 'false'}
+      data-layers-open={layersOpen ? 'true' : 'false'}
     >
       <div className="editor-main">
         <ToolRail
@@ -284,6 +292,8 @@ export default function EditorLayout({
         onImportFile={onImportFile ?? (() => importTriggerRef.current?.())}
         autosaveChip={autosaveChip}
         compact={compact}
+        onToggleLayers={() => useEditorStore.getState().setLayersOpen(!layersOpen)}
+        layersOpen={layersOpen}
       />
       {toast ? (
         <output className="editor-toast" role="status">

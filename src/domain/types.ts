@@ -54,6 +54,13 @@ export interface Annotation {
   assetId?: string | null;       // image insets reference an asset file
   groupId?: UUID | null;         // object grouping (Ctrl+G)
   locked: boolean;
+  /**
+   * Slice 1.6 wiring: the Layers panel's eye toggle. **Absent/null = visible.**
+   * Additive and optional so every existing `markup.json` (which has no `visible`)
+   * still parses under `strict`; `.nullish()` in `AnnotationZ` is the matching
+   * schema translation, so no migration version bump is needed.
+   */
+  visible?: boolean | null;
   children?: Annotation[];       // image insets only — nested exactly ONE level
 }
 

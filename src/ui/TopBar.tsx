@@ -40,6 +40,13 @@ export interface TopBarProps {
   autosaveChip?: ReactNode;
   /** Portrait: Export collapses to icon-only, the breadcrumb to a single chip. */
   compact?: boolean;
+  /**
+   * Slice 1.6 wiring: the Layers flyout toggle. Absent = the button stays disabled
+   * (a labelled no-op, never a lie).
+   */
+  onToggleLayers?: () => void;
+  /** Current Layers flyout state, for `aria-expanded`. Ignored without `onToggleLayers`. */
+  layersOpen?: boolean;
 }
 
 interface MenuItem {
@@ -56,6 +63,8 @@ export default function TopBar({
   onImportFile,
   autosaveChip,
   compact = false,
+  onToggleLayers,
+  layersOpen = false,
 }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement | null>(null);
@@ -146,7 +155,16 @@ export default function TopBar({
       </div>
 
       <div className="topbar-actions">
-        <button type="button" className="topbar-action" aria-label={STRINGS.a11y.layers} disabled>
+        {/* Slice 1.6 wiring: real when the shell supplies a toggle, otherwise the
+            labelled disabled no-op it has always been. */}
+        <button
+          type="button"
+          className="topbar-action"
+          aria-label={STRINGS.a11y.layers}
+          aria-expanded={onToggleLayers ? layersOpen : undefined}
+          disabled={!onToggleLayers}
+          onClick={onToggleLayers}
+        >
           <Layers aria-hidden="true" />
           <span className="topbar-action-label">{STRINGS.a11y.layers}</span>
         </button>

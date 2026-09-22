@@ -289,6 +289,117 @@ export class MarkupScene {
     this.notify();
   }
 
+  /**
+   * Slice 1.6 wiring — the Layers panel's eye toggle. `visible === false` hides the
+   * object; absent/null is visible. Emits `onChange` (the persistence seam).
+   */
+  setVisible(pathKey: string, visible: boolean): void {
+    const ann = this.get(pathKey);
+    if (!ann) return;
+    ann.visible = visible;
+    this.groups.get(pathKey)?.visible(visible);
+    this.layer.batchDraw();
+    this.notify();
+  }
+
+  /**
+   * Slice 1.6 wiring — the Layers panel's lock toggle. Uses the EXISTING `locked`
+   * field; re-syncs so the renderer's locked treatment updates. Emits `onChange`.
+   */
+  setLocked(pathKey: string, locked: boolean): void {
+    const ann = this.get(pathKey);
+    if (!ann) return;
+    ann.locked = locked;
+    this.sync(pathKey);
+    this.layer.batchDraw();
+    this.notify();
+  }
+
+  /**
+   * Slice 1.6 wiring — the Layers panel's rename channel. Annotations carry **no name
+   * field** (names are DERIVED at render time, AGENTS #2); the editable title lives on
+   * `SheetFile.title`, not on an annotation. This is therefore a documented no-op: it
+   * exists so the shell has one honest place to route the panel's `onRename`, and so
+   * no stored name can ever go stale. It deliberately does NOT emit `onChange`.
+   */
+  rename(pathKey: string, name: string): void {
+    void pathKey;
+    void name;
+  }
+
+  /**
+   * Slice 1.6 reorder (anchor-based — the fix for the group-index vs band-index mismatch).
+   *
+   * Place `pathKey` immediately IN FRONT of `anchorKey` in painter order: `pathKey` takes
+   * `anchorKey`'s zIndex slot and `anchorKey` (with everything behind it **in the same
+   * band**) shifts one slot toward the back. `anchorKey === null` means the FRONT of
+   * `pathKey`'s own §20.2 band. Both the moved object and the anchor are filtered to the
+   * SAME band, so the caller cannot express a cross-band move — §20.2 is inviolable by
+   * construction.
+   *
+   * Returns `false` and changes NOTHING when `pathKey` is unknown, the anchor is unknown,
+   * the anchor is `pathKey` itself, or the anchor lives in the other §20.2 band. The shell
+   * surfaces `editor.highlighterBandMessage` on `false`: a single Layers `ink` block holds
+   * both `freehand` (main band) and `highlight` (lower band), so the panel's own same-block
+   * test cannot distinguish them.
+   */
+  moveInBandBefore(pathKey: string, anchorKey: string | null): boolean {
+    const ann = this.get(pathKey);
+    if (!ann) return false;
+    const lower = isLowerBand(ann.type);
+    // Band members, front-first (highest zIndex first).
+    const members = this.objects
+      .filter((o) => isLowerBand(o.type) === lower)
+      .sort((a, b) => b.zIndex - a.zIndex);
+    const reduced = members.filter((o) => o.id !== ann.id);
+    let insertAt: number;
+    if (anchorKey === null) {
+      insertAt = 0;
+    } else {
+      const anchor = this.get(anchorKey);
+      if (!anchor || anchor.id === ann.id) return false;
+      if (isLowerBand(anchor.type) !== lower) return false;
+      const ai = reduced.findIndex((o) => o.id === anchor.id);
+      if (ai < 0) return false;
+      insertAt = ai; // immediately in front of the anchor == the anchor's own slot
+    }
+    const clamped = Math.max(0, Math.min(insertAt, reduced.length));
+    const ordered = [...reduced];
+    ordered.splice(clamped, 0, ann);
+    // `ordered` is front-first; painter order is back-first, so assign the band's ascending
+    // zIndex slots in reverse. Reusing the band's slots keeps it inside its floor/ceiling.
+    const slots = members.map((o) => o.zIndex).sort((a, b) => a - b);
+    [...ordered].reverse().forEach((o, i) => {
+      o.zIndex = slots[i];
+    });
+    this.resort();
+    this.notify();
+    return true;
+  }
+
+  /**
+   * Move `pathKey` to the BACK of its own §20.2 band (its lowest zIndex slot). Used for a
+   * reorder whose rest index is at/after the end of the row's group block. Returns `false`
+   * when `pathKey` is unknown; a no-op when it is already back-most.
+   */
+  moveInBandToBack(pathKey: string): boolean {
+    const ann = this.get(pathKey);
+    if (!ann) return false;
+    const lower = isLowerBand(ann.type);
+    const members = this.objects
+      .filter((o) => isLowerBand(o.type) === lower)
+      .sort((a, b) => b.zIndex - a.zIndex);
+    if (members[members.length - 1]?.id === ann.id) return true; // already back-most
+    const ordered = [...members.filter((o) => o.id !== ann.id), ann];
+    const slots = members.map((o) => o.zIndex).sort((a, b) => a - b);
+    [...ordered].reverse().forEach((o, i) => {
+      o.zIndex = slots[i];
+    });
+    this.resort();
+    this.notify();
+    return true;
+  }
+
   /** Move one endpoint (post-place refinement / the Nudge Pad). */
   setAnchor(pathKey: string, which: 'a' | 'b', p: Px): void {
     const ann = this.get(pathKey);
@@ -469,6 +580,8 @@ export class MarkupScene {
 
     this.groups.set(pathKey, group);
     group.setAttr('zIndex', ann.zIndex);
+    // Slice 1.6 wiring: restore the persisted eye state on every (re)build/reload.
+    group.visible(ann.visible !== false);
     this.layer.add(group);
     this.layer.batchDraw();
   }

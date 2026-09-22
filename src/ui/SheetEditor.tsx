@@ -28,6 +28,7 @@ import { DEFAULT_STYLE } from '@/domain/types';
 import type { Annotation, Geometry } from '@/domain/types';
 import {
   EditorCanvas,
+  LONG_PRESS_MS,
   TAP_SLOP,
   decideDragTarget,
   isTap,
@@ -48,12 +49,14 @@ import { ShapeTool, type ShapeKind } from '@/editor/tools/ShapeTool';
 import { AngleTool, type AngleSheetRequest } from '@/editor/tools/AngleTool';
 import { FreehandTool, isFingerInkAllowed } from '@/editor/tools/FreehandTool';
 import { TextTool } from '@/editor/tools/TextTool';
-import { EraseTool, effectiveEraseMode, eraseNameKey, strokeModeAvailable, type EraseMode } from '@/editor/tools/EraseTool';
-import { SelectTool } from '@/editor/tools/SelectTool';
+import { EraseTool, effectiveEraseMode, eraseNameKey, isErasePreview, strokeModeAvailable, type EraseMode } from '@/editor/tools/EraseTool';
+import { ROTATE_STOPS, SelectTool } from '@/editor/tools/SelectTool';
 import { setEditorSession, emitToast, type EditorSession } from '@/editor/session';
 import { createPersistQueue, type PersistQueue } from '@/state/persistQueue';
 import { HIGHLIGHT_CHISEL_TOUCH_MU } from '@/editor/tools/toolTypes';
 import DimensionKeypadSheet from '@/ui/DimensionKeypadSheet';
+import LayersPanel, { blockFor } from '@/ui/LayersPanel';
+import { annotationName, buildLayerRows, PHOTO_ROW_KEY } from '@/ui/layersRows';
 import { useEditorStore } from '@/state/editorStore';
 import { readExifInfo } from '@/media/exif';
 import { normalizeImage } from '@/media/normalizeImage';
@@ -149,6 +152,8 @@ interface Contact {
   intent: InputIntent;
   session: DragSession;
   start: ScreenPoint;
+  /** The contact's start in image space (the marquee anchor). */
+  startImage: Px;
   startAt: number;
   last: ScreenPoint;
   /** The tool owns this contact's movement (rubber-band / refine). */
@@ -162,6 +167,16 @@ interface Contact {
   owner: 'dimension' | 'markup' | null;
   /** Raw `PointerEvent.pressure` for the ink path (pen-only signal; touch is 0.5). */
   pressure: number;
+  /** Select tool: this contact may become a marquee if it moves beyond the slop. */
+  marqueeCandidate: boolean;
+  /** Select tool: the 600 ms long-press-to-pin timer. */
+  longPressTimer: number | null;
+  /** Erase tool (object mode): preview is deferred to the 600 ms timer. */
+  eraseObject: boolean;
+  /** Erase: the contact moved beyond the slop, which cancels the preview/delete. */
+  eraseMoved: boolean;
+  /** Erase: the 600 ms `--err` preview timer. */
+  eraseTimer: number | null;
 }
 
 interface ObjectDrag {
@@ -187,6 +202,7 @@ export default function SheetEditor({
 }: SheetEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const keypadMountRef = useRef<HTMLDivElement | null>(null);
+  const layersMountRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<EditorCanvas | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bitmapRef = useRef<ImageBitmap | null>(null);
@@ -217,6 +233,10 @@ export default function SheetEditor({
   const [textAnchor, setTextAnchor] = useState<Px | null>(null);
   const [textDraft, setTextDraft] = useState('');
   const [eraseMode, setEraseMode] = useState<EraseMode>('object');
+  /** Select tool: the mini-toolbar was pinned by a 600 ms long-press. */
+  const [pinnedToolbar, setPinnedToolbar] = useState(false);
+  /** Bumped when the scene changes while the Layers flyout is open, to re-derive rows. */
+  const [, setSceneTick] = useState(0);
 
   const [status, setStatus] = useState<EditorStatus>('loading');
   const [sheetTitle, setSheetTitle] = useState('');
@@ -232,7 +252,11 @@ export default function SheetEditor({
     key: null,
   });
   const precisionDenominator = useAppStore((s) => s.precisionDenominator);
+  const unitSystem = useAppStore((s) => s.unitSystem);
+  const unitFormat = useAppStore((s) => s.unitFormat);
   const activeToolId = useEditorStore((s) => s.activeTool);
+  const selection = useEditorStore((s) => s.selection);
+  const layersOpen = useEditorStore((s) => s.layersOpen);
   const [inputKind, setInputKind] = useState<string | null>(null);
 
   useEffect(() => {
@@ -307,6 +331,9 @@ export default function SheetEditor({
       const sid = sheetIdRef.current;
       if (!sid) return;
       persist.queueSheet(projectId, sid, scene.markupFile(sid, 1));
+      // Re-derive the Layers rows only while the flyout is open (avoids a full
+      // SheetEditor re-render on every drag/property tick otherwise).
+      if (useEditorStore.getState().layersOpen) setSceneTick((n) => n + 1);
     };
     const loupe = new Loupe({
       layer: canvas.overlayLayer,
@@ -387,6 +414,7 @@ export default function SheetEditor({
       freehandRef.current?.cancel();
       highlightRef.current?.cancel();
       textRef.current?.cancel();
+      eraseRef.current?.onToolChange();
       selectRef.current?.onToolChange();
     }
 
@@ -479,14 +507,18 @@ export default function SheetEditor({
       history,
       getSelection: () => useEditorStore.getState().selection,
       setSelection: (keys) => useEditorStore.getState().setSelection(keys),
-      onSelectionChange: () => selectRef.current?.refresh(),
-      onPinnedToolbar: () => undefined,
+      onSelectionChange: (keys) => {
+        if (keys.length === 0) setPinnedToolbar(false);
+        selectRef.current?.refresh();
+      },
+      onPinnedToolbar: (pinned) => setPinnedToolbar(pinned),
       labels: {
         move: STRINGS.toasts.actionMoveDimension,
         rotate: STRINGS.a11y.rotate,
         delete: STRINGS.select.delete,
         locked: STRINGS.editor.lockedToast,
       },
+      onLockedToast: () => emitToast(STRINGS.editor.lockedToast),
     });
 
     // Track the real tool id (the prop is the coarse seam) and cancel on switch.
@@ -496,10 +528,14 @@ export default function SheetEditor({
       cancelActiveMarkup();
       toolIdRef.current = state.activeTool;
       if (state.activeTool === 'select') selectRef.current?.refresh();
-      else selectRef.current?.onToolChange();
+      else {
+        selectRef.current?.onToolChange();
+        setPinnedToolbar(false);
+      }
     });
     const unsubscribeSelection = useEditorStore.subscribe((state, prev) => {
       if (state.selection === prev.selection) return;
+      if (state.selection.length === 0) setPinnedToolbar(false);
       selectRef.current?.refresh();
     });
 
@@ -561,7 +597,16 @@ export default function SheetEditor({
       if (shape) return shape.onPointerDown(imagePoint, pointerType);
       if (id === 'angle') return angleRef.current!.onPointerDown(imagePoint, pointerType);
       if (id === 'text') return textRef.current!.onPointerDown(imagePoint);
-      if (id === 'erase') return eraseRef.current!.onPointerDown(imagePoint, pointerType);
+      if (id === 'erase') {
+        const erase = eraseRef.current!;
+        // Object mode (the only mode touch gets): the `--err` preview is driven by the
+        // shell's 600 ms timer (A3), not shown eagerly. Stroke mode (pen) is unchanged.
+        if (effectiveEraseMode(erase.eraseMode, pointerType) === 'object') {
+          contact.eraseObject = true;
+          return 'consume';
+        }
+        return erase.onPointerDown(imagePoint, pointerType);
+      }
       if (id === 'freehand' || id === 'highlight') {
         const ink = id === 'freehand' ? freehandRef.current! : highlightRef.current!;
         if (id === 'freehand' && pointerType === 'touch' && !isFingerInkAllowed(mkSettings())) {
@@ -633,6 +678,7 @@ export default function SheetEditor({
         intent,
         session: dragSession,
         start: point,
+        startImage: { x: 0, y: 0 },
         startAt: performance.now(),
         last: point,
         toolAction: 'none',
@@ -641,11 +687,44 @@ export default function SheetEditor({
         freehandKind: null,
         owner: null,
         pressure: e.pressure,
+        marqueeCandidate: false,
+        longPressTimer: null,
+        eraseObject: false,
+        eraseMoved: false,
+        eraseTimer: null,
       };
       contacts.set(e.pointerId, contact);
 
       const imagePoint = canvas.screenToImage(point);
+      contact.startImage = { ...imagePoint };
       const keypadOpen = useEditorStore.getState().keypadOpen;
+
+      // Select + a real object + long press (600 ms) → select and pin the mini-toolbar
+      // (touch model §3.3). Locked objects only shake + toast; they never pin.
+      if (intent !== 'ignore' && !keypadOpen && toolIdRef.current === 'select' && hit) {
+        const key = scene.keyForAnnotationId(hit.id);
+        if (key && hit.locked) {
+          emitToast(STRINGS.editor.lockedToast);
+        } else if (key) {
+          contact.longPressTimer = window.setTimeout(() => {
+            contact.longPressTimer = null;
+            selectRef.current?.longPress(key);
+          }, LONG_PRESS_MS);
+        }
+      }
+
+      // Select on EMPTY canvas with a non-touch pointer (pen/mouse) is a marquee
+      // candidate; touch keeps one-finger pan (tests/sheetEditor.browser F1). It only
+      // becomes a marquee once the contact actually moves (so taps still clear/double-tap).
+      if (
+        intent !== 'ignore' &&
+        !keypadOpen &&
+        toolIdRef.current === 'select' &&
+        !hit &&
+        e.pointerType !== 'touch'
+      ) {
+        contact.marqueeCandidate = true;
+      }
 
       // Keypad-open (touch model §5.1): pan + pinch only; taps do nothing.
       if (keypadOpen) {
@@ -698,6 +777,14 @@ export default function SheetEditor({
         }
       }
 
+      // Erase object mode (A3): reveal the `--err` outline only after a 600 ms hold.
+      if (contact.eraseObject) {
+        contact.eraseTimer = window.setTimeout(() => {
+          contact.eraseTimer = null;
+          eraseRef.current?.beginPreview(imagePoint);
+        }, LONG_PRESS_MS);
+      }
+
       if (contacts.size >= 2) {
         for (const [pointerId, other] of contacts) {
           const resolution = onSecondFinger(other.session);
@@ -734,6 +821,26 @@ export default function SheetEditor({
         return;
       }
 
+      // Any real movement cancels a pending select long-press (A2).
+      if (contact.longPressTimer !== null && moved) {
+        window.clearTimeout(contact.longPressTimer);
+        contact.longPressTimer = null;
+      }
+
+      // Erase object mode (A3): moving beyond the slop cancels the preview and the delete.
+      if (contact.eraseObject) {
+        if (moved && !contact.eraseMoved) {
+          contact.eraseMoved = true;
+          if (contact.eraseTimer !== null) {
+            window.clearTimeout(contact.eraseTimer);
+            contact.eraseTimer = null;
+          }
+          eraseRef.current?.onPointerCancel();
+        }
+        contact.last = point;
+        return;
+      }
+
       if (contact.toolAction !== 'none') {
         const markupAction =
           contact.owner === 'markup' ? markupPointerMove(imagePoint, moved) : null;
@@ -744,6 +851,26 @@ export default function SheetEditor({
         }
         contact.toolAction = 'none';
         contact.session.target = 'pan';
+      }
+
+      // Select marquee: arm the tool on the first real move across empty canvas (A2).
+      // Arming on move (not down) keeps a tap's clear-selection/double-tap intact.
+      if (
+        contact.toolAction === 'none' &&
+        contact.marqueeCandidate &&
+        moved &&
+        toolIdRef.current === 'select'
+      ) {
+        const select = selectRef.current;
+        if (select) {
+          select.onPointerDown(contact.startImage, e.pointerType);
+          select.onPointerMove(imagePoint, true);
+          contact.toolAction = 'consume';
+          contact.forcePan = true;
+          contact.owner = 'markup';
+          contact.last = point;
+          return;
+        }
       }
 
       if (contacts.size === 1) {
@@ -777,12 +904,38 @@ export default function SheetEditor({
       if (e.pointerType === 'pen') router.penStrokeEnd();
       if (e.pointerType === 'touch') router.noteTouchUp(e.pointerId);
 
+      // Clear any pending select long-press.
+      if (contact.longPressTimer !== null) {
+        window.clearTimeout(contact.longPressTimer);
+        contact.longPressTimer = null;
+      }
+
       // The tool owns this contact's lift (commit B / end refine).
       if (contact.freehandKind) {
         const ink = contact.freehandKind === 'freehand' ? freehandRef.current! : highlightRef.current!;
         ink.end(tapped);
         return;
       }
+
+      // Erase object mode (A3): a short press deletes and toasts; a 600 ms hold (preview)
+      // or a move cancels. The tool's own `onPointerUp` already owns the delete + toast.
+      if (contact.eraseObject) {
+        if (contact.eraseTimer !== null) {
+          window.clearTimeout(contact.eraseTimer);
+          contact.eraseTimer = null;
+        }
+        const erase = eraseRef.current;
+        if (erase) {
+          if (!contact.eraseMoved && !isErasePreview(duration)) {
+            erase.beginPreview(imagePoint);
+            erase.onPointerUp(imagePoint, true, e.pointerType);
+          } else {
+            erase.onPointerCancel();
+          }
+        }
+        return;
+      }
+
       if (contact.toolAction === 'consume') {
         if (contact.owner === 'markup') markupPointerUp(imagePoint, tapped, e.pointerType);
         else tool.onPointerUp(imagePoint, tapped, e.pointerType);
@@ -804,7 +957,8 @@ export default function SheetEditor({
               undo: () => scene.setGeometry(drag.key, drag.geometry),
             });
           } else if (tapped) {
-            useEditorStore.getState().setSelection([drag.key]);
+            // A second tap on an already-selected object opens its actions (A2).
+            if (selectRef.current?.tapObject(drag.key) === 'action') setPinnedToolbar(true);
           }
         }
       }
@@ -813,15 +967,18 @@ export default function SheetEditor({
       if (contact.toolAction !== 'none') return;
       if (placementArmed()) return; // a tap would place a point — never deferred
 
-      // Select tool: tap an object selects it; empty canvas clears.
+      // Select tool: tap an object selects it (locked objects only toast); empty clears.
       if (activeToolRef.current === 'select') {
         const hit = canvas.hitObject(point);
         const key = hit ? scene.keyForAnnotationId(hit.id) : null;
         if (key) {
-          useEditorStore.getState().setSelection([key]);
+          // A locked object already toasted on pointerdown (touch model §3.3 shake);
+          // selecting it is still allowed so it can be unlocked in Layers.
+          if (selectRef.current?.tapObject(key) === 'action') setPinnedToolbar(true);
           return;
         }
         useEditorStore.getState().clearSelection();
+        setPinnedToolbar(false);
       }
 
       const now = performance.now();
@@ -844,6 +1001,18 @@ export default function SheetEditor({
       objectDrags.delete(e.pointerId);
       if (e.pointerType === 'pen') router.penStrokeEnd();
       if (e.pointerType === 'touch') router.noteTouchUp(e.pointerId);
+      if (contact.longPressTimer !== null) {
+        window.clearTimeout(contact.longPressTimer);
+        contact.longPressTimer = null;
+      }
+      if (contact.eraseTimer !== null) {
+        window.clearTimeout(contact.eraseTimer);
+        contact.eraseTimer = null;
+      }
+      if (contact.eraseObject) {
+        eraseRef.current?.onPointerCancel();
+        return;
+      }
       if (contact.freehandKind) {
         const ink = contact.freehandKind === 'freehand' ? freehandRef.current! : highlightRef.current!;
         ink.cancel();
@@ -985,6 +1154,8 @@ export default function SheetEditor({
       sceneRef.current = null;
       dimRef.current = null;
       useEditorStore.getState().setKeypadOpen(false);
+      useEditorStore.getState().setLayersOpen(false);
+      setPinnedToolbar(false);
       useEditorStore.getState().setPendingOp('none');
       tool.dispose();
       loupe.destroy();
@@ -1151,6 +1322,172 @@ export default function SheetEditor({
   const eraseAvailable = activeToolId === 'erase';
   const strokeMode = strokeModeAvailable(inputKind ?? 'pen');
 
+  // ---- slice 1.6 wiring: Layers flyout + select mini-toolbar ------------------
+  const labelCtx = { unitSystem, unitFormat, precisionDenominator };
+  const layerRows = sceneRef.current
+    ? buildLayerRows(sceneRef.current.list(), { ctx: labelCtx, hasPhoto: status === 'ready' })
+    : [];
+
+  const panelSelect = (key: string): void => {
+    if (key === PHOTO_ROW_KEY) return;
+    useEditorStore.getState().setSelection([key]);
+    const scene = sceneRef.current;
+    const canvas = canvasRef.current;
+    if (!scene || !canvas) return;
+    const bounds = scene.boundsAt(key);
+    if (!bounds) return;
+    const scale = canvas.scale;
+    canvas.stage.position({
+      x: canvas.stage.width() / 2 - (bounds.x + bounds.width / 2) * scale,
+      y: canvas.stage.height() / 2 - (bounds.y + bounds.height / 2) * scale,
+    });
+    canvas.stage.batchDraw();
+  };
+
+  const panelToggleVisible = (key: string): void => {
+    const scene = sceneRef.current;
+    const history = historyRef.current;
+    if (!scene || !history || key === PHOTO_ROW_KEY) return;
+    const ann = scene.get(key);
+    if (!ann) return;
+    const next = ann.visible === false; // hidden → show, otherwise hide
+    const name = annotationName(ann, labelCtx);
+    history.exec({
+      label: `${STRINGS.layers.actionToggleVisible} ${name}`.trim(),
+      do: () => scene.setVisible(key, next),
+      undo: () => scene.setVisible(key, !next),
+    });
+    setSceneTick((n) => n + 1); // refresh the row/eye regardless of the persistence seam
+  };
+
+  const panelToggleLock = (key: string): void => {
+    const scene = sceneRef.current;
+    const history = historyRef.current;
+    if (!scene || !history || key === PHOTO_ROW_KEY) return;
+    const ann = scene.get(key);
+    if (!ann) return;
+    const next = !ann.locked;
+    const name = annotationName(ann, labelCtx);
+    history.exec({
+      label: `${STRINGS.layers.actionToggleLock} ${name}`.trim(),
+      do: () => scene.setLocked(key, next),
+      undo: () => scene.setLocked(key, !next),
+    });
+    setSceneTick((n) => n + 1);
+  };
+
+  /**
+   * The Layers panel's reorder seam. `toIndex` is the panel's rest index INSIDE the row's
+   * own group block (front-first, after the dragged row is removed) — the contract of
+   * `LayersPanel.resolveDrop`, the row menu and `Alt`+`Arrow` (`onReorder(key, toIndex)`).
+   *
+   * TRANSLATION (the crux). The panel's groups (`layerGroupFor` → dimensions|shapes|ink|
+   * text|insets|photo) are finer than §20.2's two z-bands, so the index cannot be handed
+   * to the scene as-is. Re-express it as an ANCHOR ROW of the same block:
+   *   - `toIndex < reduced.length`: anchor on the row currently at that index; the dragged
+   *     row is placed immediately IN FRONT of it, so it comes to rest at `toIndex` and the
+   *     anchor moves one slot back. Because the anchor is a row of the SAME group, a row
+   *     dragged to the top of its group can never jump over another group's rows (the
+   *     defect this replaces: the old index-based primitive read `toIndex` in band space,
+   *     so with ≥2 groups in a band the row landed in the wrong slot).
+   *   - `toIndex >= reduced.length`: "at/after the end of the group" → the back of it.
+   * If the scene refuses (the anchor is in the other §20.2 band) nothing has changed and we
+   * raise the same approved copy the panel itself uses. That path exists because a single
+   * `ink` block spans `freehand` (main band) and `highlight` (lower band).
+   */
+  const panelReorder = (key: string, toIndex: number): void => {
+    const scene = sceneRef.current;
+    const history = historyRef.current;
+    if (!scene || !history || key === PHOTO_ROW_KEY) return;
+    const ann = scene.get(key);
+    if (!ann) return;
+    const block = blockFor(layerRows, key);
+    if (!block) return;
+    const reduced = block.rows.filter((r) => r.key !== key);
+    if (reduced.length === 0) return; // nothing else in the group to reorder against
+
+    // Snapshot both sides through serialize/load so undo restores the exact z-order.
+    const before = scene.serialize();
+    const applied =
+      toIndex >= reduced.length
+        ? scene.moveInBandToBack(key)
+        : scene.moveInBandBefore(key, reduced[Math.max(0, toIndex)].key);
+    if (!applied) {
+      // §20.2: cross-band target — change nothing, say why (never apply the drop).
+      emitToast(STRINGS.editor.highlighterBandMessage);
+      return;
+    }
+    const after = scene.serialize();
+    if (JSON.stringify(after) === JSON.stringify(before)) {
+      // A legal but no-op reorder (e.g. dropping a row onto the row directly behind it):
+      // leave the document alone and do not fabricate an undo step.
+      setSceneTick((n) => n + 1);
+      return;
+    }
+    history.exec({
+      label: annotationName(ann, labelCtx),
+      do: () => scene.load(after),
+      undo: () => scene.load(before),
+    });
+    setSceneTick((n) => n + 1);
+  };
+
+  const panelRename = (key: string, name: string): void => {
+    // Annotations carry no name field (AGENTS #2): a documented no-op. The editable
+    // title lives on `SheetFile.title`, never on an annotation. Reported as owed.
+    sceneRef.current?.rename(key, name);
+  };
+
+  const panelDelete = (key: string): void => {
+    const scene = sceneRef.current;
+    const history = historyRef.current;
+    if (!scene || !history || key === PHOTO_ROW_KEY) return;
+    const ann = scene.get(key);
+    if (!ann) return;
+    const snapshot = JSON.parse(JSON.stringify(ann)) as Annotation;
+    const name = annotationName(ann, labelCtx);
+    history.exec({
+      label: `${STRINGS.select.delete} ${name}`.trim(),
+      do: () => scene.removeObject(key),
+      undo: () => scene.addAnnotation(snapshot),
+    });
+    setSceneTick((n) => n + 1);
+  };
+
+  const closeLayers = (): void => {
+    useEditorStore.getState().setLayersOpen(false);
+  };
+
+  const toolbarRotate = (deg: number): void => {
+    selectRef.current?.rotateBy(deg);
+  };
+
+  const toolbarDelete = (): void => {
+    selectRef.current?.deleteSelection();
+    setPinnedToolbar(false);
+  };
+
+  const toolbarToggleLock = (): void => {
+    const scene = sceneRef.current;
+    const history = historyRef.current;
+    if (!scene || !history) return;
+    const keys = useEditorStore.getState().selection;
+    if (keys.length === 0) return;
+    const captures = keys
+      .map((k) => scene.get(k))
+      .filter((a): a is Annotation => Boolean(a))
+      .map((a) => ({ key: a.id, locked: a.locked, name: annotationName(a, labelCtx) }));
+    if (captures.length === 0) return;
+    const next = !captures[0].locked;
+    history.exec({
+      label: `${STRINGS.layers.actionToggleLock} ${captures[0].name}`.trim(),
+      do: () => captures.forEach((c) => scene.setLocked(c.key, next)),
+      undo: () => captures.forEach((c) => scene.setLocked(c.key, c.locked)),
+    });
+  };
+
+  const showMiniToolbar = pinnedToolbar && selection.length > 0 && !keypadOpen && activeToolId === 'select';
+
   const placementAnnouncement =
     placement.phase === 'anchorA'
       ? STRINGS.placement.secondPoint
@@ -1316,6 +1653,48 @@ export default function SheetEditor({
           </div>
         ) : null}
 
+        {/* Select mini-toolbar (touch model §3.3; plan step 7). Pinned by the 600 ms
+            long-press; shown while a selection exists. Reuses the HUD slot — the CSP
+            forbids inline styles, so it cannot carry a computed anchor (reported owed). */}
+        {showMiniToolbar ? (
+          <div
+            className="placement-hud"
+            role="toolbar"
+            aria-label={STRINGS.tool.select}
+            data-testid="mini-toolbar"
+            data-pinned={pinnedToolbar ? 'true' : 'false'}
+          >
+            {ROTATE_STOPS.filter((deg) => deg !== 0).map((deg) => (
+              <button
+                key={deg}
+                type="button"
+                className="placement-hud-button"
+                data-rotate={deg}
+                aria-label={`${STRINGS.a11y.rotate} ${deg}°`}
+                onClick={() => toolbarRotate(deg)}
+              >
+                {`${deg}°`}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="placement-hud-button"
+              aria-label={STRINGS.select.lock}
+              onClick={toolbarToggleLock}
+            >
+              {STRINGS.select.lock}
+            </button>
+            <button
+              type="button"
+              className="placement-hud-button placement-hud-primary"
+              aria-label={STRINGS.select.delete}
+              onClick={toolbarDelete}
+            >
+              {STRINGS.select.delete}
+            </button>
+          </div>
+        ) : null}
+
         <input
           ref={fileInputRef}
           className="editor-file-input"
@@ -1354,6 +1733,25 @@ export default function SheetEditor({
           </button>
         </div>
       </div>
+
+      {/* Layers flyout (slice 1.6 wiring, A1). Positioning wrapper only — the panel is
+          `position: fixed` and supplies its own role="dialog"; adding a second dialog
+          wrapper here would nest two same-named modals (the 1.5 integration defect). */}
+      {layersOpen ? (
+        <div ref={layersMountRef} data-testid="layers-panel-mount">
+          <LayersPanel
+            rows={layerRows}
+            selectedKeys={selection}
+            onSelect={panelSelect}
+            onToggleVisible={panelToggleVisible}
+            onToggleLock={panelToggleLock}
+            onReorder={panelReorder}
+            onRename={panelRename}
+            onDelete={panelDelete}
+            onClose={closeLayers}
+          />
+        </div>
+      ) : null}
 
       {keypadOpen ? (
         // Positioning wrapper only. The sheet itself is the modal: it supplies

@@ -52,6 +52,12 @@ export interface EditorState {
    * stays live for pan/pinch only.
    */
   keypadOpen: boolean;
+  /**
+   * Slice 1.6 wiring: the Layers flyout is open. Mirrors `keypadOpen` exactly — the
+   * shell reads it for `data-layers-open` and the Escape ladder; the panel itself is
+   * mounted by `SheetEditor`, which owns the scene.
+   */
+  layersOpen: boolean;
 }
 
 export interface EditorActions {
@@ -62,6 +68,7 @@ export interface EditorActions {
   setViewTransform: (transform: ViewTransform) => void;
   setFocusInsetId: (insetId: string | null) => void;
   setKeypadOpen: (open: boolean) => void;
+  setLayersOpen: (open: boolean) => void;
   /** Back to fresh defaults (test helper + "new sheet" reset). */
   resetEditorState: () => void;
 }
@@ -77,6 +84,7 @@ export function createInitialEditorState(): EditorState {
     viewTransform: { scale: 1, x: 0, y: 0 },
     focusInsetId: null,
     keypadOpen: false,
+    layersOpen: false,
   };
 }
 
@@ -90,5 +98,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setViewTransform: (viewTransform) => set({ viewTransform }),
   setFocusInsetId: (focusInsetId) => set({ focusInsetId }),
   setKeypadOpen: (keypadOpen) => set({ keypadOpen }),
+  setLayersOpen: (layersOpen) => set({ layersOpen }),
   resetEditorState: () => set(createInitialEditorState()),
 }));

@@ -155,7 +155,7 @@
 
 | Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
 |---|---|---|---|---|
-| style.widthReadout | 4 pt | Width scrubber readout (style panel) | U §7.2:388 | `{widthPt}` |
+| style.widthReadout | 3 pt | Width scrubber readout (style panel) | U §7.2:401 | `{widthPt}` |
 | style.transparencyReadout | 35% | Transparency readout (style panel) | U §7.2:393 | `{percent}` |
 | style.appliedToSelection | Applied to 3 objects | Apply-to-selection hint (4s) after a style edit on a selection | U §7.3:428 | `{objectCount}` |
 | style.alsoSetDefault | Also set as default for this tool | Action in the apply-to-selection hint | U §7.3:428 | |

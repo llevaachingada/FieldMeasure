@@ -342,3 +342,36 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 3. **Erase long-press (600 ms) preview** — `isErasePreview`/`beginPreview` exist and are pure-tested; no timer drives them.
 
 **Next:** close the three owed items above (a focused wiring slice), then 1.7 (image insets).
+
+## Slice 1.6 — wiring closure (the three owed items; 1.6 is now COMPLETE)
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built:** the three items D73 recorded as owed, in one lane, plus the review fixes they surfaced.
+
+- **Layers panel mounted** — `Annotation.visible?: boolean | null` (+ `AnnotationZ.visible: z.boolean().nullish()`, one additive field in each domain file, no migration bump); four band-aware scene mutators (`setVisible` / `setLocked` / `rename` / the reorder pair); `layersOpen` mirroring `keypadOpen` in `editorStore`; a real `onToggleLayers` + `aria-expanded` on the TopBar button; the EditorLayout Escape rung and `data-layers-open`; and the mount in `SheetEditor` (positioning-only wrapper — **no second `role="dialog"`**). Rows are derived by a new pure `src/ui/layersRows.ts`; all six callbacks route through `History`, so every toggle is one undo step.
+- **`SelectTool` fully shell-driven** — marquee-on-empty-drag (non-touch only), tap-select / second-tap action, the 600 ms long-press pin, the rotate chips, Lock and Delete on a new mini-toolbar, and the locked-object toast (`onLockedToast`, previously declared but never passed).
+- **Erase 600 ms preview driven** — `beginPreview` on a `LONG_PRESS_MS` timer, cancelled by move/lift/cancel; a short tap still deletes and toasts.
+- **Review fixes folded in this commit** — the Layers reorder seam was rebuilt on an anchor-based, band-safe primitive, and a pre-existing **Send-to-back off-by-one** in the panel was corrected (D76).
+
+**Machine gates:** 4/4 passing (orchestrator, on the reconciled tree)
+- [x] `npx tsc --noEmit` clean
+- [x] `npx vitest run` — **47 files / 643 tests** (was 526/40; +35 from the wave, +4 reorder, net of the panel expectation corrected in D76)
+- [x] `npm run build` — 17 precache; `EditorLayout-*.js` 303 → **326.88 kB** (the panel + mini-toolbar), main chunk 345.15 kB; **no `UNLOADABLE_DEPENDENCY`** (the CP1252 trap)
+- [x] `npx playwright test` — 5 passed / 4 skipped (CSP-as-a-test green at both viewports)
+- [x] Gate halves with a machine form: rows in the right bands with children indented; tap-select passes the **key**; eye/lock undoable and named; the photo row offers no delete; the panel opens from the TopBar, Escape closes it and focus returns; row count matches after a reload (proves `visible`/`locked` persisted); marquee selects enclosed annotations; a handle drag is one undo step; the rotate commit lands snapped; long-press pins the toolbar; a 600 ms erase press previews and deletes nothing
+
+**Deferred to hardware:** 4 new rows → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.6 (drag-to-reorder on glass; eye/lock undo + reload; the erase 600 ms preview; the mini-toolbar pin), each with its machine half stated. None faked.
+
+**Checkpoints fired:** none. **C4's obstacle is gone** — annotations now exist, so its "50 annotations on a 4096-px sheet" measurement is constructible; it stays a hardware decision and is dispatched as its own lane.
+
+**Decisions recorded:** **D74** (five UI-spec corrections: two impossible container widths, the self-contradicting Layers long-press, the 280 px panel that cannot hold its own swatch grid, and the appendix's `4 pt` example for a string whose source says `«3 pt»`), **D75** (the `visible` field, the rename no-op, marquee gating, the synthetic photo row, the mini-toolbar's CSP-forced placement, the copy fold), **D76** (the reorder seam + the Send-to-back off-by-one).
+
+**Surprises:**
+- **The wave's own gate was not met, and the unit suite could not see it.** `LayersPanel.resolveDrop` returns a **group-block** index while `MarkupScene.moveInBand` read a **§20.2 band** index — different spaces whenever the main band holds ≥2 groups. Executed trace: Dim A z1000, Dim B z1010, Rect R z1020; dragging A onto B produced painter order `[B, R, A]` — the dimension jumped **above a rect it was never dropped over**. Separately, because `layerGroupFor` maps both `freehand` (main) and `highlight` (lower) to `ink`, one panel block spans two bands, so the cross-band refusal **never fired** for that case and the drop silently did nothing. Fixed with an anchor-based primitive that makes a cross-band move unexpressible; the fix lane reproduced both failures **before** the fix and captured both outputs.
+- **A pre-existing off-by-one became user-visible the moment the panel was mounted.** Send-to-back passed `reduced.length - 1`, which lands the row second-from-back (for `[a,b,c]` minus `a`, rest index 1 = *between* b and c). Corrected to `reduced.length`, and the panel's pinned expectation — whose comment asserted the wrong arithmetic — corrected with it (D76). The shell could not have fixed it: that index is byte-identical to `Alt`+ArrowDown on the last-but-one slot.
+- **The handoff's A2 framing was wrong** ("marquee, rotate, groups, mini-toolbar are implemented but not driven"). Handle transforms and `deleteSelection` were **already** driven; the real gaps were that marquee was never *armed*, `tapObject`/`longPress` were never called, `onPinnedToolbar` was `() => undefined`, no rotate UI existed, and `onLockedToast` was never passed. Groups genuinely do not exist anywhere.
+- **The handoff's marquee rule collided with a shipped test.** It implies a marquee on any empty-canvas drag, but the F1 rule requires a **touch** empty-canvas drag to **pan**; marquee is therefore armed for pen/mouse only.
+- **`deletable: a.type !== 'image'` (handoff A1 step 6) is wrong** per §20.2 — the *photo* is non-deletable, image insets are deletable.
+- **The copy fold ran through three staging modules in one wave**; `layersWireCopy.ts` was folded from the appendix bytes and deleted, and the copy gate plus `layersRows` were re-run before the wave commit.
+
+**Next:** slice 1.7 (image insets) — lane B2's picker sheet is already built and green (off the critical path), so Wave B is engine + integration.

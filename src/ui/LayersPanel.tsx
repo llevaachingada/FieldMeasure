@@ -363,8 +363,14 @@ export default function LayersPanel({
       const block = blockFor(rows, row.key);
       if (action === 'front' && block) onReorder(row.key, 0);
       else if (action === 'back' && block) {
-        const toIndex = block.rows.filter((r) => r.key !== row.key).length - 1;
-        if (toIndex >= 0) onReorder(row.key, toIndex);
+        // `toIndex` is the REST index inside the row's own group block, counted with the
+        // row removed. The true back of the group is `reduced.length` — a rest index one
+        // past the last remaining row. `reduced.length - 1` leaves the row SECOND-from-back
+        // (for [a,b,c] minus `a` that is a rest index of 1, i.e. between b and c). The shell
+        // maps a rest index >= `reduced.length` onto the back of the §20.2 band
+        // (`moveInBandToBack`). Guarded so a single-row group is a no-op.
+        const toIndex = block.rows.filter((r) => r.key !== row.key).length;
+        if (toIndex > 0) onReorder(row.key, toIndex);
       } else if (action === 'rename') {
         setRenamingKey(row.key);
         closeMenu(false); // the rename field takes focus, so do not return it to the row

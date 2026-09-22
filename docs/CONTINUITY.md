@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 11 — slice **1.6 markup tools** shipped as a PARTIAL: the tools, the document and `markup.json` persistence are in; three wiring items are owed — see below)
+**Last updated:** 2026-09-21 (session 11, continued — slice **1.6 is COMPLETE**: the three owed wiring items are closed, and the wave review found and fixed a real Layers-reorder defect — see D76)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 (PARTIAL) complete and green.** Markup tools ship; **annotations now persist** to `markup.json`. Next: close 1.6’s three owed wiring items, then **1.7 (image insets)** |
-| Application code | **Nine slices**, **526 machine tests / 40 files**. 1.6 adds `shapes/{svgPath,renderShape,renderInk,renderText}.ts`, `tools/{toolTypes,ShapeTool,AngleTool,FreehandTool,TextTool,EraseTool,SelectTool}.ts`, `ui/LayersPanel.tsx` (+CSS) and the `markup.json` persistence wiring. Plus 1.9 **step 1 only** |
+| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 complete and green.** Markup tools ship, **annotations persist** to `markup.json`, and the **Layers panel is mounted** with undoable eye/lock, a band-safe reorder and a shell-driven `SelectTool`. Next: **1.7 (image insets)** |
+| Application code | **Nine slices**, **643 machine tests / 47 files**. 1.6 adds `shapes/{svgPath,renderShape,renderInk,renderText}.ts`, `tools/{toolTypes,ShapeTool,AngleTool,FreehandTool,TextTool,EraseTool,SelectTool}.ts`, `ui/LayersPanel.tsx`, `ui/layersRows.ts` (+CSS) and the `markup.json` persistence wiring; its wiring closure mounts the panel and drives `SelectTool` + the erase long-press preview. Plus 1.9 **step 1 only** |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Close 1.6’s owed items** (a focused wiring slice): mount `LayersPanel` (needs scene visibility/lock/rename/z-order + history commands + `layersOpen`), finish `SelectTool`’s shell wiring (marquee, rotate UI, groups, lock toast, mini-toolbar pin), and drive the erase 600 ms long-press preview. Then **1.7 (image insets)**. |
+| Next action | **Slice 1.7 (image insets).** Lane B2's picker sheet is already built and green **off the critical path**, so Wave B is the inset engine (`InsetTool` + the §8.5 coordinate model) plus integration. Then **1.8 (style system)**, whose StylePanel/StyleEditorSheet UI half is likewise already built. |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -428,6 +428,44 @@ fold takes provenance from the appendices instead of the list.
 **Carry-in closed:** D70 (`markup.json` persistence). **New watch item:** the read-only project
 case is not suppressed at the queue — it parks and retries, and the 1.10 chip owns that state.
 
+### 2026-09-21 — Session 11 (continued): the 1.6 wiring closure and a real reorder defect
+
+Three lanes were dispatched at once — the wave's own lane plus, **off the critical path**, the two
+UI halves that later waves need (`ImageInsetPickerSheet` for 1.7, `StylePanel`/`StyleEditorSheet` for
+1.8) — because neither writes a file the wave owns. All three are built, tested and green.
+
+**The three owed items are closed** (D75): `Annotation.visible` (additive in both domain files, no
+migration bump) with `setVisible`/`setLocked`/`rename` on the scene; `layersOpen` mirroring
+`keypadOpen`; a real `onToggleLayers` with `aria-expanded`; the mount in `SheetEditor` as a
+positioning-only wrapper; rows derived by the new pure `ui/layersRows.ts`; every toggle one undo
+step. `SelectTool` is now fully shell-driven (marquee on non-touch empty drag, tap-select,
+long-press pin, rotate chips, Lock/Delete, the locked toast), and the erase 600 ms preview has its
+timer.
+
+**The wave review caught what the wave's own gate and the 639-test suite could not** (D76). Two
+defects, one root cause — the panel's **groups** are not the **§20.2 bands**:
+1. `resolveDrop` returned a **group-block** index while `moveInBand` read a **band** index, so with
+   ≥2 groups in the main band a reorder landed in the wrong slot. Executed trace: a dimension
+   dragged onto another dimension **jumped above an unrelated Rect**.
+2. Because `freehand` (main band) and `highlight` (lower band) share the `ink` group, one block spans
+   two bands and the cross-band refusal **never fired** — the drop silently did nothing, so the gate
+   *"a cross-band reorder is refused with the approved copy" was not truly met*.
+
+Fixed with an anchor-based, band-filtered primitive (`moveInBandBefore`/`moveInBandToBack`), so a
+cross-band move is now **unexpressible**; the fix lane reproduced both failures **before** the fix
+and captured both outputs. A pre-existing **Send-to-back off-by-one** in the panel (it landed the row
+second-from-back) was corrected with its pinned expectation, arithmetic shown in D76.
+
+**Machine gates:** `tsc` 0 · `vitest` **643 passed / 47 files** · `build` 0 (17 precache, no
+`UNLOADABLE_DEPENDENCY`) · `playwright` 5 passed / 4 skipped. **Checkpoints:** none fired; C4's
+obstacle is gone (annotations exist) and it is dispatched as its own lane.
+
+**Also corrected in the same commit (D74):** five subordinate-document defects in the UI spec and the
+strings appendix — two container dimensions that could not hold their own contents (`360px` keypad =
+538 px; `320px` picker = 440 px), the self-contradicting Layers long-press (resolved **grip = drag,
+row body = menu**), the 280 px panel that cannot hold its own 6-across 44 px swatch grid (294 px), and
+the appendix's `4 pt` example for a string whose own source says `«3 pt»` (pt = 0.75 × mu).
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -561,6 +599,31 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
 - **`docs/HARDWARE-TEST-CHECKLIST.md` carries a C4 row that is on disk but not yet committed** (the file
   is lane-owned this wave); confirm it survives the wave commit.
 
+
+## Known drift / watch items (session 11, continued)
+
+- **Object groups do not exist anywhere** — `SelectTool` has no group model, `scene.ts` has none,
+  and the Layers panel's `Group`/`Ungroup` are correctly disabled. D75; landing them is its own slice.
+- **The photo row is synthetic** — the sheet's photo is not an `Annotation`, so its row is
+  non-deletable (§20.2) but its **lock cannot persist**. Owed until 1.7 models the photo.
+- **The mini-toolbar uses the `.placement-hud` slot, not `miniToolbarPosition`** — a computed anchor
+  needs an inline `style`, which the CSP (and the CSP-as-a-test) forbids. D75.
+- **Rename is a no-op** on purpose (annotations carry no name; names derive — AGENTS #2). Either
+  remove Rename from the row menu or sanction a stored name field; do not silently add one. D75.
+- **Inset and inset-child Layers rows are code-complete but unreachable** until 1.7 attaches
+  `children` and image rendering.
+- **The 1.4→1.6 batch still has NOT had an independent adversarial review** (the owner waived it).
+  The orchestrator review of the 1.6 wave found two real defects the suite could not see, which is
+  the argument for running the `@oracle` pass — scheduled immediately after the 1.6 commit.
+- **Targets remain CSS-declared, not measured** (keypad 48–72 px; panel 320/56/48 px) — same class as
+  **D64**'s unproven dpr-2 path.
+- **Two carried watch items are now closed:** the UI-spec numbers (D74) and the Layers long-press
+  contradiction (D74). The remaining carried ones are unchanged: parked writes on read-only projects
+  (1.10), unapproved `⚠ PROPOSED (C14)` copy, the borrowed `PendingOp`, and the 14 placeholder glyphs.
+- **The reorder seam's semantics are worth re-reading before 1.7 changes z-order** — Bring to front
+  is *front of the row's own group*, not of the sheet, because `(key, 0)` is shared with a drop on the
+  group's front row (D76). Insets will add a new group and (in Focus mode) a nesting level, which is
+  exactly the shape of change that produced the defect above.
 
 ## How to resume
 

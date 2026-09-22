@@ -419,8 +419,11 @@ describe('row context menu', () => {
     act(() => {
       q<HTMLButtonElement>('[data-menu-action="back"]').click();
     });
-    // [dim-1, dim-2, dim-3] without dim-1 is [dim-2, dim-3] → the back position is 1.
-    expect(onReorder).toHaveBeenLastCalledWith('dim-1', 1);
+    // [dim-1, dim-2, dim-3] without dim-1 is [dim-2, dim-3], whose length is 2. A rest index
+    // of `1` would land dim-1 BETWEEN dim-2 and dim-3 (second-from-back); the true back is
+    // rest index 2 = reduced.length. Off-by-one corrected in DECISIONS D76 — the shell maps a
+    // rest index >= reduced.length onto the back of the §20.2 band.
+    expect(onReorder).toHaveBeenLastCalledWith('dim-1', 2);
   });
 
   it('Rename commits through onRename', () => {
