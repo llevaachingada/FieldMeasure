@@ -1872,4 +1872,43 @@ failed** its reorder assertion, so it was **deleted**, not committed. F1's real-
 remains **OWED** alongside D81's harness blocker. That failing run is evidence the CDP route *can* produce
 a real touch; it just has not been made to pass.
 
+### D85 — first-run handedness cards: the LEFT-hand card belongs on the left (owner decision; the spec was ambiguous)
+
+The product owner found this by **running the app**, and the DOM confirmed it: the step-1 radiogroup rendered
+`[Right][Left]`, so the "Right" card sat on the **left** of the screen. The spec's enumeration — UI §4.4:177
+"two big cards (Right / Left)" — was being read as *listing* the options (Right first because Right is the
+default), not as pinning screen position. The owner has now decided the position: **the card for a hand sits
+on that hand's side** (Left card left, Right card right), which mirrors the layout the answer produces (a
+right-handed user's tool rail and style panel swap sides).
+
+**Fix:** the two `<button role="radio">` elements are **re-ordered in the DOM** (`src/ui/FirstRun.tsx`) —
+deliberately **not** flipped with CSS. **DOM order is the focus order**, so a `row-reverse` flip would have
+made the focus ring travel against the visual order (WCAG 2.4.3); ordering the elements keeps visual order ==
+focus order == reading order. `Right` remains pre-selected (`DEFAULT_HANDEDNESS`) — unchanged.
+
+**Guard:** `tests/firstRun.test.tsx` now asserts the **DOM order** (`getAllByRole('radio')` →
+`[Left, Right]`). jsdom has no layout, so DOM order is the honest machine-checkable form of "Left is on the
+left" (the visual order follows it by construction). The keyboard test now expects the first `Tab` to land
+on the **Left** card; it previously asserted Right, which was true of the old order and was **not** a
+stronger test — no assertion was weakened or removed.
+
+UI §4.4:177 was **amended in the same commit** to state the arrangement, so the change cannot be silently
+reverted by a later reader treating the old enumeration as normative.
+
+### D86 — B1 evidence: a REAL directory handle survives a page load; the OPFS case is the odd one
+
+Reviewing the running product (session 13 follow-up) produced a data point the test harness could not: the
+automated browser auto-granted `showDirectoryPicker`, the app persisted a **real**
+`FileSystemDirectoryHandle` (name `FieldMeasureVW`, the workspace root) under `fm:projects-root`, and the
+page then **reloaded and rendered Home normally** — no renderer death, 11 project cards, and no console error
+beyond the known `frame-ancestors` CSP-meta notice.
+
+That is the first evidence on the question **D81** left open, and it points **away from a product defect**:
+the renderer death reproduced in session 13 was with an **OPFS** handle written directly by a probe.
+> It is **evidence, not proof**: a different Chromium invocation (the review browser, not Playwright's),
+> a handle that was *auto-granted* rather than *user-picked*, and a single run.
+> The check in `docs/HARDWARE-TEST-CHECKLIST.md` therefore stays, **narrowed** to *"does a user-picked
+> folder survive a reload?"*, and that row now records this positive data point so the next session does not
+> re-derive it.
+
 ---

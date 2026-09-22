@@ -545,7 +545,10 @@ harness. The spec stays `fixme` with corrected evidence, and — because only OP
 **whether a real on-disk handle does the same is unverified and would make this a *product* defect**, so it
 is logged as a hardware check and the product is **not** declared exonerated. A CDP-touch attempt in the
 browser project reached a real touch but failed its assertion and was deleted; F1's real-touch proof stays
-owed.
+owed. **Positive evidence (D86):** reviewing the *running* built app, a **real** directory handle
+(auto-granted by `showDirectoryPicker`) was persisted under `fm:projects-root` and the page then **reloaded
+into Home normally** — no renderer death. So the crash looks **OPFS-specific**, the hardware check narrows
+to *"does a user-picked folder survive a reload?"*, and the product is no longer presumed defective.
 
 **C4's machine half is measured and recorded provisional** (D80): a 4096-px sheet with 50 annotations,
 panned — median **0.6 ms** (p95 1.3) on the real `min(dpr, 2)` path, 0.7 ms at forced ratio 2 and ratio 1.

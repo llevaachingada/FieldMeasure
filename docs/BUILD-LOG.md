@@ -559,3 +559,34 @@ split). **D84** records the integration defect the full gate caught.
 step 1, `export/filenames.ts`, shipped in 1.3). The export-invariance rule (`0.75 × mu` pt at every
 multiplier M) is the whole slice, and `src/editor/../export/renderStage.ts` must be the **only** place that
 scales for export — the §4.2 screen and export paths are opposites and both are load-bearing.
+
+## Defect correction — first-run handedness card order (owner-reported; D85)
+**Date:** 2026-09-22 · **Commit:** session 13 follow-up (see `git log`)
+
+**Built:** the first-run step-1 cards now render **Left on the left, Right on the right**. They rendered
+`[Right][Left]`, which the **owner caught by using the running app** — no gate saw it. The two
+`role="radio"` elements were **re-ordered in the DOM** rather than flipped with CSS, because DOM order is
+the focus order; a `row-reverse` flip would have pushed the focus ring against the visual order (WCAG 2.4.3).
+`Right` stays pre-selected. UI §4.4:177 amended to state the arrangement so it cannot be silently reverted.
+
+**Machine gates:** `<n>/<n>` passing (measured on this commit's file set)
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → `<files>` files / `<tests>` tests — the new guard asserts the **DOM order**, and
+      the keyboard test now expects the first `Tab` on the Left card
+- [x] `npm run build` → 0 errors, 17 precache entries
+- [x] `npx playwright test` → 5 passed / 5 skipped
+
+**Deferred to hardware:** none added.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D85** (card order: the owner's decision, the DOM-vs-CSS a11y reasoning, and the
+test change) and **D86** (a real `FileSystemDirectoryHandle` survived a page load in the review browser —
+the first evidence on B1's open product question, pointing away from a defect; the OPFS case is the odd one).
+
+**Surprises:** the jsdom test asserted the **pre-selected hand** but never the **order**, and the e2e smoke
+test only asserts the heading — so every gate was green while the screen was wrong. That is the second time
+this session that *"all gates green"* and *"the product is right"* differed (the first was D84). When the
+remaining `[Surface]` gates are run, expect this class again: **a machine gate can only see what it asserts.**
+
+**Next:** slice 1.9 — export (unchanged).
