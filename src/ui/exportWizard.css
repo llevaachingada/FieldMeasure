@@ -1,0 +1,575 @@
+/**
+ * `src/ui/exportWizard.css` — slice 1.9 (lane C), the export wizard
+ * (UI spec §12; build spec §11.10; implementation plan §1.9 step 5).
+ *
+ * EXTERNAL STYLESHEET, NO INLINE STYLES. The CSP is `style-src 'self'` and the e2e suite
+ * asserts `[style]` count === 0 (design handoff §7.2), so every bit of state is carried by a
+ * `data-` attribute (`data-step`, `data-selected`, `data-current`, `data-failed`) and dressed
+ * here — never by a `style=""` attribute. `tests/exportWizard.test.tsx` asserts the same
+ * thing at the unit level, so a single inline style fails two gates.
+ *
+ * TOKENS are the "Site Slate" globals from `styles.css` (`--g750`, `--hi`, `--ok`, `--err`…).
+ * `.mono` / `.visually-hidden` are global too.
+ *
+ * TARGETS (§19.6 gate row, touch-primary): EVERY control in this dialog declares a 48 px
+ * minimum box, and `.export-wizard-slop` adds **16 px** of hit slop on all four sides. The
+ * global `.hit-slop` gives 8 px, which is not what this slice's gate asks for, so the wizard
+ * declares its own rather than silently under-delivering. Controls are laid out with >= 8 px
+ * gaps so two 16 px slops never overlap (UI §14.5 forbids overlapping targets):
+ *     16 px slop + 8 px gap + 16 px slop -> the slops of adjacent controls meet but do not
+ *     cross, because each control's own box also separates them.
+ * The list/segment gaps below are therefore 12 px or more, not decoration.
+ *
+ * SIZE: 880 × 700 centered over a 60 % scrim (UI §12:742) — deliberately not a full-bleed
+ * sheet: the wizard is a decision surface, not a canvas. It degrades to the viewport on a
+ * small window, which is the only way the footer stays reachable on a Surface Go in
+ * portrait.
+ */
+
+.export-wizard-scrim {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(11, 14, 18, 0.6); /* the 60 % scrim (UI §12:742) */
+  z-index: 60; /* above the editor sheets (40) — the wizard is the topmost modal */
+}
+
+.export-wizard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 880px;
+  height: 100%;
+  max-height: 700px;
+  overflow: hidden;
+  background: var(--g750);
+  border: 1px solid var(--g700);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(11, 14, 18, 0.7);
+  color: var(--g000);
+}
+
+.export-wizard:focus-visible {
+  outline: 2px solid var(--sel);
+  outline-offset: 2px;
+}
+
+/* ---- 16 px hit slop (the §19.6 gate row) --------------------------------- */
+
+.export-wizard-slop {
+  position: relative;
+}
+
+.export-wizard-slop::after {
+  content: '';
+  position: absolute;
+  inset: -16px;
+}
+
+/* Every control clears the 48 px touch floor by its own visual box. */
+.export-wizard button,
+.export-wizard input {
+  min-height: 48px;
+}
+
+.export-wizard button:focus-visible,
+.export-wizard input:focus-visible {
+  outline: 2px solid var(--sel);
+  outline-offset: 2px;
+}
+
+.export-wizard button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- header --------------------------------------------------------------- */
+
+.export-wizard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--g700);
+}
+
+.export-wizard-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.export-wizard-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  cursor: pointer;
+}
+
+.export-wizard-close:active {
+  background: var(--g700);
+}
+
+/* ---- body: the step rail + the active panel ------------------------------ */
+
+.export-wizard-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.export-wizard-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* >= the 8 px that keeps adjacent 16 px slops from crossing */
+  flex: 0 0 auto;
+  width: 200px;
+  padding: 16px;
+  border-right: 1px solid var(--g700);
+  background: var(--g800);
+}
+
+.export-wizard-rail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0 14px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.export-wizard-rail-row[data-current='true'] {
+  border-color: var(--hi);
+  background: var(--g750);
+  color: var(--g000);
+}
+
+.export-wizard-rail-index {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--g300);
+}
+
+.export-wizard-rail-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-wizard-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* ---- steps ---------------------------------------------------------------- */
+
+.export-wizard-step {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.export-wizard-step-title {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--g300);
+}
+
+.export-wizard-group-label {
+  align-self: center;
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g300);
+}
+
+/* ---- segmented toggles (scope, conflict policy) -------------------------- */
+
+.export-wizard-segmented,
+.export-wizard-conflicts,
+.export-wizard-multipliers,
+.export-wizard-format-cards,
+.export-wizard-select-actions,
+.export-wizard-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.export-wizard-segment,
+.export-wizard-multiplier {
+  min-height: 56px; /* the 56 px segmented toggles of UI §12:712 */
+  padding: 0 18px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g000);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.export-wizard-segment[data-selected='true'],
+.export-wizard-multiplier[data-selected='true'] {
+  border-color: var(--hi);
+  background: var(--g700);
+}
+
+/* A multiplier the §19.4b budget refuses stays CHOOSABLE (so the refusal can explain
+   itself) but is marked as unavailable — never colour-only: the strike-through is the
+   non-colour channel (UI §3.1 C11). */
+.export-wizard-multiplier[data-refused='true'] {
+  border-color: var(--err);
+  color: var(--g300);
+  text-decoration: line-through;
+}
+
+/* ---- format cards (160 px, UI §12:715) ----------------------------------- */
+
+.export-wizard-format-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 200px;
+  min-height: 160px;
+  border: 2px solid var(--g600);
+  border-radius: 12px;
+  background: var(--g800);
+  color: var(--g000);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.export-wizard-format-card[data-selected='true'] {
+  border-color: var(--hi);
+  background: var(--g700);
+}
+
+/* ---- checkboxes ----------------------------------------------------------- */
+
+.export-wizard-check-row,
+.export-wizard-sheet-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.export-wizard-checkbox {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  min-height: 28px; /* the row around it carries the 48 px target */
+  accent-color: var(--hi);
+  cursor: pointer;
+}
+
+.export-wizard-check-label,
+.export-wizard-sheet-title {
+  min-width: 0;
+  font-size: 16px;
+}
+
+/* ---- the sheet list ------------------------------------------------------- */
+
+.export-wizard-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-wizard-sheet-row {
+  padding: 0 12px;
+  border: 1px solid var(--g700);
+  border-radius: 10px;
+  background: var(--g800);
+}
+
+.export-wizard-sheet-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-wizard-sheet-dims {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--g300);
+}
+
+/* ---- text buttons (select all/none, result actions, per-file retry) ------ */
+
+.export-wizard-text-button,
+.export-wizard-choose {
+  padding: 0 16px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g000);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.export-wizard-choose {
+  align-self: flex-start;
+  min-height: 56px;
+}
+
+/* ---- notices: warning, refusal, empty scope ------------------------------ */
+
+.export-wizard-warning {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--warn);
+  border-radius: 6px;
+  background: var(--g800);
+  font-size: 15px;
+  color: var(--g100);
+}
+
+.export-wizard-refusal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--err);
+  border-radius: 6px;
+  background: var(--g800);
+}
+
+.export-wizard-refusal-text {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--g000);
+}
+
+.export-wizard-empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--g600);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--g300);
+}
+
+.export-wizard-note,
+.export-wizard-dropbox {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--g300);
+}
+
+/* ---- destination ---------------------------------------------------------- */
+
+.export-wizard-destination-path,
+.export-wizard-summary {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--g100);
+}
+
+.export-wizard-summary {
+  padding: 12px 14px;
+  border: 1px solid var(--g700);
+  border-radius: 10px;
+  background: var(--g800);
+  /* The approved copy carries a DOUBLE SPACE after `to:`. Collapsing it would silently
+     rewrite approved copy, so this line preserves its whitespace. */
+  white-space: pre-wrap;
+}
+
+/* ---- progress ------------------------------------------------------------- */
+
+.export-wizard-progress {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.export-wizard-progress-name {
+  margin: 0;
+  font-size: 14px;
+  color: var(--g300);
+}
+
+/* ---- result --------------------------------------------------------------- */
+
+.export-wizard-result-summary {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ok);
+}
+
+/* Selectable text, never an image (§19.6). `user-select` is explicit because the dialog
+   sits over touch surfaces where selection is often suppressed. */
+.export-wizard-path {
+  display: block;
+  padding: 12px 14px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--g700);
+  border-radius: 10px;
+  background: var(--g850);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--g000);
+  user-select: text;
+}
+
+.export-wizard-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-wizard-file-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 12px;
+  border: 1px solid var(--g700);
+  border-radius: 10px;
+  background: var(--g800);
+}
+
+.export-wizard-file-row[data-failed='true'] {
+  border-color: var(--err);
+}
+
+.export-wizard-file-status {
+  flex: 0 0 auto;
+  width: 20px;
+  text-align: center;
+  color: var(--ok);
+}
+
+.export-wizard-file-row[data-failed='true'] .export-wizard-file-status {
+  color: var(--err);
+}
+
+.export-wizard-file-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.export-wizard-file-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--err);
+}
+
+.export-wizard-file-shortfall,
+.export-wizard-file-size {
+  font-size: 13px;
+  color: var(--g300);
+}
+
+/* ---- footer --------------------------------------------------------------- */
+
+.export-wizard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--g700);
+  background: var(--g800);
+}
+
+.export-wizard-back {
+  min-height: 56px;
+  padding: 0 20px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g000);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.export-wizard-primary {
+  min-height: 64px; /* the 64 px primary of UI §12:722 */
+  padding: 0 28px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--hi);
+  color: var(--g900);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.export-wizard-primary[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+/* ---- narrow windows ------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .export-wizard-body {
+    flex-direction: column;
+  }
+
+  .export-wizard-rail {
+    flex-direction: row;
+    width: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--g700);
+    overflow-x: auto;
+  }
+}
