@@ -233,11 +233,20 @@ describe('cleanStaleTmp — the "tmp cleaned" half of the capture gate', () => {
   });
 });
 
-describe('defaultSheetTitle — zero-padded, never renumbered', () => {
-  it('counts live sheets (excluding deleted) and pads to 2', () => {
-    // 0 existing sheets → count+1 = 1 → 'Sheet 01'.
+describe('defaultSheetTitle — zero-padded, never renumbered, never minted twice', () => {
+  it('counts EVERY row (trashed included) and pads to 2', () => {
+    // 0 existing sheets → 0+1 = 1 → 'Sheet 01'.
     expect(defaultSheetTitle(validProjectFile({ sheetCount: 0 }))).toBe('Sheet 01');
-    // 11 existing → 12 → 'Sheet 12' (no renumbering of the existing 11).
+    // 11 existing → 11+1 = 12 → 'Sheet 12' (no renumbering of the existing 11).
     expect(defaultSheetTitle(validProjectFile({ sheetCount: 11 }))).toBe('Sheet 12');
+  });
+
+  it('counts a trashed row, because counting only live rows can duplicate a live title', () => {
+    // §20.6:2586's formula is `sheets.length + 1`, and a trashed row is still a row with its
+    // title. Rows [Sheet 01 live, Sheet 02 trashed, Sheet 03 live]: the live count is 2 →
+    // «Sheet 03», which a LIVE sheet already holds; all rows = 3 → «Sheet 04», unique.
+    const withTrash = validProjectFile({ sheetCount: 3 });
+    withTrash.sheets[1].deletedAt = '2026-09-22T10:00:00.000Z';
+    expect(defaultSheetTitle(withTrash)).toBe('Sheet 04');
   });
 });

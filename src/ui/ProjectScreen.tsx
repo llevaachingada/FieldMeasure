@@ -49,6 +49,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -139,10 +140,44 @@ const REPLACE_HOLD_MS = 600;
 /** The drag chip's offset from the fingertip, in CSS px (above and right of it). */
 const CHIP_DX = 16;
 const CHIP_DY = -44;
+/** The chip's fallback width when `offsetWidth` is unavailable (jsdom has no layout). */
+const CHIP_FALLBACK_WIDTH = 115;
 
-/** The chip's transform — the only place its position lives (no inline styles). */
-function chipTranslate(x: number, y: number): string {
-  return `translate(${x + CHIP_DX}px, ${y + CHIP_DY}px)`;
+/**
+ * The card menu's full height: 7 items × 48 + 6 gaps × 2 + 12 padding + 4 border = 364.
+ * Above the trigger there is only 300 − 68 = 232 px inside the card, so the menu cannot be
+ * flipped for every case — the CSS `max-height`/`overflow-y` backstop is what guarantees it
+ * is never taller than the viewport (see the review: at the bottom row, 5 of the 7 items
+ * used to render below the fold, which made «Delete» the least reachable action).
+ */
+export const MENU_MAX_HEIGHT = 364;
+
+/**
+ * Which way the card menu must open to be readable where the card actually is: downward
+ * unless the viewport has less than the menu's full height below the card. Exactly
+ * `MENU_MAX_HEIGHT` counts as "fits" (an inclusive threshold — the CSS backstop has 0 px of
+ * slack there, not negative slack). Exported so its arithmetic is pinned by a test: jsdom has
+ * no layout, so only a stubbed rect can exercise it there.
+ */
+export function menuDirectionFor(el: HTMLElement | null): 'up' | 'down' {
+  if (!el) return 'down';
+  const rect = el.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+  return spaceBelow < MENU_MAX_HEIGHT ? 'up' : 'down';
+}
+
+/**
+ * The chip's transform — the only place its position lives (no inline styles, so the CSP's
+ * `style-src 'self'` and the e2e `[style]` count === 0 assertion both hold). The offsets put
+ * it just above the fingertip; the clamp keeps it fully on screen, because at the last
+ * column of a 4-across grid the unclamped chip ran 35–75 px past the right edge and clipped
+ * the label it exists to show (measured in the session-22 UI review).
+ */
+function chipTranslate(x: number, y: number, width: number = CHIP_FALLBACK_WIDTH): string {
+  const maxX = Math.max(8, window.innerWidth - width - 8);
+  const left = Math.min(Math.max(8, x + CHIP_DX), maxX);
+  const top = Math.max(8, y + CHIP_DY);
+  return `translate(${left}px, ${top}px)`;
 }
 
 /** Order equality, so a lift that changed nothing never becomes a disk write. */
@@ -204,6 +239,8 @@ interface ReplaceDialogProps {
 function ReplaceDialog({ sheetTitle, onResolve }: ReplaceDialogProps): JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const holdTimerRef = useRef<number | null>(null);
+  /** Whatever had focus when the dialog opened — restored when it closes (§19.6). */
+  const invokerRef = useRef<HTMLElement | null>(null);
   const [holding, setHolding] = useState(false);
 
   const cancelHold = useCallback((): void => {
@@ -260,9 +297,19 @@ function ReplaceDialog({ sheetTitle, onResolve }: ReplaceDialogProps): JSX.Eleme
     return () => document.removeEventListener('keydown', onKeyDown, true);
   }, [cancelHold, onResolve]);
 
-  // Focus goes into the dialog on open: the default (non-destructive) choice.
+  // §13.3:808: initial focus is the SAFE action («Cancel»), never the destructive one, and
+  // it RETURNS to whatever had focus when the dialog closes (the `TrashPanel` pattern) —
+  // a dismissed dialog must not drop focus onto `<body>`. The first build focused
+  // «Keep markup»; the session-22 UI review measured that against the spec clause.
   useEffect(() => {
-    rootRef.current?.querySelector<HTMLButtonElement>('[data-replace-default]')?.focus();
+    invokerRef.current = document.activeElement as HTMLElement | null;
+    rootRef.current?.querySelector<HTMLButtonElement>('[data-replace-cancel]')?.focus();
+    return () => {
+      const invoker = invokerRef.current;
+      if (invoker && document.contains(invoker) && typeof invoker.focus === 'function') {
+        invoker.focus();
+      }
+    };
   }, []);
 
   return (
@@ -273,15 +320,20 @@ function ReplaceDialog({ sheetTitle, onResolve }: ReplaceDialogProps): JSX.Eleme
         data-testid="sheet-replace-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={STRINGS.sheetMenu.replacePhoto}
+        aria-labelledby="sheet-replace-title"
       >
-        <h2 className="sheet-replace-title">{sheetTitle}</h2>
+        {/* The dialog's NAME is the action; the sheet it concerns is the subject line. An
+            `aria-label` that disagreed with the visible heading was finding 14 of the
+            session-22 UI review. */}
+        <h2 className="sheet-replace-title" id="sheet-replace-title">
+          {STRINGS.sheetMenu.replacePhoto}
+        </h2>
+        <p className="sheet-replace-subject">{sheetTitle}</p>
         <p className="sheet-replace-warn">{STRINGS.project.replacePhotoWarn}</p>
         <div className="sheet-replace-actions">
           <button
             type="button"
             className="btn btn-secondary hit-slop"
-            data-replace-default=""
             onClick={() => {
               cancelHold();
               onResolve('keep');
@@ -289,11 +341,14 @@ function ReplaceDialog({ sheetTitle, onResolve }: ReplaceDialogProps): JSX.Eleme
           >
             {STRINGS.project.replacePhotoKeep}
           </button>
+          {/* §13.3:808 — 64 px tall, the label inside a progress track that fills left→right
+              with `--err` over the hold, so the wait is visible rather than a red flash that
+              "does nothing" (the first build). `data-holding` drives the fill. */}
           <button
             type="button"
-            className={`btn hit-slop sheet-replace-remove ${holding ? 'is-holding' : 'btn-danger'}`}
+            className="btn hit-slop sheet-replace-remove"
             data-testid="sheet-replace-remove"
-            aria-pressed={holding}
+            data-holding={holding ? 'true' : 'false'}
             onPointerDown={(event) => {
               event.preventDefault();
               startHold();
@@ -312,11 +367,13 @@ function ReplaceDialog({ sheetTitle, onResolve }: ReplaceDialogProps): JSX.Eleme
               cancelHold();
             }}
           >
-            {STRINGS.project.replacePhotoRemove}
+            <span className="sheet-replace-remove-label">{STRINGS.project.replacePhotoRemove}</span>
           </button>
+          {/* The safe action, and the dialog's initial focus (§13.3:808). */}
           <button
             type="button"
             className="btn btn-secondary hit-slop"
+            data-replace-cancel=""
             onClick={() => {
               cancelHold();
               onResolve('cancel');
@@ -401,6 +458,8 @@ function SheetCardRow({
   const badge = String(displayIndex).padStart(2, '0');
 
   const [menuOpen, setMenuOpen] = useState(false);
+  /** Which way the popup opens where THIS card sits (finding 1 of the session-22 UI review). */
+  const [menuDirection, setMenuDirection] = useState<'up' | 'down'>('down');
   const [draft, setDraft] = useState(card.title);
   const rootRef = useRef<HTMLLIElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -561,7 +620,15 @@ function SheetCardRow({
             aria-label={menuName}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={() => {
+              // The popup is 364 px tall (7 × 48 + gaps + padding) with no room to flip
+              // inside a 300 px card, so open toward whichever side of the viewport has
+              // space; the CSS `max-height`/`overflow-y` is the backstop. Measured in the
+              // session-22 UI review: opening downward unconditionally at the bottom row
+              // showed 102 px of 364 and made «Delete» the least reachable item.
+              if (!menuOpen) setMenuDirection(menuDirectionFor(rootRef.current));
+              setMenuOpen((open) => !open);
+            }}
           >
             <MoreHorizontal aria-hidden="true" />
           </button>
@@ -572,6 +639,7 @@ function SheetCardRow({
         <div
           ref={menuRef}
           className="sheet-card-menu"
+          data-direction={menuDirection}
           role="menu"
           aria-label={menuName}
           onKeyDown={onMenuKeyDown}
@@ -1006,7 +1074,10 @@ export default function ProjectScreen({
     const from = lastChipRef.current;
     lastChipRef.current = { x, y };
     const animation = chip.animate(
-      [{ transform: chipTranslate(from.x, from.y) }, { transform: chipTranslate(x, y) }],
+      [
+        { transform: chipTranslate(from.x, from.y, chip.offsetWidth) },
+        { transform: chipTranslate(x, y, chip.offsetWidth) },
+      ],
       { duration: 100, easing: 'linear', fill: 'forwards' },
     );
     const previous = chipAnimRef.current;
@@ -1016,17 +1087,23 @@ export default function ProjectScreen({
     previous?.cancel();
   }, []);
 
-  // Seed the chip under the pointer the moment it appears (it mounts with no transform).
-  useEffect(() => {
+  // Seed the chip under the pointer the moment it appears. `useLayoutEffect`, not
+  // `useEffect`: the chip mounts with no transform (its CSS origin is `left:0;top:0`), so a
+  // passive effect lets it paint once at the viewport corner before the seed animation
+  // lands — finding 13 of the session-22 UI review.
+  useLayoutEffect(() => {
     if (dragPhase !== 'dragging') return;
     const chip = chipRef.current;
     const start = pressRef.current;
     if (!chip || !start || typeof chip.animate !== 'function') return;
     lastChipRef.current = { x: start.x, y: start.y };
-    chipAnimRef.current = chip.animate([{ transform: chipTranslate(start.x, start.y) }], {
-      duration: 0,
-      fill: 'forwards',
-    });
+    chipAnimRef.current = chip.animate(
+      [{ transform: chipTranslate(start.x, start.y, chip.offsetWidth) }],
+      {
+        duration: 0,
+        fill: 'forwards',
+      },
+    );
     return () => {
       chipAnimRef.current?.cancel();
       chipAnimRef.current = null;
@@ -1347,13 +1424,17 @@ export default function ProjectScreen({
                       renameFailedNonce={renameFailedNonce}
                       onOpen={onOpenSheet}
                       onToggle={onToggleSelected ?? (() => {})}
-                      onDelete={handleDeleteSheet}
-                      onDuplicate={handleDuplicateSheet}
-                      onReplacePhoto={handleReplacePhoto}
-                      onBeginRename={beginRename}
+                      // UI §11.2:722: in a read-only — or unreadable — project, a mutation
+                      // says «Not saved to disk» instead of attempting a write that cannot
+                      // land. The add tiles above already do exactly this; before this, the
+                      // new card actions were live on the grid's `error` state.
+                      onDelete={blocked ? noteBlocked : handleDeleteSheet}
+                      onDuplicate={blocked ? noteBlocked : handleDuplicateSheet}
+                      onReplacePhoto={blocked ? noteBlocked : handleReplacePhoto}
+                      onBeginRename={blocked ? noteBlocked : beginRename}
                       onCommitRename={commitRename}
                       onCancelRename={cancelRename}
-                      onMove={moveCard}
+                      onMove={blocked ? noteBlocked : moveCard}
                     />
                   ))
                 : null}

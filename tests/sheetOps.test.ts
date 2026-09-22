@@ -434,6 +434,37 @@ describe('replaceSheetPhoto — the §11.2:720 constrained replace', () => {
     expect(markup.success && markup.data.objects).toEqual([]);
   });
 
+  it('a failed markup clear is REPORTED, not thrown — the photo swap did happen (review F1)', async () => {
+    // The only failure that can land AFTER the photo, the dimensions and the thumbnail are
+    // consistently new. It must not reject: the shell would then say «Couldn't replace that
+    // photo» about a photo that was replaced — a claim the system cannot support.
+    const root = replaceFixture({
+      beforeMove: (_file, name) => {
+        if (name === 'markup.json') {
+          throw new DOMException('locked by another app', 'NoModificationAllowedError');
+        }
+      },
+    });
+    await openProject(root);
+
+    const result = await replaceSheetPhoto(PROJECT_KEY, 'sheet-1', NEW_PHOTO, 'remove');
+
+    expect(result).toEqual({ markupCleared: false });
+    // The swap itself succeeded…
+    expect(root.textAt(`${FOLDER}/sheets/sheet-1/photo.jpg`)).toBe('NEW-PHOTO-BYTES');
+    expect(rowFor(root, 'sheet-1')).toMatchObject({ imageWidth: 2048, imageHeight: 1536 });
+    // …and the markup the user asked to drop is still on disk, which is what the caller's
+    // dedicated line reports. Nothing is lost either way.
+    const markup = parseMarkupFile(root.textAt(`${FOLDER}/sheets/sheet-1/markup.json`));
+    expect(markup.success && markup.data.objects).toHaveLength(1);
+    // `writeAtomic` deliberately KEEPS its tmp file when a write fails (the bytes are not
+    // silently discarded), so the only survivor here is the failed markup write's own tmp;
+    // the photo's write left none.
+    const tmps = root.tmpPaths();
+    expect(tmps).toHaveLength(1);
+    expect(tmps[0]).toContain('markup');
+  });
+
   it('a verification failure rolls the photo back and leaves project.json byte-identical', async () => {
     // Corrupt the photo AT RENAME TIME: `beforeMove(file, name)` fires with the tmp file
     // and the TARGET name, so mutating the tmp's bytes when the target is `photo.jpg`

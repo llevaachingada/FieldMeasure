@@ -73,7 +73,8 @@ function distanceToRect(rect: SheetCardRect, point: Point): number {
  * only the fallback when nothing else is nearer. A point inside a card resolves to that
  * card's index (drag right within a row, or wrap down into the next row); a point in a
  * gap, past the last card or outside the grid resolves to the nearest card, so the
- * gesture always has a well-defined target. An empty grid returns `fromIndex`.
+ * gesture always has a well-defined target. An empty grid returns the fallback index —
+ * clamped to `0`, because a negative index is not a position (review F5).
  */
 export function dropIndexFor(
   cards: readonly SheetCardRect[],

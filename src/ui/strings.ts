@@ -125,6 +125,11 @@ export const STRINGS = {
     duplicateFailed: "Couldn't duplicate that sheet",
     replaceFailed: "Couldn't replace that photo",
     reorderFailed: "Couldn't save the new order",
+    // ⚠ PROPOSED (C14) — beyond both appendices (review F1): the replace's LAST step is the
+    // only one that can fail after the photo, the dimensions and the thumbnail are already
+    // consistently new, so «Couldn't replace that photo» would claim a failure the system
+    // did not have. This line says what actually happened.
+    markupNotRemoved: "Couldn't remove the markup",
   },
 
   trash: {

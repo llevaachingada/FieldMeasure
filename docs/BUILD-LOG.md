@@ -1233,3 +1233,61 @@ for the system around it:
 **Next:** an independent executed review of this wave against the commit (the D114 pattern — this wave is
 data-critical `project.json` code and it rewired the shell), then the paused 1.10 polish, then the real
 end-to-end run on a machine with a webcam.
+
+## Slice 1.10 (continued) - the two independent reviews of the grid wave, and their remediation
+**Date:** 2026-09-22 · **Commit:** this commit (the review remediation)
+
+**Built:** nothing new that a user asked for — this entry is the register and the fixes. Two reviews ran against
+the wave's commit: an **executed correctness register** (`@oracle`, clean worktree pinned to the revision, per
+`docs/review-brief.md`) and an **independent UI/UX review** that MEASURED the screen in the repo's own Chromium
+(a fixture mirroring the real DOM chain and stylesheets, 1440×960 · 960×1440 · 1200×800, `getBoundingClientRect`
+per element) — because jsdom cannot see any of it (D40).
+
+- **The register reproduced the gate itself** (tsc 0; 91 files / 1293 tests, all three projects) and found **no
+  wrong-measurement and no data-loss defect**. Six items: one claim-fidelity inversion (F1), one wiring-seam gap
+  (F2), two false comments (F3/F5), two cosmetic/spec-fidelity items (F4/F6).
+- **The UI review's three High findings were all real:** the card menu's 7 items rendered 102 px of 364 at the
+  bottom row (making «Delete» the least reachable action on the screen); the destructive «Remove markup» gave no
+  progress and read as broken; and initial focus sat on «Keep markup» where UI §13.3:808 requires the safe
+  action. All three fixed, plus §14.5/§14.3 violations on the wave's own controls, the chip running off the
+  right edge at the last column, and mutations being offered on a project that cannot take them.
+
+**Fixed (each pinned):** the menu's direction + `max-height` backstop (with the arithmetic test and a browser
+assertion); the §13.3:808 progress track and 64 px destructive control; `Cancel` as initial focus + focus return
+to the invoker + the dialog's name from its own heading; the `⋯` trigger's 92 % `--g900` and its 8 px slop
+overlap with the select toggle; the rename field's 8 px gap; the chip's viewport clamp and its one-frame corner
+flash; §11.2:722's «Not saved to disk» for the new mutations on an unreadable/read-only project; **F1** —
+`replaceSheetPhoto` returns `{ markupCleared }` so the shell says «Couldn't remove the markup» instead of
+denying a swap that happened; **F4** — `defaultSheetTitle` counts every row, so a trashed row's title can no
+longer be minted twice (worked example in D118); and two comments the register proved false.
+
+**The wiring seam is now tested (F2).** `tests/gridActions.test.tsx` mounts the real `App`, walks Home → the
+grid and drives **rename / reorder / duplicate / replace** through the DOM against the fake disk — including
+the silent same-size swap, the warned dialog's `Keep markup`, and F1's message. Deliberately the same
+route-level shape as `tests/gridToast.test.tsx`: D114's lesson was that the seam, not the modules, is where
+this project's real bugs appear.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **93 files / 1309 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 26 precache entries (1517.95 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+
+**Deferred to hardware:** the drag's real input semantics, the chip's real follow, the menu's real popup height
+and the manual/`[Surface]` rows — logged under slice 1.10.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D118** (both registers, every resolution, and the owed items with their measurements).
+
+**Surprises:** the two reviews found defects in **opposite directions** from the ones this project is used to.
+The register's F1 is the D110/D114 family **inverted** — the interface claimed a *failure* the system did not
+have (the replace's last step failed; the photo swap had succeeded). And the UI review could only exist because
+someone finally **measured** the screen: three of its findings (102 px of a 364 px menu, a 4 px hit-slop overlap,
+a chip 75 px off the right edge) are invisible to every test in the suite and to every reading of the CSS —
+exactly the shape of D40's "a gate can only see what it asserts, in the environment it asserts it".
+
+**Next:** the paused 1.10 polish (the History flyout, the end-to-end a11y audit, the arrow nudge, D101's halo),
+the four owed review items above (autoscroll, the scroll container + top bar, the editor's replace dialog,
+`aria-pressed`), and then the run that has never happened: built app, a webcam, a throwaway folder, export a
+PDF and open it.

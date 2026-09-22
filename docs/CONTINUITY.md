@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 22 — **the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **91 files / 1293 tests** · build 0 (26 precache, 1516.68 KiB) · playwright 5/5. Owed here: an **independent executed review of this wave** and the **real end-to-end run on hardware**)
+**Last updated:** 2026-09-22 (session 22 — **the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **93 files / 1309 tests** · build 0 (26 precache, 1517.95 KiB) · playwright 5/5. **Both reviews of the wave landed and are discharged** — an executed correctness register (no wrong-measurement, no data-loss; one claim-fidelity inversion and one wiring-seam gap, both fixed) and a **measured** UI/UX review (three Highs, all fixed) — full register and owed items in **D118**. Owed here: the **real end-to-end run on hardware**, and four recorded review items (drag autoscroll, the inert scroll container/top bar, the editor's replace dialog, `aria-pressed` on the hold))
 
 ---
 
@@ -12,7 +12,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Field | Value |
 |---|---|
 | Phase | **Slices 0.2–1.9 complete (1.9 reviewed, D109); 1.10 in progress; 1.11 landed (D112); the Project screen is built (D111) and now owns sheet trash (D113).** Shipped in 1.10 so far: themes (D104), the trust layer (D107), sheet trash (D113). Still owed: the History flyout, the end-to-end a11y audit, the arrow nudge, D101's halo fix, PDF captions, and the grid's remaining items are now **built** (session 22, D115–D117) — what still owes is the **independent review of that wave**, the **real end-to-end run on hardware**, the paused 1.10 polish, and PDF captions. Then 2.0 |
-| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **91 files / 1293 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1516.68 KiB); playwright 5 passed / 5 skipped. Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows). **Session 22 built the grid's five remaining D111 items** — `src/fs/sheetOps.ts` (reorder/rename/duplicate/replace-photo storage), `src/ui/sheetReorder.ts` (the pure drag arithmetic), `src/ui/StorageChip.tsx` + `src/fs/projectSize.ts` (§11.4 from real disk facts), the grid's card menu / inline rename / drag / warned replace dialog, and the `App` seam that owns the picker and the dimension decision |
+| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **93 files / 1309 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1517.95 KiB); playwright 5 passed / 5 skipped. Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows). **Session 22 built the grid's five remaining D111 items** — `src/fs/sheetOps.ts` (reorder/rename/duplicate/replace-photo storage), `src/ui/sheetReorder.ts` (the pure drag arithmetic), `src/ui/StorageChip.tsx` + `src/fs/projectSize.ts` (§11.4 from real disk facts), the grid's card menu / inline rename / drag / warned replace dialog, and the `App` seam that owns the picker and the dimension decision |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -837,8 +837,25 @@ Three lanes on disjoint files, integrated by the orchestrator, then the full gat
 **Machine gates (this commit's tree):** 4/4 passing — `tsc` 0 · `vitest` **91 files / 1293 tests** · `build` 0
 (26 precache, 1516.68 KiB) · `playwright` 5 passed / 5 skipped.
 
-**Owed:** the independent executed review of this wave, the real end-to-end run on hardware, the paused 1.10
-polish, D113's restore-side undo toast (copy), and the content-owner items.
+**Reviews (same session, against the wave's commit).** Two ran: an **executed correctness register**
+(`@oracle`, clean worktree pinned to `249754e`, per `docs/review-brief.md`) which reproduced the gate itself
+and found **no wrong-measurement and no data-loss defect**, and an **independent UI/UX review** that measured
+the screen in the repo's own Chromium because jsdom cannot see layout (D40). Their registers are **D118**. The
+fixes: the card menu's direction + `max-height` backstop (it rendered 102 px of its 364 px at the bottom row,
+so «Delete» was the least reachable item), the §13.3:808 progress track on the destructive control, `Cancel` as
+initial focus + focus return, the `⋯` trigger's 92 % `--g900` and its slop overlap, the rename field's 8 px gap,
+the chip's viewport clamp, §11.2:722's honest refusal for mutations on a project that cannot take them,
+**F1** (`{ markupCleared }` so the shell stops denying a swap that succeeded), **F4**
+(`defaultSheetTitle` counts every row, so a trashed title cannot be minted twice), and **F2** — the wiring
+seam, now tested end to end by `tests/gridActions.test.tsx` (Home → grid → rename / reorder / duplicate /
+replace, against the fake disk), which is the same route-level shape that caught the previous wave's worst bug.
+
+**Owed after the reviews:** the real end-to-end run on hardware; drag **autoscroll** (a 20-sheet grid is
+~1248 px at 1440 and 2452 px at 960 against 894/1374 px of visible body — a second lift is needed today); the
+**inert scroll container** (the document scrolls and the 66 px top bar leaves the screen; the fix is coupled to
+the menu's clipping); the **editor's replace dialog** (still 56 px with no progress and focus on «Keep markup»);
+`aria-pressed` on the hold; the paused 1.10 polish; D113's restore-side undo toast (copy); and the
+content-owner items.
 
 ## Done
 
@@ -1165,6 +1182,21 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
 - **The chip renders nothing until a real save exists** — `{time}` is `project.json`'s `lastModified`, and the
   approved template needs both tokens, so a project with no `project.json` save shows no chip at all.
   Deliberate (D115), not a bug to "fix" with `Date.now()`.
+- **The four review items this session did NOT fix (D118).** (a) Drag **autoscroll**: measured, 16 items give
+  1248 px of grid at 1440 and 2452 px at 960 against 894/1374 px of visible body, and `dropIndexFor` resolves
+  only against the current screen's rects, so a card cannot be dragged more than a screenful without a second
+  lift. (b) The **inert scroll container**: `.project-body`'s `scrollHeight === clientHeight`, so the document
+  scrolls instead and the 66 px top bar leaves the screen (`window.scrollY = 418`, bar at y = −418 at 1440×960)
+  — pre-existing (`22477bd`), and its fix is **coupled** to the menu's clipping, which is why it was not
+  half-done here. (c) The **editor's replace dialog** still has the old treatment (56 px, no progress, initial
+  focus on «Keep markup») where the grid's now follows UI §13.3:808 — the two differ until the next pass.
+  (d) `aria-pressed` on the hold is a toggle semantic on a non-toggle (shared with the editor).
+- **`⚠ PROPOSED` copy the reviews added:** `sheetMenu.markupNotRemoved` («Couldn't remove the markup») — the F1
+  line, beyond both appendices. With the earlier `sheetMenu.*` additions that is **eleven** proposed rows
+  awaiting the content owner.
+- **The register's F6 is recorded, not fixed:** if a keyboard move is in flight when the next one commits and
+  the first then rejects, the revert can lag the disk by one step — self-healing on the next refresh, and each
+  move closes the menu, so the window is tiny.
 - Carried: D105 (judge appearance from the built app, never `npm run dev`), D106 (the export owed list),
   D107 (chip/toast items), D101 (the on-screen label halo), the **History flyout** (`writeHistorySnapshot`
   still has no caller), the end-to-end **a11y audit**, the **arrow nudge**, and the content-owner items

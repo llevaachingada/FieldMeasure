@@ -261,18 +261,30 @@ export async function duplicateSheet(
  *     still on disk — the user can see the coordinates they chose to drop. The opposite
  *     order would let a ledger failure destroy markup the user never got a new photo
  *     for, which is a silent loss; this order's worst case is markup they already asked
- *     to discard.
+ *     to discard. **A failure here does not reject**: the photo swap succeeded, so the
+ *     caller is told what actually happened (`markupCleared: false`) instead of being
+ *     handed a replace failure the system did not have — the inverse of the D110/D114
+ *     family (review F1).
  *
  * `choice` is honoured **as given** — this function never re-derives it. The caller
  * only passes `'remove'` when the working-image dimensions differ; identical dims are
  * a silent swap with `'keep'` (the §2.4 constrained-replace rule).
  */
+export interface ReplacePhotoResult {
+  /**
+   * `false` only when the caller asked for `'remove'` and the markup clear did not land.
+   * The photo, the dimensions and the thumbnail ARE already consistent in that case, so the
+   * caller must report the markup, not a failed replace (review F1).
+   */
+  markupCleared: boolean;
+}
+
 export async function replaceSheetPhoto(
   projectId: string,
   sheetId: string,
   photo: { blob: Blob; width: number; height: number },
   choice: 'keep' | 'remove',
-): Promise<void> {
+): Promise<ReplacePhotoResult> {
   const projectDir = await resolveOpenProjectDir(projectId);
   const file = await readProjectFile(projectDir);
   const row = file.sheets.find((s) => s.id === sheetId);
@@ -330,8 +342,16 @@ export async function replaceSheetPhoto(
   }
 
   // 5. The user's explicit choice on the markup — last, deliberately (see the order note).
-  if (choice === 'remove') {
-    const empty: MarkupFile = { schemaVersion: CURRENT_SCHEMA_VERSION, sheetId, objects: [] };
+  if (choice !== 'remove') return { markupCleared: true };
+  const empty: MarkupFile = { schemaVersion: CURRENT_SCHEMA_VERSION, sheetId, objects: [] };
+  try {
     await writeJsonAtomic(sheetDir, 'markup.json', empty, projectId);
+    return { markupCleared: true };
+  } catch {
+    // The photo, the dimensions and the thumbnail are already consistently new; only the
+    // user's wish to drop the old coordinates did not land. Reporting a thrown failure here
+    // would make the shell say «Couldn't replace that photo» about a photo that WAS replaced
+    // (review F1) — so the caller is handed the fact instead.
+    return { markupCleared: false };
   }
 }

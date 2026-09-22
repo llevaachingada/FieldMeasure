@@ -394,12 +394,13 @@
 
 /* Inline rename (UI §11.2:716, long-press → Rename). A SIBLING of the open button — an
    `<input>` inside a `<button>` is invalid HTML and every click on it would also open the
-   sheet. It overlays the name row: `right: 56px` keeps clear of the 48 px select toggle,
-   and 48 px tall meets the touch floor inside the 320 px card. */
+   sheet. It overlays the name row: `right: 64px` keeps an 8 px gap from the 48 px select
+   toggle (UI §14.5:827 — measured at 0 px in the session-22 UI review), and 48 px tall
+   meets the touch floor inside the 320 px card. */
 .sheet-rename-input {
   position: absolute;
   left: 12px;
-  right: 56px;
+  right: 64px;
   bottom: 8px;
   z-index: 3;
   height: 48px;
@@ -444,22 +445,24 @@
 /* ---- the card's «Delete» menu (UI §11.2:720; §13.3:800) ------------------ */
 
 /* The per-card ⋯ trigger. Over the photo (like the badges) so it never fights the name
-   row or the selection toggle: it sits 8 px above the thumbnail's bottom edge, and the
-   48 px select toggle sits in the 60 px name row below — no overlap. */
+   row or the selection toggle. §14.3:820 — a control floating over the canvas is a SOLID
+   `--g900` at 92 % with a 2 px `rgba(255,255,255,.14)` border; the 70 %/82 % values are
+   sanctioned for the badges only. `bottom: 76px` (not 68 px) keeps its 8 px `.hit-slop`
+   ring from overlapping the select toggle's by 4 px (§14.5:827 — measured). */
 .sheet-card-menu-button {
   position: absolute;
   right: 8px;
-  bottom: 68px;
+  bottom: 76px;
   z-index: 2;
   display: grid;
   place-items: center;
   width: 48px;
   height: 48px;
   padding: 0;
-  border: 2px solid var(--g600);
+  border: 2px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
   background: var(--g900);
-  background: color-mix(in srgb, var(--g900) 82%, transparent);
+  background: color-mix(in srgb, var(--g900) 92%, transparent);
   color: var(--g000);
   cursor: pointer;
 }
@@ -474,13 +477,19 @@
 }
 
 /* The popup lives OUTSIDE `.sheet-card` (which clips for the thumbnail's corners), as a
-   sibling inside `.sheet-grid-item`. */
+   sibling inside `.sheet-grid-item`. `data-direction` is decided in JS from the card's real
+   viewport rect (the popup is 364 px tall and there is no room to flip inside a 300 px
+   card), and the `max-height`/`overflow-y` pair is the backstop that guarantees it can
+   never be taller than the screen — the session-22 UI review measured 102 px of 364 visible
+   at the bottom row before this. */
 .sheet-card-menu {
   position: absolute;
   right: 8px;
   top: 236px;
   z-index: 20;
   min-width: 168px;
+  max-height: min(364px, calc(100vh - 96px));
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -489,6 +498,13 @@
   background: var(--g800);
   border: 2px solid var(--g600);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* Open upward: the bottom edge pins above the ⋯ trigger (68 px up from the item's bottom,
+   i.e. 8 px above the trigger's own top edge at `bottom: 76px`). */
+.sheet-card-menu[data-direction='up'] {
+  top: auto;
+  bottom: 68px;
 }
 
 /* Loading: 8 skeletons (reuses the global `fm-shimmer` keyframes from styles.css). */
@@ -870,19 +886,51 @@
   justify-content: flex-end;
 }
 
-/* `btn-danger` is not global; the destructive intent is `--err`, not colour alone (the
-   label also goes bold). Same treatment as the editor's replace dialog. */
-.sheet-replace .btn-danger {
+/* The subject line: which sheet this dialog is about. The dialog's own NAME is the heading
+   above it (§13.3:808's naming rule; an `aria-label` that disagreed with the visible heading
+   was finding 14 of the session-22 UI review). */
+.sheet-replace-subject {
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--g200);
+}
+
+/* The destructive control (§13.3:808): 64 px tall, the label inside a PROGRESS TRACK that
+   fills left→right with `--err` over the 600 ms hold. The first build was a 56 px button
+   whose only feedback was a binary colour flip, so a plain tap flashed red and then "did
+   nothing" — the wait was invisible (measured in the session-22 UI review). The `--err`
+   border and bold label carry the destructive intent without relying on colour alone. */
+.sheet-replace-remove {
+  position: relative;
+  min-height: 64px;
+  overflow: hidden;
   background: var(--g800);
   border-color: var(--err);
   color: var(--err);
   font-weight: 700;
 }
 
-.sheet-replace .btn.is-holding {
-  background: var(--err);
-  border-color: var(--err);
-  color: #ffffff;
-  font-weight: 700;
+/* The track underneath the label. */
+.sheet-replace-remove::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--err) 28%, transparent);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* Holding: the fill runs the length of the hold, in step with the JS timer. No transition on
+   the base rule, so releasing snaps the track back to empty instead of draining. */
+.sheet-replace-remove[data-holding='true']::before {
+  transform: scaleX(1);
+  transition: transform 600ms linear;
+}
+
+/* The label rides above the fill. */
+.sheet-replace-remove-label {
+  position: relative;
 }
 

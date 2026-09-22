@@ -2799,3 +2799,99 @@ Two tests that had encoded the weaker behaviour were corrected to the stronger o
 the stale thumbnail is gone), and a third was added: an unremovable thumbnail aborts the replace with the
 photo, the row and the markup untouched. `{ create: false }` on the sheet folder is deliberate too — an orphan
 row is not resurrected into a half-sheet (a photo, no markup) behind a card that looks healthy.
+
+### D118 — the two independent reviews of the grid wave: the registers, what they changed, and what is owed
+
+Two reviews ran against `249754e`.
+
+**An executed correctness register** (`@oracle`, in a clean worktree pinned to that commit, per
+`docs/review-brief.md`) reproduced the gate itself — tsc 0, **91 files / 1293 tests** across node + jsdom +
+browser — and found **no wrong-measurement and no data-loss defect**. Six items: one genuine claim-fidelity
+inversion (F1, fixed), one wiring-seam gap (F2, closed), two false comments (F3/F5, fixed), and two
+cosmetic/spec-fidelity items (F4, fixed; F6, recorded).
+
+**An independent UI/UX review** (`@designer`) that **measured** rather than read: a fixture mirroring the real
+DOM chain with the repo's own stylesheets and fonts, rendered in the repo's Chromium at 1440×960, 960×1440 and
+1200×800, with `getBoundingClientRect()` read per element. jsdom can see none of this (D40). All three of its
+High findings were real.
+
+**Fixed — the wave's own defects:**
+
+1. **The card menu opened downward unconditionally.** Its seven items are 364 px tall (7 × 48 + 6 × 2 gaps
+   + 12 padding + 4 border) with no room to flip inside a 300 px card, so at the bottom row only **102 px of
+   364** was visible and «Delete» — the last item — was the least reachable action on the screen, which is
+   precisely where a menu gets opened. `menuDirectionFor()` now decides from the card's real viewport rect,
+   `data-direction` places it, and `max-height: min(364px, calc(100vh − 96px))` + `overflow-y: auto` is the
+   backstop that makes an off-screen menu impossible. Pinned by an arithmetic test (inclusive threshold:
+   exactly 364 counts as fitting) and by the browser suite.
+2. **The destructive «Remove markup» read as broken** — a tap flashed it red and nothing happened; the wait was
+   invisible. UI §13.3:808 pins the component: 64 px tall, the label inside a progress track that fills
+   left→right with `--err` over 600 ms. It now does that, driven by `data-holding` in step with the JS timer.
+   **The editor's own copy of this pattern (`insetWire.css`, `SheetEditor.tsx:2639-2654`) keeps the old
+   treatment — owed, below.**
+3. **Initial focus sat on «Keep markup».** §13.3:808: "Focus is never placed on the destructive button by
+   default — the safe action (`Cancel`) receives initial focus." `Cancel` takes it now; the dialog's accessible
+   name comes from its own heading (`aria-labelledby`) instead of an `aria-label` that disagreed with it; the
+   sheet is a subject line; and focus **returns to the invoker** on close (the `TrashPanel` pattern) rather than
+   falling to `<body>`. The test that encoded the old target was corrected with the clause cited — a
+   spec-expectation correction, not a relaxed gate.
+4. **Two violations on the wave's own controls:** the card `⋯` trigger's 8 px `.hit-slop` ring **overlapped the
+   select toggle's by 4 px** (§14.5:827 — it moved to `bottom: 76px`), and it floated over the photo at 82 %
+   where §14.3:820 requires a **solid `--g900` at 92 %** with `rgba(255,255,255,.14)`; the 70/82 % values are
+   sanctioned for the *badges*, not for a control.
+5. **The rename field sat 0 px from the select toggle** (§14.5 wants ≥ 8 px): `right: 64px`.
+6. **The «Drop to move» chip ran off the right edge** at the last column of a 4-across grid (measured 35–75 px
+   past it, clipping the label the chip exists to show): `chipTranslate` clamps to the viewport, and the browser
+   suite asserts the chip's box stays on screen. The chip also no longer paints one frame at the viewport corner
+   on mount (`useLayoutEffect` seeds it).
+7. **Mutations were offered on a project that cannot take them** (§11.2:722): on the grid's `error` state — and
+   on a read-only project once the shell passes `readOnly` — rename / duplicate / replace / reorder / delete now
+   answer «Not saved to disk» instead of attempting a write that cannot land, which is what the add tiles
+   already did.
+
+**Fixed — the register's F1, a claim-fidelity inversion.** When only the replace's *last* step fails (clearing
+the markup the user asked to drop), the photo, the dimensions and the thumbnail are already consistently new.
+`replaceSheetPhoto` therefore returns `{ markupCleared }` instead of rejecting, and the shell says «Couldn't
+remove the markup» rather than «Couldn't replace that photo» — which would deny a swap that happened. This is
+the D110/D114 family **inverted** (a claimed failure the system did not have) and it was found by execution.
+
+**Fixed — the register's F2, the wiring seam.** All five actions had a tested storage half
+(`tests/sheetOps.test.ts`) and a tested screen half (`tests/projectScreen.test.tsx`) and **nothing between
+them**. `tests/gridActions.test.tsx` now mounts the real `App`, walks Home → the grid and drives
+rename / reorder / duplicate / replace through the DOM against the fake disk — including the silent same-size
+swap, the warned dialog's `Keep markup`, and the F1 message above. Deliberately the same *route-level* shape as
+`tests/gridToast.test.tsx`: D114's lesson was that the seam, not the modules, is where this project's real bugs
+appear.
+
+**Fixed — F4, spec fidelity.** `defaultSheetTitle` counted **live** rows while §20.6:2586's formula is
+`sheets.length + 1`. Worked example — rows `[Sheet 01 live, Sheet 02 trashed, Sheet 03 live]`: the live count
+says «Sheet 03», **duplicating a live title**; all rows says «Sheet 04». Corrected, with the trashed-row case
+pinned.
+
+**Also corrected:** two comments the register proved false — `App.tsx`'s "the editor has its own `ToastHost`"
+(one host at the shell root since D114) and `dropIndexFor`'s "returns `fromIndex`" (the code returns
+`Math.max(0, fromIndex)`; a negative index is not a position).
+
+**Recorded, not fixed — each with its reason:**
+
+- **No autoscroll during a drag** (UI review M8). Measured: 16 items → 1248 px of grid at 1440 and 2452 px at
+  960 (portrait) against 894/1374 px of visible body, and `dropIndexFor` resolves only against the rects of the
+  current screen — so moving a card more than a screenful needs a second lift. §11.2:719 does not pin
+  autoscroll, and an edge-scroll loop (zones, speed, momentum) is a behaviour addition that needs its own
+  decision and a hardware check, not a guess inside a remediation.
+- **The grid's scroll container is inert and the top bar scrolls away** (UI review H2, pre-existing since
+  `22477bd`). Measured at 1440×960: `.project-screen` is 1378 px tall, `.project-body`'s
+  `scrollHeight === clientHeight` so its `overflow-y: auto` never engages, and at the bottom `window.scrollY =
+  418` with the 66 px bar at y = −418. The fix is **coupled** — giving the screen a real height restores the
+  fixed bar *and* makes the menu clip against the new scroller — so it needs the portal/flip work alongside it.
+- **The top bar measures 66 px, not §11.2:711's 56 px** (tallest child is the 56 px Export button, + 4 px
+  padding + a 2 px border). Shared with Home; nothing clips — the 48 px chip still leaves 8 px of slack.
+- **`aria-pressed` on the hold-to-confirm** is a toggle semantic on a non-toggle. Shared with the editor's
+  dialog; it should move with the §13.3:808 progress work, in both at once.
+- **The editor's replace dialog** still carries findings 2 and 3's old treatment (56 px, no progress; initial
+  focus on «Keep markup»).
+- **The double keyboard-move revert race** (register F6): if move 1 is in flight when move 2 commits and move 1
+  then rejects, the revert can lag the disk by one step; the next refresh heals it, each move closes the menu,
+  and the window is tiny — but it is recorded rather than called impossible.
+- **The one-shot click suppression after a normal drop** depends on Chromium synthesising exactly one `click`
+  for the release (review L16) — `[Surface]`, logged.

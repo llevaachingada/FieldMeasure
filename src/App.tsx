@@ -266,8 +266,15 @@ export default function App() {
     setReplacePrompt(null);
     if (choice === 'cancel' || !photo || !prompt || !editorTarget) return;
     try {
-      await replaceSheetPhoto(editorTarget.projectId, prompt.sheetId, photo, choice);
+      const result = await replaceSheetPhoto(editorTarget.projectId, prompt.sheetId, photo, choice);
       setProjectRefresh((n) => n + 1);
+      // Review F1: by the time this resolves, the photo, the dimensions and the thumbnail are
+      // all consistently new — the ONLY step that can still have failed is the markup clear,
+      // so naming that is the honest report. «Couldn't replace that photo» would claim a
+      // failure the system did not have (the inverse of the D110/D114 family).
+      if (!result.markupCleared) {
+        emitToast({ text: STRINGS.sheetMenu.markupNotRemoved, urgent: true });
+      }
     } catch {
       emitToast({ text: STRINGS.sheetMenu.replaceFailed, urgent: true });
     }
@@ -327,10 +334,12 @@ export default function App() {
       setCaptureOpen(true);
       setRoute('project');
     } catch {
-      // Slice 1.10: the failure is no longer invisible (D103's owed half). The toast
-      // lives at the home route (the editor has its own `ToastHost`). The wording is the
-      // already-staged `errors.projectUnavailable` copy — the project folder could not be
-      // created, and nothing is invented for a cause we cannot name.
+      // Slice 1.10: the failure is no longer invisible (D103's owed half). There is exactly
+      // ONE `ToastHost`, mounted at the shell root (App's return), so every route — Home,
+      // Settings, the sheets grid and the editor — renders what this emits (D114/F1 removed
+      // the per-route hosts). The wording is the already-staged `errors.projectUnavailable`
+      // copy — the project folder could not be created, and nothing is invented for a cause
+      // we cannot name.
       emitToast({ text: STRINGS.errors.projectUnavailable, urgent: true });
     } finally {
       creatingProject.current = false;

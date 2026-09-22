@@ -10,7 +10,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ProjectScreen, { type ProjectScreenProps, type TrashedSheet } from '../src/ui/ProjectScreen';
+import ProjectScreen, {
+  MENU_MAX_HEIGHT,
+  menuDirectionFor,
+  type ProjectScreenProps,
+  type TrashedSheet,
+} from '../src/ui/ProjectScreen';
 import type { ProjectSheetCard } from '../src/fs/projectSheets';
 import { STRINGS, t } from '../src/ui/strings';
 import { resetToastBus, subscribeToastMessage, type ToastMessage } from '../src/editor/session';
@@ -736,14 +741,33 @@ describe('replace photo — the warned dialog (UI §11.2:720)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('renders the warned dialog with the pinned copy and the default focus on Keep', () => {
+  it('renders the warned dialog with the pinned copy and the initial focus on the SAFE action', () => {
     renderScreen({ onResolveReplace: vi.fn(), replacePrompt: PROMPT });
 
     expect(screen.getByRole('dialog', { name: STRINGS.sheetMenu.replacePhoto })).toBeTruthy();
     expect(screen.getByText(STRINGS.project.replacePhotoWarn)).toBeTruthy();
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: STRINGS.project.replacePhotoKeep }),
+    // UI §13.3:808 — "Focus is never placed on the destructive button by default — the safe
+    // action (`Cancel`) receives initial focus." The first build focused «Keep markup»; the
+    // session-22 UI review measured that against the clause, so this pin moved with the fix.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: STRINGS.editor.cancel }));
+  });
+
+  it('returns focus to the invoker when the dialog closes', () => {
+    // §19.6: a dismissed modal must not drop focus onto <body>. The TrashPanel pattern.
+    const invoker = document.createElement('button');
+    invoker.textContent = 'invoker';
+    document.body.appendChild(invoker);
+    invoker.focus();
+    expect(document.activeElement).toBe(invoker);
+
+    const view = render(
+      <ProjectScreen {...baseProps({ onResolveReplace: vi.fn(), replacePrompt: PROMPT })} />,
     );
+    expect(document.activeElement).not.toBe(invoker);
+
+    view.unmount();
+    expect(document.activeElement).toBe(invoker); // restored, not dropped on <body>
+    invoker.remove();
   });
 
   it('Keep and Cancel wire the right answers; Escape cancels', async () => {
@@ -1041,5 +1065,52 @@ describe('reorder — the keyboard path (WCAG 2.1.1) and the drag', () => {
 
     await user.click(cardMenuItem('s1'));
     expect(menuItemKeys()).toEqual(['open', 'delete']);
+  });
+});
+
+describe('the card menu opens where the card actually is (finding 1 of the session-22 UI review)', () => {
+  // The popup is 364 px tall (7 items) and there is no room to flip inside a 300 px card, so
+  // the direction is decided against the VIEWPORT. jsdom has no layout (D40) — every real
+  // rect is degenerate — so this arithmetic is pinned with a stubbed rect rather than by
+  // opening a menu and hoping the assertion means something.
+  it('MENU_MAX_HEIGHT is the 7-item arithmetic', () => {
+    // 7 × 48 + 6 × 2 gaps + 2 × 6 padding + 2 × 2 border
+    expect(MENU_MAX_HEIGHT).toBe(7 * 48 + 6 * 2 + 12 + 4);
+  });
+
+  it('flips up only when the viewport cannot hold the menu below the card', () => {
+    const originalInnerHeight = window.innerHeight;
+    const card = document.createElement('li');
+    const stubRect = (bottom: number): void => {
+      card.getBoundingClientRect = () =>
+        ({
+          bottom,
+          top: bottom - 300,
+          left: 0,
+          right: 320,
+          width: 320,
+          height: 300,
+          x: 0,
+          y: bottom - 300,
+          toJSON: () => ({}),
+        }) as DOMRect;
+    };
+    Object.defineProperty(window, 'innerHeight', { value: 700, configurable: true });
+    try {
+      stubRect(336); // 700 − 336 = 364 exactly → it fits (inclusive threshold)
+      expect(menuDirectionFor(card)).toBe('down');
+      stubRect(337); // 700 − 337 = 363 → one pixel short → flip
+      expect(menuDirectionFor(card)).toBe('up');
+      stubRect(100); // plenty of room below
+      expect(menuDirectionFor(card)).toBe('down');
+      stubRect(699); // the card sits at the very bottom of the viewport
+      expect(menuDirectionFor(card)).toBe('up');
+      expect(menuDirectionFor(null)).toBe('down'); // no element → the safe default
+    } finally {
+      Object.defineProperty(window, 'innerHeight', {
+        value: originalInnerHeight,
+        configurable: true,
+      });
+    }
   });
 });

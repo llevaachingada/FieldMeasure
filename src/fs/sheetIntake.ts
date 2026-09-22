@@ -45,9 +45,20 @@ export interface SheetIntakeResult {
   sheetDir: FileSystemDirectoryHandle;
 }
 
-/** `<prefix> NN`, zero-padded 2, never renumbered (appendix `project.sheetNameExample`). */
+/**
+ * `<prefix> NN`, zero-padded 2, never renumbered (appendix `project.sheetNameExample`;
+ * build spec §20.6:2586 — "`NN` is `sheets.length + 1` at creation and is never renumbered
+ * when a sheet is deleted (names are labels, not indices)").
+ *
+ * The count is over **all rows, including trashed ones**, because that is the spec's formula
+ * and because it is the only version that cannot mint a duplicate name: a trashed row keeps
+ * its title, so counting only live rows hands the next sheet a name a LIVE sheet may already
+ * hold. Worked example — rows `[Sheet 01 live, Sheet 02 trashed, Sheet 03 live]`: live count
+ * = 2 → «Sheet 03» (a duplicate of a live sheet); all rows = 3 → «Sheet 04» (unique).
+ * Corrected from the live-count version by review F4.
+ */
 export function defaultSheetTitle(projectFile: ProjectFile): string {
-  const count = projectFile.sheets.filter((s) => !s.deletedAt).length + 1;
+  const count = projectFile.sheets.length + 1;
   return `${STRINGS.project.sheetNamePrefix} ${String(count).padStart(2, '0')}`;
 }
 
