@@ -283,13 +283,15 @@ describe('TopBar', () => {
     expect(bare.querySelector('.crumb-sheet')?.textContent).toBe(STRINGS.editor.breadcrumbSheetSegment);
   });
 
-  it('lists the nine overflow items in UI §5.2 order', () => {
+  it('lists the ten overflow items in UI §5.2 order', () => {
     render(createElement(TopBar, {}));
     act(() => {
       screen.getByRole('button', { name: STRINGS.a11y.moreActions }).click();
     });
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
     expect(items.map((i) => i.textContent)).toEqual([
+      // Slice 1.9 wires `⋯ → Export` (UI §12:740); its label is the approved a11y row.
+      STRINGS.a11y.export,
       STRINGS.editor.menuDuplicateSheet,
       STRINGS.editor.menuInsertImage,
       STRINGS.editor.menuAddSheet,

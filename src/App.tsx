@@ -18,6 +18,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import FirstRun from '@/ui/FirstRun';
 import ProjectList from '@/ui/ProjectList';
 import Settings from '@/ui/Settings';
+import { useThemeRuntime } from '@/ui/themeRuntime';
 import { createProject } from '@/fs/projectStore';
 import { getProjectsRoot } from '@/settings/projectsRoot';
 
@@ -43,6 +44,10 @@ interface EditorTarget {
 }
 
 export default function App() {
+  // Display theme (slice 1.10): applies `<html data-theme="…">` and hydrates the
+  // persisted choice on boot. Runs for every route — chrome is themed app-wide.
+  useThemeRuntime();
+
   const [route, setRoute] = useState<Route>('loading');
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   /** Slice 1.4: the editor's «Add sheet» opens the capture flow over the editor. */

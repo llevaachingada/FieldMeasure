@@ -2251,3 +2251,148 @@ Home *empty-state* button, and a card's «Locate…» on a moved folder — are 
 Folder adoption is unbuilt (`App.onOpenFolder` is a no-op) and handoff-13 §9.2 row 18's question — does the
 picker re-point the projects root, or adopt a folder from outside it? — is still open. The disabled state is
 the interim; the slice that answers the question re-enables them.
+
+### D103 — the owner-reported dead «New project» button: the §5.2 gesture re-grant had no caller, and the caller swallowed the throw
+
+**Symptom (owner, running the app):** clicking «New project» did *nothing* — no navigation, no error, no
+message.
+
+**Root cause, two layers, both executed:**
+
+1. **The caller could only ever look dead.** `App.handleNewProject` wraps the whole flow in
+   `try { … } catch { /* stay on Home */ }` — the slice-1.10 error surface is owed, so every failure is
+   silent by construction.
+2. **Underneath, the create genuinely threw.** Chromium restores a persisted directory *handle* across a
+   page load but **not** its write *grant*: `queryPermission()` returns `'prompt'` and the first filesystem
+   call throws `NotAllowedError`. §5.2 step 3 accounts for this — re-acquire permission **from a user
+   gesture** — and the implementation exists as `FsaBackend.requestAccess()` (`backend.ts:108`). **It had no
+   caller anywhere in `src/` or `tests/`** (only a comment in `projectStore.ts:59` referred to it), so
+   nothing ever re-granted after a reload. The first filesystem call in `createProject` therefore threw
+   `NotAllowedError`, which layer 1 ate.
+
+**Fix (executed, in `src/fs/projectStore.ts`):** `ensureRootAccess({ request?: boolean })` — a
+backend-agnostic grant that reports, short-circuits while the grant is held (`queryPermission` first, so a
+held grant never re-prompts), asks inside a gesture's activation window when it is not, and **swallows the
+"no transient activation" rejection** so a non-gesture caller behaves exactly as before. It reports `true`
+for a root with no permission API (OPFS / non-Chromium), so it cannot become a new failure mode there.
+`createProject` runs it before touching the folder and turns a refusal into a typed
+`StorageWriteError('permission')` rather than a silent no-op; `resolveOpenProjectDir` runs it best-effort, so
+**opening an existing project after a reload also re-grants** — its failure path is unchanged and the
+editor's «Retry» (itself a gesture) now recovers.
+
+**Evidence:** the fake models the reloaded state (handle present, `queryPermission → 'prompt'`).
+`tests/createProject.test.ts` +3 (grant-then-create; short-circuit while held; refusal is a typed error and
+writes nothing — nothing is created when the grant is refused). `tests/projectStore.test.ts` +2 (the open
+path asks and resolves; a rejected `requestPermission` from a non-gesture caller stays quiet). **42/42 node
+tests green**, and the pre-existing `'no projects root is open'` throw is preserved (its test is untouched).
+
+**Owed, not dropped:** the *user-visible* half is still missing — a refused grant, or a root that is
+genuinely broken, is still silent, because that surface belongs to 1.10's error/toast layer (`App.tsx`).
+Also in scope for that layer: Home's project list is unreadable until a gesture re-grants, so it can look
+empty on a freshly reloaded page.
+
+### D104 — slice 1.10 themes: Sunlight and Dim are token-level, and their absence was a wiring gap, not a missing control
+
+**Built:** `data-theme` on `document.documentElement`, applied by a single `useThemeRuntime()` at the app
+root (`src/ui/themeRuntime.ts`) that re-applies on `appStore.theme` changes and hydrates the persisted
+choice on boot through the existing `getTheme()` helper. `src/styles.css` gains `:root[data-theme='sunlight']`
+and `:root[data-theme='dim']` token blocks. The Settings → Display → Theme `ChoiceRow` **already existed**
+with `role="radiogroup"`/`rule="radio"`, `aria-checked`, 48 px targets and the global focus ring — it was
+inert only because nothing applied the theme, so no Settings edit was needed.
+
+**Two invariants, both machine-checked (`tests/theme.test.ts` pins the CSS text):**
+- **Standard is untouched** — `theme.test.ts` asserts the shipped `:root` values **byte-for-byte** and that
+  no rule keys off `data-theme='standard'`; the overrides sit after `:root`.
+- **Meaning colours are not re-themed** — `--hi`, `--hi-d`, `--sel`, `--sel-d`, `--ok`, `--warn`, `--err`
+  are identical in both themes. The measurement ink (orange stroke, cyan `--sel`, `--hi` tint) carries
+  information; a theme that re-tinted it would change what the drawing says.
+
+**Contrast is computed, not seen:** Sunlight maps chrome to `#000000` and text to `#ffffff`/`#f2f5f8`
+(`--g100` 21.0:1, `--g600` 18.3:1 on black) and thickens the focus ring to 3 px (2 px loses its edge in
+glare); Dim lowers luminance while holding AA (worst case `--g400`/`--g900` 4.9:1, the 11–13 px labels;
+`--g100`/`--g750` 13.2:1). **The `[Surface]` porch check is deferred and never claimed.**
+
+**Found while doing it, recorded for the design pass (not fixed here):** several controls pair the unchanged
+accent `--hi` with white text at 2.6:1 — pre-existing and identical in Standard, so it is a design decision
+about an "on-accent" colour, not a theme bug; the floating canvas HUDs use hardcoded `rgba(...)` surfaces
+and borders, so they do not re-theme (a tokenisation follow-up); and §14.2's Sunlight **64 px target floor**
+and **2.5 px icon strokes** are component-level rather than token-level. Copy: the appendix carries no theme
+labels (they are backticked, not quoted, in its gaps list) — the three existing `⚠ PROPOSED (C14)` rows in
+`strings.ts` were used, and `tests/strings.test.ts` stays green.
+
+### D105 — `npm run dev` can never render styled: the shipped CSP blocks Vite's injected inline styles
+
+**Found while helping the owner look at the running app.** `npm run dev` served an app that mounted
+correctly with **no styles at all** — verified in a real Chromium tab: `#root` had children (first-run
+rendered), one `<style>` element carried 27,667 characters of CSS, `document.styleSheets` was **empty**,
+`body` computed to `Times New Roman` on a transparent background, and the console reported:
+
+```
+Applying inline style violates the following Content Security Policy directive 'style-src 'self''.
+```
+
+**Mechanism, and why no gate ever saw it:** `index.html` carries the CSP as a `<meta http-equiv>` (since the
+scaffold commit, `cc6e79e`) and Vite's **dev** server injects CSS as an inline `<style>` element. `style-src
+'self'` without `'unsafe-inline'` (or a matching nonce/hash) blocks it, so **every** dev-mode stylesheet is
+dropped. The production build emits a real `assets/*.css` file loaded with `<link rel="stylesheet">`, which
+`'self'` permits. Every machine gate — Playwright, the CSP-as-a-test specs, the browser Vitest project —
+runs against the **built** app or in a context without that meta, so this has never been observed by the
+suite. It is a genuine blind spot of the shape the reviews keep naming: *the gate can only see what it
+asserts, in the environment it asserts it*.
+
+**Decision / convention (recorded so nobody re-discovers it):** manual inspection uses the **built** app
+(`npm run build && npm run preview`), which is also what ships to the Surface. `npm run dev` remains useful
+for HMR-driven development but must not be used to judge appearance. A deliberate follow-up, if dev-mode
+styling is wanted: a `serve`-only `transformIndexHtml` that relaxes `style-src` (e.g. a dev nonce via
+`html.cspNonce`) — **the shipped CSP must not change**, and the CSP test must keep asserting the built
+output. Not done in this pass: it would alter the dev config while a build was being produced, and the
+built-app path already serves human inspection honestly.
+
+### D106 — slice 1.9 wiring: `runExport`, the three entry points, and the decisions the spec does not pin
+
+**Shipped:** `src/export/runExport.ts` (the orchestration the wizard's injected props always needed),
+mounted statically in `EditorLayout` in a positioning-only slot (the wizard is its own sibling dialog,
+`z-index: 60`, capture-phase `Esc` — no second `role="dialog"`), and the three in-editor entry points —
+the top-bar **Export** button (now enabled when a handler is supplied), **`Ctrl+E`**, and **`⋯ → Export`**
+(using the already-approved `a11y.export`, no new copy). `SheetEditor` gained one additive seam,
+`onExportSource`, publishing the sheet list (**working-image px, never the M-scaled bitmap**),
+`currentSheetId`, a live annotations reader, the session asset provider and the persist `flush`.
+
+**Verified invariants (executed):** one sheet at a time, each bitmap freed before the next; `buildPdfParts`,
+never `buildPdf([])`; **every byte through `projectStore.writeAtomic`** under the per-project lock
+(`createWritable` still exists only inside `projectStore`); per-file failures become **rows**, never a
+rejection; `conflictName` applied against the destination's **real** listing; the engine is lazy
+(`await import('./pdf')` / `('./png')`) while the wizard stays static. The load-bearing browser assertion:
+a 400×300 sheet at M=2 exports a **300 × 225 pt** PDF page — a bitmap-derived page would be 600 × 450, and
+that is the trap that silently breaks the slice.
+
+**Decisions the spec does not pin (recorded here so they are choices, not accidents):**
+1. **Aggregate filenames.** Per-sheet files use `{project}_{index}-{sheet}` (index `01`-padded). Where
+   `{index}`/`{sheet}` have no meaning — a single multi-page PDF part, the PNG zip — the name degrades to
+   `{project}` (`Riverside.pdf`, `Riverside.zip`). Split parts stay the plan's fixed `part-01.pdf`….
+2. **`estimate`'s byte factors are documented estimates, not measurements** — `2 B/px` (PNG) and `0.5 B/px`
+   (JPEG q0.92) over `w·h·M²`. Owed: a real measurement on a Surface (H21's neighbour).
+3. **The remembered destination is session-scoped.** Persisting it across sessions needs new storage keys;
+   reported rather than invented.
+4. **The 240-char full-path cap is not applied.** `joinFilename` already caps the base, and no approved
+   string exists for "name was shortened" — a content-owner gap, not a code decision.
+5. **The 250 MB PDF-split branch is node-tested for naming only** (`pdfFileNames`); it is not exercised at
+   250 MB end to end.
+6. **`disk-full`'s `shortfallBytes` is never populated** — there is no free-space API, so the wizard's
+   shortfall row will not show a number.
+7. **`retryFile`'s happy path is not machine-tested** (forcing a write failure in the fake FS was not done),
+   and it re-writes to the already-resolved name without a second conflict check.
+8. **`assetProvider` is disk-backed (review F3 closed the hard way).** It decodes every referenced
+   `assets/<id>.jpg` **before** a sheet renders, seeded synchronously from the editor session registry — so
+   an inset exports its photo, not the `#3A3F46` placeholder. It closes **only** bitmaps it decoded; a
+   borrowed session bitmap is never closed (a real bug found in review and regression-tested).
+9. **The trap-5 tooling lever, applied:** the browser project now pre-bundles
+   `optimizeDeps.include: ['@cantoo/pdf-lib', 'fflate']`. Without it, Vite discovered `pdf-lib` **mid-run**
+   through the new dynamic edge and reloaded the test iframe, killing a sibling suite — the recorded D90
+   step-2 lever, and *not* another source workaround. Re-run green from a cold `node_modules/.vite`.
+
+**Owed and recorded:** pixel-level proof that an inset exports its **photo** rather than the placeholder
+(the run proves the asset is decoded and the borrowed bitmap survives; it does not sample the exported
+pixels) — a review-lane follow-up. `[Surface]`: real `showDirectoryPicker`, real on-disk `move()` and NTFS
+conflict behaviour, and H19–H22 generally. Also owed from the visual review of this pass: the Sunlight
+**64 px target floor** and **2.5 px icon strokes** are component-level, not token-level (§14.2).

@@ -51,7 +51,10 @@ import {
   type PresetsFile,
 } from '@/fs/presets';
 import { editorSession, subscribeToast } from '@/editor/session';
-import SheetEditor from './SheetEditor';
+import { createExportSession, type ExportDocumentSource, type ExportSession } from '@/export/runExport';
+import type { LabelContext } from '@/editor/shapes/dimensionLabel';
+import SheetEditor, { type EditorExportSource } from './SheetEditor';
+import ExportWizard, { type ExportSheetRef } from './ExportWizard';
 import StyleEditorSheet, { type StyleEditorSheetProps } from './StyleEditorSheet';
 import StylePanel, { type StylePanelProps, type StyleScope } from './StylePanel';
 import TopBar from './TopBar';
@@ -215,6 +218,53 @@ export default function EditorLayout({
     const id = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(id);
   }, [toast]);
+
+  // ---- slice 1.9: the export wizard's shell half ---------------------------------
+  // The wizard owns no engine work: `createExportSession` is the production implementation
+  // of its injected props, and it reads the document through the SheetEditor seam below.
+  const exportSourceRef = useRef<ExportDocumentSource | null>(null);
+  const [exportSheets, setExportSheets] = useState<readonly ExportSheetRef[]>([]);
+  const [exportSheetId, setExportSheetId] = useState<string | null>(null);
+  const [exportSession, setExportSession] = useState<ExportSession | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportOpenRef = useRef(false);
+
+  const onExportSource = useCallback((source: EditorExportSource | null) => {
+    // The seam's shape is structurally `ExportDocumentSource`; keep the live one in a ref
+    // so a run started later always reads the current document, not the render it saw.
+    exportSourceRef.current = source;
+    setExportSheets(source?.sheets ?? []);
+    setExportSheetId(source?.currentSheetId ?? null);
+  }, []);
+
+  const getExportContext = useCallback((): LabelContext => {
+    const s = useAppStore.getState();
+    return {
+      unitSystem: s.unitSystem,
+      unitFormat: s.unitFormat,
+      precisionDenominator: s.precisionDenominator,
+    };
+  }, []);
+
+  /** UI §12:740 entry points: the top bar, `Ctrl+E`, and `⋯ → Export` all land here. */
+  const openExport = useCallback(() => {
+    if (exportOpenRef.current) return;
+    const session = createExportSession({
+      projectId,
+      folderName,
+      getSource: () => exportSourceRef.current,
+      getContext: getExportContext,
+      ghostText: STRINGS.dimension.ghostLabel,
+    });
+    setExportSession(session);
+    exportOpenRef.current = true;
+    setExportOpen(true);
+  }, [projectId, folderName, getExportContext]);
+
+  const closeExport = useCallback(() => {
+    exportOpenRef.current = false;
+    setExportOpen(false);
+  }, []);
 
   const [viewport, setViewport] = useState(viewportSize);
   useEffect(() => {
@@ -500,6 +550,13 @@ export default function EditorLayout({
         else undo();
         return;
       }
+      // UI §12:740: `Ctrl+E` is an export entry point. Handled before the modifier guard
+      // below, and re-entrant-safe (`openExport` no-ops while the wizard is open).
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'e') {
+        event.preventDefault();
+        openExport();
+        return;
+      }
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (
@@ -536,7 +593,7 @@ export default function EditorLayout({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onExit, selectTool, undo, redo]);
+  }, [onExit, selectTool, undo, redo, openExport]);
 
   return (
     <div
@@ -568,6 +625,7 @@ export default function EditorLayout({
             onTakePhoto={onAddSheet}
             onSheetTitleChange={onSheetTitleChange}
             sheetId={sheetId}
+            onExportSource={onExportSource}
           />
           {dock === 'bottom' ? (
             <div className="style-dock" data-orientation="horizontal">
@@ -591,10 +649,30 @@ export default function EditorLayout({
         compact={compact}
         onToggleLayers={() => useEditorStore.getState().setLayersOpen(!layersOpen)}
         layersOpen={layersOpen}
+        onExport={openExport}
       />
       {/* §7.5: the deep editor sheet, toggled by `More styles…`/`Custom…` and closed by
           `Esc`/`✕`/`Done` (the sheet owns its own focus trap and focus return). */}
       {styleEditorOpen ? <StyleEditorSheet {...styleEditorProps} /> : null}
+      {/* Slice 1.9: the export wizard is a STATIC import (never a new lazy-chunk edge —
+          handoff-14 §3 trap 5). It is its own sibling dialog (`z-index: 60`, capture-phase
+          `Esc`), rendered here in a positioning-only slot with NO second `role="dialog"`. */}
+      {exportOpen && exportSession ? (
+        <ExportWizard
+          open
+          sheets={exportSheets}
+          currentSheetId={exportSheetId}
+          initialDestination={exportSession.initialDestination}
+          onClose={closeExport}
+          chooseDestination={exportSession.chooseDestination}
+          estimate={exportSession.estimate}
+          checkMultiplier={exportSession.checkMultiplier}
+          runExport={exportSession.runExport}
+          retryFile={exportSession.retryFile}
+          revealFolder={exportSession.revealFolder}
+          copyPath={exportSession.copyPath}
+        />
+      ) : null}
       {toast ? (
         <output className="editor-toast" role="status">
           {toast}

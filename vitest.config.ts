@@ -41,6 +41,14 @@ export default defineConfig({
       },
       {
         resolve: { alias },
+        // D84's watch item, re-triggered by slice 1.9 (handoff-14 §3 trap 5): `runExport`
+        // dynamically `import()`s `./pdf` (pdf-lib) and `./png` (fflate) so neither lands
+        // in the main chunk. In the browser project that dynamic edge is only discovered
+        // MID-RUN, so Vite re-optimizes and reloads the test iframe — which killed a
+        // sibling suite on the first run. Pre-bundling the two engine deps here is the
+        // D90 step-2 lever ("a build/tooling defect … a one-line `vitest.config.ts`
+        // change, not another source edit").
+        optimizeDeps: { include: ['@cantoo/pdf-lib', 'fflate'] },
         test: {
           name: 'browser',
           browser: {

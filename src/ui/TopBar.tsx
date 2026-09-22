@@ -7,7 +7,8 @@
  *   - Centre — the **autosave chip slot**. `1.10` fills it. Until then it renders
  *     **nothing at all** — never an optimistic "Saved" (do-not-simplify #14).
  *   - Right  — `⌗ Layers · ⇧ Export · ⋯ Overflow` (UI §5.2). Layers/Export are
- *     present-but-disabled in this slice; Overflow holds the nine items keyed in
+ *     present-but-disabled until the shell supplies their handler (slice 1.6 / 1.9); the
+ *     Overflow holds the wired `Export` row plus the nine items keyed in
  *     `appendix-strings-gaps.md` §9.
  *
  * Undo/redo are NOT here: UI §5.1 says they live at the bottom of the tool rail,
@@ -47,6 +48,12 @@ export interface TopBarProps {
   onToggleLayers?: () => void;
   /** Current Layers flyout state, for `aria-expanded`. Ignored without `onToggleLayers`. */
   layersOpen?: boolean;
+  /**
+   * Slice 1.9 wiring: opens the export wizard (UI §12:740 — the top-bar entry point).
+   * Absent = the button stays disabled and the menu row is a labelled no-op, exactly
+   * like every other not-yet-wired control here.
+   */
+  onExport?: () => void;
 }
 
 interface MenuItem {
@@ -65,16 +72,19 @@ export default function TopBar({
   compact = false,
   onToggleLayers,
   layersOpen = false,
+  onExport,
 }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // The nine overflow items (UI §5.2 right zone; copy from gaps §9). Items whose
-  // feature does not exist yet are still present and labelled — a no-op, not a
-  // dead end and not a crash.
+  // The overflow items (UI §5.2 right zone; copy from gaps §9). Items whose feature does
+  // not exist yet are still present and labelled — a no-op, not a dead end and not a
+  // crash. `Export` is the third §12:740 entry point (`⋯ → Export`); its label is the
+  // already-approved `a11y.export`, not new copy.
   const items: MenuItem[] = [
+    { key: 'export', label: STRINGS.a11y.export, run: onExport },
     { key: 'duplicateSheet', label: STRINGS.editor.menuDuplicateSheet },
     { key: 'insertImage', label: STRINGS.editor.menuInsertImage },
     { key: 'addSheet', label: STRINGS.editor.menuAddSheet, run: onAddSheet },
@@ -168,7 +178,13 @@ export default function TopBar({
           <Layers aria-hidden="true" />
           <span className="topbar-action-label">{STRINGS.a11y.layers}</span>
         </button>
-        <button type="button" className="topbar-action" aria-label={STRINGS.a11y.export} disabled>
+        <button
+          type="button"
+          className="topbar-action"
+          aria-label={STRINGS.a11y.export}
+          disabled={!onExport}
+          onClick={onExport}
+        >
           <Share2 aria-hidden="true" />
           <span className="topbar-action-label">{STRINGS.a11y.export}</span>
         </button>

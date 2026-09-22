@@ -89,6 +89,39 @@ export async function getRootDir(): Promise<FileSystemDirectoryHandle | null> {
   return b.getProjectDir();
 }
 
+/**
+ * §5.2 step 3 — (re-)acquire READWRITE permission on the projects root.
+ *
+ * Chromium restores a persisted directory HANDLE across page loads but **not** its write
+ * grant: after a reload `queryPermission()` returns `'prompt'` and the first filesystem
+ * call throws `NotAllowedError`. The grant can only be asked for from a **user gesture**,
+ * which is why this is called at the top of the gesture-driven entry points (creating a
+ * project, opening one) and never at boot — `initStore` deliberately queries only.
+ *
+ * `request: true` is the asking form (must run inside a click's activation window); the
+ * plain form only reports. Backend-agnostic on purpose: a root with no permission API
+ * (OPFS, non-Chromium) reports `true`, so this can never become a new failure mode there.
+ * Asking twice is free — the query short-circuits while the grant is held.
+ */
+export async function ensureRootAccess(options?: { request?: boolean }): Promise<boolean> {
+  const root = await getRootDir();
+  if (!root) return false;
+  const handle = root as FileSystemDirectoryHandle & {
+    queryPermission?: (descriptor: { mode: 'readwrite' }) => Promise<PermissionState>;
+    requestPermission?: (descriptor: { mode: 'readwrite' }) => Promise<PermissionState>;
+  };
+  if (typeof handle.queryPermission !== 'function') return true;
+  if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') return true;
+  if (options?.request !== true || typeof handle.requestPermission !== 'function') return false;
+  try {
+    return (await handle.requestPermission({ mode: 'readwrite' })) === 'granted';
+  } catch {
+    // No transient activation (a non-gesture caller) — Chromium rejects rather than
+    // prompting. Not an error here: the caller's own filesystem call will surface it.
+    return false;
+  }
+}
+
 /** §5.3 `ensureDir` (verbatim). */
 export async function ensureDir(
   parent: FileSystemDirectoryHandle,
@@ -556,6 +589,13 @@ export async function resolveOpenProjectDir(
 ): Promise<FileSystemDirectoryHandle> {
   const root = await getRootDir();
   if (!root) throw new Error('no projects root is open');
+  // §5.2 step 3, best-effort. Opening a project is the other gesture-driven entry point:
+  // after a reload the handle survives but the grant does not, so without this the first
+  // read of an existing project throws NotAllowedError (the editor's error state is the
+  // fallback, and its «Retry» re-runs this path — which is itself a gesture). Deliberately
+  // non-throwing: a non-gesture caller (the persist queue) must keep today's behaviour, and
+  // a genuine refusal surfaces from the caller's own filesystem call.
+  await ensureRootAccess({ request: true });
   const folderName = openProjects.get(projectId);
   if (!folderName) throw new Error(`project ${projectId} is not open in this tab`);
   return root.getDirectoryHandle(folderName, { create: false });
@@ -740,6 +780,14 @@ export interface CreatedProject {
 export async function createProject(options?: { title?: string }): Promise<CreatedProject> {
   const root = await getRootDir();
   if (!root) throw new Error('no projects root is open');
+  // §5.2 step 3. After a reload the projects-root handle is restored but its write grant is
+  // not, so the first `getDirectoryHandle` below would throw `NotAllowedError` — and because
+  // the caller surfaces nothing yet (1.10 owns error surfacing) the «New project» button
+  // would simply look dead. This runs inside the click's activation window, which is the only
+  // place the grant can be asked for. A refusal is a typed error, never a silent no-op.
+  if (!(await ensureRootAccess({ request: true }))) {
+    throw new StorageWriteError('permission', new Error('projects-root write access was not granted'));
+  }
 
   const base = STRINGS.home.newProject; // 'New project' — approved copy
   let folderName: string | null = null;

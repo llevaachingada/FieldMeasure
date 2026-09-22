@@ -756,3 +756,66 @@ on-screen stroke finding), D102 (the owner's D88 answer + the beta-honesty rule)
 
 **Next:** slice 1.9's wiring (`src/export/runExport.ts` + mounting the wizard + enabling the entry points,
 per `docs/handoff-session-14.md` §3), then 1.10.
+
+---
+
+## Session 17 — slice 1.9 wired (export works), 1.10 themes, and two real bugs closed
+**Date:** 2026-09-22 · **Commits:** see `git log` · **Branch:** `main`
+
+**Built (three lanes on disjoint files, integrated and gated on one tree):**
+
+- **Export is reachable and working — slice 1.9 is complete.** `src/export/runExport.ts` supplies the
+  orchestration the wizard's injected props always needed: one sheet at a time (`renderSheetJpeg` for PDF,
+  `renderSheet` + `canvasToPngBytes` for PNG), each bitmap freed before the next, `buildPdfParts` (never
+  `buildPdf([])`), `zipPngs`, `conflictName` against the destination's **real** listing, and **every byte
+  through `projectStore.writeAtomic`** under the per-project lock (`createWritable` still exists only inside
+  `projectStore`). Per-file failures become rows, never a rejection. The wizard is a **static** import in a
+  positioning-only slot (own `z-index: 60` dialog, no second `role="dialog"`); the engine stays lazy
+  (`await import('./pdf'/'./png')`). Entry points live: top-bar **Export**, **`Ctrl+E`**, **`⋯ → Export`**.
+  **The pixel assertion that matters:** a 400×300 sheet at M=2 exports a **300 × 225 pt** PDF page — a
+  bitmap-derived page would be 600 × 450. **Review F3 is closed the hard way:** `assetProvider` is
+  disk-backed (every referenced asset decoded before a sheet renders, seeded from the editor session
+  registry) and closes only bitmaps it decoded — a borrowed session bitmap is never closed.
+- **1.10 themes (Sunlight / Dim) landed** — token-level `data-theme` remaps applied by one runtime hook at
+  the app root; Standard pinned byte-for-byte; `--hi`/`--sel`/`--ok`/`--warn`/`--err` provably untouched,
+  because the ink carries the measurement. The Settings → Display control already existed and was inert.
+- **The owner-reported dead «New project» button is fixed.** Two stacked causes: the §5.2 gesture re-grant
+  (`FsaBackend.requestAccess`) had **no caller anywhere**, and the caller swallowed every throw — so on a
+  reloaded page (handle restored, **write grant lost**) the first filesystem call failed invisibly.
+  `ensureRootAccess({ request: true })` now asks inside the click; the open-project path re-grants
+  best-effort, so the editor's «Retry» recovers.
+- **A gate blind spot, found and recorded:** `npm run dev` renders **completely unstyled** — the shipped CSP
+  (`style-src 'self'`) blocks Vite's injected inline `<style>`, and every gate uses the built app. The
+  convention is now explicit: judge appearance from the built app.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `CI=true npx vitest run` → **78 files / 1095 tests** (node + jsdom + browser; +5 files / +64 tests), exit 0
+- [x] `npm run build` → 0 errors, **25 precache entries (1454.51 KiB)**
+- [x] `npx playwright test` → 5 passed / 5 skipped (see the collision below)
+
+**Gate-environment collision (recorded because it looks like a failure and is not one):** the first
+playwright run exited 1 with *"http://localhost:4173 is already used"* — the e2e config starts
+`npm run preview` on 4173 and `reuseExistingServer` is disabled while `CI=true`, and a preview server
+started earlier in the session was holding the port. Re-run without `CI` → **5 passed / 5 skipped**.
+No code was involved.
+
+**Deferred to hardware:** none added. H19–H22 (1.9) and H8/H12 remain pending.
+
+**Checkpoints fired:** none — **C6 is still not fired**; H21 on a Surface Go sets the ceiling.
+
+**Decisions recorded:** **D103** (the gesture re-grant and the swallowed throw), **D104** (themes),
+**D105** (dev-mode CSP), **D106** (the export wiring, its unpinned decisions and its owed list).
+
+**Surprises:**
+1. **The dead button needed both a repair and an admission.** Two independent faults — a permission path
+   with no caller, and a caller that swallowed everything — hid each other; fixing either alone would have
+   left the symptom in place or produced a silent refusal.
+2. **The suite was structurally blind to a whole environment.** Styles are only ever asserted against the
+   built app, so the dev server's CSP-blocked styles could not fail any test. Third instance of "the gate
+   can see only what it asserts" — this time about the *server*, not the assertion.
+3. **The orchestrator's own helper server broke a gate run** (the 4173 collision). Worth remembering:
+   stop convenience servers before gating, or leave `CI` unset so `reuseExistingServer` applies.
+
+**Next:** the rest of 1.10 (autosave chip, toasts, `.trash/` prune + restore, arrow nudge, the end-to-end
+a11y audit), then 1.11 (update strategy), then 2.0.

@@ -100,4 +100,41 @@ describe('Settings', () => {
     expect(switchFor(STRINGS.settings.glovedTouch).getAttribute('aria-checked')).toBe('false');
     expect(switchFor(STRINGS.settings.penOnly).getAttribute('aria-checked')).toBe('false');
   });
+
+  // ── Slice 1.10 — the Display → Theme control (UI §14.2) ────────────────────
+
+  const themeRadio = (label: string) => screen.getByRole('radio', { name: label });
+  const themeChecked = (label: string) => themeRadio(label).getAttribute('aria-checked');
+
+  it('exposes Theme as one exclusive radio group, defaulting to Standard', async () => {
+    await renderSettings();
+
+    // The group is labelled and its three options report their own state to AT.
+    expect(screen.getByRole('radiogroup', { name: STRINGS.settings.rowTheme })).toBeTruthy();
+    expect(themeChecked(STRINGS.settings.themeStandard)).toBe('true');
+    expect(themeChecked(STRINGS.settings.themeSunlight)).toBe('false');
+    expect(themeChecked(STRINGS.settings.themeDim)).toBe('false');
+  });
+
+  it('persists the chosen theme and reports it after a reload', async () => {
+    const user = userEvent.setup();
+    await renderSettings();
+
+    await user.click(themeRadio(STRINGS.settings.themeSunlight));
+    await waitFor(() => expect(idbStore.get('fm:settings:theme')).toBe('sunlight'));
+
+    // Exclusive: selecting Sunlight clears Standard and Dim.
+    expect(themeChecked(STRINGS.settings.themeSunlight)).toBe('true');
+    expect(themeChecked(STRINGS.settings.themeStandard)).toBe('false');
+    expect(themeChecked(STRINGS.settings.themeDim)).toBe('false');
+
+    // Simulate a reload: drop in-memory store state and re-hydrate from idb.
+    cleanup();
+    useAppStore.setState(createInitialAppState());
+    await renderSettings();
+
+    expect(themeChecked(STRINGS.settings.themeSunlight)).toBe('true');
+    expect(themeChecked(STRINGS.settings.themeStandard)).toBe('false');
+    expect(themeChecked(STRINGS.settings.themeDim)).toBe('false');
+  });
 });

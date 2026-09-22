@@ -88,6 +88,7 @@ import { useAppStore } from '@/state/appStore';
 import { addSheetFromPhoto, defaultSheetTitle } from '@/fs/sheetIntake';
 import { InsetTool, replacePhotoDecision, type InsetAssetInput } from '@/editor/tools/InsetTool';
 import { storeInsetAsset } from '@/editor/inset/insetAssets';
+import type { InsetAssetImage } from '@/editor/inset/renderInset';
 import ImageInsetPickerSheet from '@/ui/ImageInsetPickerSheet';
 import { InsetAssetRegistry, createFocusAwareScene } from '@/ui/insetWiring';
 import './insetWire.css';
@@ -156,6 +157,33 @@ export interface SheetEditorProps {
    * through the REAL editor without reaching into Konva globals.
    */
   onSceneReady?: (api: { scene: MarkupScene; canvas: EditorCanvas }) => void;
+  /**
+   * Slice 1.9 additive seam: the document half of export. The shell owns the wizard but
+   * not the document, so this hands out the sheet list, the current sheet id, the LIVE
+   * markup of the open sheet (its `markup.json` may still be coalescing), the session's
+   * decoded-asset provider and a persist-queue flush. `null` while no sheet is open.
+   *
+   * The shape is structural and deliberately tiny — it mirrors `ExportDocumentSource` in
+   * `src/export/runExport.ts`, which is the only consumer.
+   */
+  onExportSource?: (source: EditorExportSource | null) => void;
+}
+
+/** One sheet as the export engine needs it: identity, title, WORKING-IMAGE size. */
+export interface EditorSheetInfo {
+  id: string;
+  title: string;
+  imageWidthPx: number;
+  imageHeightPx: number;
+}
+
+/** The document half of export (see `onExportSource`). */
+export interface EditorExportSource {
+  sheets: readonly EditorSheetInfo[];
+  currentSheetId: string | null;
+  currentAnnotations: () => readonly Annotation[];
+  assetProvider?: (assetId: string) => InsetAssetImage | null;
+  flush: () => Promise<void>;
 }
 
 /**
@@ -244,6 +272,7 @@ export default function SheetEditor({
   onSheetTitleChange,
   sheetId,
   onSceneReady,
+  onExportSource,
 }: SheetEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const keypadMountRef = useRef<HTMLDivElement | null>(null);
@@ -304,6 +333,10 @@ export default function SheetEditor({
   const [status, setStatus] = useState<EditorStatus>('loading');
   const [sheetTitle, setSheetTitle] = useState('');
   const [sheetCount, setSheetCount] = useState(0);
+  // Slice 1.9 export seam: the shell needs the sheet list + which one is open. Held in
+  // state (not only the ref below) so the emit effect re-runs when either changes.
+  const [exportSheets, setExportSheets] = useState<readonly EditorSheetInfo[]>([]);
+  const [exportSheetId, setExportSheetId] = useState<string | null>(null);
   const [zoomPercent, setZoomPercent] = useState(100);
   const [readOnly, setReadOnly] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -337,6 +370,30 @@ export default function SheetEditor({
   useEffect(() => {
     onSheetTitleChange?.(sheetTitle);
   }, [onSheetTitleChange, sheetTitle]);
+
+  // ---- slice 1.9: publish the export document source (additive seam) -----------
+  // The callbacks read live refs, so a run always sees the current scene/registry even
+  // though the object is emitted only when the sheet list or the open sheet changes.
+  useEffect(() => {
+    if (!onExportSource) return;
+    if (exportSheets.length === 0) {
+      onExportSource(null);
+      return;
+    }
+    const currentId = exportSheetId;
+    onExportSource({
+      sheets: exportSheets,
+      currentSheetId: currentId,
+      currentAnnotations: () => {
+        const scene = sceneRef.current;
+        if (!scene || currentId === null) return [];
+        return scene.markupFile(currentId, 1).objects;
+      },
+      assetProvider: (assetId) => insetAssetsRef.current.provider(assetId),
+      flush: () => persistRef.current?.flush() ?? Promise.resolve(),
+    });
+    return () => onExportSource(null);
+  }, [onExportSource, exportSheets, exportSheetId]);
 
   // ---- canvas lifecycle + input routing + project open -------------------------
   useEffect(() => {
@@ -1402,12 +1459,22 @@ export default function SheetEditor({
 
         const sheets = file.sheets.filter((s) => !s.deletedAt);
         setSheetCount(sheets.length);
+        // Slice 1.9: the export seam's sheet list (working-image px, never screen px).
+        setExportSheets(
+          sheets.map((s) => ({
+            id: s.id,
+            title: s.title,
+            imageWidthPx: s.imageWidth,
+            imageHeightPx: s.imageHeight,
+          })),
+        );
         if (sheets.length === 0) {
           setStatus('empty');
           return;
         }
         const sheet = (sheetId ? sheets.find((s) => s.id === sheetId) : undefined) ?? sheets[0];
         setSheetTitle(sheet.title);
+        setExportSheetId(sheet.id);
         const loaded = await loadSheet(canvas, projectDir, sheet);
         if (!alive) return;
         setStatus(loaded);
@@ -1768,6 +1835,18 @@ export default function SheetEditor({
       canvas.fit();
       setSheetTitle(sheet.title);
       setSheetCount(nextFile.sheets.filter((s) => !s.deletedAt).length);
+      // Slice 1.9: the added sheet joins the export seam's list and becomes current.
+      setExportSheets(
+        nextFile.sheets
+          .filter((s) => !s.deletedAt)
+          .map((s) => ({
+            id: s.id,
+            title: s.title,
+            imageWidthPx: s.imageWidth,
+            imageHeightPx: s.imageHeight,
+          })),
+      );
+      setExportSheetId(sheet.id);
       setStatus('ready');
     } catch {
       setStatus('error');

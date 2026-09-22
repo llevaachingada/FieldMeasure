@@ -15,6 +15,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   MAX_NEW_PROJECT_NAMES,
+  StorageWriteError,
   createProject,
   initStore,
   readProjectFile,
@@ -165,5 +166,62 @@ describe('createProject — failure paths', () => {
     await installNoRoot();
 
     await expect(createProject()).rejects.toThrow('no projects root is open');
+  });
+});
+
+describe('createProject — §5.2 gesture-driven root permission (the reloaded-page dead button)', () => {
+  /**
+   * A RELOADED Chromium root: the directory HANDLE survives in IndexedDB but its write
+   * GRANT does not. `queryPermission()` is `'prompt'` and every filesystem call throws
+   * `NotAllowedError` until `requestPermission()` runs inside a user gesture — which is
+   * what `ensureRootAccess({ request: true })` does at the top of `createProject`.
+   * Before that guard, the throw was swallowed by the caller's `catch {}`, so clicking
+   * «New project» after a reload did exactly nothing (the owner-reported bug).
+   */
+  function reloadedRoot(opts: { granted: boolean; grantOnRequest: boolean }, calls: string[]): FakeDir {
+    const root = new FakeDir('root');
+    Object.assign(root, {
+      queryPermission: async (): Promise<PermissionState> => (opts.granted ? 'granted' : 'prompt'),
+      requestPermission: async (): Promise<PermissionState> => {
+        calls.push('requestPermission');
+        return opts.grantOnRequest ? 'granted' : 'denied';
+      },
+    });
+    return root;
+  }
+
+  it('asks for the write grant and then creates the project', async () => {
+    const calls: string[] = [];
+    const root = reloadedRoot({ granted: false, grantOnRequest: true }, calls);
+    await installRoot(root);
+
+    const created = await createProject();
+
+    expect(calls).toEqual(['requestPermission']);
+    expect(created.folderName).toBe(BASE);
+    expect(root.childDir(BASE).has('project.json')).toBe(true);
+  });
+
+  it('does not re-ask while the grant is held (the query short-circuits)', async () => {
+    const calls: string[] = [];
+    const root = reloadedRoot({ granted: true, grantOnRequest: false }, calls);
+    await installRoot(root);
+
+    await createProject();
+
+    expect(calls).toEqual([]);
+  });
+
+  it('a refused grant is a typed permission error and writes nothing', async () => {
+    const calls: string[] = [];
+    const root = reloadedRoot({ granted: false, grantOnRequest: false }, calls);
+    await installRoot(root);
+
+    const error = (await createProject().catch((e: unknown) => e)) as StorageWriteError;
+
+    expect(error).toBeInstanceOf(StorageWriteError);
+    expect(error.kind).toBe('permission');
+    expect(calls).toEqual(['requestPermission']);
+    expect(root.children.size).toBe(0);
   });
 });

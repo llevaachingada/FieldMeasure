@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 16 — **the cloud branch is merged into `main` and pushed**: `main` == `origin/main` at the union and PR #2 closes as merged. The merge commit `2e7a43a` was gated green on Windows before anything landed on it (tsc 0 · 73 files / 1027 tests · build 0, 17 precache, 858.51 KiB · playwright 5/5), and its two document losses are repaired: the decision numbering is reconciled (D100 — `main`'s `D85`–`D88` kept, the four conflicting export entries now `D96`–`D99`) and the branch's session-14/15 snapshot plus its 1.9 BUILD-LOG entry are restored. **The session-14 review is discharged:** F1 is a **false positive proven by execution** (D101 — a `Konva.Text` cannot disable stroke scaling, so the `strokeWidthMu` tag is inert and the export was already correct; D98's rationale is corrected) and F2 is fixed. **Beta flow landed (D102):** «New project» opens the camera and the editor's empty state carries the spec'd «Take photo» + «Import» pair. Next: `runExport.ts`)
+**Last updated:** 2026-09-22 (session 17 — **slice 1.9 is complete: export is reachable and gated end to end** (`src/export/runExport.ts` + the wizard mounted + the top-bar/`Ctrl+E`/`⋯` entry points; a 400×300 sheet at M=2 exports a **300 × 225 pt** page, the trap that fails silently if the page is derived from the bitmap). **1.10 has begun:** Sunlight/Dim themes landed (D104). Two real bugs were root-caused and fixed: the owner-reported **dead «New project» button** — the §5.2 gesture re-grant had **no caller** and the caller swallowed the throw (D103) — and the discovery that **`npm run dev` can never render styled** because the shipped CSP blocks Vite's inline styles, invisible to every gate because they all use the built app (D105). Next: the rest of 1.10 — autosave chip, toasts, `.trash/` prune, arrow nudge, the a11y audit — then 1.11)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2–1.8 complete and green; 1.9's export MODULES complete and the BETA FLOW landed** («New project» → camera → shutter → photo on canvas → dimensions/text). **1.9 is still not usable end to end: `src/export/runExport.ts` does not exist and the wizard is not mounted**, so nothing in the app can reach an export. Next: that wiring, then 1.10 |
-| Application code | **Twelve slices**, **73 files / 1031 tests** (node + jsdom + browser) on the unified tree; build 0 (17 precache, 858.82 KiB); playwright 5 passed / 5 skipped. This session: the merge into `main` (both sides' code present), the beta-flow changes (`App.tsx`, `SheetEditor.tsx`, `EditorLayout.tsx`, `ProjectList.tsx`, `strings.ts`), an angle-label halo pixel regression guard, and the honest-disable of the unbuilt folder controls |
+| Phase | **Slices 0.2–1.8 complete; slice 1.9 COMPLETE (export is reachable and working end to end); 1.10 begun** (Sunlight/Dim themes). Export runs one sheet at a time through the real `writeAtomic`, PNG/PDF + zip, conflict policy against the destination listing, and a **disk-backed `assetProvider`** so insets export their photo (review F3 closed). Next: the rest of 1.10, then 1.11 (update strategy), then 2.0 |
+| Application code | **Twelve slices + 1.9's wiring**, **78 files / 1095 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1454.51 KiB); playwright 5 passed / 5 skipped. This session: `src/export/runExport.ts` (+ its three test files), the wizard mount and the three entry points, `SheetEditor.onExportSource`, `TopBar.onExport`; the 1.10 theme runtime (`src/ui/themeRuntime.ts`, token blocks, tests); and the `ensureRootAccess` permission fix with its five tests |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Slice 1.9's wiring — `src/export/runExport.ts` + mounting the wizard + enabling the entry points** (`docs/handoff-session-14.md` §3: one sheet at a time through `renderSheetJpeg`; `buildPdfParts` / `zipPngs`; `conflictName`; **every write through `projectStore.writeAtomic`**; pass `assetProvider` or every inset exports as a grey placeholder; lazy-load the engine, not the wizard). Then **1.10**: the read-only/failed-save paths, `.trash/` prune, Sunlight/Dim, the Offset Nudge Pad, the a11y audit — plus the owed label-halo screen fix (D101). Carried owed: **F1's real-touch e2e stays `fixme`** (B1/D81), the §8.6 rotate handle and text-box scaling (D79), and the `[Surface]` rows H8/H12/H19–H22 |
+| Next action | **The rest of slice 1.10** — build order 1: the autosave chip (all five states, never optimistic) + the History flyout; 3: single-instance toasts (8 s / 10 s-with-undo, never stack); 2: `.trash/` + 14-day prune + restore; 4: the arrow nudge (1 px / 10 px) and the end-to-end a11y audit (canvas accessible object tree, keyboard-only core loop, 48 px / 16 px touch checks). Then **1.11** (`registerType: 'prompt'`, the update toast with the flush-then-reload rule, build id in Settings). Owed alongside: D101's on-screen label-halo fix, D104's component-level Sunlight items, D106's export owed list, and the `[Surface]` rows |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -653,6 +653,38 @@ no rebase, no force-push:
 turned out to be attribute arithmetic. **A merge is not integration, and a finding is not a defect until
 it is measured.**
 
+### 2026-09-22 — Session 17: slice 1.9 wired (export works), 1.10 themes, and two real bugs closed
+
+Three lanes ran in parallel on disjoint files (export wiring ∥ themes ∥ the owner's bug) and were
+integrated on one tree:
+
+1. **Export is reachable.** `src/export/runExport.ts` supplies the orchestration the wizard's injected
+   props always needed; the wizard is a **static** import mounted in a positioning-only slot (the engine
+   stays lazy — `await import('./pdf'/'./png')`), and three entry points are live: the top-bar button,
+   `Ctrl+E`, and `⋯ → Export`. Every byte goes through `projectStore.writeAtomic`; per-file failures are
+   rows, never a rejection; `conflictName` is applied against the destination's real listing. The
+   load-bearing pixel assertion: a 400×300 sheet at M=2 → **300 × 225 pt** (a bitmap-derived page would
+   be 600 × 450). **F3 closed the hard way:** `assetProvider` decodes every referenced asset before a
+   sheet renders and closes only bitmaps it decoded (D106).
+2. **The owner-reported dead «New project» button (D103).** Two stacked causes: the §5.2 gesture
+   re-grant (`FsaBackend.requestAccess`) had **no caller in the codebase**, and `App.handleNewProject`
+   swallowed every throw — so after a reload (handle restored, **write grant lost**) the first filesystem
+   call failed invisibly. `ensureRootAccess({ request: true })` now asks inside the click; the open-project
+   path re-grants best-effort, so the editor's «Retry» recovers. 42/42 node tests, including a fake that
+   models the reloaded state.
+3. **1.10 themes (D104).** Token-level `data-theme` remaps applied by one root hook; Standard pinned
+   byte-for-byte; the meaning colours are provably untouched (a theme may not re-tint the ink that carries
+   the measurement). The Settings control existed and was inert — it now works.
+4. **A gate blind spot found (D105).** `npm run dev` renders **completely unstyled**: the shipped CSP
+   (`style-src 'self'`) blocks Vite's injected inline `<style>`, and every automated gate runs the
+   **built** app, so nothing in the suite could see it. Convention recorded: judge appearance from the
+   built app.
+
+**Lesson.** The dead button needed *both* a repair and an admission: two independent faults (a dead
+permission path and a swallowing caller) hid each other, so either alone would have looked like "no bug".
+And a third variant of the standing rule appeared — *the gate can see only what it asserts, in the
+environment it asserts it* — this time at the level of the **server**, not the assertion.
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -878,6 +910,21 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   module-level: no PDF or PNG has ever been written by the app.
 - **C6 is not fired.** `EXPORT_BITMAP_LIMIT_BYTES` is a dev-machine figure (D96); H21 on a Surface Go is
   what sets it.
+- **`[Surface]` gates pending, never faked:** H8, H12, H19–H22 (1.9) plus the earlier rows.
+
+## Known drift / watch items (session 17)
+
+- **`npm run dev` is unstyled by design (D105).** Manual inspection uses the built app
+  (`npm run build && npm run preview`); a dev-only `style-src` relaxation is deliberately not done yet.
+- **On-screen label outlines scale with canvas zoom (D101, cosmetic)** — the fix (`strokeWidth = mu / scale`
+  for a tagged `Text`) belongs with the 1.10 polish/a11y pass.
+- **Export owes (D106):** pixel-level proof that an inset exports its **photo** (not the grey placeholder);
+  measured size factors instead of `2 B/px` / `0.5 B/px`; persisting the remembered destination; the
+  240-char path cap (needs approved copy); exercising the 250 MB split branch; a populated
+  `disk-full` shortfall; and `retryFile`'s happy path.
+- **Sunlight is computed, not seen (D104):** the porch check is `[Surface]`; the §14.2 64 px target floor
+  and 2.5 px icon strokes are component-level work, and the canvas HUDs still use hardcoded `rgba()`
+  surfaces that do not re-theme.
 - **`[Surface]` gates pending, never faked:** H8, H12, H19–H22 (1.9) plus the earlier rows.
 
 ## How to resume

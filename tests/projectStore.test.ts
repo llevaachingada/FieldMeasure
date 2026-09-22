@@ -531,3 +531,43 @@ describe('open-project registry (what persistQueue writes through)', () => {
     expect(dir.name).toBe('Riverside');
   });
 });
+
+describe('open-project §5.2 gesture re-grant (the reloaded-page «open a project» path)', () => {
+  it('asks for the root write grant, then resolves the folder', async () => {
+    const root = fakeProject('p1', 'Riverside');
+    const calls: string[] = [];
+    let granted = false;
+    Object.assign(root, {
+      queryPermission: async (): Promise<PermissionState> => (granted ? 'granted' : 'prompt'),
+      requestPermission: async (): Promise<PermissionState> => {
+        calls.push('requestPermission');
+        granted = true;
+        return 'granted';
+      },
+    });
+    await installRoot(root);
+    registerOpenProject('p1', 'Riverside');
+
+    const dir = (await resolveOpenProjectDir('p1')) as unknown as FakeDir;
+
+    expect(calls).toEqual(['requestPermission']);
+    expect(dir.name).toBe('Riverside');
+  });
+
+  it('a non-gesture caller stays quiet: a rejected requestPermission is not an error here', async () => {
+    const root = fakeProject('p1', 'Riverside');
+    Object.assign(root, {
+      queryPermission: async (): Promise<PermissionState> => 'prompt',
+      // Chromium rejects rather than prompting when there is no transient activation.
+      requestPermission: async (): Promise<PermissionState> => {
+        throw new DOMException('user activation is required', 'NotAllowedError');
+      },
+    });
+    await installRoot(root);
+    registerOpenProject('p1', 'Riverside');
+
+    const dir = (await resolveOpenProjectDir('p1')) as unknown as FakeDir;
+
+    expect(dir.name).toBe('Riverside');
+  });
+});
