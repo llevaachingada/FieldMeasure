@@ -25,29 +25,50 @@
  * Pure functions (parse, upsert, remove, find, `presetsForTool`) are Konva-free and
  * DOM-free; only the `load*`/`save*` functions touch the File System Access API.
  */
-import { z } from 'zod';
-
 import type { AnnotationStyle } from '@/domain/types';
 import type { ToolId } from '@/ui/ToolRail';
 import { AnnotationStyleZ } from '@/domain/schema';
 // A NAMESPACE import, deliberately — NOT a named-import list.
 //
-// In the Vitest **browser** project a named import from this module fails to LINK:
+// In the Vitest **browser** project a named import from this module failed to LINK:
 //   SyntaxError: The requested module '/src/fs/projectStore.ts' does not provide an export
 //   named 'resolveFieldMeasureDir'
 // …while the export demonstrably exists: `tsc --noEmit`, the rolldown build, node+jsdom,
-// and an `import * as` namespace probe in the SAME browser context all see it. The leading
-// (unconfirmed) explanation is Vite's dependency optimizer discovering a new bare import
-// mid-run — `EditorLayout` is lazy-loaded, so the initial scan does not see this module —
-// and re-optimizing while modules are already linked. Resolving the bindings at use time is
-// behaviour-identical and avoids the link-time name check. Recorded in DECISIONS D84.
+// and an `import * as` namespace probe in the SAME browser context all see it. Resolving the
+// bindings at use time is behaviour-identical and avoids the link-time name check.
+// Recorded in DECISIONS D84.
+//
+// D84's *recorded root cause* is DISPROVED (session-14 review, finding 5): it blamed Vite
+// discovering `zod` as a NEW bare import here because `EditorLayout` is lazy. Both halves are
+// false against the import graph — `projectStore` itself reaches `zod` through
+// `../domain/schema` (`src/domain/schema.ts:32`), so every failing suite already had `zod` in
+// its scan; and the three failing suites import `EditorLayout` STATICALLY
+// (`tests/insetWire.browser.test.ts:25`, `tests/layersWire.browser.test.ts:23`,
+// `tests/sheetEditor.dimension.browser.test.ts:20`) — it is lazy only at `src/App.tsx:29`.
+// The `import { z } from 'zod'` this module used to carry was moreover UNUSED, and has been
+// removed. The cause is therefore still unknown, which is exactly why the namespace import is
+// now GUARDED rather than trusted: `import * as` yields `undefined` for a missing export
+// instead of throwing at link time, so a recurrence would otherwise surface as a `TypeError`
+// inside the IO catches below and be reported to the user as a CORRUPT PRESETS FILE.
+// `requireBinding` + `isProgrammingError` make that impossible; see `tests/presetsLinking.test.ts`.
 import * as projectStore from './projectStore';
 
 /** Bump when the on-disk shape changes; unknown versions parse leniently today. */
 export const PRESETS_SCHEMA_VERSION = 1;
 
-/** Directory + file name below the project folder (§7.3). */
-export const PRESETS_DIR = '.fieldmeasure';
+/**
+ * File name below `.fieldmeasure/` in the project folder (§7.3).
+ *
+ * The DIRECTORY name is deliberately NOT duplicated here: `.fieldmeasure` is owned by
+ * `projectStore.resolveFieldMeasureDir`, and this module reaches it only through that
+ * function (AGENTS #3). The dead `PRESETS_DIR` constant that used to sit beside this one
+ * was removed in the session-14 review (finding 9) — it had zero references and could only
+ * ever drift from `src/fs/projectStore.ts:125`. The two remaining halves of the path are
+ * pinned by EXECUTION, not by a shared literal: `tests/presets.test.ts` writes through
+ * `projectStore` and asserts `Riverside/.fieldmeasure/presets.json` exists, then reads it
+ * back through `readPresetsFromDir` (which uses `PRESETS_FILE`). If either literal drifted,
+ * that round-trip fails.
+ */
 export const PRESETS_FILE = 'presets.json';
 
 export interface StylePreset {
@@ -149,8 +170,59 @@ export function removePreset(file: PresetsFile, tool: ToolId, name: string): Pre
 }
 
 /* ------------------------------------------------------------------ *
- * IO
+ * IO — and the guard that keeps a PROGRAMMING error out of the DATA errors
  * ------------------------------------------------------------------ */
+
+/**
+ * Thrown when a `projectStore` binding this module resolves at use time is not a function.
+ *
+ * Why this class exists: the namespace import above trades a link-time name check for a
+ * use-time property read, so a missing export arrives as `undefined` rather than as a
+ * `SyntaxError`. Calling it would throw a bare `TypeError` inside the IO catches below,
+ * which classified anything that was not a `NotFoundError` as `{ kind: 'corrupt' }` — i.e.
+ * the shell would tell the user «Presets file is corrupt» when the file is perfectly fine
+ * and the real fault is ours. A named, non-`DOMException` error that the catches rethrow
+ * makes that misreport impossible, and names the broken binding.
+ *
+ * It is checked at USE time, not at module load: a throw at module load would fail the whole
+ * lazy editor chunk as an opaque chunk-load error, and could not be exercised by a test
+ * without module-graph surgery. Use time is the moment the fault actually matters.
+ */
+export class PresetsBindingError extends Error {
+  constructor(name: string) {
+    super(
+      `presets.ts: projectStore.${name} is not a function. This is a LINKING/PROGRAMMING ` +
+        `error (see DECISIONS D84), not a problem with the user's presets file.`,
+    );
+    this.name = 'PresetsBindingError';
+  }
+}
+
+/** Resolve one `projectStore` binding, or throw a `PresetsBindingError` naming it. */
+function requireBinding<T>(name: string, binding: T): T {
+  if (typeof binding !== 'function') throw new PresetsBindingError(name);
+  return binding;
+}
+
+/**
+ * `true` for errors that are OUR bug, never the storage layer's.
+ *
+ * The IO catches below may only classify a caught error as `missing`/`corrupt`/
+ * `folder-unavailable` when this is `false`. A genuine storage failure is a `DOMException`
+ * (`NotFoundError`, `NotReadableError`, `NoModificationAllowedError`, …) or a plain `Error`
+ * (`projectStore.resolveOpenProjectDir` throws `new Error('project … is not open in this
+ * tab')` for the folder-unavailable path, which `tests/presets.test.ts` covers) — never a
+ * `TypeError`, and never a `PresetsBindingError`.
+ */
+function isProgrammingError(e: unknown): boolean {
+  return (
+    e instanceof PresetsBindingError ||
+    e instanceof TypeError ||
+    e instanceof ReferenceError ||
+    e instanceof RangeError ||
+    e instanceof SyntaxError
+  );
+}
 
 export type PresetsRead =
   | { kind: 'ok'; file: PresetsFile }
@@ -164,8 +236,13 @@ export async function readPresetsFromDir(
   const dir = projectDir as FileSystemDirectoryHandle;
   let fieldDir: FileSystemDirectoryHandle;
   try {
-    fieldDir = await projectStore.resolveFieldMeasureDir(dir, { create: false });
+    const resolveFieldMeasureDir = requireBinding(
+      'resolveFieldMeasureDir',
+      projectStore.resolveFieldMeasureDir,
+    );
+    fieldDir = await resolveFieldMeasureDir(dir, { create: false });
   } catch (e) {
+    if (isProgrammingError(e)) throw e; // our bug — never «your presets file is corrupt»
     return (e as DOMException)?.name === 'NotFoundError' ? { kind: 'missing' } : { kind: 'corrupt' };
   }
   let raw: string;
@@ -173,6 +250,7 @@ export async function readPresetsFromDir(
     const handle = await fieldDir.getFileHandle(PRESETS_FILE, { create: false });
     raw = await (await handle.getFile()).text();
   } catch (e) {
+    if (isProgrammingError(e)) throw e;
     return (e as DOMException)?.name === 'NotFoundError' ? { kind: 'missing' } : { kind: 'corrupt' };
   }
   const file = parsePresets(raw);
@@ -184,17 +262,27 @@ export type PresetsLoadResult =
   | { ok: false; error: 'folder-unavailable' | 'corrupt' };
 
 /**
- * Load an OPEN project's presets by id. Never throws: the shell maps
- * `{ ok: false, error: 'folder-unavailable' }` to the §7.5 warn strip
+ * Load an OPEN project's presets by id. Never throws **for a storage failure**: the shell
+ * maps `{ ok: false, error: 'folder-unavailable' }` to the §7.5 warn strip
  * («Presets couldn't be loaded — changes will apply to this session only.») and can retry
  * by calling this again (e.g. after the folder is re-picked). A missing file is a fresh
  * project, not an error.
+ *
+ * It DOES propagate a programming error (`PresetsBindingError`, `TypeError`, …). That is
+ * deliberate and is the finding-5 fix: silently degrading our own bug into a user-facing
+ * data error («corrupt», «folder unavailable») hides it behind a Retry button the user can
+ * press forever. A bug must be loud.
  */
 export async function loadPresets(projectId: string): Promise<PresetsLoadResult> {
   let projectDir: FileSystemDirectoryHandle;
   try {
-    projectDir = await projectStore.resolveOpenProjectDir(projectId);
-  } catch {
+    const resolveOpenProjectDir = requireBinding(
+      'resolveOpenProjectDir',
+      projectStore.resolveOpenProjectDir,
+    );
+    projectDir = await resolveOpenProjectDir(projectId);
+  } catch (e) {
+    if (isProgrammingError(e)) throw e;
     return { ok: false, error: 'folder-unavailable' };
   }
   const read = await readPresetsFromDir(projectDir);
@@ -205,8 +293,13 @@ export async function loadPresets(projectId: string): Promise<PresetsLoadResult>
 
 /** Write presets for an OPEN project (atomic, lock-guarded). Throws on write failure. */
 export async function savePresets(projectId: string, file: PresetsFile): Promise<void> {
-  const projectDir = await projectStore.resolveOpenProjectDir(projectId);
-  await projectStore.writePresetsFile(projectDir, file, projectId);
+  const resolveOpenProjectDir = requireBinding(
+    'resolveOpenProjectDir',
+    projectStore.resolveOpenProjectDir,
+  );
+  const writePresetsFile = requireBinding('writePresetsFile', projectStore.writePresetsFile);
+  const projectDir = await resolveOpenProjectDir(projectId);
+  await writePresetsFile(projectDir, file, projectId);
 }
 
 /** Write presets to an already-resolved project directory (used by tests and callers that hold the dir). */
@@ -215,5 +308,6 @@ export async function savePresetsToDir(
   file: PresetsFile,
   projectId: string,
 ): Promise<void> {
-  await projectStore.writePresetsFile(projectDir as FileSystemDirectoryHandle, file, projectId);
+  const writePresetsFile = requireBinding('writePresetsFile', projectStore.writePresetsFile);
+  await writePresetsFile(projectDir as FileSystemDirectoryHandle, file, projectId);
 }

@@ -140,6 +140,42 @@ export function applicableFor(tool: ToolId): Applicability {
 }
 
 /**
+ * `AnnotationType` → the tool that creates it. **THE ONE COPY.**
+ *
+ * Two consumers read it and they MUST agree, because they are two halves of one panel:
+ *   - `StylePanel.scopeTypeCounts` turns it into the §7.4 #3 scope chip's labels
+ *     («Apply to: Rectangle (1) · Image inset (1)») via each tool's `tool.*` name;
+ *   - `EditorLayout.applicabilityForSelection` turns it into the §7.4 #4 applicability
+ *     intersection (`applicableFor(TOOL_FOR_TYPE[type])` across the selection).
+ *
+ * It used to be duplicated byte-for-byte in both of those files. `Record<AnnotationType,
+ * ToolId>` checks exhaustiveness and value TYPE only — it cannot see that two maps disagree
+ * — so e.g. flipping one copy's `highlight` to `'freehand'` would have mislabelled a
+ * Highlighter selection in the chip while the applicability intersection still used the
+ * `highlight` row, with `tsc`, node, jsdom and browser all green. Session-14 review,
+ * finding 7. The values are pinned by `tests/typeToolMap.test.ts`, and that both consumers
+ * derive from THIS map (rather than a re-introduced local copy) is asserted there and in
+ * `tests/stylePanel.test.tsx`.
+ *
+ * Copy note: the appendices key no `annotationType.*` strings, and the §7.4 example
+ * (`Text`, `Dimension`) names exactly the creating tools, so reusing `tool.*` labels
+ * invents no wording.
+ */
+export const TOOL_FOR_TYPE: Readonly<Record<AnnotationType, ToolId>> = {
+  dimension: 'dimension',
+  angle: 'angle',
+  line: 'line',
+  arrow: 'arrow',
+  rect: 'rect',
+  ellipse: 'ellipse',
+  polygon: 'polygon',
+  freehand: 'freehand',
+  highlight: 'highlight',
+  text: 'text',
+  image: 'inset',
+};
+
+/**
  * A style is "valid for the current tool" (§7.3) when every key it carries AWAY FROM THE
  * DEFAULT is a control that tool exposes. A default-valued key is always valid, so a
  * Dimension style (default `fontSizeMu`/`bold`) still appears in Recents for Dimension

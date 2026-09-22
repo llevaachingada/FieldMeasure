@@ -53,7 +53,9 @@ import StylePanel, {
   transparencyPercent,
   type StylePanelProps,
 } from '../src/ui/StylePanel';
-import { DEFAULT_STYLE, type AnnotationStyle } from '../src/domain/types';
+import { DEFAULT_STYLE, type AnnotationStyle, type AnnotationType } from '../src/domain/types';
+import { TOOL_FOR_TYPE } from '../src/state/styleByTool';
+import { toolDefById } from '../src/ui/ToolRail';
 import { STRINGS, t } from '../src/ui/strings';
 // The numeric target declarations live in CSS, and jsdom has no layout (D40), so the
 // stylesheet is read as TEXT and asserted as declared (the measured half stays e2e).
@@ -714,6 +716,40 @@ describe('StylePanel — selection bar', () => {
     cleanup();
     mountPanel({ selection: 'single', selectionCount: 1, selectionScope: [scope[1]] });
     expect(screen.queryByTestId('style-scope-chip')).toBeNull();
+  });
+
+  /**
+   * Session-14 review, finding 7 — the scope chip's half of the single-map guard.
+   *
+   * `scopeTypeCounts` used to read a private `TYPE_TOOL` copy that was byte-identical to
+   * `EditorLayout`'s `TOOL_FOR_TYPE` with nothing enforcing it. Both now read the ONE map
+   * in `@/state/styleByTool`; this asserts the chip's label for EVERY annotation type is
+   * that map's tool label, so re-introducing a divergent local copy here fails.
+   * (The applicability half, and the map's literal values, are `tests/typeToolMap.test.ts`.)
+   */
+  it('the chip labels every type through the shared TOOL_FOR_TYPE map', () => {
+    const allTypes: AnnotationType[] = [
+      'dimension',
+      'angle',
+      'line',
+      'arrow',
+      'rect',
+      'ellipse',
+      'polygon',
+      'freehand',
+      'highlight',
+      'text',
+      'image',
+    ];
+    for (const type of allTypes) {
+      const expected = toolDefById(TOOL_FOR_TYPE[type])?.label;
+      expect(expected, `no tool label for type ${type}`).toBeTruthy();
+      expect(scopeTypeCounts([{ type, count: 2 }])).toBe(`${expected} (2)`);
+    }
+    // The one non-identity row, spelled out: an `image` annotation is an Image inset.
+    expect(scopeTypeCounts([{ type: 'image', count: 1 }])).toBe(
+      `${toolDefById('inset')?.label} (1)`,
+    );
   });
 });
 

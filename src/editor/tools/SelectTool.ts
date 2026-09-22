@@ -207,6 +207,12 @@ export interface SelectToolDeps {
 
 interface TransformDrag {
   handle: HandleId;
+  /**
+   * The path key being transformed, captured at pointer-down. Every write during the
+   * drag (and the restore on cancel) addresses THIS key — never `getSelection()[0]`,
+   * which can change underneath a live drag.
+   */
+  key: string;
   /** The contact's image-space position at pointer-down. */
   start: Px;
   /** The dragged handle's original image-space position (resize target base). */
@@ -305,10 +311,16 @@ export class SelectTool implements MarkupTool {
     }
   }
 
+  /**
+   * A cancelled drag restores the pre-drag geometry and records NO history step. The
+   * selection (and so its handles) survives — the contact was interrupted, not the
+   * selection. The shell reaches this through `cancelContact`.
+   */
   onPointerCancel(): void {
-    this.transform = null;
+    this.restoreAndClearTransform();
     this.marqueeStart = null;
     this.clearMarquee();
+    this.refresh();
   }
 
   /** A tap on an object: select it, or re-trigger the tool's action on a second tap. */
@@ -359,6 +371,7 @@ export class SelectTool implements MarkupTool {
     if (!handlePos) return;
     this.transform = {
       handle,
+      key: keys[0],
       start: { ...point },
       handlePos: { ...handlePos },
       geometry,
@@ -369,16 +382,14 @@ export class SelectTool implements MarkupTool {
   private updateTransform(point: Px): void {
     const drag = this.transform;
     if (!drag) return;
-    const keys = this.deps.getSelection();
-    if (keys.length !== 1) return;
     const dx = point.x - drag.start.x;
     const dy = point.y - drag.start.y;
     const locked = axisLockDelta(drag.handle, dx, dy, Math.hypot(dx, dy), this.deps.canvas.scale);
     // Move the dragged handle by the (possibly axis-locked) delta; the opposite
     // corner/edge is the fixed pivot and never moves (F9).
     const target = { x: drag.handlePos.x + locked.dx, y: drag.handlePos.y + locked.dy };
-    const next = scaleGeometryLocal(drag.geometry, drag.bounds, drag.handle, target);
-    this.deps.scene.setGeometry(keys[0], next);
+    const next = scaleGeometryForHandle(drag.geometry, drag.bounds, drag.handle, target);
+    this.deps.scene.setGeometry(drag.key, next);
     this.refresh();
   }
 
@@ -386,10 +397,8 @@ export class SelectTool implements MarkupTool {
     const drag = this.transform;
     this.transform = null;
     if (!drag) return;
-    const keys = this.deps.getSelection();
-    if (keys.length !== 1) return;
     const from = drag.geometry;
-    const to = this.deps.scene.geometryCopy(keys[0]);
+    const to = this.deps.scene.geometryCopy(drag.key);
     if (!to) return;
     // The invariant (D77/F6): geometry never changes without exactly one matching
     // history step, and no step without a change. Compare against the captured
@@ -398,9 +407,36 @@ export class SelectTool implements MarkupTool {
     if (JSON.stringify(to) === JSON.stringify(from)) return;
     this.deps.history.exec({
       label: this.deps.labels.move,
-      do: () => this.deps.scene.setGeometry(keys[0], to),
-      undo: () => this.deps.scene.setGeometry(keys[0], from),
+      do: () => this.deps.scene.setGeometry(drag.key, to),
+      undo: () => this.deps.scene.setGeometry(drag.key, from),
     } as Command);
+  }
+
+  /**
+   * The ONE restore-and-clear path for an interrupted transform, shared by
+   * `onPointerCancel` and `onToolChange` so the two cannot drift apart again.
+   *
+   * `updateTransform` writes every intermediate frame straight to the scene (which
+   * persists it through `scene.onChange` → `persist.queueSheet`), while `endTransform`
+   * is the only place a history step is recorded. So an interrupt — a palm rejected
+   * mid-drag, the browser stealing the pointer, a tool switch — used to leave the
+   * document mutated, persisted and unreachable by undo (session-13 review F1, the D77/F6
+   * defect re-created on the cancel path). Worse, `onToolChange` left `this.transform`
+   * set, so `pending` stayed true and the NEXT handle press captured the already-mutated
+   * geometry as its undo baseline, making the orphan permanent.
+   *
+   * Restoring the captured pre-drag geometry (and recording nothing) is the same rule the
+   * shell's D63 second-finger cancel follows: never leave a mutation the user cannot undo.
+   */
+  private restoreAndClearTransform(): void {
+    const drag = this.transform;
+    this.transform = null;
+    if (!drag) return;
+    const current = this.deps.scene.geometryCopy(drag.key);
+    // Nothing was written yet (a press with no move) — do not touch the scene, so no
+    // needless `onChange`/persist tick fires.
+    if (!current || JSON.stringify(current) === JSON.stringify(drag.geometry)) return;
+    this.deps.scene.setGeometry(drag.key, drag.geometry);
   }
 
   /** Rotate the current selection by `deg` (one undo step). */
@@ -440,7 +476,15 @@ export class SelectTool implements MarkupTool {
     return { label: this.deps.labels.delete };
   }
 
+  /**
+   * The tool is going away (a tool switch, the shell's blanket `cancelActiveMarkup`, or
+   * `dispose`). An in-flight transform is CANCELLED, not committed: same restore-and-clear
+   * helper as `onPointerCancel`, so neither path can leave an unrecorded mutation or a
+   * stale `transform` behind (`pending` must read false afterwards).
+   */
   onToolChange(): void {
+    this.restoreAndClearTransform();
+    this.marqueeStart = null;
     this.clearHandles();
     this.clearMarquee();
     this.handles = [];
@@ -547,18 +591,83 @@ function handlePosition(bounds: Bounds, handle: HandleId): Px {
   return found ? { ...found.p } : { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 }
 
-/** Index of the vertex nearest a handle, or `-1` for an empty set. */
-function nearestVertexIndex(points: readonly Px[], at: Px): number {
-  let best = -1;
-  let bestDist = Number.POSITIVE_INFINITY;
-  points.forEach((p, i) => {
-    const d = Math.hypot(p.x - at.x, p.y - at.y);
-    if (d < bestDist) {
-      bestDist = d;
-      best = i;
-    }
-  });
-  return best;
+/** A resize expressed as a scale about a fixed point — the one shape every kind shares. */
+export interface ResizeScale {
+  /** The handle OPPOSITE the dragged one; it never moves. */
+  pivot: Px;
+  /** Corners are aspect-locked (`sx === sy`); an edge moves one axis and leaves the other 1. */
+  sx: number;
+  sy: number;
+}
+
+/**
+ * The scale a drag of `handle` to `target` applies to `bounds` (UI §8.6: **corner =
+ * scale with aspect locked; edge = free stretch**, the opposite handle being the fixed
+ * pivot). `null` means "this drag cannot be expressed as a scale" — the extent the
+ * handle drives is zero (an empty/one-point selection, or an edge handle on a bounds
+ * with no extent on that axis), so there is nothing to multiply.
+ *
+ * **The factor is a PROJECTION onto the pivot→handle ray, not a raw distance ratio.**
+ * A raw ratio ignores direction, so dragging a corner *past* its pivot made the box grow
+ * again (session-13 review F6): 120×80 at (100,100), `nw` → (400,400) past the SE pivot
+ * (220,180) gave factor = hypot(180,220)/hypot(120,80) = 284.253/144.222 = 1.9709 — a
+ * box BIGGER than it started, at x = -16.5. The projection is
+ *   f = ((target − pivot) · (handle − pivot)) / |handle − pivot|²
+ * which is negative on that drag (dot = 180·(−120) + 220·(−80) = −39 200) and clamps to
+ * `minScale`, collapsing the box onto the pivot instead. On the in-line drag it is the
+ * same number the distance ratio gave: `nw` → (70,70) is
+ * ((−150)(−120) + (−110)(−80)) / 20 800 = 26 800/20 800 = 1.28846 (the distance ratio
+ * read 1.28975 — they agree exactly only when the pointer stays on the ray).
+ *
+ * The clamp (`minScale`) keeps every non-degenerate edge ≥ `MIN_RESIZE_PX` and is what
+ * a past-the-pivot drag lands on, so the pivot stays pinned to the last pixel: a factor
+ * is applied to BOTH the origin and the extent, so `pivot + (v − pivot) · f` can never
+ * drift the way the old `Math.min(pivot, target)` + `Math.max(MIN, |target − pivot|)`
+ * pair did (`n` on 120×80 dragged to y = 179.5 put the south edge at 180.5, 1 px off its
+ * own pivot).
+ *
+ * Edges obey the same no-flip rule as corners (F8/2): the old edge branch let `n` → 400
+ * put the north edge below the old south edge, which is the opposite of the documented
+ * corner rule and was neither specified nor tested.
+ */
+export function resizeScaleFor(bounds: Bounds, handle: HandleId, target: Px): ResizeScale | null {
+  const { x, y, width, height } = bounds;
+  // For `nw` the pivot is SE (right, bottom). For an edge handle the cross axis is not
+  // scaled (factor 1), so its pivot coordinate is arbitrary — `x`/`y` keep it inert.
+  const pivotX = handle.includes('w') ? x + width : x;
+  const pivotY = handle.includes('n') ? y + height : y;
+  const pivot = { x: pivotX, y: pivotY };
+
+  if (handle.length === 2) {
+    // Corner: ONE aspect-locked factor for both axes.
+    const vx = (handle.includes('w') ? x : x + width) - pivotX; // ∓width
+    const vy = (handle.includes('n') ? y : y + height) - pivotY; // ∓height
+    const denom = vx * vx + vy * vy;
+    // Pivot and handle coincide (a point selection): no ray, no scale.
+    if (denom === 0) return null;
+    // Only a POSITIVE extent gets a minimum; a degenerate axis contributes nothing.
+    // (The old `: 1` fallback forced `factor ≥ 1` for a zero extent — dead code, since
+    // `0 × f` is still 0 and the degenerate box returns unchanged below. Deleted.)
+    const minScale = Math.max(
+      width > 0 ? MIN_RESIZE_PX / width : 0,
+      height > 0 ? MIN_RESIZE_PX / height : 0,
+    );
+    const projection = ((target.x - pivotX) * vx + (target.y - pivotY) * vy) / denom;
+    const factor = Math.max(minScale, projection);
+    return { pivot, sx: factor, sy: factor };
+  }
+
+  if (handle === 'n' || handle === 's') {
+    const vy = (handle === 'n' ? y : y + height) - pivotY; // ∓height
+    if (vy === 0) return null; // no height to stretch: the factor would be infinite
+    const factor = Math.max(MIN_RESIZE_PX / height, (target.y - pivotY) / vy);
+    return { pivot, sx: 1, sy: factor };
+  }
+
+  const vx = (handle === 'w' ? x : x + width) - pivotX; // ∓width
+  if (vx === 0) return null;
+  const factor = Math.max(MIN_RESIZE_PX / width, (target.x - pivotX) / vx);
+  return { pivot, sx: factor, sy: 1 };
 }
 
 /**
@@ -567,105 +676,70 @@ function nearestVertexIndex(points: readonly Px[], at: Px): number {
  * opposite the dragged one being the fixed pivot (so the opposite corner never moves).
  *
  * Local to this tool: `src/domain/**` is the frozen geometry layer (AGENTS non-negotiable
- * #3), and a new module is not warranted for one caller.
+ * #3), and a new module is not warranted for one caller. Exported so the node project can
+ * pin the whole kind × handle table (`tests/selectResize.test.ts`) — the browser rig can
+ * only reach it through a real Konva stage, and it exercised `rect` alone.
  *
- * - Box kinds (`rect`/`ellipse`/`image`) own `x,y,width,height`.
- * - Linear/point kinds (`dimension`/`line`/`arrow`/`angle`/`polygon`/`freehand`/
- *   `highlight`) have no box channel: the handle nearest a vertex moves that vertex and
- *   every other vertex stays fixed.
+ * **Every kind is the same scale about the same pivot** (`resizeScaleFor`):
+ * - Box kinds (`rect`/`ellipse`/`image`) scale their `x,y,width,height`.
+ * - Vertex kinds (`dimension`/`line`/`arrow`/`angle`/`polygon`/`freehand`/`highlight`)
+ *   scale EVERY vertex about that pivot. They used to move the single vertex nearest the
+ *   handle to the absolute `target` — but a handle sits on the bounding BOX, not on a
+ *   vertex, so the first pixel of drag teleported that vertex onto the box (session-13
+ *   review F2: 1 px of `n` drag on the dimension a(100,100) b(300,200) moved `a` to
+ *   (199,99) — a 99.005 px jump). Per-vertex editing is the separate `Edit points`
+ *   affordance in §8.6, not what the 8 bounding-box handles do. A pure coordinate scale
+ *   also leaves `pressure[]` (a parallel array) aligned, which moving one raw ink point
+ *   did not.
  * - `text` carries only `at`; a box scale has no data channel, so it degrades to a
  *   translate (text box scaling is recorded owed, not silently dropped).
  */
-function scaleGeometryLocal(
+export function scaleGeometryForHandle(
   geometry: Geometry,
   bounds: Bounds,
   handle: HandleId,
   target: Px,
 ): Geometry {
-  if (geometry.kind === 'rect' || geometry.kind === 'ellipse' || geometry.kind === 'image') {
-    const { x, y, width, height } = bounds;
-    if (handle.length === 2) {
-      // Corner: pivot is the OPPOSITE corner. For `nw` the pivot is SE (right, bottom).
-      const pivotX = handle.includes('w') ? x + width : x;
-      const pivotY = handle.includes('n') ? y + height : y;
-      const hx = handle.includes('w') ? x : x + width;
-      const hy = handle.includes('n') ? y : y + height;
-      // One documented uniform factor = distance(pivot → pointer) / distance(pivot →
-      // original handle). Arithmetic example, 120×80 `nw` dragged (100,100)→(70,70),
-      // pivot (220,180): base = hypot(120,80) = 144.222; target = hypot(150,110) =
-      // 186.010; factor = 1.2897; new size = 154.76×103.17 (120×80 × 1.2897). A distance
-      // ratio is never negative, so a corner can never flip through the pivot.
-      const baseDist = Math.hypot(hx - pivotX, hy - pivotY) || 1;
-      // Keep both edges ≥ MIN_RESIZE_PX while locked; never a zero/negative box.
-      const minScale = Math.max(
-        width > 0 ? MIN_RESIZE_PX / width : 1,
-        height > 0 ? MIN_RESIZE_PX / height : 1,
-      );
-      const factor = Math.max(
-        minScale,
-        Math.hypot(target.x - pivotX, target.y - pivotY) / baseDist,
-      );
-      const nextWidth = Math.abs(hx - pivotX) * factor;
-      const nextHeight = Math.abs(hy - pivotY) * factor;
-      // An already-degenerate box cannot be scaled into a positive one; leave it as is
-      // rather than emitting a zero/negative edge.
-      if (nextWidth < MIN_RESIZE_PX || nextHeight < MIN_RESIZE_PX) return geometry;
+  if (geometry.kind === 'text') {
+    // No size channel: degrade to the handle delta (box scaling owed).
+    const at = handlePosition(bounds, handle);
+    return translateGeometryLocal(geometry, target.x - at.x, target.y - at.y);
+  }
+  const scale = resizeScaleFor(bounds, handle, target);
+  if (!scale) return geometry;
+  const { pivot, sx, sy } = scale;
+  const p = (pt: Px): Px => ({
+    x: pivot.x + (pt.x - pivot.x) * sx,
+    y: pivot.y + (pt.y - pivot.y) * sy,
+  });
+
+  switch (geometry.kind) {
+    case 'rect':
+    case 'ellipse':
+    case 'image': {
+      // An already-degenerate box cannot be scaled into a positive one (`0 × f === 0`),
+      // so leave it as it is rather than emit a zero/negative edge. Every other box keeps
+      // both edges ≥ MIN_RESIZE_PX by the `minScale` clamp inside `resizeScaleFor`.
+      if (geometry.width <= 0 || geometry.height <= 0) return geometry;
+      const origin = p({ x: geometry.x, y: geometry.y });
       return {
         ...geometry,
-        x: Math.min(pivotX, pivotX + (hx - pivotX) * factor),
-        y: Math.min(pivotY, pivotY + (hy - pivotY) * factor),
-        width: nextWidth,
-        height: nextHeight,
+        x: origin.x,
+        y: origin.y,
+        width: geometry.width * sx,
+        height: geometry.height * sy,
       };
     }
-    // Edge: single-axis stretch. The opposite edge is the pivot; the cross axis is
-    // copied through untouched.
-    if (handle === 'n' || handle === 's') {
-      const pivotY = handle === 'n' ? y + height : y;
-      const nextHeight = Math.max(MIN_RESIZE_PX, Math.abs(target.y - pivotY));
-      return { ...geometry, x, y: Math.min(pivotY, target.y), width, height: nextHeight };
-    }
-    const pivotX = handle === 'w' ? x + width : x;
-    const nextWidth = Math.max(MIN_RESIZE_PX, Math.abs(target.x - pivotX));
-    return { ...geometry, x: Math.min(pivotX, target.x), y, width: nextWidth, height };
-  }
-
-  const at = handlePosition(bounds, handle);
-  switch (geometry.kind) {
     case 'dimension':
     case 'line':
-    case 'arrow': {
-      const points = [geometry.a, geometry.b];
-      const i = nearestVertexIndex(points, at);
-      return {
-        ...geometry,
-        a: i === 0 ? { ...target } : points[0],
-        b: i === 1 ? { ...target } : points[1],
-      };
-    }
-    case 'angle': {
-      const points = [geometry.a, geometry.vertex, geometry.c];
-      const i = nearestVertexIndex(points, at);
-      return {
-        ...geometry,
-        a: i === 0 ? { ...target } : points[0],
-        vertex: i === 1 ? { ...target } : points[1],
-        c: i === 2 ? { ...target } : points[2],
-      };
-    }
+    case 'arrow':
+      return { ...geometry, a: p(geometry.a), b: p(geometry.b) };
+    case 'angle':
+      return { ...geometry, a: p(geometry.a), vertex: p(geometry.vertex), c: p(geometry.c) };
     case 'polygon':
     case 'freehand':
-    case 'highlight': {
-      if (geometry.points.length === 0) return geometry;
-      const i = nearestVertexIndex(geometry.points, at);
-      return {
-        ...geometry,
-        points: geometry.points.map((p, j) => (j === i ? { ...target } : p)),
-      };
-    }
-    case 'text':
-      // No size channel: degrade to the handle delta (box scaling owed).
-      return translateGeometryLocal(geometry, target.x - at.x, target.y - at.y);
+    case 'highlight':
+      return { ...geometry, points: geometry.points.map(p) };
     default:
       return geometry;
   }

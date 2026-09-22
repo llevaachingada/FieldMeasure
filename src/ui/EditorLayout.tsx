@@ -28,7 +28,7 @@
  *   - arrow-key nudge is 1.10's; it is deliberately not built here.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { AnnotationStyle, AnnotationType, UnitFormat } from '@/domain/types';
+import type { AnnotationStyle, UnitFormat } from '@/domain/types';
 import type { Handedness } from '@/settings/handedness';
 import { useAppStore } from '@/state/appStore';
 import { useEditorStore, type PendingOp } from '@/state/editorStore';
@@ -38,8 +38,10 @@ import {
   styleForTool,
   useStyleByTool,
   STYLE_KEYS,
+  TOOL_FOR_TYPE,
 } from '@/state/styleByTool';
 import {
+  PresetsBindingError,
   emptyPresets,
   findPreset,
   loadPresets,
@@ -130,31 +132,31 @@ function viewportSize(): { w: number; h: number } {
 }
 
 /**
- * `AnnotationType` → the tool that creates it, for the §7.4 #4 applicability intersection.
- * Mirrors `StylePanel`'s private `TYPE_TOOL` map (which is not exported) — the appendices
- * key no `annotationType.*` copy, and this is the same one-to-one the scope chip uses.
- */
-const TOOL_FOR_TYPE: Readonly<Record<AnnotationType, ToolId>> = {
-  dimension: 'dimension',
-  angle: 'angle',
-  line: 'line',
-  arrow: 'arrow',
-  rect: 'rect',
-  ellipse: 'ellipse',
-  polygon: 'polygon',
-  freehand: 'freehand',
-  highlight: 'highlight',
-  text: 'text',
-  image: 'inset',
-};
-
-/**
  * The panel's `applicable` map (§7.2 per-tool control table, §7.4 #4). With no selection
  * it is the ACTIVE tool's table. With a selection it is derived from the SELECTED types:
  * a single type's table, or — for a heterogeneous selection — the intersection across
  * every selected type's tool, so "Text size is disabled because Dimensions aren't text
  * objects" holds. The Select tool's own table is all-false (it creates nothing), so
  * deriving from the selection is also what lets Select edit a selected object's style.
+ *
+ * **KNOWN, REPORTED CONSEQUENCE — an all-disabled panel for any selection containing an
+ * image inset.** `styleByTool.ts` maps `inset` to `only({})` (all eight keys false), which
+ * is faithful to the renderer: `src/editor/inset/renderInset.ts` consumes none of the 8
+ * `AnnotationStyle` keys. Intersecting therefore zeroes the whole panel as soon as one
+ * inset joins the selection — executed, not assumed:
+ *
+ *     ["image"]             -> enabled: (NONE)
+ *     ["rect","image"]      -> enabled: (NONE)
+ *     ["text","rect"]       -> enabled: strokeColor
+ *     ["dimension","angle"] -> enabled: strokeColor,strokeWidthMu
+ *
+ * So Rect + inset shows a truthful scope chip («Apply to: Rectangle (1) · Image inset (1)»)
+ * over a panel where every control is disabled and nothing says why. The intersection
+ * itself is correct §7.4 #4 behaviour; the dead end exists because UI spec §9 (and build
+ * spec §11 «Style panel: border (on/off + width + color), opacity, corner radius…») specify
+ * inset controls that `AnnotationStyle` has NO channel for. Adding one is its own slice, so
+ * nothing is invented here: the outcome is PINNED by `tests/typeToolMap.test.ts` and the
+ * §9-vs-§7.2 conflict is reported for `docs/DECISIONS.md`. Session-14 review, finding 7.
  */
 export function applicabilityForSelection(
   activeTool: ToolId,
@@ -397,7 +399,16 @@ export default function EditorLayout({
       const next = upsertPreset(presetsFile, tool, { name, style: { ...panelStyle } });
       setPresetsFile(next);
       // A failed write still keeps the session preset; surface the §7.5 warn strip.
-      void savePresets(projectId, next).catch(() => setPresetsUnavailable(true));
+      //
+      // …but ONLY for a storage failure. A `PresetsBindingError` is OUR bug (a
+      // `projectStore` binding did not link, DECISIONS D84 / session-14 finding 5); routing
+      // it to «Presets couldn't be loaded — …» would hand the user a Retry button that can
+      // never succeed, and blame their folder for our defect. Rethrowing leaves it as an
+      // unhandled rejection: loud, attributable, and not a lie in the UI.
+      void savePresets(projectId, next).catch((e: unknown) => {
+        if (e instanceof PresetsBindingError) throw e;
+        setPresetsUnavailable(true);
+      });
     },
     [presetsFile, projectId, panelStyle],
   );

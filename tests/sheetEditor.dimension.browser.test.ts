@@ -348,3 +348,154 @@ describe('F6 — a sub-slop object drag records exactly one history step', () =>
     expect(stage.getLayers()[2].getChildren()).toHaveLength(1);
   });
 });
+
+describe('F1 — a cancelled object drag restores geometry and records no history step', () => {
+  /**
+   * `pointercancel` is the palm-rejection / browser-interrupt case — a gloved hand on a
+   * Surface. `onPointerMove` has been writing every intermediate position through
+   * `scene.setGeometry` (persisted by `scene.onChange` → `persist.queueSheet`), while the
+   * only history step is recorded in `endContact`. `cancelContact` used to just drop the
+   * drag record, leaving a mutation saved to markup.json that undo could never reach.
+   */
+  it('puts the dimension back and leaves the undo stack where it was', async () => {
+    const { view, host, stage, at } = await mountEditor('place');
+    tapTap(host, at, { x: at.x + 200, y: at.y });
+    await sleep(520);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(10);
+
+    view.rerender(
+      createElement(SheetEditor, {
+        projectId: 'p:f',
+        folderName: 'f',
+        onExit: () => {},
+        activeTool: 'select',
+      }),
+    );
+    await sleep(10);
+
+    const before = linePoints(markupGroup(stage));
+    expect(before).toHaveLength(4);
+    const mid = { x: at.x + 100, y: at.y };
+
+    pointer('pointerdown', host, mid.x, mid.y, 1);
+    pointer('pointermove', host, mid.x + 120, mid.y, 1);
+    // The drag really did mutate the document — otherwise this guard is vacuous.
+    expect(linePoints(markupGroup(stage))[0]).toBeCloseTo(before[0] + 120, 3);
+
+    // The browser takes the pointer away mid-drag.
+    pointer('pointercancel', host, mid.x + 120, mid.y, 1);
+    await sleep(10);
+
+    // Geometry is back, point for point.
+    expect(linePoints(markupGroup(stage))).toEqual(before);
+
+    // …and NOTHING was recorded: the one step on the stack is still the placement, so a
+    // single undo removes the dimension (the F6 test above proves a real drag leaves a
+    // move step here instead, and the object survives its undo).
+    const undone = editorSession()?.undo() ?? null;
+    expect(undone).not.toBeNull();
+    expect(undone?.label).not.toBe(STRINGS.toasts.actionMoveDimension);
+    expect(stage.getLayers()[2].getChildren()).toHaveLength(0);
+  });
+});
+
+describe('F4 — §8.3: style edits coalesce within 600 ms into ONE undo step', () => {
+  /**
+   * `History.execCoalesced` had no production caller: every style path ran `history.exec`,
+   * so one drag of `StyleEditorSheet`'s transparency scrubber (an `input type="range"`
+   * firing `onChange` on every tick) pushed ~100 steps onto the 100-step stack and erased
+   * the session's history. This drives the same seam the shell's style panel uses,
+   * `editorSession().applyStylePatch`.
+   */
+  async function selectedDimension() {
+    const { view, host, stage, at } = await mountEditor('place');
+    tapTap(host, at, { x: at.x + 200, y: at.y });
+    await sleep(520);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(10);
+    view.rerender(
+      createElement(SheetEditor, {
+        projectId: 'p:f',
+        folderName: 'f',
+        onExit: () => {},
+        activeTool: 'select',
+      }),
+    );
+    await sleep(10);
+    // Tap the segment midpoint to select it (Select tool, tap = select).
+    const mid = { x: at.x + 100, y: at.y };
+    pointer('pointerdown', host, mid.x, mid.y, 1);
+    pointer('pointerup', host, mid.x, mid.y, 1);
+    await sleep(10);
+    expect(useEditorStore.getState().selection).toHaveLength(1);
+    return { view, host, stage, at };
+  }
+
+  const widthNow = (): number => useEditorStore.getState().selectionStyle.style.strokeWidthMu;
+
+  it('four scrubber ticks on one key are one step; one undo restores the original', async () => {
+    await selectedDimension();
+    const session = editorSession()!;
+    const original = widthNow(); // DEFAULT_STYLE.strokeWidthMu = 4
+    expect(original).toBe(4);
+
+    // Four ticks of the same control, well inside the 600 ms window.
+    for (const mu of [5, 6, 7, 8]) {
+      session.applyStylePatch({ strokeWidthMu: mu }, STRINGS.toasts.actionChangeStyle);
+    }
+    expect(widthNow()).toBe(8);
+
+    // ONE undo returns the whole drag to where it started (pre-fix: 7, the previous tick).
+    expect(session.undo()).not.toBeNull();
+    expect(widthNow()).toBe(original);
+    // …and there is no second style step hiding underneath: the next undo is the
+    // placement, which removes the object rather than changing its width.
+    expect(session.undo()).not.toBeNull();
+    expect(useEditorStore.getState().selectionStyle.count).toBe(0);
+  });
+
+  it('a redo replays the whole coalesced batch', async () => {
+    await selectedDimension();
+    const session = editorSession()!;
+    for (const mu of [5, 6, 7, 8]) {
+      session.applyStylePatch({ strokeWidthMu: mu }, STRINGS.toasts.actionChangeStyle);
+    }
+    session.undo();
+    expect(widthNow()).toBe(4);
+    session.redo();
+    expect(widthNow()).toBe(8);
+  });
+
+  it('a DIFFERENT style key starts a new step', async () => {
+    await selectedDimension();
+    const session = editorSession()!;
+    session.applyStylePatch({ strokeWidthMu: 9 }, STRINGS.toasts.actionChangeStyle);
+    session.applyStylePatch({ strokeWidthMu: 10 }, STRINGS.toasts.actionChangeStyle);
+    // A different control, inside the same window: its own step (history.test.ts:93).
+    session.applyStylePatch({ bold: true }, STRINGS.toasts.actionChangeStyle);
+    expect(useEditorStore.getState().selectionStyle.style.bold).toBe(true);
+
+    session.undo(); // undoes the bold only
+    expect(useEditorStore.getState().selectionStyle.style.bold).toBe(false);
+    expect(widthNow()).toBe(10);
+
+    session.undo(); // undoes the coalesced width batch
+    expect(widthNow()).toBe(4);
+  });
+
+  it('a tick after the 600 ms window starts a new step', async () => {
+    await selectedDimension();
+    const session = editorSession()!;
+    session.applyStylePatch({ strokeWidthMu: 5 }, STRINGS.toasts.actionChangeStyle);
+    session.applyStylePatch({ strokeWidthMu: 6 }, STRINGS.toasts.actionChangeStyle);
+    // STYLE_COALESCE_MS = 600; wait past it with real time, as a paused scrubber would.
+    await sleep(650);
+    session.applyStylePatch({ strokeWidthMu: 7 }, STRINGS.toasts.actionChangeStyle);
+
+    session.undo();
+    expect(widthNow()).toBe(6); // the late tick is its own step…
+    session.undo();
+    expect(widthNow()).toBe(4); // …and the first two coalesced into one
+  });
+});

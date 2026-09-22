@@ -7,9 +7,14 @@
  * handle (F9). And a handle drag below the 8 px axis-lock slop mutated the document
  * without recording a history step (F6), so the next undo destroyed the object.
  *
+ * Session-13 review adds two more: a cancelled drag left the document mutated with no
+ * history step (F1), and the past-the-pivot case was asserted with three predicates that
+ * were true by construction (F6) while the box actually grew back through its own pivot.
+ *
  * This file drives the real `SelectTool` against a real `EditorCanvas` / `MarkupScene`
  * (browser project — jsdom has no canvas, D40). Both pure-decision halves live in
- * `tests/markupTools.test.ts`.
+ * `tests/markupTools.test.ts`; the full kind × handle resize table is
+ * `tests/selectResize.test.ts` (node).
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { EditorCanvas } from '../src/editor/EditorCanvas';
@@ -242,18 +247,112 @@ describe('SelectTool handles resize (§8.6) — D77/F9', () => {
     expect(g.width).toBeCloseTo(RECT.width + 30, 4);
   });
 
-  it('a corner dragged past the pivot never flips the box (no negative/zero edge)', () => {
+  /**
+   * The measured table, replacing three assertions that were true BY CONSTRUCTION
+   * (`width > 0`, `height > 0`, pivot pinned): with `factor = Math.max(minScale, ratio)`
+   * and `minScale > 0`, no reachable input could ever have failed them, so the test could
+   * not see what those drags actually did — the box GREW back past the pivot
+   * (120×80 `nw` → (400,400) shipped x = −16.513, w = 236.513: bigger than it started and
+   * off-image). The factor is now the projection onto the pivot→handle ray, and every
+   * expectation below is derived in-test from that arithmetic, so any change to the factor
+   * fails this test.
+   *
+   * pivot = SE = (220,180); handle − pivot = (100−220, 100−180) = (−120,−80);
+   * |handle − pivot|² = 120² + 80² = 20800; minScale = max(1/120, 1/80) = 0.0125.
+   */
+  const PIVOT = { x: RECT.x + RECT.width, y: RECT.y + RECT.height }; // (220,180)
+  const V = { x: RECT.x - PIVOT.x, y: RECT.y - PIVOT.y }; // (−120,−80)
+  const DENOM = V.x * V.x + V.y * V.y; // 20800
+  const MIN_SCALE = Math.max(1 / RECT.width, 1 / RECT.height); // 0.0125
+
+  const nwFactor = (target: Px): number =>
+    Math.max(MIN_SCALE, ((target.x - PIVOT.x) * V.x + (target.y - PIVOT.y) * V.y) / DENOM);
+
+  const pastPivot: Array<{ target: Px; projection: number; shipped: string }> = [
+    // (30·−120 + 30·−80)/20800 = −6000/20800 = −0.28846
+    { target: { x: 250, y: 210 }, projection: -6000 / 20800, shipped: 'x=184.699 w=35.301 h=23.534' },
+    // (80·−120 + 80·−80)/20800 = −16000/20800 = −0.76923
+    { target: { x: 300, y: 260 }, projection: -16000 / 20800, shipped: 'x=125.864 w=94.136 h=62.757' },
+    // (180·−120 + 220·−80)/20800 = −39200/20800 = −1.88462
+    { target: { x: 400, y: 400 }, projection: -39200 / 20800, shipped: 'x=-16.513 w=236.513 h=157.675' },
+  ];
+
+  for (const { target, projection, shipped } of pastPivot) {
+    it(`nw dragged past the SE pivot to (${target.x},${target.y}) collapses (shipped: ${shipped})`, () => {
+      const rig = makeRig();
+      (rig as Rig & { _handle?: HandleId })._handle = 'nw';
+      const key = addRectThroughHistory(rig);
+      dragHandle(rig, target);
+      const g = rectOf(rig, key);
+      // The pointer is on the far side of the pivot, so the ray projection is negative…
+      expect(projection).toBeLessThan(0);
+      // …and the factor clamps to minScale: 120×0.0125 = 1.5, 80×0.0125 = 1.
+      const factor = nwFactor(target);
+      expect(factor).toBeCloseTo(MIN_SCALE, 10);
+      expect(g.width).toBeCloseTo(RECT.width * factor, 6); // 1.5
+      expect(g.height).toBeCloseTo(RECT.height * factor, 6); // 1
+      expect(g.x).toBeCloseTo(PIVOT.x + V.x * factor, 6); // 220 − 1.5 = 218.5
+      expect(g.y).toBeCloseTo(PIVOT.y + V.y * factor, 6); // 180 − 1 = 179
+      // The pivot is pinned to the last pixel, and the box never grew past it.
+      expect(g.x + g.width).toBeCloseTo(PIVOT.x, 9);
+      expect(g.y + g.height).toBeCloseTo(PIVOT.y, 9);
+      expect(g.width).toBeLessThan(RECT.width);
+      expect(g.height).toBeLessThan(RECT.height);
+    });
+  }
+
+  it('a partial drag toward the pivot shrinks by exactly the projected factor', () => {
     const rig = makeRig();
     (rig as Rig & { _handle?: HandleId })._handle = 'nw';
     const key = addRectThroughHistory(rig);
-    // Target is beyond the SE pivot (220,180): the distance ratio stays positive.
-    dragHandle(rig, { x: 400, y: 400 });
+    // nw → (200,170), still on the pivot's side:
+    // ((200−220)·−120 + (170−180)·−80)/20800 = (2400 + 800)/20800 = 0.1538461…
+    const target = { x: 200, y: 170 };
+    const factor = nwFactor(target);
+    expect(factor).toBeCloseTo(3200 / 20800, 12);
+    dragHandle(rig, target);
     const g = rectOf(rig, key);
-    expect(g.width).toBeGreaterThan(0);
-    expect(g.height).toBeGreaterThan(0);
-    // Pivot still pinned — the box grew past it rather than turning inside out.
-    expect(g.x + g.width).toBeCloseTo(RECT.x + RECT.width, 4);
-    expect(g.y + g.height).toBeCloseTo(RECT.y + RECT.height, 4);
+    expect(g.width).toBeCloseTo(120 * factor, 6); // 18.4615…
+    expect(g.height).toBeCloseTo(80 * factor, 6); // 12.3077…
+    expect(g.x).toBeCloseTo(220 - 120 * factor, 6); // 201.5385…
+    expect(g.y).toBeCloseTo(180 - 80 * factor, 6); // 167.6923…
+  });
+
+  it('an outward drag scales by the projected factor, aspect locked', () => {
+    const rig = makeRig();
+    (rig as Rig & { _handle?: HandleId })._handle = 'nw';
+    const key = addRectThroughHistory(rig);
+    // nw → (70,70): ((70−220)·−120 + (70−180)·−80)/20800 = (18000 + 8800)/20800
+    //             = 26800/20800 = 1.2884615…  (the old distance ratio read 1.2897…)
+    const target = { x: 70, y: 70 };
+    const factor = nwFactor(target);
+    expect(factor).toBeCloseTo(26800 / 20800, 12);
+    dragHandle(rig, target);
+    const g = rectOf(rig, key);
+    expect(g.width).toBeCloseTo(120 * factor, 6); // 154.6154…
+    expect(g.height).toBeCloseTo(80 * factor, 6); // 103.0769…
+    expect(g.width / g.height).toBeCloseTo(RECT.width / RECT.height, 9);
+    expect(g.x + g.width).toBeCloseTo(PIVOT.x, 9);
+    expect(g.y + g.height).toBeCloseTo(PIVOT.y, 9);
+  });
+
+  it('an edge handle dragged past its pivot collapses too (F8/2), pivot pinned (F8/1)', () => {
+    const rig = makeRig();
+    (rig as Rig & { _handle?: HandleId })._handle = 'n';
+    const key = addRectThroughHistory(rig);
+    // n → y = 400, far below the south pivot at 180:
+    // factor = (400 − 180)/(100 − 180) = −2.75 → clamped to 1/80 = 0.0125.
+    // Shipped behaviour was x=100 y=180 w=120 h=220 — the north edge 220 px BELOW the
+    // old south edge, while `SelectTool` documents that a corner can never flip.
+    dragHandle(rig, { x: RECT.x + RECT.width / 2, y: 400 });
+    const g = rectOf(rig, key);
+    expect(g.height).toBeCloseTo(80 * (1 / 80), 9); // 1
+    expect(g.y).toBeCloseTo(180 - 1, 9); // 179
+    expect(g.y + g.height).toBeCloseTo(180, 9); // the south pivot, exactly
+    expect(g.y).toBeLessThan(180);
+    // The cross axis is untouched by an edge stretch.
+    expect(g.x).toBeCloseTo(RECT.x, 9);
+    expect(g.width).toBeCloseTo(RECT.width, 9);
   });
 });
 
@@ -289,5 +388,63 @@ describe('SelectTool sub-slop drag is one undoable step — D77/F6', () => {
 
     expect(rig.history.depth).toBe(depthBefore);
     expect(rectOf(rig, key)).toEqual(before);
+  });
+});
+
+describe('F1 — an interrupted handle drag restores geometry and records NOTHING', () => {
+  /**
+   * `updateTransform` writes every intermediate frame through `scene.setGeometry`, which
+   * `SheetEditor` persists to markup.json via `scene.onChange`; only `endTransform`
+   * records a history step. So a `pointercancel` (palm rejection, browser interrupt — a
+   * gloved hand on a Surface) used to leave a mutation that undo could not reach, and
+   * `onToolChange` left `transform` set so the NEXT press captured the mutated geometry
+   * as its baseline and made the orphan permanent.
+   */
+  for (const via of ['onPointerCancel', 'onToolChange'] as const) {
+    it(`${via}: geometry is byte-identical to the pre-drag geometry and depth is unchanged`, () => {
+      const rig = makeRig();
+      (rig as Rig & { _handle?: HandleId })._handle = 'nw';
+      const key = addRectThroughHistory(rig);
+      const before = JSON.stringify(rig.scene.geometryCopy(key));
+      const depthBefore = rig.history.depth;
+
+      rig.tool.onPointerDown(handlePx(RECT, 'nw'), 'touch');
+      rig.tool.onPointerMove({ x: RECT.x - 40, y: RECT.y - 40 }, true);
+      // The live drag really did mutate the document — without this the guard would be
+      // vacuous (it would pass on a tool that never wrote anything at all).
+      expect(JSON.stringify(rig.scene.geometryCopy(key))).not.toBe(before);
+      expect(rig.tool.pending).toBe(true);
+
+      if (via === 'onPointerCancel') rig.tool.onPointerCancel();
+      else rig.tool.onToolChange();
+
+      expect(JSON.stringify(rig.scene.geometryCopy(key))).toBe(before);
+      expect(rig.history.depth).toBe(depthBefore);
+      // `transform` is cleared, so the next press cannot inherit the cancelled drag.
+      expect(rig.tool.pending).toBe(false);
+    });
+  }
+
+  it('the drag AFTER a cancel is measured from the original geometry, not the orphan', () => {
+    const rig = makeRig();
+    (rig as Rig & { _handle?: HandleId })._handle = 'nw';
+    const key = addRectThroughHistory(rig);
+
+    // Drag, then cancel.
+    rig.tool.onPointerDown(handlePx(RECT, 'nw'), 'touch');
+    rig.tool.onPointerMove({ x: RECT.x - 40, y: RECT.y - 40 }, true);
+    rig.tool.onPointerCancel();
+
+    // A fresh drag to (70,70): factor = ((70−220)·−120 + (70−180)·−80)/20800
+    //                                = 26800/20800 = 1.2884615… of the ORIGINAL 120×80.
+    dragHandle(rig, { x: 70, y: 70 });
+    const factor = 26800 / 20800;
+    const g = rectOf(rig, key);
+    expect(g.width).toBeCloseTo(RECT.width * factor, 6); // 154.6154…
+    expect(g.height).toBeCloseTo(RECT.height * factor, 6); // 103.0769…
+    // Exactly one step for the whole episode: the cancelled drag recorded none.
+    expect(rig.history.depth).toBe(2); // 1 = "Add shape", 2 = this drag
+    rig.history.undo();
+    expect(rectOf(rig, key)).toEqual(RECT);
   });
 });

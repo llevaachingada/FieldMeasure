@@ -25,7 +25,7 @@ import { Maximize, Minus, Plus } from 'lucide-react';
 import type { ProjectFile } from '@/domain/schema';
 import type { Px } from '@/domain/types';
 import { DEFAULT_STYLE } from '@/domain/types';
-import type { Annotation, Geometry, UnitFormat } from '@/domain/types';
+import type { Annotation, AnnotationStyle, Geometry, UnitFormat } from '@/domain/types';
 import {
   EditorCanvas,
   LONG_PRESS_MS,
@@ -37,7 +37,7 @@ import {
   type ScreenPoint,
 } from '@/editor/EditorCanvas';
 import { createInputRouter, type InputIntent } from '@/editor/inputRouter';
-import { History } from '@/editor/history';
+import { History, STYLE_COALESCE_MS } from '@/editor/history';
 import { MarkupScene, translateGeometry } from '@/editor/shapes/scene';
 import { Loupe } from '@/editor/Loupe';
 import {
@@ -105,6 +105,27 @@ type EditorTool = 'select' | 'pan' | 'place';
 /** Double-tap window for fit↔100%: 320 ms, 24 px (UI §5.4 "double tap"). */
 const DOUBLE_TAP_MS = 320;
 const DOUBLE_TAP_SLOP = 24;
+
+/**
+ * The coalescing key for a style patch (§8.3: "style edits coalesce within a **600 ms**
+ * window into one step").
+ *
+ * `StyleEditorSheet`'s HSL / transparency / font-size controls are `type="range"`
+ * scrubbers that fire `onChange` on EVERY input tick, so without coalescing one drag of
+ * the transparency slider pushes ~100 undo steps onto a 100-step stack — it erases the
+ * session's history. `History.execCoalesced` existed for exactly this since slice 1.5 but
+ * had no production caller (session-13 review F4); `applyStylePatch` below is it.
+ *
+ * The key is (selection, patched style keys): a different control, a different selection,
+ * or a gap wider than the window each start a NEW step, which is what makes an undo mean
+ * "that one control's drag" and not "everything I touched in the last second".
+ */
+export function styleCoalesceKey(
+  keys: readonly string[],
+  patch: Partial<AnnotationStyle>,
+): string {
+  return `style:${keys.join('|')}:${Object.keys(patch).sort().join('+')}`;
+}
 
 /**
  * The keypad sheet is owned by a parallel lane; its pinned interface is exactly the
@@ -694,7 +715,14 @@ export default function SheetEditor({
         const keys = [...useEditorStore.getState().selection];
         // No selection: the patch belongs to the TOOL style only; the caller owns that.
         if (keys.length === 0) return;
-        history.exec(scene.patchStyleCommand(keys, patch, label));
+        // §8.3 coalescing: a held scrubber is ONE undo step, not one per input tick
+        // (`styleCoalesceKey` above). A full-style apply (`applyStyle`) stays `exec` —
+        // a preset/recent tap is a discrete action, not a continuous one.
+        history.execCoalesced(
+          scene.patchStyleCommand(keys, patch, label),
+          styleCoalesceKey(keys, patch),
+          STYLE_COALESCE_MS,
+        );
         publishSelectionStyle();
       },
       applyStyle: (style, label) => {
@@ -1238,7 +1266,18 @@ export default function SheetEditor({
       const contact = contacts.get(e.pointerId);
       if (!contact) return;
       contacts.delete(e.pointerId);
-      objectDrags.delete(e.pointerId);
+      // An interrupted object-first drag RESTORES the pre-drag geometry — the same rule
+      // the D63 second-finger cancel above follows. `onPointerMove` has been writing every
+      // intermediate position through `scene.setGeometry` (persisted via `scene.onChange`),
+      // while the only history step is recorded in `endContact`; dropping the drag record
+      // alone therefore left the document mutated, saved to markup.json and unreachable by
+      // undo (session-13 review F1). `pointercancel` is the palm-rejection / browser-
+      // interrupt case — exactly what a gloved hand on a Surface produces.
+      const cancelledDrag = objectDrags.get(e.pointerId);
+      if (cancelledDrag) {
+        scene.setGeometry(cancelledDrag.key, cancelledDrag.geometry);
+        objectDrags.delete(e.pointerId);
+      }
       if (e.pointerType === 'pen') router.penStrokeEnd();
       if (e.pointerType === 'touch') router.noteTouchUp(e.pointerId);
       if (contact.longPressTimer !== null) {
@@ -1259,8 +1298,18 @@ export default function SheetEditor({
         return;
       }
       if (contact.toolAction !== 'none') {
-        if (contact.owner === 'markup') cancelActiveMarkup();
-        else tool.onPointerCancel(e.pointerType);
+        if (contact.owner === 'markup') {
+          // A Select handle drag is markup-owned. Call the tool's own cancel FIRST: it
+          // restores the pre-drag geometry and clears `transform` (F1). `cancelActiveMarkup`
+          // then still runs for whatever else was armed — it routes through the SAME
+          // restore-and-clear helper (`SelectTool.onToolChange`), so this is idempotent and
+          // the shell is correct even if the two ever get out of order again.
+          selectRef.current?.onPointerCancel();
+          cancelActiveMarkup();
+          // `onToolChange` drops the overlay; the selection itself survives an interrupted
+          // contact, so put its handles back.
+          if (toolIdRef.current === 'select') selectRef.current?.refresh();
+        } else tool.onPointerCancel(e.pointerType);
       }
     };
 

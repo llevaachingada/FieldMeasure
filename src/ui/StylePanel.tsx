@@ -3,9 +3,16 @@
  * (implementation plan §1.8 build order 2–5; UI spec §7; build spec §11.5/§11.6/§11.7).
  *
  * PROPS-DRIVEN AND STANDALONE. Every value arrives as a prop (handoff Part C, "Lane split"):
- * this file never reads a store, never imports `styleByTool.ts`, never touches the scene,
- * and never writes project state. That is the whole point of the pinned seam — lane C1
- * owns the state and the presets IO; the orchestrator wires the two at integration.
+ * this file **never reads a store**, never touches the scene, and never writes project
+ * state. That is the whole point of the pinned seam — lane C1 owns the state and the
+ * presets IO; the orchestrator wires the two at integration.
+ *
+ * ONE narrowing of that rule, made deliberately after integration (session-14 review,
+ * finding 7): the file imports exactly one thing from `@/state/styleByTool` — the pure
+ * `TOOL_FOR_TYPE` data constant — because the scope chip's labels and `EditorLayout`'s
+ * applicability intersection are two halves of ONE map and had been duplicated byte-for-byte
+ * with nothing enforcing agreement. It is a constant, not a hook: no store is read,
+ * subscribed to, or written here, and the rest of the seam is unchanged.
  *
  * NON-NEGOTIABLES THIS FILE IS BUILT AROUND
  *  - **The Style Chip is a "do not simplify" item (§11.6 #4).** It is always visible and it
@@ -50,6 +57,10 @@ import { Bold as BoldIcon, Contrast, Minus, Plus, X } from 'lucide-react';
 
 import { type AnnotationStyle, type AnnotationType } from '@/domain/types';
 import { VALID_DENOMINATORS } from '@/domain/units';
+// The ONLY import from the state module, and it is a frozen data constant, not a store:
+// `TOOL_FOR_TYPE` must be shared with `EditorLayout` or the two halves of the panel can
+// disagree (finding 7). No hook, no `useStyleByTool`, nothing subscribed. See the header.
+import { TOOL_FOR_TYPE } from '@/state/styleByTool';
 import { toolDefById, type ToolId } from '@/ui/ToolRail';
 
 import { STRINGS, fractionLabel, t } from './strings';
@@ -381,28 +392,19 @@ export function describeStyle(style: AnnotationStyle): string {
 }
 
 /**
- * §7.4 #3 scope chip: annotation type → the tool that creates it. The appendices key no
- * `annotationType.*` copy, and the §7.4 example (`Text`, `Dimension`) names exactly the
- * creating tools, so the chip reuses `tool.*` labels rather than inventing wording.
+ * `«Text note (2) · Dimension (1)»` — the `{typeCounts}` fragment of the §7.4 #3 scope chip.
+ *
+ * The `AnnotationType → ToolId` map is `TOOL_FOR_TYPE`, imported from
+ * `@/state/styleByTool` — the SAME object `EditorLayout.applicabilityForSelection` reads.
+ * This file used to carry a private byte-identical copy called `TYPE_TOOL`; nothing
+ * enforced the two, so the chip's label and the panel's applicability could disagree with
+ * every gate green (session-14 review, finding 7).
  */
-const TYPE_TOOL: Readonly<Record<AnnotationType, ToolId>> = {
-  dimension: 'dimension',
-  angle: 'angle',
-  line: 'line',
-  arrow: 'arrow',
-  rect: 'rect',
-  ellipse: 'ellipse',
-  polygon: 'polygon',
-  freehand: 'freehand',
-  highlight: 'highlight',
-  text: 'text',
-  image: 'inset',
-};
-
-/** `«Text note (2) · Dimension (1)»` — the `{typeCounts}` fragment of the scope chip. */
 export function scopeTypeCounts(scopes: ReadonlyArray<StyleScope>): string {
   return scopes
-    .map((scope) => `${toolDefById(TYPE_TOOL[scope.type])?.label ?? scope.type} (${scope.count})`)
+    .map(
+      (scope) => `${toolDefById(TOOL_FOR_TYPE[scope.type])?.label ?? scope.type} (${scope.count})`,
+    )
     .join(' · ');
 }
 

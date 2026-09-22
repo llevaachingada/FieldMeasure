@@ -59,7 +59,7 @@ import { createInitialStyleState, useStyleByTool } from '../src/state/styleByToo
 import { setEditorSession, type EditorSession } from '../src/editor/session';
 import { DEFAULT_STYLE } from '../src/domain/types';
 import { STRINGS, t } from '../src/ui/strings';
-import { loadPresets, savePresets } from '../src/fs/presets';
+import { PresetsBindingError, loadPresets, savePresets } from '../src/fs/presets';
 
 function setViewport(w: number, h: number): void {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: w });
@@ -305,5 +305,65 @@ describe('EditorLayout — presets lifecycle (§7.3)', () => {
     const [projectId, file] = vi.mocked(savePresets).mock.calls[0];
     expect(projectId).toBe('p:f');
     expect(file.byTool.dimension?.[0]).toMatchObject({ name: 'Roof edge' });
+  });
+
+  /** Save a preset named `name`, and return once `savePresets` has been called. */
+  async function savePresetNamed(name: string): Promise<void> {
+    useEditorStore.setState({ activeTool: 'dimension' });
+    renderLayout();
+    await waitFor(() => expect(loadPresets).toHaveBeenCalledWith('p:f'));
+    fireEvent.click(screen.getByTestId('style-preset-save'));
+    fireEvent.change(screen.getByTestId('style-preset-name'), { target: { value: name } });
+    fireEvent.click(screen.getByTestId('style-preset-confirm'));
+    await waitFor(() => expect(savePresets).toHaveBeenCalled());
+  }
+
+  it('a STORAGE failure on save raises the §7.5 warn strip (with its Retry)', async () => {
+    vi.mocked(savePresets).mockRejectedValueOnce(
+      new Error('the project folder is no longer available'),
+    );
+    await savePresetNamed('Roof edge');
+    await waitFor(() => expect(screen.getByTestId('style-presets-warn')).not.toBeNull());
+    expect(screen.getByTestId('style-presets-retry')).not.toBeNull();
+  });
+
+  it('a BINDING failure on save does NOT raise the warn strip (finding 5)', async () => {
+    // A `PresetsBindingError` means a `projectStore` export did not link (D84). Routing it
+    // to «Presets couldn't be loaded — …» would blame the user's folder for our bug and
+    // offer a Retry that can never succeed. `EditorLayout` rethrows it instead, so the
+    // rejection stays unhandled (loud) and the panel keeps telling the truth.
+    const rejection = new PresetsBindingError('writePresetsFile');
+    const seen: unknown[] = [];
+    const onUnhandled = (event: PromiseRejectionEvent): void => {
+      seen.push(event.reason);
+      event.preventDefault();
+    };
+    window.addEventListener('unhandledrejection', onUnhandled);
+    const onNodeUnhandled = (reason: unknown): void => {
+      seen.push(reason);
+    };
+    // `types: ["vite/client"]` types `process` as `{ env }` only, so reach the Node
+    // listener API through one narrow cast rather than adding @types/node to the repo.
+    const nodeProcess = (
+      globalThis as unknown as {
+        process?: {
+          on(event: 'unhandledRejection', listener: (reason: unknown) => void): void;
+          off(event: 'unhandledRejection', listener: (reason: unknown) => void): void;
+        };
+      }
+    ).process;
+    nodeProcess?.on('unhandledRejection', onNodeUnhandled);
+    try {
+      vi.mocked(savePresets).mockRejectedValueOnce(rejection);
+      await savePresetNamed('Roof edge');
+      // Give the rethrow a turn of the microtask/macrotask queue to surface.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(screen.queryByTestId('style-presets-warn')).toBeNull();
+      // …and it really was RETHROWN, not merely swallowed: the rejection surfaced.
+      expect(seen).toContain(rejection);
+    } finally {
+      window.removeEventListener('unhandledrejection', onUnhandled);
+      nodeProcess?.off('unhandledRejection', onNodeUnhandled);
+    }
   });
 });
