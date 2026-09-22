@@ -1910,5 +1910,51 @@ the renderer death reproduced in session 13 was with an **OPFS** handle written 
 > The check in `docs/HARDWARE-TEST-CHECKLIST.md` therefore stays, **narrowed** to *"does a user-picked
 > folder survive a reload?"*, and that row now records this positive data point so the next session does not
 > re-derive it.
+### D87 — Home «New project»: app-created, auto-named folder (owner decision; the control had been dead since 1.4)
+
+The owner found this by **using the running app**: `«New project»` — a real, enabled button with approved copy
+(`home.newProject`, `src/ui/ProjectList.tsx:182`) — did nothing. `App.tsx` handed it a no-op stub commented
+*"slice 1.4 — capture flow"*; **no create-project code existed anywhere in `src/`**; the implementation plan
+never described the flow; and **it was not recorded as owed** anywhere. `«Open existing folder…»` was a second
+stub in the same block. The class is the *inverse* of D77's "the wiring exists and the real input cannot reach
+it" — here the **control** exists and the **wiring does not** — and it is equally invisible to a green gate,
+because nothing tested it: nothing owned it.
+
+**Owner decision (asked and answered — not invented):** «New project» creates an **app-named subfolder of the
+projects root**. No OS folder picker, no name prompt.
+
+**Implemented:** `createProject(options?: { title?: string }): Promise<CreatedProject>` in
+`src/fs/projectStore.ts`. The write goes through the one atomic helper, `writeJsonAtomic`, under the **D51**
+runtime key `` `${id}:${folderName}` `` (also the per-project Web Lock key).
+- **Naming:** base = the approved copy `STRINGS.home.newProject` (`'New project'`), then `New project 2`,
+  `New project 3`, … A candidate is free when `getDirectoryHandle(candidate, { create: false })` throws
+  `NotFoundError`; any other error propagates. Bounded by `MAX_NEW_PROJECT_NAMES = 200`, then throws.
+- **Never adopts an existing folder** — a "new project" action must not silently reopen old work. Asserted:
+  a seeded `New project/project.json` is byte-identical afterwards, and the new folder is `New project 2`.
+- **Envelope:** `{ schemaVersion: CURRENT_SCHEMA_VERSION, project: { id: newId(), title, unitSystem:
+  'imperial', unitFormat: DEFAULT_UNIT_FORMAT, precisionDenominator: DEFAULT_PRECISION_DENOMINATOR },
+  sheets: [] }`. There is **no** file-level `createdAt`/`updatedAt` — `ProjectFileZ` is the authority.
+- **`title` defaults to the folder name.** Renaming the *title* later does not rename the folder on disk (the
+  spec's own rename copy says exactly that), so a generated folder name is deliberately **not** user-facing
+  identity.
+
+**Landing:** the new project's editor. Its empty state already reads `STRINGS.project.noSheetsEmpty`
+(«No sheets yet — take a photo to start.») and the top bar carries «Add sheet» → capture, so the flow is made
+entirely of approved parts — **no new UI and no new copy**.
+
+**Guard:** a `useRef` makes a double-tap a no-op (two clicks before the first create resolves must not mint
+two projects); asserted in jsdom. The button stays enabled — no spinner, no new copy.
+
+**Recorded owed (not silently dropped):**
+1. **`«Open existing folder…»` is still a no-op** (`App.tsx`, `onOpenFolder`). Wiring it needs a decision the
+   specs do not make: §11.9 says it "opens `showDirectoryPicker`", but it is unspecified whether that
+   **re-points the projects root** (hiding existing projects) or **adopts a folder from outside the root**
+   (which the root-keyed Home scan does not model). Needs an owner answer or a spec amendment.
+2. **A creation failure is silent to the user.** `createProject()` itself never swallows — no root → throws;
+   name exhaustion → throws; write failure → throws (via `writeJsonAtomic`) — but the Home caller swallows and
+   stays on Home, because this slice has **no error-surface copy**. The toast/autosave layer (**slice 1.10**,
+   which already owns the read-only/failed-save state) takes it.
+3. The **`New project` button has no busy/disabled visual** while a create is in flight (the ref only blocks
+   the second create). Any spinner or disabled state is copy/design work for 1.10, not invented here.
 
 ---

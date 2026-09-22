@@ -14,10 +14,11 @@
  * `onOpenProject(id, folderName)`. Passing the bare `id` would let two same-id
  * folders collide in the Web Lock / open-project registry / persistQueue.
  */
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import FirstRun from '@/ui/FirstRun';
 import ProjectList from '@/ui/ProjectList';
 import Settings from '@/ui/Settings';
+import { createProject } from '@/fs/projectStore';
 import { getProjectsRoot } from '@/settings/projectsRoot';
 
 /**
@@ -48,6 +49,40 @@ export default function App() {
   const [captureOpen, setCaptureOpen] = useState(false);
   /** The sheet the editor should open — set to the sheet a capture just wrote. */
   const [editorSheetId, setEditorSheetId] = useState<string | undefined>(undefined);
+  /**
+   * «New project» runs an async folder create. The flag makes a double-tap a no-op
+   * (two clicks before the first create resolves must not mint two projects); the
+   * button itself stays enabled and no spinner/copy is added.
+   */
+  const creatingProject = useRef(false);
+
+  /**
+   * Home «New project»: create an app-named subfolder of the projects root, then open
+   * its (empty) editor. The editor's empty state is copy-approved («No sheets yet —
+   * take a photo to start.»), so there is no new UI here.
+   *
+   * A failure (root not open, quota, a locked target) is swallowed and the user STAYS
+   * on Home: there is no error-surface copy in this slice — the toast/autosave layer
+   * (slice 1.10) owns error surfacing (recorded as owed).
+   */
+  async function handleNewProject(): Promise<void> {
+    if (creatingProject.current) return;
+    creatingProject.current = true;
+    try {
+      const created = await createProject();
+      setEditorTarget({
+        projectId: `${created.id}:${created.folderName}`,
+        folderName: created.folderName,
+      });
+      setEditorSheetId(undefined);
+      setCaptureOpen(false);
+      setRoute('editor');
+    } catch {
+      // Slice 1.10 owns error surfacing; stay on Home.
+    } finally {
+      creatingProject.current = false;
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -128,7 +163,7 @@ export default function App() {
         setRoute('editor');
       }}
       onNewProject={() => {
-        /* slice 1.4 — capture flow */
+        void handleNewProject();
       }}
       onOpenFolder={() => {
         /* slice 1.2 — reveals/opens an existing project folder */

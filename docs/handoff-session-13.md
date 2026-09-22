@@ -304,6 +304,7 @@ That is close — a focused lane should be able to finish it.
 | 15 | **`EditorLayout.applicabilityForSelection` duplicates `StylePanel`'s private `TYPE_TOOL` map** — they can drift. Export the map from the panel. | 1.10 |
 | 16 | **The read-only / failed-save state is parked and retried by the queue** with nothing surfacing it. | **1.10's autosave chip owns this** |
 | 17 | **The scope chip labels types with the creating tool's name** (`Text note`) rather than §7.4's example words (`Text`) — the appendices key no `annotationType.*` copy. | copy owner |
+| 18 | **Home «Open existing folder…» is a no-op** (D87). Real, enabled, approved-copy button with a stubbed handler. The specs say it "opens `showDirectoryPicker`" but never whether that **re-points the projects root** (which hides existing projects) or **adopts a folder from outside the root** (which the root-keyed Home scan does not model). Needs an owner answer or a spec amendment before it can be built honestly. | its own small slice |
 
 ---
 

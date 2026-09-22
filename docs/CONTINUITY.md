@@ -581,6 +581,38 @@ the orchestrator's full gate could see it — the runbook rule earning its keep 
 and 1.8 share four files (`session.ts`, `EditorLayout.tsx`, `SheetEditor.tsx`, `editorShell.test.tsx`) and
 splitting them would need hunk-level surgery inside shared files — the whole-file-loss risk the runbook
 warns about.
+### 2026-09-22 — Session 13 follow-up: two defects the owner found by *running the app*
+
+Session 13's gate was green and two visible defects still shipped. Both were found by the product owner
+**using the built app**, not by any test — worth remembering when the remaining `[Surface]` gates are run.
+
+1. **First-run handedness card order (D85).** The step-1 cards rendered `[Right][Left]`, so the "Right" card
+   sat on the **left**. Fixed by **re-ordering the DOM**, not by a CSS flip — DOM order *is* the focus order,
+   so `row-reverse` would have sent the focus ring against the visual order (WCAG 2.4.3). The card for a hand
+   now sits on that hand's side; `Right` stays pre-selected. `tests/firstRun.test.tsx` gained a **DOM-order
+   assertion** (jsdom has no layout, so DOM order is the honest machine-checkable form of "Left is on the
+   left") and the keyboard test now expects the first `Tab` on the Left card. **UI §4.4:177 was amended** so
+   the arrangement cannot be silently reverted.
+2. **Home «New project» was a dead control (D87).** A real, enabled button with approved copy whose handler
+   was a no-op stub — and **no create-project code existed anywhere in `src/`**, with nothing recording the
+   gap. The owner chose the flow (app-named subfolder), and `createProject()` now creates `New project`,
+   `New project 2`, … under the projects root, writes a schema-valid `project.json` **atomically**, and opens
+   the editor's copy-approved empty state («No sheets yet — take a photo to start.»). It **never adopts** an
+   existing folder, and a double-tap cannot mint two projects. **Owed:** **`«Open existing folder…»` is still
+   a no-op** (the specs do not say whether it re-points the projects root or adopts an outside folder — needs
+   an owner answer or a spec amendment), the create-failure path is **silent** (the toast/autosave layer,
+   slice 1.10, owns error surfacing), and the button has **no busy/disabled visual** while a create is in
+   flight.
+3. **B1's product question is largely answered (D86).** Reviewing the running app, a **real**
+   `FileSystemDirectoryHandle` was persisted under `fm:projects-root` and the page **reloaded into Home
+   normally** — no renderer death. D81's crash was with an **OPFS** handle written by a probe, so it looks
+   **OPFS-specific**; the product is no longer presumed defective, and the hardware check narrows to *"does a
+   user-picked folder survive a reload?"*.
+
+**Lesson (the third of its kind this session).** Every gate was green while both defects were live: the jsdom
+test asserted the *pre-selected hand* but never the *order*; the e2e smoke test asserts only the heading; and
+**nothing tested «New project» because nothing owned it**. **A machine gate can only see what it asserts** —
+and for the second time this session, the person using the product found what the suite could not.
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).

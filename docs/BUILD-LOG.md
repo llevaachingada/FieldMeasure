@@ -590,3 +590,45 @@ this session that *"all gates green"* and *"the product is right"* differed (the
 remaining `[Surface]` gates are run, expect this class again: **a machine gate can only see what it asserts.**
 
 **Next:** slice 1.9 — export (unchanged).
+
+## Feature wiring — Home «New project» (owner-reported dead control; D87)
+**Date:** 2026-09-22 · **Commit:** session 13 follow-up (see `git log`)
+
+**Built:** `«New project»` on Home now works. It was a real, enabled, approved-copy button (`home.newProject`)
+whose handler was a no-op stub — and **no create-project code existed anywhere in `src/`**, with the gap
+recorded nowhere. It now creates an **app-named subfolder of the projects root** (`New project`,
+`New project 2`, …; the base name is the approved copy itself), writes a schema-valid `project.json`
+**atomically** through `projectStore` under the D51 runtime key, and opens the new project's editor — whose
+empty state already reads `«No sheets yet — take a photo to start.»`, so **no new UI and no new copy** were
+invented. It **never adopts** an existing folder, and a double-tap cannot mint two projects.
+
+**Machine gates:** 4/4 passing (measured on this commit's file set)
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **64 files / 802 tests** (node + jsdom + browser; **+12 tests**)
+- [x] `npm run build` → 0 errors, 17 precache entries (856.12 KiB)
+- [x] `npx playwright test` → 5 passed / 5 skipped
+
+**Deferred to hardware:** none added.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D87** (the owner's flow decision, the naming rule and its bound, the never-adopt
+guarantee, the landing rationale, and the owed items below).
+
+**Surprises:** this control had been **dead since 1.4**, and **no gate could see it, because nothing owned
+it** — there was no test to fail and no document to disagree with. The owner found it by clicking it. Together
+with the handedness-card order (D85) earlier the same day, that is **two visible defects in one session on a
+tree whose full gate was green** — both of the class *"a machine gate can only see what it asserts."* Expect
+more of this when the `[Surface]` gates are run.
+
+**Owed (recorded, not dropped):**
+- **`«Open existing folder…»` is still a no-op.** The specs say it "opens `showDirectoryPicker`" but never
+  whether that re-points the projects root (hiding projects) or adopts a folder from outside it — needs an
+  owner answer or a spec amendment (handoff §9.2 row 18).
+- **A create failure is silent** to the user (this slice has no error-surface copy); the toast/autosave layer
+  (**1.10**) owns it. `createProject()` itself never swallows — no root, name exhaustion and write failure all
+  throw.
+- The button has **no busy/disabled visual** while a create is in flight (the ref only blocks the second
+  create).
+
+**Next:** slice 1.9 — export (unchanged).
