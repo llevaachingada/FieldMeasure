@@ -93,6 +93,13 @@ export interface ExportFileResult {
   name: string;
   bytes: number;
   error?: { kind: 'permission' | 'locked' | 'disk-full' | 'unknown'; shortfallBytes?: number };
+  /**
+   * The plan's `Skip` conflict policy left the destination's existing file in place, so
+   * nothing was written. Reported as a row (never silently omitted) so «Exported N files»
+   * cannot hide a skip — see the export-wave review F4. A skipped row is neither a success
+   * nor a failure: it has no `error` and does not count toward the written-file total.
+   */
+  skipped?: true;
 }
 
 export interface ExportResult {
@@ -179,6 +186,15 @@ function errorLabel(error: NonNullable<ExportFileResult['error']>): string {
     default:
       return C.errors.unknown;
   }
+}
+
+/**
+ * How many files the run actually wrote. A `Skip` conflict row reports the skip but wrote
+ * nothing, so it must not inflate «Exported {fileCount} files ({size})» — the count is of
+ * WRITTEN files (review F4).
+ */
+function writtenFileCount(files: readonly ExportFileResult[]): number {
+  return files.filter((file) => file.skipped !== true).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -435,7 +451,10 @@ function ExportWizardDialog({
     step === 'running' && progress !== null
       ? t(C.progress, { done: progress.done, total: progress.total })
       : step === 'result' && result !== null
-        ? t(C.resultSummary, { fileCount: result.files.length, size: formatBytes(result.totalBytes) })
+        ? t(C.resultSummary, {
+            fileCount: writtenFileCount(result.files),
+            size: formatBytes(result.totalBytes),
+          })
         : step === 'scope'
           ? C.stepScope
           : step === 'format'
@@ -838,6 +857,17 @@ function FormatStep({
               data-testid="export-wizard-include-sheet-names"
               aria-label={C.includeSheetNames}
               checked={includeSheetNames}
+              // DEAD CONTROL, honestly disabled (review F1 — the D77/D87 class). Nothing
+              // consumes `includeSheetNames`: v1 exports are flatten-only (build spec §2.4),
+              // `runExport`/`pdf.ts` never read it, and the exported PDF carries no sheet
+              // captions. Rendering the spec's checkbox as if it worked is a lie, so it is
+              // disabled with `disabled` + `aria-disabled="true"` and `onChange` retained
+              // (the D102 beta-honesty rule) — copy kept, no new copy invented, keyboard
+              // skipped. Captions are NOT implemented here: where a caption sits relative
+              // to a full-bleed sheet image is a UI-spec question (un-reviewed design), not
+              // a lane fix. The orchestrator records the decision this points at.
+              disabled
+              aria-disabled="true"
               onChange={(event) => onIncludeSheetNames(event.target.checked)}
             />
             <span className="export-wizard-check-label">{C.includeSheetNames}</span>
@@ -1002,7 +1032,7 @@ function ResultStep({
     <section className="export-wizard-step" data-testid="export-wizard-step-result">
       <p className="export-wizard-result-summary" data-testid="export-wizard-result-summary">
         {t(C.resultSummary, {
-          fileCount: files.length,
+          fileCount: writtenFileCount(files),
           size: formatBytes(result.totalBytes),
         })}
       </p>
@@ -1069,6 +1099,7 @@ function ResultStep({
             className="export-wizard-file-row"
             data-testid={`export-wizard-file-${file.name}`}
             data-failed={file.error ? 'true' : 'false'}
+            data-skipped={file.skipped ? 'true' : 'false'}
             key={file.name}
           >
             <span className="export-wizard-file-status" aria-hidden="true">
@@ -1076,7 +1107,9 @@ function ResultStep({
                 ? C.statusWorking
                 : file.error
                   ? C.statusFailed
-                  : C.statusDone}
+                  : file.skipped
+                    ? STRINGS.export.statusSkipped
+                    : C.statusDone}
             </span>
             <span className="export-wizard-file-name mono">{file.name}</span>
             {file.error ? (
@@ -1104,6 +1137,17 @@ function ResultStep({
                 >
                   {file.error.kind === 'permission' ? C.errors.reAuthorize : STRINGS.errors.retry}
                 </button>
+              </span>
+            ) : file.skipped ? (
+              // A «Skip» conflict: nothing was written, so an honest label rather than a
+              // size (review F4). Neither a success ✓ nor a failure ✕ — no Retry offered.
+              // The trailing slot reuses the existing `.export-wizard-file-size` styling
+              // (the muted right-hand meta slot) rather than introducing new CSS.
+              <span
+                className="export-wizard-file-size"
+                data-testid={`export-wizard-file-skipped-${file.name}`}
+              >
+                {STRINGS.export.skipped}
               </span>
             ) : (
               <span className="export-wizard-file-size mono">{formatBytes(file.bytes)}</span>

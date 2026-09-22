@@ -455,13 +455,21 @@ export default function CameraFlow({
 
   const track = (): MediaStreamTrack | null => streamRef.current?.getVideoTracks()[0] ?? null;
 
-  const applyAdvanced = useCallback(async (set: ExtendedConstraintSet): Promise<void> => {
+  /**
+   * Best-effort hardware hint. Returns whether the device actually ACCEPTED it. A rejected or
+   * unsupported constraint must never break the viewfinder (the catch stays), but a control that
+   * reports success when the hardware refused is a lie — see D108. Callers that only want the
+   * hint ignore the return value.
+   */
+  const applyAdvanced = useCallback(async (set: ExtendedConstraintSet): Promise<boolean> => {
     const active = track();
-    if (!active?.applyConstraints) return;
+    if (!active?.applyConstraints) return false;
     try {
       await active.applyConstraints({ advanced: [set] });
+      return true;
     } catch {
       // Unsupported constraints reject — the viewfinder must never break over a hint.
+      return false;
     }
   }, []);
 
@@ -532,10 +540,18 @@ export default function CameraFlow({
 
   /* ---- toggles ----------------------------------------------------------- */
 
+  /**
+   * D108 — the toggle reflects the HARDWARE, not the intent. `torch` is a best-effort advanced
+   * constraint: on Windows tablets the platform does not expose it, so `applyConstraints` rejects and
+   * the LED never lights. Reporting "on" anyway showed a lit button over an unlit torch. The button
+   * stays always-enabled (capability-gating it from `caps.torch === false` needs approved copy), so
+   * the honest minimum is to fall back to off whenever the device refuses.
+   */
   const toggleTorch = (): void => {
     const next = !torchOn;
-    setTorchOn(next);
-    void applyAdvanced({ torch: next });
+    void applyAdvanced({ torch: next }).then((applied) => {
+      setTorchOn(applied ? next : false);
+    });
   };
 
   const flipCamera = (): void => {

@@ -1300,9 +1300,13 @@ button.crumb:hover {
 }
 
 /* Dim — lower emitted luminance for dark rooms and night work. Body text and
-   every surface step down, but nothing drops below WCAG AA: --g100 is 13.2:1 on
-   its lightest surface (--g750), --g300 8.0:1, and --g400 — 11–13px group/labels,
-   its tightest case — 4.9:1 on the page background. */
+   every surface step down. Ratios are per surface, not a blanket claim: --g100 on
+   its lightest surface (--g750) is 13.18:1; --g300 is 7.98:1 on the page
+   background (--g900) and 7.08:1 on --g750; --g400 is 4.90:1 on the page
+   background. The one sub-AA pair is --g400 on --g750 (4.35:1), which nothing
+   shipped uses — the tightest pairing actually shipped is .tool-group-header
+   (11 px, --g400) on the --g850 rail at 4.73:1, so every shipped pairing clears
+   WCAG AA. */
 :root[data-theme='dim'] {
   --g900: #000000;
   --g850: #04060a;

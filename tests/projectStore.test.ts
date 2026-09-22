@@ -184,6 +184,27 @@ describe('writeAtomic — §5.3 S4/S5 failure classification', () => {
     }
   });
 
+  it('a NotAllowedError resolving the TMP HANDLE is classified permission, not a raw reject (review F2)', async () => {
+    // The write grant can be revoked mid-session, and the failure surfaces from
+    // `getFileHandle(tmp, { create: true })` itself — before any byte is written. The
+    // contract promises a `StorageWriteError` for every I/O failure, so this must
+    // classify like the rest (the wizard shows «Re-authorize», not a useless «Retry»).
+    const hooks: FakeHooks = {
+      beforeGetFileHandle: (name) => {
+        if (name.endsWith('.tmp')) throw new DOMException('write grant revoked', 'NotAllowedError');
+      },
+    };
+    restoreNavigator = installFakeNavigator({ locks: createFakeLocks() });
+    const dir = new FakeDir('d', hooks);
+    dir.putFile('a.json', '{"good":true}');
+
+    const err = await expectKind(writeAtomic(asDir(dir), 'a.json', '{"new":1}', 'p1'), 'permission');
+
+    expect(err.message).toContain('permission');
+    expect(dir.textAt('a.json')).toBe('{"good":true}'); // the target is never touched
+    expect(dir.has('a.json.tmp')).toBe(false); // the handle was never created
+  });
+
   it('NoModificationAllowedError / InvalidStateError → target-locked (§5.8b)', async () => {
     for (const name of ['NoModificationAllowedError', 'InvalidStateError']) {
       const hooks: FakeHooks = {

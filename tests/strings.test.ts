@@ -29,8 +29,7 @@
  *                             strings.ts `{zoomPercent}%`
  *   - `dimension.projectPrecision` appendix `Project precision: 1/16` (`{denominator}`)
  *                             strings.ts `Project precision: {denominator}`
- * Some rows instead store the rendered example literally (e.g. `home.projectCardMeta`
- * is `12 sheets · 48 MB · 2:14 PM` in BOTH files). So: a value with NO `{token}` must
+ * Some rows may instead store a rendered example literally — a value with NO `{token}` must
  * match the appendix byte-for-byte; a value WITH tokens is compiled to an ANCHORED
  * regex (`{token}` -> `.+`) so the literal wording is compared exactly and only the
  * runtime-filled parts are wildcards. Every token used must appear in the appendix

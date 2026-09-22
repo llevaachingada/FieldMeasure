@@ -12,10 +12,9 @@
  *   - the happy path asserts the WHOLE `ExportPlan` object with `toEqual`, so a dropped or
  *     stale field fails instead of passing on the fields that happen to be checked.
  *
- * Copy is pinned BYTE-EXACT as literals here (not imported from `src/ui/exportCopy.ts`), so
- * this file keeps working — and keeps checking the wording — after the orchestrator folds
- * the staging module into `src/ui/strings.ts` and deletes it. Every literal below carries
- * its appendix line.
+ * Copy is pinned BYTE-EXACT — mostly as literals, with the new `Skip` row read from
+ * `src/ui/strings.ts` (it is a `⚠ PROPOSED` row the appendix does not key, review F4).
+ * Every literal below carries its appendix line.
  *
  * NOT tested here, and why: the 48 px targets, the 16 px hit slop, the 880 × 700 box and
  * the 60 % scrim are CSS, and jsdom has no layout — a number read out of it would prove
@@ -34,6 +33,7 @@ import {
   type ExportSheetRef,
   type ExportWizardProps,
 } from '../src/ui/ExportWizard';
+import { STRINGS } from '../src/ui/strings';
 
 afterEach(cleanup);
 
@@ -341,6 +341,17 @@ describe('ExportWizard — format', () => {
     expect(screen.queryByTestId('export-wizard-include-sheet-names')).toBeNull();
   });
 
+  it('«Include sheet names in pages» is disabled, never a dead live control (review F1)', () => {
+    // v1 is flatten-only and nothing consumes `includeSheetNames`, so the spec's checkbox
+    // is honestly disabled (the D102 beta-honesty rule) rather than looking live.
+    toFormat();
+    const checkbox = screen.getByTestId('export-wizard-include-sheet-names') as HTMLInputElement;
+    expect(checkbox.disabled).toBe(true);
+    expect(checkbox.getAttribute('aria-disabled')).toBe('true');
+    // Copy is kept — the control is not hidden and not deleted.
+    expect(checkbox.getAttribute('aria-label')).toBe(COPY.includeSheetNames);
+  });
+
   it('never renders the v1-CUT checkboxes or the impossible Open folder action', () => {
     toFormat();
     const body = document.body.textContent ?? '';
@@ -568,6 +579,28 @@ describe('ExportWizard — result view', () => {
     cleanup();
     await toResult(emptyResult({ parts: 1 }));
     expect(screen.queryByTestId('export-wizard-parts')).toBeNull();
+  });
+
+  it('reports a «Skip» conflict as a row and excludes it from the written-file count (review F4)', async () => {
+    await toResult(
+      emptyResult({
+        files: [{ name: 'Riverside.zip', bytes: 0, skipped: true }],
+        totalBytes: 0,
+      }),
+    );
+    // The skip is visible…
+    const row = screen.getByTestId('export-wizard-file-Riverside.zip');
+    expect(row.getAttribute('data-skipped')).toBe('true');
+    expect(row.getAttribute('data-failed')).toBe('false');
+    expect(screen.getByTestId('export-wizard-file-skipped-Riverside.zip').textContent).toBe(
+      STRINGS.export.skipped,
+    );
+    // …not offered a Retry (it is not a failure)…
+    expect(screen.queryByTestId('export-wizard-retry-Riverside.zip')).toBeNull();
+    // …and it does not inflate «Exported {n} files» — zero files were actually written.
+    expect(screen.getByTestId('export-wizard-result-summary').textContent).toBe(
+      resultSummary(0, '0 B'),
+    );
   });
 });
 

@@ -910,3 +910,69 @@ completed and delivered its findings; its "running" job-board state was stale bo
 
 **Next:** the rest of 1.10 — the **History flyout** (owed; `writeHistorySnapshot` has no caller),
 `.trash/` + prune + restore, the arrow nudge, and the end-to-end a11y audit — then 1.11.
+
+---
+
+## Session 19 — the export review discharged, plus two honesty bugs (torch toggle, Home card meta)
+**Date:** 2026-09-22 · **Commits:** see `git log` · **Branch:** `main`
+
+**Done:**
+
+- **The export wave's independent review is discharged (D109).** The register was executed in a **pinned
+  clean worktree** at `6c3bc1d` (the main tree had moved on — isolation, not inspection). Verified sound:
+  the physical-size invariant (**300 × 225 pt at M = 1/2/3**), the §4.2 pixel ratios, `assetProvider`
+  lifetime, per-file failure rows (`disk-full` / `locked` / `permission`, and `retryFile` re-writing its
+  retained bytes), conflict resolution folding NTFS case, the **lazy-chunk failure path** (honest reject, no
+  dead dialog), split/naming boundaries, the three themes' invariants, the D103 permission fix, and write
+  integrity (`createWritable` exists only in `projectStore`).
+- **D106's owed pixel proof is discharged — and permanent.** `tests/runExport.browser.test.ts` now asserts an
+  inset exports its **photo**: red `assets/<id>.jpg` → inset-centre `[254,0,0,255]`; missing asset →
+  `[58,63,70,255]` = `#3A3F46`, the placeholder it exists to catch.
+- **F1–F4 fixed, each reproduced before the fix:** F1 the «Include sheet names» checkbox was **dead** (nothing
+  consumed `includeSheetNames`) → now honestly **disabled** with the deferral recorded (caption placement is a
+  UI-spec decision); F2 a revoked grant at the **tmp-handle** stage escaped as a raw `NotAllowedError` and was
+  reported `unknown` → `writeAtomic` now creates the tmp handle *inside* its `try` so it classifies as
+  `StorageWriteError('permission')` (semantics unchanged: tmp kept, target never deleted); F3 an emptied-
+  mid-flight scope wrote a **22-byte empty archive as a success row** → the zip write is skipped when there
+  are no entries; F4 a `'skip'` conflict wrote nothing and **reported nothing** → a `{skipped:true, bytes:0}`
+  row plus progress in both branches, with the wizard's count excluding skips and offering no Retry for them.
+- **F5/F6/F7 recorded:** the Dim comment was reworded so every ratio names its surface and the AA claim is
+  scoped to shipped pairings (naming the one sub-AA pair, `--g400` on `--g750` = 4.35); `estimate`'s
+  file-count undercount on a split is recorded; and the `as unknown as BlobPart` cast was **kept because it is
+  load-bearing** — removing it fails `tsc` under TS 5.9's generic typed arrays.
+- **Copy folded per runbook §11:** the lane's staging module (`src/ui/exportCopy.ts`) was folded into
+  `strings.ts` as two `⚠ PROPOSED (C14)` rows (`skipped`, `statusSkipped`) and **deleted**; the copy contract
+  (`strings.test.ts`, 3/3) stays green.
+- **D108 — the torch toggle no longer lies.** It reported "on" even when the device refused the constraint
+  (Windows tablets do not expose `torch`). `applyAdvanced` now reports acceptance and the toggle takes its
+  state from that result; best-effort behaviour unchanged. Two new camera tests (20/20). Capability-gating the
+  button is owed to the content owner (it needs a tooltip string the appendix lacks).
+- **D110 — every Home card stated fiction.** `projectCardMeta` shipped the appendix's **example**
+  (`'12 sheets · 48 MB · 2:14 PM'`) where its `Interpolation` column declares `{sheetCount} · {size} ·
+  {time}`, so every card — including `.git` — advertised 12 sheets. The value is now the template and the copy
+  test's rule is form-agnostic; unreadable folders read `0 sheets · — · —`.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `CI=true npx vitest run` → **80 files / 1119 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 25 precache entries (1459.47 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0** (CI unset so it reuses the preview on 4173)
+
+**Deferred to hardware:** none added. H19–H22 and H8/H12 remain pending.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D108** (torch honesty + the work-light scope call), **D109** (the review register,
+its resolutions, and the discharged pixel proof), **D110** (the card-meta example-vs-template defect).
+
+**Surprises:**
+1. **The review found the same defect class four more times** — a dead checkbox, a misreported permission
+   failure, an empty success, and a silent skip — while every gate stayed green. The class is consistent: the
+   system said something it did not do.
+2. **`tests/strings.test.ts` had blessed the card-meta fiction** by naming that row as a sanctioned
+   "rendered example stored literally" case. The gate was correct about the file and wrong about the product —
+   the same shape as D88.
+3. **A cast the reviewer called harmless is load-bearing:** dropping it breaks `tsc` under TS 5.9.
+
+**Next:** the rest of 1.10 — the **History flyout** (owed), `.trash/` + prune + restore, the arrow nudge, and
+the end-to-end a11y audit — plus the PDF-caption placement decision and the `Skip`-row copy sign-off. Then 1.11.

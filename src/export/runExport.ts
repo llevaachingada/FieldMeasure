@@ -11,7 +11,8 @@
  * THE CONTRACT (`ExportWizardProps` in `src/ui/ExportWizard.tsx:106-124` — pinned)
  *   `runExport(plan, onProgress)` resolves `plan.sheetIds` IN ORDER, renders ONE sheet at a
  *   time, writes every file through `projectStore.writeAtomic` (AGENTS non-negotiable #3),
- *   and RESOLVES with a per-file row for every attempted file — including failures. A
+ *   and RESOLVES with a per-file row for every attempted file — including failures AND
+ *   `Skip` conflicts (a skip is a row with `skipped: true`, never a silent omission). A
  *   rejection is a whole-run failure with no per-file detail, so per-file write failures
  *   are rows, not a throw. `checkMultiplier` refuses a multiplier the §19.4b budget cannot
  *   hold; `estimate` feeds the approved `Will write …` line.
@@ -622,22 +623,33 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
         }
 
         if (plan.zip) {
-          // `zipPngs` throws on a duplicate entry name (a silent collapse would drop a
-          // sheet) — apply the `add` policy internally so two identically-titled sheets
-          // still both ship. There is no "existing" listing inside a brand-new zip.
-          const uniqueEntries = applyConflictPolicy(
-            entries.map((entry) => entry.name),
-            [],
-            'add',
-          );
-          const zipped = zipPngs(
-            entries.map((entry, index) => ({ name: uniqueEntries[index] ?? entry.name, bytes: entry.bytes })),
-          );
-          const name = planFileNames(plan, projectTitle, planSheets)[0]!;
-          const resolved = applyConflictPolicy([name], listing, plan.conflictPolicy)[0];
-          if (resolved !== null) {
-            await writeFile(dest.handle, resolved, zipped, files);
-            onProgress({ done: 1, total: 1, currentName: resolved });
+          // REVIEW F3: an emptied-mid-flight scope (every `plan.sheetIds` entry gone) renders
+          // no entries. The PDF branch already writes nothing in that case; without this
+          // guard `zipPngs([])` writes a valid-but-empty (22-byte) archive and reports it as
+          // a success row. Mirror the PDF branch: nothing to archive → nothing written.
+          if (entries.length > 0) {
+            // `zipPngs` throws on a duplicate entry name (a silent collapse would drop a
+            // sheet) — apply the `add` policy internally so two identically-titled sheets
+            // still both ship. There is no "existing" listing inside a brand-new zip.
+            const uniqueEntries = applyConflictPolicy(
+              entries.map((entry) => entry.name),
+              [],
+              'add',
+            );
+            const zipped = zipPngs(
+              entries.map((entry, index) => ({ name: uniqueEntries[index] ?? entry.name, bytes: entry.bytes })),
+            );
+            const name = planFileNames(plan, projectTitle, planSheets)[0]!;
+            const resolved = applyConflictPolicy([name], listing, plan.conflictPolicy)[0];
+            if (resolved !== null) {
+              await writeFile(dest.handle, resolved, zipped, files);
+            } else {
+              // REVIEW F4: a «Skip» conflict writes nothing, but must not report NOTHING —
+              // the result view gets a row, and the progress line advances, so the user
+              // never sees an unexplained "0 files".
+              files.push({ name, bytes: 0, skipped: true });
+            }
+            onProgress({ done: 1, total: 1, currentName: resolved ?? name });
           }
         } else {
           const resolved = applyConflictPolicy(entryNames, listing, plan.conflictPolicy);
@@ -645,6 +657,8 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
           for (const [index, entry] of entries.entries()) {
             const name = resolved[index];
             if (name === null) {
+              // REVIEW F4: report the skip (progress + a row) instead of dropping it.
+              files.push({ name: entry.name, bytes: 0, skipped: true });
               onProgress({ done: index + 1, total, currentName: entry.name });
               continue;
             }

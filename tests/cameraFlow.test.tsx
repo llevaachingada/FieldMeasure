@@ -331,6 +331,47 @@ describe('a11y — keyboard operability and labelling', () => {
     );
   });
 
+  it('the torch toggle reverts when the device refuses the constraint (D108)', async () => {
+    await setup();
+    const track = fakeTrack(1920, 1080, 'cam-back');
+    // A Windows tablet: the platform does not expose `torch`, so the advanced constraint rejects.
+    (track.applyConstraints as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('Unsupported constraint'),
+    );
+    installMedia(vi.fn(async () => fakeStream(track)));
+    renderFlow();
+    const user = userEvent.setup();
+    await screen.findByTestId('camera-resolution');
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.torch }));
+
+    await waitFor(() =>
+      expect(track.applyConstraints).toHaveBeenCalledWith({ advanced: [{ torch: true }] }),
+    );
+    // The button must NOT claim the LED is on when the hardware refused it.
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: STRINGS.a11y.torch }).getAttribute('aria-pressed'),
+      ).toBe('false'),
+    );
+  });
+
+  it('the torch toggle stays pressed when the hardware accepts it', async () => {
+    await setup();
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    renderFlow();
+    const user = userEvent.setup();
+    await screen.findByTestId('camera-resolution');
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.torch }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: STRINGS.a11y.torch }).getAttribute('aria-pressed'),
+      ).toBe('true'),
+    );
+  });
+
   it('tap-to-focus shows a reticle; long-press shows the AE/AF lock chip', async () => {
     await setup();
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));

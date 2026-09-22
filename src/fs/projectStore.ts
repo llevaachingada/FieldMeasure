@@ -221,8 +221,16 @@ export async function writeAtomic(
 ): Promise<void> {
   await navigator.locks.request('fm:project:' + projectId, async () => {
     const tmpName = `${name}.tmp`;
-    const tmp = await dir.getFileHandle(tmpName, { create: true });
+    // REVIEW F2: `getFileHandle(tmp, { create: true })` was OUTSIDE this `try`, so a
+    // revoked write grant (`NotAllowedError`) escaped as a RAW DOMException instead of the
+    // `StorageWriteError('permission')` this function promises — the exporter's
+    // `toFileError` then reported `kind: 'unknown'` and the wizard offered a useless
+    // «Retry» instead of «Re-authorize». Resolving the handle is an I/O failure like any
+    // other and must classify here. Semantics are unchanged: the tmp is kept on failure,
+    // the target is never deleted, and no error is swallowed.
+    let tmp: FileSystemFileHandle;
     try {
+      tmp = await dir.getFileHandle(tmpName, { create: true });
       const w = await tmp.createWritable();
       await w.write(data); // accepts string | Blob | BufferSource
       await w.close(); // flush; then atomic rename

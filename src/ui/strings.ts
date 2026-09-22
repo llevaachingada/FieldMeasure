@@ -31,7 +31,12 @@ export const STRINGS = {
     appName: 'FieldMeasure',
     newProject: 'New project',
     recentHeader: 'Recent',
-    projectCardMeta: '12 sheets · 48 MB · 2:14 PM',
+    // APPROVED (appendix-strings.md `home.projectCardMeta`, line 34): the appendix's `String`
+    // column holds the RENDERED EXAMPLE (`12 sheets · 48 MB · 2:14 PM`) and its `Interpolation`
+    // column declares `{sheetCount} · {size} · {time}`. Shipping the example verbatim made every
+    // card state fiction — `.git` advertised "12 sheets · 48 MB" (D109). The shipped value must be
+    // the template; `ProjectList` already passes the real parts.
+    projectCardMeta: '{sheetCount} · {size} · {time}',
     projectCardPath: '…\\{path}',
     folderNotFound: 'Folder not found',
     locate: 'Locate…',
@@ -438,6 +443,11 @@ export const STRINGS = {
     statusDone: '✓',
     statusWorking: '…',
     statusFailed: '✕',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // gap §17 keys exactly three result glyphs (✓ / … / ✕); a file the `Skip` conflict policy
+    // left untouched needs a fourth, neutral state plus a word for it (review F4, D109).
+    statusSkipped: '–',
+    skipped: 'Skipped',
 
     // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
     // the PDF-side twin of the approved `export.pngSize` control; UI §12:716 writes it as `Quality: 1× / 2× / 3×`.

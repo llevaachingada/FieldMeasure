@@ -493,6 +493,14 @@
   color: var(--err);
 }
 
+/* A «Skip» row is neither success (green ✓) nor failure (red ✕): mute its glyph so the
+   colour never implies a write that did not happen (review F4). Reuses the same --g300
+   the row's trailing slot already uses — a correctness fix to a meaning-bearing colour,
+   not a new visual treatment. */
+.export-wizard-file-row[data-skipped='true'] .export-wizard-file-status {
+  color: var(--g300);
+}
+
 .export-wizard-file-name {
   flex: 1 1 auto;
   min-width: 0;

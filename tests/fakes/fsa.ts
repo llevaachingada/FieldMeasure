@@ -23,6 +23,13 @@ export interface FakeHooks {
   beforeMove?: (file: FakeFile, name: string) => void;
   /** Throw here to simulate `getFile()` throwing (NotReadableError). */
   beforeGetFile?: (file: FakeFile) => void;
+  /**
+   * Throw here to simulate the HANDLE RESOLUTION itself failing — e.g. a revoked
+   * write grant surfacing as `NotAllowedError` from `getFileHandle(name, {create:true})`.
+   * Distinct from `beforeGetFile`, which fires once the handle exists and `getFile()`
+   * is called. Added for the export-wave review F2 (`writeAtomic`'s tmp handle).
+   */
+  beforeGetFileHandle?: (name: string) => void;
 }
 
 export type FakeEntry = FakeFile | FakeDir;
@@ -133,6 +140,7 @@ export class FakeDir {
   }
 
   async getFileHandle(name: string, options?: { create?: boolean }): Promise<FakeFile> {
+    this.hooks.beforeGetFileHandle?.(name);
     const existing = this.children.get(name);
     if (existing) {
       if (existing.kind !== 'file') throw new DOMException(`not a file: ${name}`, 'TypeMismatchError');

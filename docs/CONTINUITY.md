@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 18 — **the 1.10 trust layer landed**: the §13.1 autosave chip (five states plus `full`/`offline`, never optimistic, read-only is not an error) and the §13.4 single-instance toast system (one at a time by construction, 8 s / 10 s-with-action, focus never moved). **The silent-failure path is closed** — a failed «New project» or a failed project load now says so instead of doing nothing (D103's owed half), and delete-toasts carry a **real Undo** that also fixed a pre-existing lie (the erase toast claimed an undo on deletion). **The History flyout is NOT built** and `writeHistorySnapshot` still has no caller. Next: the rest of 1.10 — the flyout, `.trash/` prune + restore, the arrow nudge, the a11y audit — then 1.11)
+**Last updated:** 2026-09-22 (session 19 — **the export wave's independent review is discharged**: an executed register (pinned worktree at `6c3bc1d`) confirmed the load-bearing invariants — the PDF page is **300 × 225 pt at M = 1/2/3**, the §4.2 pixel ratios are real, `assetProvider` lifetime is sound, conflict handling folds NTFS case, the lazy-chunk failure is honest — and **discharged D106's owed pixel proof**: an inset exports its **photo** (`[254,0,0,255]` for a red asset vs `[58,63,70,255]` = `#3A3F46` when missing), now a permanent browser test. Four real gaps found and fixed (a dead «Include sheet names» control → **disabled + owed**; a revoked grant misreported as `unknown`; an emptied scope writing an **empty archive as a success row**; a skipped conflict reporting nothing), plus a theme-comment correction and an `estimate` note (D109). Two further honesty bugs closed: the **torch toggle** no longer claims a light the hardware refused (D108) and the **Home card meta** no longer states fiction — it shipped the appendix's example as the template (D110). Next: the rest of 1.10 (History flyout, `.trash/`, nudge, a11y audit), the PDF-caption decision, then 1.11)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2–1.9 complete; 1.10 in progress.** Export works end to end (D106); the trust layer landed (D107: autosave chip + toasts + honest failure surfaces). **Not yet in 1.10:** the History flyout, `.trash/` prune + restore, the arrow nudge, the end-to-end a11y audit. Then 1.11 (update strategy) and 2.0 |
-| Application code | **Twelve slices + 1.9 wiring + the 1.10 trust layer**, **80 files / 1110 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1458.91 KiB); playwright 5 passed / 5 skipped. This session: `src/ui/AutosaveChip.tsx`, `src/ui/Toast.tsx`, the extended toast bus and `retrySave()` in `src/editor/session.ts`, the delete-toast Undo wiring in the erase/select tools, the read-only lease mapping, and `storage.*` copy rows |
+| Phase | **Slices 0.2–1.9 complete; 1.10 in progress — export (1.9) and the trust layer are reviewed and green.** Slice 1.9 works end to end and survived an independent review (D109); the autosave chip + toasts ship (D107); Sunlight/Dim themes ship (D104). **Not yet in 1.10:** the History flyout, `.trash/` prune + restore, the arrow nudge, the end-to-end a11y audit, and the PDF «Include sheet names» captions (disabled, needs a placement decision). Then 1.11 and 2.0 |
+| Application code | **Twelve slices + 1.9 wiring + the 1.10 trust layer**, **80 files / 1119 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1459.47 KiB); playwright 5 passed / 5 skipped. This session: the review fixes (tmp-handle classification, empty-archive guard, honest skip rows, the disabled caption control, the Dim comment), the torch-honesty fix, the Home card-meta template fix, and the `Skip` row folded into `strings.ts` as `⚠ PROPOSED` |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Rest of slice 1.10:** the **History flyout** (plan item 1 — `writeHistorySnapshot` currently has no caller), `.trash/` + 14-day prune + restore (note: the restore UI wants the unbuilt Project screen), the arrow nudge (1 px / 10 px) and the end-to-end a11y audit (canvas accessible object tree, keyboard-only core loop, 48 px / 16 px touch checks). Then **1.11** (`registerType: 'prompt'`, the update toast with the flush-then-reload rule, build id in Settings), then 2.0. Owed alongside: D101's on-screen label-halo fix, D104's component-level Sunlight items, D106's export list, D107's flyout/undo-round-trip items, and the `[Surface]` rows |
+| Next action | **Rest of slice 1.10:** the **History flyout** (plan item 1 — `writeHistorySnapshot` still has no caller), `.trash/` + 14-day prune + restore (the restore half wants the unbuilt Project screen), the arrow nudge (1 px / 10 px) and the end-to-end a11y audit (canvas accessible object tree, keyboard-only core loop, 48 px / 16 px touch checks). Two content-owner items block small polish: the **PDF caption placement** (F1) and sign-off on the two ⚠ PROPOSED `Skip` rows (F4). Then **1.11** (`registerType: 'prompt'`, update toast with flush-then-reload, build id in Settings), then 2.0 |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -714,6 +714,33 @@ action-carrying toast 10 s. §13.4 wins — the undo window is exactly why the l
 Two of this project's worst bugs (a dead control, a swallowed throw) were invisible precisely because the
 app had nowhere to say anything.
 
+### 2026-09-22 — Session 19: the export review discharged, and two more honesty bugs closed
+
+An independent review of the export wave ran in a **pinned clean worktree** (the main tree had already moved
+two commits on — isolation, not inspection) and executed every claim. This session reconciled it:
+
+1. **Verified sound, with evidence:** the physical-size invariant (the PDF page is 300 × 225 pt at M = 1, 2
+   and 3), the §4.2 pixel ratios, `assetProvider` lifetime (borrowed bitmaps survive; disk assets re-decoded
+   and closed; damaged photo → white page), per-file failure rows, conflict resolution folding NTFS case
+   (`RIVERSIDE.ZIP` → `Riverside (1).zip`), the **lazy-chunk failure path** (honest reject, wizard returns to
+   Destination with its alert), split/naming boundaries, all three themes' invariants, the D103 permission
+   fix, and write integrity (`createWritable` only in `projectStore`).
+2. **D106's owed pixel proof is discharged and now permanent:** the browser suite asserts that an inset
+   exports its **photo** — `[254,0,0,255]` for a red asset, `[58,63,70,255]` (`#3A3F46`) for the missing-
+   asset control.
+3. **Four real gaps fixed (F1–F4):** a dead «Include sheet names» control (now honestly **disabled**; captions
+   need a UI-spec placement decision); a revoked grant at the tmp-handle stage escaping as a raw
+   `NotAllowedError` and reported as `unknown` (`writeAtomic` now creates the tmp handle inside its `try`, so
+   it classifies as `permission`); an emptied-mid-flight scope writing an **empty archive as a success row**;
+   and a skipped conflict reporting nothing (now a row + progress, with the count excluding skips).
+4. **Two more honesty bugs, found outside the review:** the **torch toggle** showed a lit button over an unlit
+   LED when the hardware refused the constraint (D108), and every **Home card** advertised «12 sheets ·
+   48 MB · 2:14 PM» because the appendix's *example* was shipped where its *template* belongs (D110).
+
+**Lesson (fourth of its kind).** Every fix in this session is an instance of the same defect class: *the
+control, the comment or the card said something the system did not do*. The gates were green throughout —
+because a gate can only see what it asserts, in the environment it asserts it, about the code it imports.
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -968,6 +995,22 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   (D88/D102) — the prune half is buildable on its own; the restore half may not be.
 - Carried: D101 (on-screen label halo scales with zoom), D104 (Sunlight component-level items), D105
   (dev-mode is unstyled by CSP design), D106 (export owed list), and the `[Surface]` rows H8/H12/H19–H22.
+
+## Known drift / watch items (session 19)
+
+- **«Include sheet names in pages» is disabled, not built (F1).** Captions need a placement decision (a
+  full-bleed sheet image leaves nowhere obvious for a caption) — a UI-spec/content-owner question.
+- **Two ⚠ PROPOSED copy rows await sign-off:** the `Skip` result word and its neutral glyph (gap §17 keys
+  only ✓ / … / ✕).
+- **`estimate` undercounts files when the 250 MB PDF split fires** (F6) — it reports one file for a PDF that
+  may become `part-01.pdf`… Recorded; computing parts would need a render.
+- **One non-reproducible full-suite failure** (7 files / 35 tests) was seen once by the reviewer and never
+  again, including per-project runs. Trap-5's mid-run iframe reload is the prime suspect. Flaky-until-explained.
+- **The History flyout is still not built (D107)** and `writeHistorySnapshot` still has no caller.
+- **The owner's Home was pointed at the source repo** — Settings → Storage → «Change folder» fixes it; no code
+  defect, but a clean Home needs that one click.
+- Carried: D101 (label halo scales with zoom), D104 (Sunlight component-level items), D105 (dev-mode unstyled
+  by CSP design), and the `[Surface]` rows H8/H12/H19–H22.
 
 ## How to resume
 

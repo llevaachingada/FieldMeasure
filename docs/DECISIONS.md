@@ -2438,3 +2438,95 @@ exists for. Recorded here so the choice is deliberate rather than accidental.
    tool was reasoned, not executed (the lane added no browser assertion).
 3. **`retrySave`'s error path** (a flush that fails again) renders the chip back to `error` — asserted in
    jsdom only.
+
+### D108 — the torch toggle must reflect the hardware (and the "work light" is not in v1 scope)
+
+Both items come from the owner-requested read-only investigation in
+`docs/investigation-torch-and-capture.md`, which asked the next session touching this file to number them.
+
+**1. The torch toggle could report success when nothing happened — fixed.** `applyAdvanced` swallowed every
+rejected constraint and returned `void`, and `toggleTorch` flipped its own state *before* the call, so on a
+platform that does not expose `torch` (Windows tablets do not: the browser camera stack withholds the
+capability, so `applyConstraints({ torch })` rejects) the button showed **active over an unlit LED**. The
+toggle now reflects the **hardware**: `applyAdvanced` reports whether the device accepted the hint, and
+`toggleTorch` takes its state from that result, falling back to off whenever the hardware refuses. The
+best-effort behaviour is unchanged — a rejected hint still never breaks the viewfinder. Evidence:
+`tests/cameraFlow.test.tsx` gains two cases (refused → the button stays off; accepted → it stays on);
+`cameraFlow` + `cameraFallback` are 20/20 green.
+
+**Deliberately not done: capability-gating the button** from `caps.torch === false`. The button would then be
+disabled on the target hardware — which is arguably more honest than an always-enabled control that always
+reverts — but a disabled control needs an explanation, and `docs/appendix-strings.md` carries no string for
+it. Inventing one is forbidden, so this is **owed to the content owner**; the revert makes the control honest
+in the meantime.
+
+**2. A screen-brighten "work light" is NOT in v1 scope.** §11.8 and the §2.4 scope table specify the capture
+toggles as torch / grid / level / flip / resolution; a pure-software work light is a **new feature**, not a
+fix, and the authority chain requires a §2.4 amendment (then a spec change) before any code. Recorded as a
+candidate for a later slice, not built, and not smuggled in under a bug fix.
+
+**Still unverifiable here:** whether the owner's Surface Go exposes `torch` at all remains a `[Surface]`
+measurement (the e2e device-caps probe has no usable camera). The fix makes the control honest in either
+outcome rather than assuming one.
+
+### D109 — independent review of the export wave: the register, its resolutions, and a discharged owed item
+
+**Method.** The review ran at the wave's revision (`6c3bc1d`) in a **pinned clean worktree**, because the main
+tree had already moved two commits on — isolation, not inspection. Every claim below was executed; the
+reviewer's scratch harness is reproducible.
+
+**Verified sound (executed, not read).** The physical-size invariant end to end: the PDF page is
+**300 × 225 pt at M = 1, 2 and 3** for a 400×300 sheet (`runExport` passes the working size, `renderSheetJpeg`
+echoes `imageWidthPx`, `pdf.ts` multiplies by 0.75). The §4.2 stroke/glyph/angle-halo pixel ratios are
+rasterised and measured. **The owed pixel proof from D106 is discharged — and now permanent:**
+`tests/runExport.browser.test.ts` asserts that an inset exports its **photo** (a red `assets/<id>.jpg` gives an
+inset-centre pixel of `[254,0,0,255]`) while the missing-asset control gives `[58,63,70,255]` — exactly
+`#3A3F46`, the placeholder this was written to catch. Also sound: `assetProvider` lifetime (a borrowed session
+bitmap survives two runs untouched; disk-backed assets are re-decoded per run and closed each time; a damaged
+photo yields the white page with `sheetsWithoutPhoto: 1`); per-file failure rows
+(`QuotaExceededError → disk-full`, `NoModificationAllowedError → locked`, `NotAllowedError → permission`, and
+`retryFile` re-writing the retained bytes); conflict policy against a real listing including the NTFS
+case-fold (`RIVERSIDE.ZIP` → `Riverside (1).zip`); the **lazy-engine failure path** (mocked chunk throw →
+`runExport` rejects, writes nothing, and the wizard returns to Destination with its run-failed alert — an
+honest failure, not a dead dialog); split/naming boundaries; the three themes (nothing keys off
+`data-theme="standard"`, the seven meaning colours are byte-identical across all three); the D103 permission
+fix; and write integrity (`createWritable()` exists only in `projectStore`; every new write goes through
+`writeAtomic` under the per-project lock).
+
+**Findings, and what happened to each:**
+
+| # | Finding | Resolution |
+|---|---|---|
+| F1 | «Include sheet names in pages» was a **dead control** — nothing consumed `includeSheetNames`; the PDF had no captions | **Disabled honestly** (the D102 pattern) and **owed**: where a caption sits relative to a full-bleed sheet image is a UI-spec decision, so implementing it here would be un-reviewed design |
+| F2 | A revoked grant at the **tmp-handle** stage escaped as a raw `NotAllowedError`, so the exporter reported `unknown` and the wizard offered «Retry» instead of «Re-authorize» | **Fixed at the contract:** `writeAtomic` now creates the tmp handle *inside* its `try`, so it classifies as `StorageWriteError('permission')`. Semantics unchanged (tmp kept, target never deleted). Pre-fix: 1 failed / 30 passed with the raw error escaping |
+| F3 | A scope emptied mid-flight wrote a **22-byte empty archive as a SUCCESS row** | **Fixed:** the zip write is skipped when there are no entries, mirroring the PDF branch (pre-fix: 3 failed / 10 passed in the browser suite) |
+| F4 | A `'skip'` conflict wrote nothing **and reported nothing** — "Wrote 0 files" with no explanation | **Fixed:** a `{ skipped: true, bytes: 0 }` row plus a progress event in both branches; the wizard's count excludes skipped rows and offers no Retry for them. The row's word (`Skipped`) and glyph (`–`, U+2013) are **⚠ PROPOSED (C14)** rows — gap §17 keys only ✓ / … / ✕ — folded from the lane's staging module and deleted after the fold |
+| F5 | The Dim theme's comment overstated its arithmetic («nothing drops below AA», unnamed surfaces) | **Reworded:** each ratio names its surface (`--g100`/`--g750` 13.18; `--g300`/`--g900` 7.98 and `--g750` 7.08; `--g400`/`--g900` 4.90), and the AA claim is scoped to shipped pairings, naming the one sub-AA pair (`--g400` on `--g750` = 4.35) and the tightest real one (`.tool-group-header` on `--g850` = 4.73). Tokens untouched |
+| F6 | `estimate` reports **1 file** for a PDF that may split into N parts, so «Will write 1 file» can be wrong | **Recorded here** — computing parts needs a render, which is not worth it. D106 #5 already covers the unexercised split |
+| F7 | The `data as unknown as BlobPart` cast looked redundant | **Kept, and it is load-bearing:** removing it fails `tsc` (TS 5.9's generic typed arrays — `Uint8Array<ArrayBufferLike>` is not assignable to `BlobPart`). Type-only, zero runtime effect |
+
+**Watch item (not a finding).** The reviewer once saw a full-suite run fail 7 files / 35 tests and never
+reproduced it — not on identical re-runs, not per-project. The trap-5 mid-run iframe-reload class is the prime
+suspect despite the `optimizeDeps` lever. Recorded as flaky-until-explained rather than dismissed.
+
+### D110 — every Home card stated fiction: the appendix's EXAMPLE was shipped as the template
+
+**Found by loading the built app**, not by a test: Home showed `.git`, `.github`, `.dist` … each advertising
+**"12 sheets · 48 MB · 2:14 PM"**.
+
+`src/ui/strings.ts` shipped `projectCardMeta: '12 sheets · 48 MB · 2:14 PM'` — the appendix's **`String`
+column**, which is a *rendered example*. Its **`Interpolation` column** declares
+`{sheetCount} · {size} · {time}`, and `ProjectList` already passes the real parts
+(`sheetCount: card.sheetCount, size: '—', time: '—'`). With no tokens in the value, `t()` interpolated nothing,
+so the example rendered verbatim on **every** card. `tests/strings.test.ts` even documented this row as a
+sanctioned "rendered example stored literally" case, which is why the gate was green while the UI lied — the
+same shape as D88's "the product was never broken; the first detector was ours".
+
+**Fix:** the shipped value is the template, and the copy test's rule is now form-agnostic (a value with a token
+compiles to the anchored regex; a value without one must match the appendix byte-for-byte). Verified:
+`strings.test.ts` 3/3 green with the template, `projectList.test.tsx` 11/11. Unreadable folders now read
+`0 sheets · — · —`, which is honest about both the scan failure and the size/time gap.
+
+**Not a defect, but worth knowing:** the owner's own Home was pointed at the **source repository** (hence the
+`.git`/`dist` cards). The control to change it exists — **Settings → Storage → «Change folder»**. No code
+change; recorded so the next person sees a clean Home after one click.

@@ -278,6 +278,26 @@ function destDir(): FakeDirHandle {
   return stamped;
 }
 
+/** Decode a PNG byte array to pixels (real canvas — this is the browser project). */
+async function decodeToImageData(bytes: Uint8Array): Promise<ImageData> {
+  const bitmap = await createImageBitmap(new Blob([bytes as unknown as BlobPart]));
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('no 2D context');
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+/** RGBA at (x, y) — index arithmetic: pixel `(y * width + x)` × 4 channels. */
+function pixelAt(img: ImageData, x: number, y: number): [number, number, number, number] {
+  const i = (y * img.width + x) * 4;
+  const d = img.data;
+  return [d[i]!, d[i + 1]!, d[i + 2]!, d[i + 3]!];
+}
+
 beforeEach(() => {
   vi.restoreAllMocks();
 });
@@ -374,15 +394,52 @@ describe('runExport — conflicts against the destination’s real listing', () 
     expect(destDir().files.has('Riverside (1).zip')).toBe(true);
   });
 
-  it('Skip writes nothing and reports no row', async () => {
+  it('Skip writes nothing and reports the skip honestly — a row + progress (review F4)', async () => {
     await setup();
     await makeSession().runExport(basePlan({ format: 'png', zip: true, multiplier: 1 }), () => {});
+    const progress: ExportProgress[] = [];
     const skipped = await makeSession().runExport(
       basePlan({ format: 'png', zip: true, multiplier: 1, conflictPolicy: 'skip' }),
+      (p) => progress.push(p),
+    );
+    // Nothing is written (the existing archive is left in place)…
+    expect(destDir().files.size).toBe(1);
+    // …but the skip is NOT silent: a row the result view can show, and a progress event.
+    expect(skipped.files).toHaveLength(1);
+    expect(skipped.files[0]).toMatchObject({ name: 'Riverside.zip', bytes: 0, skipped: true });
+    expect(progress.map((p) => p.done)).toEqual([1]);
+    expect(progress[0]!.currentName).toBe('Riverside.zip');
+  });
+
+  it('a per-sheet skip is reported the same way without zip (review F4)', async () => {
+    await setup([{ id: 'a', title: 'North wall' }]);
+    await makeSession().runExport(
+      basePlan({ sheetIds: ['a'], format: 'png', zip: false, multiplier: 1 }),
       () => {},
     );
-    expect(skipped.files).toHaveLength(0);
-    expect(destDir().files.size).toBe(1);
+    const skipped = await makeSession().runExport(
+      basePlan({ sheetIds: ['a'], format: 'png', zip: false, multiplier: 1, conflictPolicy: 'skip' }),
+      () => {},
+    );
+    expect(skipped.files).toHaveLength(1);
+    expect(skipped.files[0]).toMatchObject({
+      name: 'Riverside_01-North wall.png',
+      bytes: 0,
+      skipped: true,
+    });
+  });
+
+  it('an emptied scope writes NOTHING — never a 22-byte empty archive (review F3)', async () => {
+    await setup();
+    // Every plan id is gone (deleted in another tab between wizard-open and run).
+    const result = await makeSession().runExport(
+      basePlan({ sheetIds: ['ghost'], format: 'png', zip: true, multiplier: 1 }),
+      () => {},
+    );
+    // The PDF branch already writes nothing here; the zip branch must mirror it rather
+    // than save a valid-but-empty `Riverside.zip` and report it as a success row.
+    expect(result.files).toHaveLength(0);
+    expect(destDir().files.size).toBe(0);
   });
 });
 
@@ -426,5 +483,66 @@ describe('runExport — assets (review F3)', () => {
     expect(borrowedClose).not.toHaveBeenCalled();
     // The sheet photo WAS decoded by this run, so its bitmap is closed as normal.
     expect(decodedClose).toHaveBeenCalled();
+  });
+
+  /**
+   * THE OWED PIXEL PROOF (discharges D106's owed item permanently). The two tests above
+   * prove the asset is DECODED and the borrowed bitmap survives; neither samples the
+   * exported pixels. This pair does: a red `assets/<id>.jpg` must appear in the inset's
+   * region of the exported PNG, and the missing-asset control must be the `#3A3F46`
+   * placeholder in the same region. Measured values from the review: asset present
+   * [254,0,0,255] (JPEG-lossy near #FF0000), missing [58,63,70,255] (≈ #3A3F46).
+   */
+  it('an inset exports its PHOTO into the PNG pixels (not the grey placeholder)', async () => {
+    await setup([{ id: 'a', title: 'North wall' }]);
+    const assets = new FakeDirHandle('assets');
+    assets.files.set('asset-1.jpg', {
+      name: 'asset-1.jpg',
+      data: await jpegBytes('#FF0000', 100, 100),
+    });
+    h.assetsDir = assets;
+    h.noAssets = false;
+    h.markup.set('a', [insetAnnotation('asset-1')]);
+
+    const result = await makeSession().runExport(
+      basePlan({ sheetIds: ['a'], format: 'png', zip: true, multiplier: 1 }),
+      () => {},
+    );
+    const archive = destDir().files.get(result.files[0]!.name)!;
+    const png = Object.values(unzipSync(archive.data))[0]!;
+    const img = await decodeToImageData(png);
+
+    // The inset is 100×100 at the origin, so (50, 50) is its centre.
+    const centre = pixelAt(img, 50, 50);
+    console.log('INSET CENTRE PIXEL (asset present):', centre);
+    expect(centre[0]).toBeGreaterThan(180); // red asset
+    expect(centre[1]).toBeLessThan(90);
+    expect(centre[2]).toBeLessThan(90);
+    // Outside the inset, the white sheet photo is untouched.
+    const outside = pixelAt(img, 150, 150);
+    expect(outside[0]).toBeGreaterThan(200);
+    expect(outside[1]).toBeGreaterThan(200);
+    expect(outside[2]).toBeGreaterThan(200);
+  });
+
+  it('with NO asset on disk the SAME region is the #3A3F46 placeholder (control)', async () => {
+    await setup([{ id: 'a', title: 'North wall' }]);
+    // The assets directory is missing (`noAssets = true`), so the provider returns null.
+    h.markup.set('a', [insetAnnotation('asset-1')]);
+
+    const result = await makeSession().runExport(
+      basePlan({ sheetIds: ['a'], format: 'png', zip: true, multiplier: 1 }),
+      () => {},
+    );
+    const archive = destDir().files.get(result.files[0]!.name)!;
+    const png = Object.values(unzipSync(archive.data))[0]!;
+    const img = await decodeToImageData(png);
+
+    const centre = pixelAt(img, 50, 50);
+    console.log('INSET CENTRE PIXEL (asset MISSING):', centre);
+    // #3A3F46 = rgb(58, 63, 70). ±8 per channel absorbs JPEG/PNG round-trip.
+    expect(Math.abs(centre[0] - 58)).toBeLessThanOrEqual(8);
+    expect(Math.abs(centre[1] - 63)).toBeLessThanOrEqual(8);
+    expect(Math.abs(centre[2] - 70)).toBeLessThanOrEqual(8);
   });
 });
