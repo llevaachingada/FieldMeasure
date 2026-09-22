@@ -129,6 +129,12 @@ export function buildDimensionGroup(input: DimensionRenderInput): Konva.Group {
     listening: false,
   });
   halo.setAttr('fontSizeMu', style.fontSizeMu);
+  // The halo is the label's readability guarantee, so it is a markup-unit size like every
+  // other stroke (§4.2). Without this tag `applyExportRules` leaves it at 8 bitmap px while
+  // the glyphs scale mu x M, so the outline is physically THINNER at 2x and 3x and the
+  // "same physical size at every M" invariant fails for the label. On screen the value is
+  // unchanged: applyScreenRules re-applies strokeWidth = strokeWidthMu = 8.
+  halo.setAttr('strokeWidthMu', 8);
   const main = new Konva.Text({
     text,
     fontSize,
@@ -142,6 +148,8 @@ export function buildDimensionGroup(input: DimensionRenderInput): Konva.Group {
     listening: false,
   });
   main.setAttr('fontSizeMu', style.fontSizeMu);
+  // Same reasoning for the --sel hairline: tagged so export scales it to 1 x M.
+  main.setAttr('strokeWidthMu', 1);
 
   const layout = labelLayout(a, b, b, scale);
   placeText(halo, layout.at, layout.rotationDeg);

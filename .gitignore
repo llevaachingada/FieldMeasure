@@ -27,3 +27,4 @@ test-results/
 
 # Deepwork state (git-local only)
 .slim/deepwork/
+.vitest/
