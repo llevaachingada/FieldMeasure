@@ -207,6 +207,15 @@ Interpretation: `move(): MISSING` ⇒ every write is a `StorageWriteError('unkno
 
 **Never** try to reproduce any of this in jsdom: no layout, no `PointerEvent`, no real Web Locks, no real FSA.
 
+**"Folder permission expired" on screen (D122) — read this before hunting a save bug.** That line means the
+**grant is missing or denied for the stored handle**, not that the write path is broken. Probe it from the page:
+`queryPermission({ mode: 'readwrite' })` on the handle stored under `fm:projects-root` (the console snippet
+above prints exactly that). If it is **`denied`**, Chromium will never prompt again for that handle and
+`requestPermission` cannot fix it — the only recovery is a **re-pick** (Settings → Storage → «Change folder…»,
+or the capture overlay's «Re-pick folder» button), which mints a fresh grant. The app now does that itself
+(overlay) and adopts the new handle (Settings reloads); an un-adopted re-pick is why a folder change can look
+like it did nothing.
+
 ---
 
 ## 7. What "done" looks like for this issue

@@ -1407,3 +1407,33 @@ worth recording, because the fake had taught the opposite.
 
 **Next:** the owner's run from both the grid and a sheet; then a bounded lock acquisition in `writeAtomic`
 (the remaining class-wide hardening).
+
+## Fix (owner-reported) - the folder grant was `DENIED`, and neither recovery path could fix it
+**Date:** 2026-09-22 · **Commit:** this commit
+
+**Probed from the running app** with this session's browser tooling (live page, not inference): the persisted
+projects root is the **source repo** and its **readwrite grant is `denied`**; `FileSystemFileHandle.move()` is
+present; clicking «New project» produced the honest toast «Project folder unavailable». So the write blocker is
+a browser permission about a handle — not the lock (D121) and not the disk.
+
+**Fixed (D122):** `queryRootWritePermission()` exposes the tri-state; the capture failure now offers
+**«Re-pick folder»** (approved copy, `storage.rePickFolder`) when the grant is `denied` — performing a real
+`pickRoot()` and retrying — and keeps «Re-authorize» only for a `prompt` grant, the one a prompt can still fix
+(Chromium never re-prompts a denied handle). And `Settings → Storage → «Change folder…»` now **adopts** the
+picked handle by reloading: without that, the backend, the registry and every mounted route keep the old
+handle's permission, which is why a folder change looked like it did nothing.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **94 files / 1319 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 26 precache entries (1520.63 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+
+**Deferred to hardware:** a real `showDirectoryPicker` grant, and the two-tab check — logged under slice 1.10.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D122**; `docs/handoff-capture-save.md` gained the "if the line says Folder permission
+expired" diagnosis.
+
+**Next:** the owner re-picks the folder (and reloads manually on the build they have), then captures again.

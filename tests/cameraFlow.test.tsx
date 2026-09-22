@@ -12,12 +12,27 @@
  * via `createImageBitmap`). The rotate CONTROL's state change is asserted instead.
  */
 import { STRINGS } from '../src/ui/strings';
+
+// A permission failure is only recoverable in place if the browser can still ASK. This suite
+// overrides the two store functions that decide that; everything else stays real (the fsa fake).
+vi.mock('@/fs/projectStore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/fs/projectStore')>()),
+  queryRootWritePermission: vi.fn(async () => 'granted'),
+  pickRoot: vi.fn(async () => undefined),
+}));
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createThumbnailScheduler } from '@/media/thumbnails';
 import { normalizeImage } from '@/media/normalizeImage';
-import CameraFlow, { createSaveWatchdog, SAVE_TIMEOUT_MS, savingLabel } from '../src/ui/CameraFlow';
+import CameraFlow, {
+  createSaveWatchdog,
+  failureActionLabel,
+  SAVE_TIMEOUT_MS,
+  savingLabel,
+} from '../src/ui/CameraFlow';
+import { pickRoot, queryRootWritePermission } from '../src/fs/projectStore';
 import { initStore } from '../src/fs/projectStore';
 import { parseProjectFile, type ProjectFile } from '../src/domain/schema';
 import {
@@ -562,5 +577,46 @@ describe('a save that never finishes names its stage and gives the photo back (o
     await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
     await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
     expect(readProject(root.textAt('Riverside/project.json')).sheets).toHaveLength(2);
+  });
+});
+
+describe('a DENIED folder grant offers a re-pick, not an impossible re-authorize', () => {
+  it('labels the recovery by what the cause actually allows', () => {
+    // Pure mapping, so the wiring can be checked without a camera: a `prompt` grant can be
+    // re-asked for; a `denied` one cannot (Chromium never re-prompts that handle), so it must
+    // offer a fresh pick instead of a button that cannot work.
+    expect(failureActionLabel({ message: 'm', needsGrant: true, needsResolve: false, needsRepick: false })).toBe(STRINGS.errors.reAuthorize);
+    expect(failureActionLabel({ message: 'm', needsGrant: true, needsResolve: false, needsRepick: true })).toBe(STRINGS.storage.rePickFolder);
+    expect(failureActionLabel({ message: 'm', needsGrant: false, needsResolve: false, needsRepick: false })).toBe(STRINGS.errors.retry);
+    expect(failureActionLabel(null)).toBe(STRINGS.errors.retry);
+  });
+
+  it('shows «Re-pick folder» and re-picks when the browser reports denied', async () => {
+    await setup({
+      beforeWrite: (file) => {
+        if (file.name === 'photo.jpg.tmp') {
+          throw new DOMException('the write grant was refused', 'NotAllowedError');
+        }
+      },
+    });
+    vi.mocked(queryRootWritePermission).mockResolvedValue('denied');
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    renderFlow();
+    const user = userEvent.setup();
+    await screen.findByTestId('camera-resolution');
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+
+    // The message still names the cause, but the ACTION is now the one that can work.
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(STRINGS.errors.folderPermissionExpired);
+    const repick = screen.getByRole('button', { name: STRINGS.storage.rePickFolder });
+    expect(screen.queryByRole('button', { name: STRINGS.errors.reAuthorize })).toBeNull();
+
+    // Pressing it re-picks the folder (a fresh pick mints a fresh grant) and tries again.
+    await user.click(repick);
+    await waitFor(() => expect(vi.mocked(pickRoot)).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(queryRootWritePermission)).toHaveBeenCalled();
   });
 });

@@ -64,6 +64,8 @@ import { createThumbnailScheduler, type ThumbnailScheduler } from '@/media/thumb
 import {
   ensureRootAccess,
   getRootDir,
+  pickRoot,
+  queryRootWritePermission,
   readProjectFile,
   resolveOpenProjectDir,
   resolveProjectDir,
@@ -299,6 +301,19 @@ export interface CaptureFailure {
   needsGrant: boolean;
   /** The project folder never resolved, so the recovery must re-resolve it first. */
   needsResolve: boolean;
+  /**
+   * The grant is **denied** for this handle, which no prompt can fix — the recovery must re-pick
+   * the folder (a fresh pick mints a fresh grant). Offering «Re-authorize» here would be a
+   * button that cannot work.
+   */
+  needsRepick: boolean;
+}
+
+/** The recovery action's label — the action the cause actually needs. */
+export function failureActionLabel(failure: CaptureFailure | null): string {
+  if (failure?.needsRepick) return STRINGS.storage.rePickFolder;
+  if (failure?.needsGrant) return STRINGS.errors.reAuthorize;
+  return STRINGS.errors.retry;
 }
 
 /**
@@ -347,16 +362,37 @@ function writeFailureKind(e: unknown): 'permission' | 'target-locked' | 'disk-fu
 export function describeWriteFailure(e: unknown): CaptureFailure {
   const kind = writeFailureKind(e);
   if (kind === 'permission') {
-    // The one case a bare «Retry» cannot fix: the grant has to be re-asked for (§5.2/§5.3).
-    return { message: STRINGS.errors.folderPermissionExpired, needsGrant: true, needsResolve: false };
+    // The one case a bare «Retry» cannot fix: the grant has to be re-asked for (§5.2/§5.3) — or,
+    // if the browser reports it `denied`, re-picked (the caller decides once it has queried).
+    return {
+      message: STRINGS.errors.folderPermissionExpired,
+      needsGrant: true,
+      needsResolve: false,
+      needsRepick: false,
+    };
   }
   if (kind === 'target-locked') {
-    return { message: STRINGS.errors.fileOpenAnotherApp, needsGrant: false, needsResolve: false };
+    return {
+      message: STRINGS.errors.fileOpenAnotherApp,
+      needsGrant: false,
+      needsResolve: false,
+      needsRepick: false,
+    };
   }
   if (kind === 'disk-full') {
-    return { message: STRINGS.errors.notEnoughDiskSpace, needsGrant: false, needsResolve: false };
+    return {
+      message: STRINGS.errors.notEnoughDiskSpace,
+      needsGrant: false,
+      needsResolve: false,
+      needsRepick: false,
+    };
   }
-  return { message: STRINGS.capture.saveFailed, needsGrant: false, needsResolve: false };
+  return {
+    message: STRINGS.capture.saveFailed,
+    needsGrant: false,
+    needsResolve: false,
+    needsRepick: false,
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -725,7 +761,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   /* ---- write path -------------------------------------------------------- */
 
   const commit = useCallback(
-    async (blob: Blob, options: { askGrant?: boolean } = {}): Promise<void> => {
+    async (blob: Blob, options: { askGrant?: boolean; repick?: boolean } = {}): Promise<void> => {
       setWrite('saving');
       setStage('prepare');
       setFailure(null);
@@ -746,6 +782,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
           message: STRINGS.capture.folderNotResponding,
           needsGrant: false,
           needsResolve: false,
+          needsRepick: false,
         });
         setWrite('failed');
       });
@@ -758,7 +795,17 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         // PRIMARY path must never block on it: a request the browser never answers would hang
         // the save instead of reporting it, and the failure is honest either way (the write
         // itself fails fast with `NotAllowedError`, and the overlay offers «Re-authorize»).
-        if (options.askGrant === true) {
+        if (options.repick === true) {
+          // A `denied` grant cannot be re-asked for, so re-pick the folder: a fresh pick mints a
+          // fresh grant (`pickRoot` persists the handle and re-inits the store). A cancelled
+          // picker throws `AbortError` — nothing changed, so the failure goes back on screen.
+          try {
+            await pickRoot();
+          } catch {
+            setWrite('failed');
+            return;
+          }
+        } else if (options.askGrant === true) {
           if (!(await ensureRootAccess({ request: true }))) {
             throw new StorageWriteError('permission', new Error('the folder write grant was refused'));
           }
@@ -775,6 +822,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
               message: STRINGS.errors.projectUnavailable,
               needsGrant: false,
               needsResolve: true,
+              needsRepick: false,
             });
             setWrite('failed');
             return;
@@ -811,9 +859,15 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         onCaptured({ id: sheet.id, index: sheet.sortIndex, title: sheet.title });
       } catch (e) {
         // A field photo is never trapped: keep the blob and offer Save a copy… — and SAY why
-        // it could not be filed, with the action the cause actually needs (a bare «Retry»
-        // cannot fix a lost folder grant) — §13.4, and the D103 lesson again.
-        setFailure(describeWriteFailure(e));
+        // it could not be filed, with the action the cause actually needs (§13.4, D103).
+        const base = describeWriteFailure(e);
+        // A permission failure is only recoverable IN PLACE if the browser can still ask. Once
+        // the grant is `denied` for this handle, `requestPermission` resolves `denied` without a
+        // prompt (executed: the owner's profile reported `denied`), so «Re-authorize» would be a
+        // button that cannot work — the honest action is a re-pick, which mints a fresh grant.
+        const needsRepick =
+          base.needsGrant && (await queryRootWritePermission()) === 'denied';
+        setFailure({ ...base, needsRepick });
         setWrite('failed');
       } finally {
         stopWatchdog();
@@ -833,10 +887,9 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
 
   const retryWrite = (): void => {
     const current = capturedRef.current;
-    // The recovery is the gesture that may prompt: ONLY it asks for the write grant (§5.2), so
-    // a browser permission prompt appears for a user who just asked to fix a permission
-    // problem — never for one who only tapped a photo.
-    if (current) void commit(current.blob, { askGrant: true });
+    // The recovery is the gesture that may prompt — or, when the grant is `denied`, re-pick the
+    // folder (only a fresh pick can mint a new grant). §5.2.
+    if (current) void commit(current.blob, { askGrant: true, repick: failure?.needsRepick === true });
   };
 
   const saveACopy = (): void => {
@@ -909,7 +962,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
               sheets. Save a copy… is always safe. */}
           {inFlight ? null : (
             <button type="button" className="btn btn-primary hit-slop" onClick={retryWrite}>
-              {failure?.needsGrant ? STRINGS.errors.reAuthorize : STRINGS.errors.retry}
+              {failureActionLabel(failure)}
             </button>
           )}
           <button type="button" className="btn btn-secondary hit-slop" onClick={saveACopy}>

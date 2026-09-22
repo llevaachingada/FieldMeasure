@@ -122,6 +122,33 @@ export async function ensureRootAccess(options?: { request?: boolean }): Promise
   }
 }
 
+/**
+ * The root's READWRITE permission state, as the browser reports it.
+ *
+ * `ensureRootAccess` answers "may I write?" as a boolean, which is enough to gate a call but not
+ * enough to choose a RECOVERY: `prompt` can still be asked for inside a gesture, while `denied`
+ * cannot — Chromium resolves `requestPermission()` to `denied` without showing a prompt ever
+ * again for that handle. Offering «Re-authorize» there is a button that cannot work (owner hit
+ * exactly this: the stored projects folder reported `denied` and the app offered only
+ * «Re-authorize»); the honest recovery for `denied` is a re-pick, which mints a fresh grant.
+ */
+export async function queryRootWritePermission(): Promise<
+  'granted' | 'prompt' | 'denied' | 'unknown'
+> {
+  const root = await getRootDir();
+  if (!root) return 'unknown';
+  const handle = root as FileSystemDirectoryHandle & {
+    queryPermission?: (descriptor: { mode: 'readwrite' }) => Promise<PermissionState>;
+  };
+  // A backend with no permission API (OPFS, non-Chromium) can always write.
+  if (typeof handle.queryPermission !== 'function') return 'granted';
+  try {
+    return await handle.queryPermission({ mode: 'readwrite' });
+  } catch {
+    return 'unknown';
+  }
+}
+
 /** §5.3 `ensureDir` (verbatim). */
 export async function ensureDir(
   parent: FileSystemDirectoryHandle,

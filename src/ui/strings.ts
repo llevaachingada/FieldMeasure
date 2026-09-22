@@ -371,6 +371,10 @@ export const STRINGS = {
     diskFull: 'Disk full — free space to save',
     offline: 'Offline · no network needed',
     saveACopy: 'Save a copy…',
+    // APPROVED inventory (appendix-strings.md `storage.rePickFolder`, line 258). The capture
+    // failure overlay's recovery when the folder grant is `denied`: no prompt can fix that, so
+    // the honest action is a fresh pick.
+    rePickFolder: 'Re-pick folder',
   },
 
   // APPROVED inventory (appendix-strings.md `## errors`)

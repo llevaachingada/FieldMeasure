@@ -3020,3 +3020,39 @@ two-tab case is a browser/hardware check.
 **Still open after this fix:** `writeAtomic` has no lock-acquisition **timeout**, so anything that ever holds
 this mutex for long hangs writes the same silent way. That hardening (and the capture's own bounded wait from
 D120) is what stands between this and a class-wide guarantee.
+
+### D122 — the folder grant was `DENIED`, and both recovery paths could not fix it
+
+**Found by probing the owner's running app from this session's browser tooling** — read out of the live page,
+not inferred:
+
+- the persisted projects root is the **source repo** (`FieldMeasureVW`);
+- `queryPermission({ mode: 'readwrite' })` on it returns **`denied`**;
+- `FileSystemFileHandle.prototype.move()` **is present** (that hypothesis is dead on this machine);
+- clicking «New project» produced the honest toast «Project folder unavailable» — i.e. the app's failure
+  surface working, on a folder it genuinely cannot write.
+
+**Why that state was terminal for the old UI.** Chromium resolves `requestPermission()` to `denied` **without
+ever prompting again** for that handle, so the capture overlay's «Re-authorize» was a button that *cannot*
+work; and `Settings → Storage → «Change folder…»` persisted a new handle but **never adopted it** — the running
+app kept the old one (the write grant is per **handle**), so a re-pick looked like it had worked while writes
+kept failing against the old permission. Two honest-looking controls, neither of which could recover.
+
+**Fixed:**
+1. `queryRootWritePermission()` (`projectStore`) exposes the tri-state. The capture failure now offers
+   **«Re-pick folder»** (`storage.rePickFolder`, an approved appendix row) when the state is `denied`, and that
+   click performs a real `pickRoot()` — a fresh picker mints a fresh grant — then retries the save. A `prompt`
+   grant keeps «Re-authorize», because that one *can* still be asked for.
+2. `Settings.changeFolder` **adopts** the picked handle by reloading. That is the honest, complete adoption: the
+   backend, the open-project registry and every mounted route hold the handle they resolved with, so adopting
+   one silently would leave the app running on the old permission.
+
+**The owner's unblock, on their current build** (which lacks the automatic adoption): Settings → Storage →
+**«Change folder…»** → pick the folder → **reload the page** (their build needs it manually) → accept the
+permission prompt. Nothing on disk is at risk either way: the grant is browser state about a handle, not
+project data. If the folder is the source repo, this is also the moment to point it at a real projects folder
+(`Documents\FieldMeasure`), so Home stops listing `.git`, `node_modules` and friends.
+
+**Recorded, not fixed:** first-run is now the *only* place the app asks for a folder on a clean profile; the
+re-pick action lives in Settings and in the capture failure overlay, and §5.3's "Reconnect folder" state
+(§11.4's chip actions) still has no home outside those two.

@@ -236,7 +236,13 @@ export default function Settings({ onBack }: SettingsProps) {
   async function changeFolder(): Promise<void> {
     try {
       const handle = await pickProjectsFolder();
-      if (handle) setFolder(handle.name);
+      if (!handle) return; // cancelled, or the browser has no File System Access API
+      // The picked handle is already persisted, but the RUNNING app is still on the old one: the
+      // backend, the open-project registry and every mounted route hold the handle they resolved
+      // with — and the write grant is per HANDLE, so a `denied` folder stays denied until the new
+      // one is adopted. Reloading is the complete, honest adoption: without it «Change folder…»
+      // looks like it worked while writes keep failing against the old permission.
+      window.location.reload();
     } catch {
       /* picker failure leaves the current folder */
     }
