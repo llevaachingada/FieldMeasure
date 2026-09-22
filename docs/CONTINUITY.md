@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 13 — **the D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed**, **B1's blocker is root-caused** (D81), **C4's machine half is measured** (D80, provisional), and **slice 1.8 (style system) is complete and green** (D82–D84))
+**Last updated:** 2026-09-22 (session 13 — **the D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed**, **B1's blocker is root-caused** (D81), **C4's machine half is measured** (D80, provisional), and **slice 1.8 (style system) is complete and green** (D82–D84)) **Follow-up (later the same day):** two defects the owner found by *running the app* are fixed (D85 handedness card order, D87 «New project») and **the unowned Project screen is recorded (D88)**.
 
 ---
 
@@ -21,6 +21,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
 | Next action | **Slice 1.9 — Export** (steps 2–5: `src/export/renderStage.ts`, `pdf.ts`, `png.ts`, `ExportWizard.tsx`; step 1, `export/filenames.ts`, already shipped in 1.3). The **export-invariance rule** (`0.75 × mu` pt at every multiplier M) is the whole slice's acceptance, and `renderStage.ts` must be the **only** place that scales for export — the §4.2 screen and export paths are opposites and both are load-bearing. Also carried: **F1's real-touch proof is still OWED** (B1/D81: the e2e harness is blocked by a renderer death on OPFS-handle reload, and a CDP-touch browser-project attempt failed its assertion), plus the owed §8.6 rotate handle and text-box scaling (D79). |
+| Unbuilt screen | **The Project screen (`/p/:projectId`, the sheets grid) is unbuilt and unowned (D88)** — build spec §20.5(a) assigned it to slice 1.2; the plan carries it under no slice; 1.2 built Home's `ProjectList.tsx` instead. Today «New project» lands in the Editor and **no surface lists a project's sheets**. The owner must choose A / B / C (D88). |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -613,6 +614,17 @@ Session 13's gate was green and two visible defects still shipped. Both were fou
 test asserted the *pre-selected hand* but never the *order*; the e2e smoke test asserts only the heading; and
 **nothing tested «New project» because nothing owned it**. **A machine gate can only see what it asserts** —
 and for the second time this session, the person using the product found what the suite could not.
+
+4. **The **Project screen** (`/p/:projectId`, the sheets grid) does not exist — and no slice owns it (D88).**
+   The owner's question *"should «New project» open the camera?"* exposed it. Per UI §4.1/§11.9 the landing
+   after creating or opening a project is the **Project screen**, whose **first two grid tiles are the add
+   affordances** (`📷 «Take photo»` primary + `⬆ «Import»`), and §11.8:667 has capture returning *to the sheets
+   grid*. Build spec **§20.5(a)** reassigned the screen to slice 1.2, but 1.2 built **Home's**
+   `ProjectList.tsx` instead; the plan carries the screen under no slice; and nothing recorded the miss — the
+   same *work no slice owned* class as D87, invisible to every gate. Today `New project` lands in the
+   **Editor**, whose empty state borrows the Project screen's copy («No sheets yet — take a photo to start.»)
+   while offering only an `Import a photo` button, and there is **no UI anywhere that lists a project's
+   sheets**. Awaiting the owner's A/B/C choice (D88). Documentation only — no code changed.
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -803,6 +815,25 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   pass, and a real input that cannot reach it.* When a test drives an input, ask what the real input
   does that the synthetic one does not; when behaviour depends on browser input semantics, only the
   browser project or Playwright/CDP is honest proof.
+
+## Known drift / watch items (session 13)
+
+- **The Project screen (`/p/:projectId`, the sheets grid) is unbuilt and unowned (D88).** Build spec §20.5(a)
+  assigns it to slice 1.2; the plan carries it nowhere; slice 1.2 built **Home's** `ProjectList.tsx` instead and
+  nothing recorded the miss. UI §11.9 defines it — including that its **first two grid tiles must be
+  `📷 Take photo` + `⬆ Import`** ("the 'add' affordance must be the easiest thing on the screen"). Consequence
+  today: `Home → «New project»` lands in the **Editor**, whose empty state shows the Project screen's copy with
+  only an `Import a photo` button; the sole camera route is the editor's `Add sheet` menu item (a stand-in).
+  **Blocks nothing, but schedule it before 1.10's end-to-end a11y audit**, which would otherwise cover neither
+  the screen nor its two add tiles and then have to be repeated. The owner still has to choose A / B / C (D88).
+- **`«Open existing folder…»` (Home) is still a no-op** (D87) — a real, enabled, approved-copy button with a
+  stubbed handler. The specs say it opens `showDirectoryPicker` but never whether that **re-points the projects
+  root** (hiding projects) or **adopts a folder from outside it**. Needs an owner answer or a spec amendment
+  (handoff §9.2 row 18).
+- **A failed project create is silent** — `App.tsx`'s `handleNewProject` swallows and stays on Home, because
+  this slice has no error-surface copy; slice **1.10**'s toast/autosave layer owns it (`createProject()` itself
+  never swallows: no root, name exhaustion and write failure all throw). The `New project` button also has **no
+  busy/disabled visual** while a create is in flight (D87).
 
 ## How to resume
 

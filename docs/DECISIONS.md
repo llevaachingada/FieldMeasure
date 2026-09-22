@@ -1957,4 +1957,63 @@ two projects); asserted in jsdom. The button stays enabled — no spinner, no ne
 3. The **`New project` button has no busy/disabled visual** while a create is in flight (the ref only blocks
    the second create). Any spinner or disabled state is copy/design work for 1.10, not invented here.
 
+### D88 — The **Project screen** (`/p/:projectId`, the sheets grid) was never built, and no slice owns it
+
+Found by the owner **using the app** on 2026-09-22, asking whether «New project» should open the camera. It
+should open the **Project screen** — which does not exist.
+
+**The specs are unambiguous.** UI §4.1's screen table lists **Project `/p/:projectId` — "Sheets grid for one
+project. Add sheet, reorder, export, project info."** §11.9 specifies it in full: top bar (`‹ Projects` ·
+inline-editable project name · `«N sheets»` · `Export`), a 4-column grid at 1440 (card 320 × 300), each card a
+320 × 240 **composite thumbnail** + index badge + inset badge + name/meta line. Its **grid's first two tiles
+are always the add affordances** — `📷 «Take photo»` (primary, `--hi` tinted) and `⬆ «Import»` — with the
+rationale *"In a field app the 'add' affordance must be the easiest thing on the screen."* Its **empty state
+is defined** as *"the two add tiles plus a centered line «No sheets yet — take a photo to start.»"*. And
+§11.8:667 fixes capture's return path: *"If this capture was launched from Home/Project, `Use photo` returns
+to the sheets grid with a toast «Added «Sheet 05»» + ↶ «Undo»."*
+
+**The build spec already knew.** §20.5, "Screens that had no owner":
+
+> **(a) Project screen (`/p/:projectId`) — the sheets grid.** UI §4.1 and §11.9 define it … but **no slice
+> built it**. It owns: the sheet grid, `Add sheet` (→ capture/import), sheet reorder (drag, writes
+> `sortIndex`), sheet rename, delete-to-`.trash`, `Export…` entry, and project info. It is now part of
+> **slice 1.2** (it is the screen that makes storage visible) with reorder and trash arriving in their own
+> slices.
+
+**What actually happened.** Slice 1.2 built `src/ui/ProjectList.tsx` — *Home's* project-card list — and the
+plan recorded that work as "create/open project". The Project screen appears in **no slice's file list** in
+`docs/implementation-plan.md`, and the miss was recorded **nowhere**: it is absent from DECISIONS, from
+`docs/handoff-session-13.md` §9, and from CONTINUITY's watch items. This is the same class as **D87** — *work
+that no slice owned* — and it is invisible to every gate, because nothing asserts it. The plan is the
+authority on order and done-ness; the build spec's reassignment of this screen to 1.2 was simply never carried
+into it.
+
+**The observable consequence (what the owner hit).** `Home → «New project»` lands in the **Editor**, because
+the Editor is the only project surface that exists. The editor's empty state reuses the *Project screen's*
+empty copy — `STRINGS.project.noSheetsEmpty` («No sheets yet — take a photo to start.»,
+`src/ui/SheetEditor.tsx:2031`) — but pairs it with only an **`Import a photo`** button: the promise and the
+affordance disagree, and nothing on the screen is a camera. The only route to the camera is the editor top bar
+menu's **`Add sheet`** → capture (`src/App.tsx:124`) — itself a stand-in, since per spec *adding a sheet is the
+Project screen's job* (capture is entered from Home/Project, or from the Editor only for the inset flow).
+
+Missing with it: **any UI that lists a project's sheets** (there is no sheet-list/grid/switcher component in
+`src/ui/` at all), hence no sheet reorder, no sheet rename/duplicate/delete-to-`.trash`, no per-sheet entry, no
+selection + batch export, and none of the spec'd `thumb.jpg` composite thumbnails.
+
+**Disposition — the owner must choose (asked; the answer is not yet recorded):**
+- **A — build the Project screen (spec-faithful).** A new slice: route `/p/:projectId`; the sheets grid; the two
+  add tiles first; the spec'd empty state; the top bar (`‹ Projects` / name / count / `Export`). Navigation
+  becomes Home → Project → Editor; «New project» lands there and capture returns there. Watch item: the spec's
+  card thumbnails are **photo + markup composites cached as `thumb.jpg`** — a first cut may use the existing
+  photo thumbnail and owe the composite, or pull the render pipeline into that route (bundle cost). Sheet
+  reorder, the selection bar and the card menus can land in their own slices.
+- **B — minimal contradiction-killer.** «New project» opens the **camera** immediately, and the editor's empty
+  state gains the spec'd pair («Take photo» + «Import»). Cheap, but a deliberate deviation: §11.8's return
+  target (*the sheets grid*) still does not exist.
+- **C — smallest.** Leave the landing alone; give the editor's empty state the «Take photo» + «Import» pair so
+  the copy and the affordance agree.
+
+**Not a scope question.** v1 scope (§2.4) includes the Project screen; it is **unbuilt, not out of scope**.
+Nothing is implemented under this entry — it records the gap, the evidence, and the pending choice.
+
 ---
