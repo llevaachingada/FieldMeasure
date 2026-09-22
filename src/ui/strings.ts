@@ -252,6 +252,16 @@ export const STRINGS = {
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings.md gap #20 quotes the
     // spec phrase "Project folder unavailable" but never keys it).
     projectUnavailable: 'Project folder unavailable',
+
+    // ── APPROVED inventory (docs/appendix-strings.md `## errors`) ────────────
+    folderPermissionExpired: 'Folder permission expired', // appendix-strings.md:354
+    reAuthorize: 'Re-authorize', // appendix-strings.md:355
+    fileOpenAnotherApp: 'File is open in another app', // appendix-strings.md:356
+    notEnoughDiskSpace: 'Not enough disk space', // appendix-strings.md:358
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // `ExportFileResult.error.kind` has an `unknown` arm; UI §12:728 keys only the three named causes.
+    unknown: "Couldn't export this file",
   },
 
   editor: {
@@ -376,6 +386,71 @@ export const STRINGS = {
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §17)
   export: {
     back: 'Back',
+
+    // ── APPROVED inventory (docs/appendix-strings.md `## export`) ──────────────
+    button: 'Export', // appendix-strings.md:220
+    scopeThisSheet: 'This sheet', // appendix-strings.md:221
+    scopeSelected: 'Selected sheets ({count})', // appendix-strings.md:222
+    scopeAll: 'All sheets ({count})', // appendix-strings.md:223
+    pageSizeFit: 'Fit to photo', // appendix-strings.md:224
+    quality3xWarning: 'Slow on this device — expect a wait', // appendix-strings.md:225
+    includeSheetNames: 'Include sheet names in pages', // appendix-strings.md:228
+    pngSize: 'Size: 1× / 2× / 3×', // appendix-strings.md:229
+    zipSingle: 'Zip into a single .zip', // appendix-strings.md:230
+    conflictAdd: 'Add (1), (2)…', // appendix-strings.md:231
+    conflictOverwrite: 'Overwrite', // appendix-strings.md:232
+    conflictSkip: 'Skip', // appendix-strings.md:233
+    chooseFolder: 'Choose folder…', // appendix-strings.md:234
+    rememberDestination: 'Remember this destination for this project', // appendix-strings.md:235
+    destination: 'Destination', // appendix-strings.md:236
+    writeSummary: 'Will write {fileCount} files ({size}) to:  {path}', // appendix-strings.md:237
+    resultSummary: 'Exported {fileCount} files ({size})', // appendix-strings.md:238
+    copyPath: 'Copy path', // appendix-strings.md:239
+    revealFolder: 'Reveal folder', // appendix-strings.md:240
+    exportAgain: 'Export again', // appendix-strings.md:242
+    dropboxHint: "Drag this folder into Dropbox when you're back on Wi-Fi.", // appendix-strings.md:243
+    selectAtLeastOne: 'Select at least one sheet', // appendix-strings.md:244
+    damagedPhotoSummary: '{sheetCount} sheets exported without their photo', // appendix-strings.md:245
+    tooLargeFor3x: 'This sheet is too large to export at 3× on this device', // appendix-strings.md:246
+
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §17):
+    // the wizard chrome — step rail, footer, format cards, select all/none, status glyphs.
+    stepScope: 'Scope',
+    stepFormat: 'Format',
+    stepDestination: 'Destination',
+    stepRail: '1 Scope · 2 Format · 3 Destination',
+    next: 'Next',
+    formatPdf: 'PDF',
+    formatPng: 'PNG',
+    selectAll: 'Select all',
+    selectNone: 'Select none',
+    statusDone: '✓',
+    statusWorking: '…',
+    statusFailed: '✕',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // the PDF-side twin of the approved `export.pngSize` control; UI §12:716 writes it as `Quality: 1× / 2× / 3×`.
+    quality: 'Quality: 1× / 2× / 3×',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // the 1×/2×/3× button labels: a numeral format, like the approved `editor.zoomPercent`.
+    multiplierOption: '{multiplier}×',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // the polite progress announcement; UI §12:726 describes a progress bar but keys no string.
+    progress: '{done} of {total}',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // the conflict group needs an accessible name; this is the appendix’s own "Where it appears" phrase for `export.conflictAdd`.
+    conflictHeading: 'Filename conflict policy',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // UI §12:728 says the disk-full row shows "the exact shortfall" but keys no string.
+    diskShortfall: '{shortfall} more needed',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
+    // implementation plan §1.9 step 3b says the 250 MB split must be stated in the result view; no string is keyed.
+    splitParts: 'Split into {parts} parts',
   },
 
   erase: {

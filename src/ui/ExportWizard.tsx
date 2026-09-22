@@ -38,7 +38,7 @@
  *   `data-` attribute dressed in `exportWizard.css` (the e2e suite asserts `[style]` === 0,
  *   and `tests/exportWizard.test.tsx` asserts it again at the unit level).
  *
- * COPY: staged in `./exportCopy` (`EXPORT_COPY`) for this wave only — the orchestrator
+ * COPY: folded into `src/ui/strings.ts` at integration; `C` is the local view of
  *   folds it into `strings.ts` and deletes it. Rows that already exist in `strings.ts`
  *   (`errors.retry`, `editor.cancel`, `editor.done`) are imported from there, not restaged.
  */
@@ -46,9 +46,15 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type JSX } from 'react';
 import { X } from 'lucide-react';
 
-import { EXPORT_COPY as C } from './exportCopy';
 import { STRINGS, t } from './strings';
 import './exportWizard.css';
+
+/**
+ * Local view of this screen's copy. Every row lives in `src/ui/strings.ts` (the single
+ * string table); this alias only spares the component a `STRINGS.export.` prefix on every
+ * label, and folds the per-file error rows in under `C.errors` where the wizard reads them.
+ */
+const C = { ...STRINGS.export, errors: STRINGS.errors };
 
 // ---------------------------------------------------------------------------
 // Pinned interface — do not rename (lane brief, verbatim)
