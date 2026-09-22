@@ -3516,3 +3516,57 @@ unchanged. New pure tests: `tests/geometry.test.ts` (`elbowPoints`, 6 cases with
 `tests/schema.test.ts` (D133 round-trip + a rejected negative radius), `tests/styleByTool.test.ts` /
 `tests/typeToolMap.test.ts` (the extended/deliberately-changed applicability table), `tests/stylePanel.test.tsx`
 (the new INSET section + the chisel-width relabel, including the re-selection case).
+
+### D134 — §4.2: the mini-toolbar grows from 3 buttons to 9, gets a computed anchor, and one owed simplification
+
+`docs/handoff-ui-pass-for-claude.md` §4.2/§8 names the mini-toolbar as priority #2: "ship the full pill" and
+"use `element.animate()` for the anchor" (the CSP forbids inline `style=""`, so a computed position cannot be
+a plain `style={{left,top}}`).
+
+**Shipped, all reusing existing primitives (no new subsystem):** Duplicate (`translateGeometry`, already
+exported from `scene.ts`, offsets a deep clone by 24 image px; a recursive `cloneWithFreshIds` gives every
+child a fresh id too — `keyForAnnotationId` resolves a bare child id by linear scan, so two insets sharing one
+would silently collide), Bring to front / Send to back (the EXISTING `moveInBandBefore(key, null)` /
+`moveInBandToBack(key)` z-order primitives, applied per selected key in zIndex order so a multi-selection keeps
+its own relative order), Copy style / Paste style (a one-slot, session-only clipboard; paste runs the existing
+`scene.styleCommand`). Lock/Delete/Rotate are unchanged.
+
+**The anchor fix shipped too**, using `element.animate()` on the pill (`SheetEditor.tsx`'s new
+`useLayoutEffect`, `EditorCanvas.imageToScreen` for the image→screen conversion, `SelectTool.selectionBounds`
+for the selection's box) with a new `.placement-hud.placement-hud--anchored` CSS override (chained-class
+selector, so it always wins over the shared `.placement-hud`'s static bottom-centre slot regardless of source
+order) and a `.placement-hud--wrap` modifier so the now-9-button pill wraps to a rounded rect on a narrow
+viewport instead of overflowing. 16 px above the selection; flips below under 160 px headroom — both numbers
+verbatim from the brief.
+
+**A real test-infrastructure trap, found and fixed, not routed around:** the first attempt at a pixel-exact
+position test failed with the toolbar's `getBoundingClientRect()` off by hundreds of px. Root cause: `styles.css`
+is imported ONLY from `main.tsx`, so `tests/layersWire.browser.test.ts` (which mounts `SheetEditor` in
+isolation) never loaded it — `.placement-hud`'s `position: absolute` itself was never applying, so the
+mini-toolbar (like every other HUD in that file's tests) had been rendering `position: static` all along,
+invisible to every EXISTING test because none of them asserted a screen position. Fixed the same way
+`editorChromeFit.browser.test.ts`/`editorA11y.browser.test.ts` already do it: `import '../src/styles.css'` at
+the top of the file.
+
+**One deliberate simplification, recorded rather than hidden:** the anchor repositions on every selection
+change and re-pin, but does NOT track a live pan/zoom while the toolbar stays open (no stage
+`dragmove`/`wheel` listener re-running the effect). Panning with the toolbar pinned can leave it trailing the
+selection until the next reposition trigger; every button still acts on the real selection regardless of
+where the pill is drawn, so this is a polish gap, not a correctness one. A true per-frame anchor is real,
+additional scope. Also: an isolated `SheetEditor`-only test mount cannot reproduce the full app's
+`.editor{display:flex}` → `.editor-stage{flex:1}` layout, so the shipped automated test asserts the anchor
+TRACKS the selection (two different selection positions animate to two different, non-identity transforms)
+rather than exact pixels; the exact pixels were checked by hand against the running app's own layout.
+
+**Explicitly deferred, each for a reason (not silently dropped):** Edit points (`DimensionTool.adjustEndpoints`
+is scoped entirely to that tool's OWN pending-placement state, `this.pendingKey` — there is no existing
+mechanism for the Select tool to hand off to a refine state for an ARBITRARY already-committed object; a real
+tool-handoff feature, not a button wire-up). Edit text (needs the SAME missing `onGeometryChange` capability
+`StylePanel.tsx` lacks, per D133 — re-editing a text note's content is a geometry write). Replace photo / Focus
+for insets (already fully functional today as their OWN HUD, `showInsetActions` in `SheetEditor.tsx` — visually
+unifying them into the Select mini-toolbar's pill is a cosmetic consolidation for the "make it slick" pass
+(§4.5), not a functional gap).
+
+**Machine gates:** `tsc` 0 · `vitest` **74 files / 1236 tests** (node + jsdom, unchanged from D133) + **31
+files / 228 tests** (browser, +1 test in `tests/layersWire.browser.test.ts`) · `build` 0 (28 precache,
+1635.29 KiB) · `playwright` 5 passed / 5 skipped, unchanged.

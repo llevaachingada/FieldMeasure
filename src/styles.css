@@ -1108,6 +1108,32 @@ button.crumb:hover {
   z-index: 6;
 }
 
+/* D133 (§4.2): the select mini-toolbar grew from 3 buttons to 9 (Duplicate, 3 rotate
+   stops, Lock, Bring to front, Send to back, Copy/Paste style, Delete) — too wide for a
+   999px pill on a portrait/narrow viewport (960px, the clickthru's portrait profile) to
+   stay one row without overflowing the screen edge. Wraps to a rounded RECT (a pill radius
+   on a multi-row block looks broken) instead, capped so it never exceeds the viewport. */
+.placement-hud--wrap {
+  flex-wrap: wrap;
+  border-radius: 20px;
+  max-width: calc(100vw - 32px);
+  justify-content: center;
+}
+
+/* D134 (§4.2 anchor): clears the shared `.placement-hud`'s static bottom-centre position
+   so the select mini-toolbar's `element.animate()`-applied `transform` (SheetEditor.tsx)
+   is the only thing placing it — `left/top: 0` is the WAAPI-safe origin every other
+   computed-position element in this codebase starts from (the drag chip in
+   `projectScreen.css`). Every other `.placement-hud` (dimension refine, polygon, inset
+   actions) is unaffected — this is additive, scoped by the extra class. */
+.placement-hud.placement-hud--anchored {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: auto;
+  transform: none;
+}
+
 .placement-hud-button {
   min-height: 48px;
   min-width: 48px;

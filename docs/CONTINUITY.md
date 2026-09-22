@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 24, in progress)
+**Last updated:** 2026-09-22 (session 24, time-boxed close at the owner's request — token budget)
 
 **What this project has now that it did not before: a clickthru harness.** One command drives the *built*
 app end to end with real touch and pen input on the Surface geometry and screenshots every step, so an agent
@@ -11,19 +11,21 @@ can *look* instead of trusting a green gate. `npm.cmd run clickthru` | `playwrig
 `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc `docs/clickthru-harness.md`;
 a `clickthru` skill; an OMO orchestrator rule. It is **never a gate** and **never promotes a `[Surface]` row**.
 
-**Session 24, so far:** the owner's `docs/handoff-ui-pass-for-claude.md` (the UI/GUI pass — make every rail/
-panel/HUD/menu control real, §0–§8) plus a direct watermark request. **Shipped: the VANGARDE watermark**
-(**D132**) — `Settings › Display › Watermark` (default ON), a light mark on the app's always-dark chrome, the
-full vector lockup composited onto exported PDFs/PNGs. **Shipped: §4.1** (**D133**) — the handoff's own
-priority #1, scoped: three new `AnnotationStyle` keys for the inset (border/corner-radius/shadow), the arrow
-elbow renderer (the `Geometry` field already existed; the renderer didn't), the highlighter's "Chisel width"
-label — with five items explicitly deferred (each with its own reason in D133, not silently dropped). §4.2
-(mini-toolbar) and §4.3 (overflow menus) are next, per the handoff's own §8 order.
+**Session 24:** the owner's `docs/handoff-ui-pass-for-claude.md` (the UI/GUI pass — make every rail/panel/HUD/
+menu control real, §0–§8) plus a direct watermark request. **Shipped, in order: the VANGARDE watermark**
+(**D132**), **§4.1** (**D133** — the style data channel: inset border/corner-radius/shadow, the arrow elbow
+renderer, the highlighter's "Chisel width" label; five items explicitly deferred with reasons), **§4.2**
+(**D134** — the mini-toolbar: 3 → 9 buttons plus the owed `element.animate()` anchor fix; three items deferred
+with reasons). **§4.3 (the two overflow menus) was NOT reached** — the session was closed at the owner's
+explicit request (running low on token budget) before starting it. **Owed before the next session claims
+anything works end to end: re-run `npm run clickthru`** (last run was on the watermark slice, before §4.1/§4.2)
+— see `docs/clickthru-harness.md`; a green run here was never re-verified against the mini-toolbar's new
+buttons or the anchor fix.
 
-**Gates (session 24, latest slice — §4.1):** `tsc` 0 | **74 files / 1236 tests** (node + jsdom) + **31 files /
-223 tests** (browser) | `build` 0 (28 precache, 1632.03 KiB) | `playwright` 5 passed / 5 skipped | **`clickthru`
-20 PASS / 0 FAIL / 0 UNREACHED** (run twice, on the watermark slice; owed a re-run after §4.1 — no clickthru
-step currently exercises an inset).
+**Gates (session 24, final slice — §4.2):** `tsc` 0 | **74 files / 1236 tests** (node + jsdom) + **31 files /
+228 tests** (browser) | `build` 0 (28 precache, 1635.29 KiB) | `playwright` 5 passed / 5 skipped | `clickthru`
+**not re-run since the watermark slice** (20/20 there) — run it before trusting the mini-toolbar/inset changes
+end to end.
 
 **The beta-readiness wave (this session), all from the owner's two Surface screenshots:** the 14 tool glyphs
 are real (they were numbered placeholders), the editor chrome fits ~1920x1120, the sheets grid scrolls with its
@@ -1097,6 +1099,25 @@ scaled back to what a clipped sibling can honestly draw — a radial vignette, n
 **Verification:** `tsc` 0 · `vitest` **74 files / 1236 tests** (node + jsdom, +11 over the watermark slice) +
 **31 files / 223 tests** (browser, +2 files: `renderShape.browser.test.ts`, `renderInset.browser.test.ts`) ·
 `build` 0 (28 precache, 1632.03 KiB) · `playwright` 5 passed / 5 skipped, unchanged.
+
+**Shipped (D134): §4.2, the mini-toolbar.** 3 → 9 buttons (Duplicate, Bring to front, Send to back, Copy
+style, Paste style added — all reusing existing scene primitives, no new subsystem) plus the owed anchor fix:
+`element.animate()` now positions the pill 16 px above the selection (flipping below under 160 px headroom),
+replacing the old fixed bottom-centre slot. Found and fixed a real test-infrastructure trap along the way:
+`tests/layersWire.browser.test.ts` mounts `SheetEditor` in isolation and had never imported `styles.css` (it
+loads only from `main.tsx`), so `.placement-hud`'s `position: absolute` was never applying in that suite —
+invisible until a test actually asserted a screen position. Deferred, each with its own reason in D134: Edit
+points (needs a Select→Dimension-refine tool handoff that doesn't exist), Edit text (blocked on the same
+missing `onGeometryChange` capability as D133's deferred items), and unifying Replace photo/Focus into the
+same pill (already fully functional as their own HUD — a cosmetic consolidation, not a functional gap).
+
+**Session time-boxed here at the owner's request** (token budget). §4.3 (the two overflow menus) was not
+reached — next action for a future session, per the handoff's own §8 order.
+
+**Verification:** `tsc` 0 · `vitest` **74 files / 1236 tests** (node + jsdom, unchanged) + **31 files / 228
+tests** (browser, +1 over the §4.1 slice) · `build` 0 (28 precache, 1635.29 KiB) · `playwright` 5 passed / 5
+skipped, unchanged. **Not re-run this slice: `npm run clickthru`** — owed before the next session claims
+anything works end to end (AGENTS: never claim it without running it).
 
 ## Done
 

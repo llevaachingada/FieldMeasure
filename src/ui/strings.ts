@@ -262,6 +262,11 @@ export const STRINGS = {
     actionAddText: 'Add text',
     actionAddAngle: 'Add angle',
     actionSplitStroke: 'Split stroke',
+    // D133 (§4.2): the mini-toolbar's «Copy style» — the brief's own words ("a toast that
+    // names what was copied"). `select.duplicate`/`bringFront`/`sendBack` double as their
+    // OWN undo-toast text (every `history.exec({label})` feeds `toasts.undoAction`
+    // directly — no separate `actionDuplicate`/`actionReorder` needed).
+    styleCopied: 'Style copied',
   },
 
   // APPROVED inventory (appendix-strings.md `## project`)
@@ -629,6 +634,10 @@ export const STRINGS = {
     editPoints: 'Edit points',
     focus: 'Focus',
     editText: 'Edit text',
+    // D133 (§4.2): the mini-toolbar's copy/paste-style pair.
+    copyStyle: 'Copy style',
+    pasteStyle: 'Paste style',
+    noStyleCopied: 'Copy a style first',
   },
 
   touch: {

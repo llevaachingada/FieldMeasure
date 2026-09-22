@@ -20,7 +20,7 @@
  * mountable with the frozen `SheetEditorProps` surface, and owns the canvas, the zoom
  * pill, the status panels, the placement HUD and the keypad mount point.
  */
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Maximize, Minus, Plus } from 'lucide-react';
 import type { ProjectFile } from '@/domain/schema';
 import type { Px } from '@/domain/types';
@@ -111,6 +111,18 @@ type EditorTool = 'select' | 'pan' | 'place';
 /** Double-tap window for fit↔100%: 320 ms, 24 px (UI §5.4 "double tap"). */
 const DOUBLE_TAP_MS = 320;
 const DOUBLE_TAP_SLOP = 24;
+
+/** D134 (§4.2 anchor): the mini-toolbar's touch-first sizing/placement numbers, verbatim
+ *  from the brief ("64 px tall … anchored 16 px above the selection, flipping below when
+ *  headroom < 160 px"). */
+const MINI_TOOLBAR_HEIGHT_PX = 64;
+const MINI_TOOLBAR_GAP_PX = 16;
+const MINI_TOOLBAR_FLIP_HEADROOM_PX = 160;
+
+/** D133 (§4.2): nudge a Duplicate off its source so the two are visibly distinct — the
+ *  same order of magnitude as the width ladder's largest stroke, small enough to stay
+ *  near the original at any reasonable zoom. */
+const DUPLICATE_OFFSET_PX = 24;
 
 /**
  * The coalescing key for a style patch (§8.3: "style edits coalesce within a **600 ms**
@@ -326,6 +338,10 @@ export default function SheetEditor({
   const [eraseMode, setEraseMode] = useState<EraseMode>('object');
   /** Select tool: the mini-toolbar was pinned by a 600 ms long-press. */
   const [pinnedToolbar, setPinnedToolbar] = useState(false);
+  const miniToolbarRef = useRef<HTMLDivElement | null>(null);
+  /** D133 (§4.2): the mini-toolbar's «Copy style»/«Paste style» — one slot, session-only
+   *  (no persistence seam; a clipboard is not document state). `null` disables Paste. */
+  const [styleClipboard, setStyleClipboard] = useState<AnnotationStyle | null>(null);
   /** Bumped when the scene changes while the Layers flyout is open, to re-derive rows. */
   const [, setSceneTick] = useState(0);
   // ---- slice 1.7 state ----
@@ -2175,7 +2191,157 @@ export default function SheetEditor({
     });
   };
 
+  /** D133 (§4.2): a fresh id for the clone AND, recursively, every child — an inset's
+   *  children are addressed `${insetId}/${childId}` (scene.ts's `keyForAnnotationId`
+   *  resolves a bare child id by linear scan), so two insets sharing a child id would
+   *  make that lookup silently resolve to whichever inset comes first. */
+  const cloneWithFreshIds = (ann: Annotation): Annotation => ({
+    ...ann,
+    id: crypto.randomUUID(),
+    children: ann.children?.map(cloneWithFreshIds),
+  });
+
+  const toolbarDuplicate = (): void => {
+    const scene = sceneRef.current;
+    const history = historyRef.current;
+    if (!scene || !history) return;
+    const keys = useEditorStore.getState().selection;
+    const sources = keys.map((k) => scene.get(k)).filter((a): a is Annotation => Boolean(a));
+    if (sources.length === 0) return;
+    const clones = sources.map((a) => {
+      const clone = cloneWithFreshIds(a);
+      clone.geometry = translateGeometry(clone.geometry, DUPLICATE_OFFSET_PX, DUPLICATE_OFFSET_PX);
+      clone.locked = false; // a duplicate is a new object, never inherits the source's lock
+      return clone;
+    });
+    history.exec({
+      label: STRINGS.select.duplicate,
+      do: () => {
+        clones.forEach((c) => scene.addAnnotation(c));
+        useEditorStore.getState().setSelection(clones.map((c) => c.id));
+      },
+      undo: () => {
+        clones.forEach((c) => scene.removeObject(c.id));
+        useEditorStore.getState().setSelection(sources.map((a) => a.id));
+      },
+    });
+  };
+
+  /**
+   * §4.2 bring-to-front / send-to-back, for a (possibly multi-object) selection.
+   * `moveInBandBefore(key, null)` / `moveInBandToBack(key)` each move ONE key immediately;
+   * applying them in the right order keeps the selection's own RELATIVE order intact —
+   * ascending current zIndex for "front" (the item already most-front is processed last,
+   * so it ends up truly frontmost), descending for "back" (mirrored). Child keys
+   * (`insetId/childId`) are excluded: `moveInBandBefore`/`moveInBandToBack` refuse them
+   * (a child's order lives inside its inset, not a sheet z-band), and the exclusion
+   * itself is not silent — a toolbar action must not surface no error for a selection it
+   * partially ignored, so it is recorded as owed in D133 rather than assumed harmless.
+   */
+  const reorderSelection = (direction: 'front' | 'back'): void => {
+    const scene = sceneRef.current;
+    const history = historyRef.current;
+    if (!scene || !history) return;
+    const keys = useEditorStore.getState().selection.filter((k) => !k.includes('/'));
+    const withZ = keys
+      .map((k) => ({ key: k, ann: scene.get(k) }))
+      .filter((e): e is { key: string; ann: Annotation } => Boolean(e.ann))
+      .sort((a, b) => a.ann.zIndex - b.ann.zIndex);
+    if (withZ.length === 0) return;
+    const ordered = direction === 'back' ? [...withZ].reverse() : withZ;
+
+    const before = scene.serialize();
+    for (const { key } of ordered) {
+      if (direction === 'front') scene.moveInBandBefore(key, null);
+      else scene.moveInBandToBack(key);
+    }
+    const after = scene.serialize();
+    if (JSON.stringify(after) === JSON.stringify(before)) return; // already at the target edge
+    history.exec({
+      label: direction === 'front' ? STRINGS.select.bringFront : STRINGS.select.sendBack,
+      do: () => scene.load(after),
+      undo: () => scene.load(before),
+    });
+    setSceneTick((n) => n + 1);
+  };
+
+  /** §4.2: the FIRST selected object's style — matches "copy style" reading as one
+   *  definite thing to copy even from a heterogeneous selection, the same reading the
+   *  §7.4 mixed-selection rules already use elsewhere in this panel/toolbar pairing. */
+  const toolbarCopyStyle = (): void => {
+    const scene = sceneRef.current;
+    const keys = useEditorStore.getState().selection;
+    const first = keys.map((k) => scene?.get(k)).find((a): a is Annotation => Boolean(a));
+    if (!first) return;
+    setStyleClipboard(first.style);
+    emitToast(STRINGS.toasts.styleCopied);
+  };
+
+  const toolbarPasteStyle = (): void => {
+    const scene = sceneRef.current;
+    const history = historyRef.current;
+    if (!scene || !history || !styleClipboard) return;
+    const keys = useEditorStore.getState().selection;
+    if (keys.length === 0) return;
+    history.exec(scene.styleCommand(keys, styleClipboard, STRINGS.style.panelLabel));
+  };
+
   const showMiniToolbar = pinnedToolbar && selection.length > 0 && !keypadOpen && activeToolId === 'select';
+
+  /**
+   * §4.2's owed anchor fix. `.placement-hud` cannot carry a computed position via inline
+   * `style=""` (the CSP forbids it) — `element.animate()` is the sanctioned CSP-safe
+   * pattern this codebase already uses for a computed position (`ProjectScreen.tsx`'s
+   * drag chip / portalled card menu), so it is used here too. 16 px above the selection's
+   * screen-space top edge; flips BELOW when the headroom above is under 160 px (the
+   * touch-first spec's own number).
+   *
+   * SIMPLIFICATION, recorded in D134: this repositions on every selection change and
+   * whenever the toolbar is (re)pinned, but does NOT track a live pan/zoom while it
+   * stays open — panning with the toolbar pinned can leave it trailing the selection
+   * until the next reposition trigger. A continuous per-frame anchor (a stage
+   * `dragmove`/wheel listener re-running this effect) is real, additional scope this
+   * pass did not take on; the toolbar is still fully FUNCTIONAL either way — every
+   * button acts on the real selection regardless of where the pill is drawn.
+   */
+  useLayoutEffect(() => {
+    if (!showMiniToolbar) return;
+    const el = miniToolbarRef.current;
+    const canvas = canvasRef.current;
+    const stageEl = hostRef.current;
+    const bounds = selectRef.current?.selectionBounds(selection) ?? null;
+    if (!el || !canvas || !stageEl || !bounds || typeof el.animate !== 'function') return;
+
+    const topLeft = canvas.imageToScreen({ x: bounds.x, y: bounds.y });
+    const bottomRight = canvas.imageToScreen({
+      x: bounds.x + bounds.width,
+      y: bounds.y + bounds.height,
+    });
+    const centerX = (topLeft.x + bottomRight.x) / 2;
+    const top = Math.min(topLeft.y, bottomRight.y);
+    const bottom = Math.max(topLeft.y, bottomRight.y);
+
+    const stageRect = stageEl.getBoundingClientRect();
+    // `offsetWidth` is 0 before the pill's first paint (a fresh pin); fall back to a
+    // conservative estimate rather than mis-centring at x=0 for that one frame.
+    const toolbarWidth = el.offsetWidth || 360;
+    const halfWidth = toolbarWidth / 2;
+    const margin = 8;
+    const clampedX = Math.min(
+      Math.max(centerX, halfWidth + margin),
+      Math.max(halfWidth + margin, stageRect.width - halfWidth - margin),
+    );
+
+    const flipBelow = top < MINI_TOOLBAR_FLIP_HEADROOM_PX;
+    const y = flipBelow
+      ? bottom + MINI_TOOLBAR_GAP_PX
+      : top - MINI_TOOLBAR_GAP_PX - MINI_TOOLBAR_HEIGHT_PX;
+
+    el.animate(
+      [{ transform: `translate(${(clampedX - halfWidth).toFixed(1)}px, ${Math.max(margin, y).toFixed(1)}px)` }],
+      { duration: 0, fill: 'forwards' },
+    );
+  }, [showMiniToolbar, selection]);
 
   // ---- slice 1.7 derived render state ----
   const focusedInsetAnn = focusInsetId ? sceneRef.current?.get(focusInsetId) : undefined;
@@ -2426,17 +2592,31 @@ export default function SheetEditor({
           </div>
         ) : null}
 
-        {/* Select mini-toolbar (touch model §3.3; plan step 7). Pinned by the 600 ms
-            long-press; shown while a selection exists. Reuses the HUD slot — the CSP
-            forbids inline styles, so it cannot carry a computed anchor (reported owed). */}
+        {/* Select mini-toolbar (touch model §3.3; plan step 7; D133/D134 §4.2: the full
+            pill, computed-anchor position). Pinned by the 600 ms long-press; shown while
+            a selection exists. The position is applied by the `useLayoutEffect` above via
+            `element.animate()` — the CSP forbids inline `style=""`, so a computed anchor
+            cannot be a plain `style={{left,top}}`; `.placement-hud--anchored` clears the
+            shared class's static `left/bottom` so the animated `transform` is the only
+            thing placing it. */}
         {showMiniToolbar ? (
           <div
-            className="placement-hud"
+            ref={miniToolbarRef}
+            className="placement-hud placement-hud--wrap placement-hud--anchored"
             role="toolbar"
             aria-label={STRINGS.tool.select}
             data-testid="mini-toolbar"
             data-pinned={pinnedToolbar ? 'true' : 'false'}
           >
+            <button
+              type="button"
+              className="placement-hud-button"
+              data-testid="mini-toolbar-duplicate"
+              aria-label={STRINGS.select.duplicate}
+              onClick={toolbarDuplicate}
+            >
+              {STRINGS.select.duplicate}
+            </button>
             {ROTATE_STOPS.filter((deg) => deg !== 0).map((deg) => (
               <button
                 key={deg}
@@ -2456,6 +2636,46 @@ export default function SheetEditor({
               onClick={toolbarToggleLock}
             >
               {STRINGS.select.lock}
+            </button>
+            <button
+              type="button"
+              className="placement-hud-button"
+              data-testid="mini-toolbar-bring-front"
+              aria-label={STRINGS.select.bringFront}
+              onClick={() => reorderSelection('front')}
+            >
+              {STRINGS.select.bringFront}
+            </button>
+            <button
+              type="button"
+              className="placement-hud-button"
+              data-testid="mini-toolbar-send-back"
+              aria-label={STRINGS.select.sendBack}
+              onClick={() => reorderSelection('back')}
+            >
+              {STRINGS.select.sendBack}
+            </button>
+            <button
+              type="button"
+              className="placement-hud-button"
+              data-testid="mini-toolbar-copy-style"
+              aria-label={STRINGS.select.copyStyle}
+              onClick={toolbarCopyStyle}
+            >
+              {STRINGS.select.copyStyle}
+            </button>
+            <button
+              type="button"
+              className="placement-hud-button"
+              data-testid="mini-toolbar-paste-style"
+              aria-label={
+                styleClipboard ? STRINGS.select.pasteStyle : `${STRINGS.select.pasteStyle}. ${STRINGS.select.noStyleCopied}`
+              }
+              title={styleClipboard ? undefined : STRINGS.select.noStyleCopied}
+              disabled={!styleClipboard}
+              onClick={toolbarPasteStyle}
+            >
+              {STRINGS.select.pasteStyle}
             </button>
             <button
               type="button"

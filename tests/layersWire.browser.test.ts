@@ -29,6 +29,12 @@ import { useEditorStore, createInitialEditorState } from '../src/state/editorSto
 import { useAppStore, createInitialAppState } from '../src/state/appStore';
 import { STRINGS } from '../src/ui/strings';
 import { subscribeToast, resetToastBus, editorSession } from '../src/editor/session';
+// D134 (§4.2 anchor): only THIS suite's new position-assertion tests need real CSS layout
+// (`.placement-hud`'s `position: absolute`) — `styles.css` is otherwise loaded only from
+// `main.tsx`, so an isolated `SheetEditor` mount never gets it without this import (the
+// same import `editorChromeFit.browser.test.ts`/`editorA11y.browser.test.ts` already use
+// for the same reason).
+import '../src/styles.css';
 
 vi.mock('@/fs/projectStore', async (importOriginal) => ({
   // Spread the REAL module first (session 15, D90 follow-up): presets.ts resolves its
@@ -493,6 +499,172 @@ describe('A2 — marquee, handle drag, rotate, long-press pin', () => {
     const toolbar = await screen.findByTestId('mini-toolbar');
     expect(toolbar.dataset.pinned).toBe('true');
     expect(useEditorStore.getState().selection).toHaveLength(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // D133 (§4.2) — the mini-toolbar's new buttons: Duplicate, Bring to front /
+  // Send to back, Copy style / Paste style.
+  // -------------------------------------------------------------------------
+
+  /** Place a rect, switch to Select, long-press it (600 ms) to pin the toolbar.
+   *  Long-presses the LEFT EDGE, not the centre: an unfilled rect (the default style —
+   *  `fillColor: null`) only hits on its stroke outline, exactly like the pre-existing
+   *  "handle drag RESIZES" test's own select tap (`at.x, at.y + 40`) — the interior is
+   *  not part of its hit area. */
+  async function placeAndPin(at: { x: number; y: number }, host: HTMLDivElement, view: Parameters<typeof toSelect>[0], stage: Konva.Stage, offset = { x: 0, y: 0 }) {
+    const a = { x: at.x + offset.x, y: at.y + offset.y };
+    tap(host, a);
+    tap(host, { x: a.x + 100, y: a.y + 60 });
+    stage.getLayers()[MARKUP_LAYER].draw();
+    toSelect(view);
+    await sleep(10);
+    pointer('pointerdown', host, a.x, a.y + 30);
+    await sleep(650);
+    pointer('pointerup', host, a.x, a.y + 30);
+    await sleep(10);
+    return screen.findByTestId('mini-toolbar');
+  }
+
+  it('Duplicate adds an offset copy, selects it, and undo removes only the copy', async () => {
+    useEditorStore.getState().setActiveTool('rect');
+    const { view, host, stage, at } = await mountEditor('place');
+    const toolbar = await placeAndPin(at, host, view, stage);
+    const originalId = useEditorStore.getState().selection[0]!;
+    expect(stage.getLayers()[MARKUP_LAYER].find('Rect').length).toBe(1);
+
+    (toolbar.querySelector('[data-testid="mini-toolbar-duplicate"]') as HTMLButtonElement).click();
+    await sleep(10);
+
+    expect(stage.getLayers()[MARKUP_LAYER].find('Rect').length).toBe(2);
+    const selection = useEditorStore.getState().selection;
+    expect(selection).toHaveLength(1);
+    expect(selection[0]).not.toBe(originalId); // the COPY is selected, not the source
+
+    const rects = stage.getLayers()[MARKUP_LAYER].find<Konva.Rect>('Rect');
+    const xs = rects.map((r) => r.x()).sort((a, b) => a - b);
+    // 24 px apart (DUPLICATE_OFFSET_PX) on both axes.
+    expect(xs[1] - xs[0]).toBeCloseTo(24, 0);
+
+    const undone = editorSession()?.undo() ?? null;
+    expect(undone).not.toBeNull();
+    await sleep(10);
+    expect(stage.getLayers()[MARKUP_LAYER].find('Rect').length).toBe(1);
+    expect(useEditorStore.getState().selection).toEqual([originalId]);
+  });
+
+  it('Bring to front / Send to back reorder a two-object selection', async () => {
+    useEditorStore.getState().setActiveTool('rect');
+    const { view, host, stage, at } = await mountEditor('place');
+    // First rect (will end up BACK-most after placement order).
+    tap(host, at);
+    tap(host, { x: at.x + 100, y: at.y + 60 });
+    stage.getLayers()[MARKUP_LAYER].draw();
+    // Second rect, overlapping the first, placed AFTER it (so it starts in front).
+    useEditorStore.getState().setActiveTool('rect');
+    tap(host, { x: at.x + 20, y: at.y + 20 });
+    tap(host, { x: at.x + 120, y: at.y + 80 });
+    stage.getLayers()[MARKUP_LAYER].draw();
+
+    toSelect(view);
+    await sleep(10);
+    // Select the FIRST (currently back-most) rect via its non-overlapping corner.
+    pointer('pointerdown', host, at.x + 5, at.y + 5);
+    await sleep(650);
+    pointer('pointerup', host, at.x + 5, at.y + 5);
+    await sleep(10);
+    const toolbar = await screen.findByTestId('mini-toolbar');
+    const backId = useEditorStore.getState().selection[0]!;
+
+    (toolbar.querySelector('[data-testid="mini-toolbar-bring-front"]') as HTMLButtonElement).click();
+    await sleep(10);
+    // Read z-order the same honest way the render layer does: the Konva paint order.
+    let rectNodes = stage.getLayers()[MARKUP_LAYER].find<Konva.Group>('Group');
+    let ids = rectNodes.map((g) => g.getAttr('annotationId'));
+    expect(ids[ids.length - 1]).toBe(backId); // now painted LAST = on top
+
+    (toolbar.querySelector('[data-testid="mini-toolbar-send-back"]') as HTMLButtonElement).click();
+    await sleep(10);
+    rectNodes = stage.getLayers()[MARKUP_LAYER].find<Konva.Group>('Group');
+    ids = rectNodes.map((g) => g.getAttr('annotationId'));
+    expect(ids[0]).toBe(backId); // now painted FIRST = at the back again
+  });
+
+  it('Copy style then Paste style applies the copied object\'s style to the new selection', async () => {
+    useEditorStore.getState().setActiveTool('rect');
+    const { view, host, stage, at } = await mountEditor('place');
+    // Rect A, default style.
+    tap(host, at);
+    tap(host, { x: at.x + 80, y: at.y + 60 });
+    stage.getLayers()[MARKUP_LAYER].draw();
+    // Rect B, far away, also default style (nothing sets a distinct style in this
+    // harness — the assertion is that PASTE runs the real `scene.styleCommand` seam,
+    // proven by the style objects becoming REFERENCE-EQUAL, not by a colour diff).
+    useEditorStore.getState().setActiveTool('rect');
+    tap(host, { x: at.x + 300, y: at.y + 300 });
+    tap(host, { x: at.x + 380, y: at.y + 360 });
+    stage.getLayers()[MARKUP_LAYER].draw();
+
+    toSelect(view);
+    await sleep(10);
+    // Left-edge points, not the centre: an unfilled rect (default style) only hits on
+    // its stroke outline (see `placeAndPin`'s own note above).
+    pointer('pointerdown', host, at.x, at.y + 30);
+    await sleep(650);
+    pointer('pointerup', host, at.x, at.y + 30);
+    await sleep(10);
+    let toolbar = await screen.findByTestId('mini-toolbar');
+    (toolbar.querySelector('[data-testid="mini-toolbar-copy-style"]') as HTMLButtonElement).click();
+    await sleep(10);
+
+    // Paste is disabled until something is copied — proven on the SAME element, before
+    // the copy above would otherwise mask a bug that left it always enabled.
+    pointer('pointerdown', host, at.x + 300, at.y + 330);
+    await sleep(650);
+    pointer('pointerup', host, at.x + 300, at.y + 330);
+    await sleep(10);
+    toolbar = await screen.findByTestId('mini-toolbar');
+    const pasteButton = toolbar.querySelector('[data-testid="mini-toolbar-paste-style"]') as HTMLButtonElement;
+    expect(pasteButton.disabled).toBe(false); // a style WAS copied above
+    pasteButton.click();
+    await sleep(10);
+
+    const rects = stage.getLayers()[MARKUP_LAYER].find<Konva.Rect>('Rect');
+    // Both rects now render with the SAME stroke colour (the copied style applied).
+    expect(rects[0]!.stroke()).toBe(rects[1]!.stroke());
+  });
+
+  it('D134: computes a DIFFERENT anchor for a selection near the top vs. one lower down', async () => {
+    // A pixel-exact assertion needs the full app's flex layout (`.editor` -> `.editor-stage`
+    // flex:1) that this isolated `SheetEditor`-only mount does not reproduce, so this
+    // checks the property that IS mount-independent: the computed transform tracks the
+    // SELECTION, not a fixed slot — two different selection positions must animate to two
+    // DIFFERENT translations, and neither is the identity transform (`translate(0px, 0px)`,
+    // i.e. "the effect never ran"). Manual/clickthru verification covers the exact pixels.
+    useEditorStore.getState().setActiveTool('rect');
+    const low = await mountEditor('place');
+    const lowToolbar = await placeAndPin(low.at, low.host, low.view, low.stage);
+    const lowTransform = getComputedStyle(lowToolbar).transform;
+    expect(lowTransform).not.toBe('none');
+
+    cleanup();
+    useEditorStore.setState(createInitialEditorState());
+    useEditorStore.getState().setActiveTool('rect');
+    const high = await mountEditor('place');
+    const nearTop = { x: high.at.x, y: high.at.y - 150 };
+    const highToolbar = await placeAndPin(nearTop, high.host, high.view, high.stage);
+    const highTransform = getComputedStyle(highToolbar).transform;
+
+    expect(highTransform).not.toBe('none');
+    expect(highTransform).not.toBe(lowTransform);
+  });
+
+  it('Paste style is disabled (and does nothing) before anything has been copied', async () => {
+    useEditorStore.getState().setActiveTool('rect');
+    const { view, host, stage, at } = await mountEditor('place');
+    const toolbar = await placeAndPin(at, host, view, stage);
+    const pasteButton = toolbar.querySelector('[data-testid="mini-toolbar-paste-style"]') as HTMLButtonElement;
+    expect(pasteButton.disabled).toBe(true);
+    expect(pasteButton.getAttribute('aria-label')).toContain(STRINGS.select.noStyleCopied);
   });
 });
 

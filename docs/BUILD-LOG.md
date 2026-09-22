@@ -1742,3 +1742,20 @@ in `styleByTool.ts`'s own per-tool memory, not `AnnotationStyle` — erasing cre
 
 **Next:** §4.2 (the mini-toolbar to spec) and §4.3 (the two overflow menus), per the handoff's own §8
 priority order.
+
+## Slice §4.2 (UI/GUI handoff pass) — the mini-toolbar: 9 buttons + a computed anchor
+
+**Date:** 2026-09-22 · **Commit:** (this commit)
+
+**Built:** Duplicate, Bring to front, Send to back, Copy style, Paste style added to the Select mini-toolbar
+(3 → 9 buttons), all reusing existing scene primitives (`translateGeometry`, `moveInBandBefore`/
+`moveInBandToBack`, `styleCommand`). The anchor is now computed via `element.animate()`
+(`EditorCanvas.imageToScreen` + `SelectTool.selectionBounds`), 16 px above the selection, flipping below
+under 160 px headroom — the §4.2 owed fix, done in this slice. `.placement-hud--wrap`/`--anchored` CSS
+modifiers scope the change to the Select mini-toolbar only. Full reasoning, the deferred items (Edit points,
+Edit text, Replace photo/Focus unification) and a real test-infra trap found along the way in **D134**.
+
+**Machine gates:** `tsc` 0 · `vitest` 74/1236 (node+jsdom) + 31/228 (browser) · `build` 0 (28 precache,
+1635.29 KiB) · `playwright` 5/5 skipped, unchanged.
+
+**Next:** §4.3 (the two overflow menus) — not reached this session; time-boxed at the owner's request.
