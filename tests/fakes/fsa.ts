@@ -425,7 +425,13 @@ export function validProjectFile(overrides?: {
     sheets: Array.from({ length: sheetCount }, (_, i) => ({
       id: `sheet-${i + 1}`,
       title: `Sheet ${String(i + 1).padStart(2, '0')}`,
-      sortIndex: i,
+      // §20.6:2584 — sheet indices are integers with gaps of 10, `10 × (position + 1)`.
+      // This fixture used `i` (0-based, gap 1) until session 22, which contradicted the
+      // spec and produced a false expectation in `cameraFlow.test.tsx` (an appended sheet
+      // appeared to sort *before* every existing sheet once a reorder renumbered them).
+      // A fixture that disagrees with the convention under test is a wrong-measurement
+      // factory: `nextSortIndex` reads `max(live) + 10`.
+      sortIndex: (i + 1) * 10,
       imageWidth: 4096,
       imageHeight: 3072,
       createdAt: '2026-09-21T14:12:00.000Z',

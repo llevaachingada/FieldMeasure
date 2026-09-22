@@ -1,0 +1,36 @@
+/**
+ * `src/ui/storageChip.css` — the UI §11.4 storage pill (`● Local · 48 MB · Saved 2:14 PM`).
+ *
+ * EXTERNAL STYLESHEET, NO INLINE STYLES. CSP is `style-src 'self'` and the e2e suite asserts
+ * `[style]` count === 0, so this file is the only place the pill is dressed. The component
+ * carries state only through classes; there are no `style=""` attributes anywhere.
+ *
+ * TOKENS are the "Site Slate" globals from `styles.css` (`--g800`, `--g700`, `--g100`,
+ * `--ok`). `.mono` is global too and supplies the JetBrains Mono family; the size lives here.
+ *
+ * TARGET: 48 px tall as §11.4 requires — the same touch-primary floor as the Autosave chip.
+ */
+
+.storage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--g700);
+  border-radius: 999px;
+  background: var(--g800);
+  color: var(--g100);
+  font-size: 13px; /* §11.4: JetBrains Mono 13 */
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Decorative `--ok` dot; the text carries all the meaning (aria-hidden on the element). */
+.storage-chip-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ok);
+}

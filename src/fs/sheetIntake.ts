@@ -22,6 +22,7 @@ import { newId } from '@/domain/ids';
 import type { ProjectFile } from '@/domain/schema';
 import { STRINGS } from '@/ui/strings';
 import { resolveSheetDir, writeAtomic, writeJsonAtomic } from './projectStore';
+import { nextSortIndex } from './sheetOps';
 
 export type SheetFile = ProjectFile['sheets'][number];
 
@@ -60,7 +61,10 @@ export async function addSheetFromPhoto(
   const sheet: SheetFile = {
     id: newId(),
     title,
-    sortIndex: projectFile.sheets.length,
+    // §20.6: integers, gaps of 10. `max(live sortIndex) + 10`, or 10 when none.
+    // The old pin (`sheets.length`) drifted: after a reorder renumbers the rows to
+    // 10/20/30, `length` (e.g. 2) would sort the new sheet before every existing one.
+    sortIndex: nextSortIndex(projectFile.sheets),
     imageWidth: photo.width,
     imageHeight: photo.height,
     calibrationPxPerFoot: null,

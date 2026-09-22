@@ -1162,3 +1162,74 @@ rendered**. That question is now in the handoff and in `D114`.
 
 **Next:** unchanged — the grid's remaining items (reorder, rename, duplicate, replace photo, the storage
 chip), the paused 1.10 polish, and a real end-to-end run on the built app.
+
+## Slice 1.10 (continued) - the sheets grid's remaining items (D111)
+**Date:** 2026-09-22 · **Commit:** this commit (the grid wave)
+
+**Built:** the Project screen's five owed items, end to end.
+- **Storage — `src/fs/sheetOps.ts`** (the `sheetTrash` idiom: copy → verify → only then mutate the ledger;
+  `writeAtomic`/`writeJsonAtomic` only; `createWritable()` is still called in `projectStore.ts` alone):
+  `nextSortIndex` (`max(live) + 10`, or 10 when there are none), `reorderSheetRows` (pure; requires an exact
+  permutation of the live ids, so a stale screen cannot scramble the file), `renameSheet` (title only — the
+  folder is never renamed, and `updatedAt` is deliberately untouched because a rename is not a content
+  change), `duplicateSheet` (folder copy via the now-exported `copySheetTree`, then the row appended at the
+  end), and `replaceSheetPhoto` (§11.2:720's constrained replace).
+- **Grid UI — `src/ui/ProjectScreen.tsx`, `projectScreen.css`, `src/ui/sheetReorder.ts`:** the §11.2:720 card
+  menu (`Open · Rename · Duplicate · Replace photo · Delete`), every item live only when the shell injects its
+  callback (the D102 pattern); inline rename (Enter commits, Escape/blur cancels, blank is a cancel); an
+  honest duplicate failure line; the warned replace dialog (`Keep markup` default-focus / hold-to-confirm
+  600 ms `Remove markup` / `Cancel`, real focus trap); the 400 ms long-press drag-reorder with live renumber
+  and a pointer-following «Drop to move» chip; and the keyboard `Move earlier`/`Move later` pair as the
+  WCAG 2.1.1 path (a long-press drag is unreachable by keyboard and jsdom cannot drive it).
+- **Storage chip — `src/fs/projectSize.ts` + `src/ui/StorageChip.tsx` + `storageChip.css`:** §11.4's normal
+  pill from REAL disk facts — a recursive byte walk of the whole project folder (including `.history/` and
+  `.trash/`, which are what the user's disk actually holds) and `project.json`'s own `lastModified` as the
+  save time. No estimate, no `Date.now()` fallback, and **nothing is rendered** while measuring, on failure,
+  or when there is no real save time (the approved template needs both tokens; a blank time would claim a
+  save that never happened).
+- **The shell seam — `src/App.tsx`:** the reorder/rename/duplicate writes, and the whole replace decision
+  (the file picker, the lazily-imported `normalizeImage`, identical dims → **silent** swap with the markup
+  kept, different dims → the warned dialog). All copy folded into `strings.ts` under the one-writer rule:
+  `storage.local` and `project.reorderChip` are approved appendix rows; the `sheetMenu.*` additions are
+  marked `⚠ PROPOSED` (gaps §10 for `Open`/`Duplicate`/`Replace photo`, beyond both appendices for the
+  accessible names, the move pair and the four failure lines).
+
+**Machine gates:** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **91 files / 1293 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 26 precache entries (1516.68 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+
+**Deferred to hardware:** the real touch reorder (implicit pointer capture, `touch-action` read at pointer
+creation), the chip's real pointer-follow, a real replace against `move()`/NTFS/AV locks, and the chip's
+numbers against Explorer — logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.10.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D115** (the wave and its pinned choices, including what was deliberately NOT
+built), **D116** (the `sortIndex` correction), **D117** (the replace-photo write order and its rollback).
+
+**Surprises:** four, and they are one shape — a value that was right for the code that emitted it and wrong
+for the system around it:
+1. **`addSheetFromPhoto` wrote the wrong `sortIndex`.** It used `sheets.length` (0-based, gap of 1) while
+   §20.6 pins gaps of 10 — so once the new reorder renumbered live rows to 10/20/30, a freshly appended sheet
+   would sort **before every existing sheet** in the grid. Now `nextSortIndex(sheets)` = `max(live) + 10`;
+   the two pins in `tests/sheetIntake.test.ts` were corrected (`0 → 10`, `[0, 1] → [10, 20]`).
+2. **The shared fixture encoded the same contradiction.** `tests/fakes/fsa.ts`'s `validProjectFile` used
+   `sortIndex: i`, which is why the lane brief's own arithmetic did not hold against it; it is now
+   `10 × (i + 1)`, and `cameraFlow.test.tsx`'s pins followed. A fixture that disagrees with the convention
+   under test is a wrong-expectation factory.
+3. **That change exposed a misnomer.** `CameraFlow`'s `onCaptured` payload field named `index` actually
+   carries the sheet's `sortIndex` (now `20`, not `1`). No consumer reads it; pinned at its true value and
+   logged as a watch item rather than silently renamed.
+4. **The replace could half-apply, and its stale thumbnail could outlive it.** The first version removed
+   `thumb.jpg` **last** and swallowed every failure, so a locked thumbnail left the grid card showing the
+   **old** photo under a sheet containing the new one (the D110/D114 class), and a failed `project.json`
+   write left the new photo under the **old** dimensions — a wrong-measurement state, not just untidiness.
+   Reordered: read the bytes being overwritten → drop the stale thumbnail **first** (the one step whose
+   failure must abort) → write + verify the photo → the row → and the markup clear **last**. Any failure
+   now restores the previous photo, so the bytes and the row can never describe two different pictures.
+
+**Next:** an independent executed review of this wave against the commit (the D114 pattern — this wave is
+data-critical `project.json` code and it rewired the shell), then the paused 1.10 polish, then the real
+end-to-end run on a machine with a webcam.

@@ -56,8 +56,10 @@ function isNotFound(e: unknown): boolean {
   return (e as DOMException)?.name === 'NotFoundError';
 }
 
-/** `entries()` walk of a sheet folder → `.trash/<id>/` (or back). Byte-faithful per file. */
-async function copySheetTree(
+/** `entries()` walk of a sheet folder → `.trash/<id>/` (or back). Byte-faithful per file.
+ *  Exported (D111) so `sheetOps.duplicateSheet` reuses the exact same copy → per-file
+ *  size-verify path rather than a second, divergent copier. */
+export async function copySheetTree(
   src: FileSystemDirectoryHandle,
   dest: FileSystemDirectoryHandle,
   projectId: string,

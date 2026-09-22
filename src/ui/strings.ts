@@ -97,13 +97,34 @@ export const STRINGS = {
     unitSystemMetric: 'Metric',
   },
 
-  // APPROVED inventory (appendix-strings.md `## trash`)
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §10 `sheetMenu.*`;
-  // the two accessible names are beyond both appendices). UI §11.2:720's card menu.
+  // `rename`, every accessible name, the keyboard move pair and each failure line are
+  // beyond both appendices). UI §11.2:719-720's card menu + the grid's reorder.
   sheetMenu: {
+    // gaps §10 proposals, verbatim: Open / Duplicate / Replace photo / Delete.
+    open: 'Open',
+    duplicate: 'Duplicate',
+    replacePhoto: 'Replace photo',
     delete: 'Delete',
+    rename: 'Rename',
+    // Accessible names for the per-card controls and the replace dialog.
     moreNamed: 'More actions for {title}',
+    openNamed: 'Open {title}',
+    renameNamed: 'Rename {title}',
+    duplicateNamed: 'Duplicate {title}',
+    replaceNamed: 'Replace photo for {title}',
     deleteNamed: 'Delete {title}',
+    renameLabel: 'Sheet name',
+    // Keyboard equivalent of the drag (WCAG 2.1.1): the card menu carries it, because a
+    // long-press drag is unreachable by keyboard and jsdom cannot drive real pointer input.
+    moveEarlier: 'Move earlier',
+    moveLater: 'Move later',
+    // Honest failure lines — emitted INSTEAD of a success claim when the write rejects
+    // (the §13.4 rule: never announce something the system did not do).
+    renameFailed: "Couldn't rename that sheet",
+    duplicateFailed: "Couldn't duplicate that sheet",
+    replaceFailed: "Couldn't replace that photo",
+    reorderFailed: "Couldn't save the new order",
   },
 
   trash: {
@@ -252,6 +273,9 @@ export const STRINGS = {
     insetBadge: '+{insetCount}',
     sheetMeta: '{time} · {dimensionCount} dimensions',
     notSavedToast: 'Not saved to disk',
+    // APPROVED inventory (appendix-strings.md `project.reorderChip`, line 63) — the chip
+    // that follows a card while drag-reordering sheets (UI §11.2:719).
+    reorderChip: 'Drop to move',
 
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §26):
     // the grid's loading line.
@@ -318,6 +342,11 @@ export const STRINGS = {
   storage: {
     // `{time}` is the appendix row's declared interpolation (`Saved 2:14 PM`).
     saved: 'Saved {time}',
+    // APPROVED (appendix-strings.md `storage.local`, line 261). The appendix `String`
+    // column is the RENDERED example (`Local · 48 MB · Saved 2:14 PM`) and its
+    // Interpolation column declares `{size}`/`{time}`, so the shipped value is the
+    // template (same rule as D110's fix). Rendered by the grid's storage chip.
+    local: 'Local · {size} · Saved {time}',
     saving: 'Saving…',
     pending: 'Pending — folder offline',
     readOnly: 'Read-only',

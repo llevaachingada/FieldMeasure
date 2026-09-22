@@ -192,13 +192,16 @@ describe('capture → review → Use photo', () => {
     expect(added).toMatchObject({
       imageWidth: 4000,
       imageHeight: 3000,
-      sortIndex: 1,
+      // §20.6 gaps of 10: the fixture's one existing sheet is at `10 × (0 + 1) = 10`, so
+      // the append is `max(live) + 10 = 20`. (Until session 22 the fixture was 0-based and
+      // this pin said `1`; `nextSortIndex` is now the single place that decides.)
+      sortIndex: 20,
       createdAt: '2026-09-21T14:12:00.000Z',
     });
     // The payload carries the written sheet's title as well as its id/index: the Project
     // screen's «Added …» toast (UI §11.8) names the sheet, and re-deriving the name from the
     // index would be a second source of truth.
-    expect(onCaptured).toHaveBeenCalledWith({ id: added.id, index: 1, title: added.title });
+    expect(onCaptured).toHaveBeenCalledWith({ id: added.id, index: 20, title: added.title });
 
     // The thumbnail was scheduled, and its write targets sheets/<id>/thumb.jpg.
     expect(hoisted.schedule).toHaveBeenCalledTimes(1);

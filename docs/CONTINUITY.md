@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 21 — **the trash/grid wave was independently reviewed and its register discharged** (D114). The review found six issues and **the worst one falsified a shipped promise**: the Project route mounted **no `ToastHost`**, so every toast emitted on the sheets grid — including the delete's «Sheet deleted · Undo» — was rendered nowhere. There is now **one host at the app shell root**, pinned by a **route-level** test that mounts the real `App` and asserts the toast DOM (the lane's own 28 tests asserted the *bus*, which is exactly why they missed it). Also fixed: delete could leave a **half-deleted sheet** when `project.json` was locked (reordered to mark the row first), the grid's Export with no selection **dropped the action**, a failed restore from the delete toast's Undo was **silent**, and two Settings rows were enabled-but-dead. Gate: tsc 0 · **87 files / 1208 tests** · build 0 (25 precache, 1498.22 KiB) · playwright 5/5. **`docs/handoff-session-21.md` is complete**, §9 included — read it first)
+**Last updated:** 2026-09-22 (session 22 — **the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **91 files / 1293 tests** · build 0 (26 precache, 1516.68 KiB) · playwright 5/5. Owed here: an **independent executed review of this wave** and the **real end-to-end run on hardware**)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2–1.9 complete (1.9 reviewed, D109); 1.10 in progress; 1.11 landed (D112); the Project screen is built (D111) and now owns sheet trash (D113).** Shipped in 1.10 so far: themes (D104), the trust layer (D107), sheet trash (D113). Still owed: the History flyout, the end-to-end a11y audit, the arrow nudge, D101's halo fix, PDF captions, and the grid's reorder/rename/duplicate/replace-photo. Then 2.0 |
-| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **87 files / 1208 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1498.22 KiB); playwright 5 passed / 5 skipped. Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows) |
+| Phase | **Slices 0.2–1.9 complete (1.9 reviewed, D109); 1.10 in progress; 1.11 landed (D112); the Project screen is built (D111) and now owns sheet trash (D113).** Shipped in 1.10 so far: themes (D104), the trust layer (D107), sheet trash (D113). Still owed: the History flyout, the end-to-end a11y audit, the arrow nudge, D101's halo fix, PDF captions, and the grid's remaining items are now **built** (session 22, D115–D117) — what still owes is the **independent review of that wave**, the **real end-to-end run on hardware**, the paused 1.10 polish, and PDF captions. Then 2.0 |
+| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **91 files / 1293 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1516.68 KiB); playwright 5 passed / 5 skipped. Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows). **Session 22 built the grid's five remaining D111 items** — `src/fs/sheetOps.ts` (reorder/rename/duplicate/replace-photo storage), `src/ui/sheetReorder.ts` (the pure drag arithmetic), `src/ui/StorageChip.tsx` + `src/fs/projectSize.ts` (§11.4 from real disk facts), the grid's card menu / inline rename / drag / warned replace dialog, and the `App` seam that owns the picker and the dimension decision |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **The Project screen's remaining items (D111):** sheet **reorder** (long-press drag + `sortIndex`), **rename**, **duplicate**, **replace photo**, and the §11.4 storage chip; plus D113's owed restore-side undo toast (needs approved copy). Then the **paused 1.10 polish**: the History flyout (`writeHistorySnapshot` still has no caller), the end-to-end a11y audit, the arrow nudge, and D101's label-halo fix; the PDF caption placement (F1) and the `Skip`-row copy sign-off (F4) still need the content owner. Then 2.0 |
+| Next action | **An independent executed review of the grid wave (D115–D117)** against the commit — data-critical `project.json` code plus a shell rewire, so it earns the same treatment as D114. Then the handoff's §3 path **run for real** on a machine with a webcam (built app → new project → camera → shutter → dimension → text → export → open the PDF): that run, not another test, is what turns this into a beta. Then the **paused 1.10 polish**: the History flyout (`writeHistorySnapshot` still has no caller), the end-to-end a11y audit, the arrow nudge, and D101's label-halo fix; the PDF caption placement (F1) and the `Skip`-row copy sign-off (F4) still need the content owner. Then 2.0 |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -800,6 +800,46 @@ done yet* — a dead button, a lying card meta, an inert tag, an empty archive r
 that lit nothing, and a delete announced before it happened. Gates cannot catch this class, because the
 assertion and the lie usually agree; only asking "what would this say if the underlying call failed?" does.
 
+### 2026-09-22 — Session 22: the sheets grid's remaining items (D111), and the `sortIndex` defect they exposed
+
+Three lanes on disjoint files, integrated by the orchestrator, then the full gate on one tree.
+
+1. **Storage (`src/fs/sheetOps.ts`).** `nextSortIndex` (`max(live) + 10`), `reorderSheetRows` (pure; requires
+   an exact permutation of the live ids, so a stale screen cannot scramble a file), `renameSheet` (title
+   only), `duplicateSheet` (folder copy through the now-exported `copySheetTree`, then the row), and
+   `replaceSheetPhoto` (the §11.2:720 constrained replace). Same idiom as `sheetTrash`: copy → verify → only
+   then mutate the ledger, `writeAtomic`/`writeJsonAtomic` only, the D51 full runtime key on every call.
+2. **The grid (`ProjectScreen.tsx`, `projectScreen.css`, `sheetReorder.ts`).** The card menu
+   (`Open · Rename · Duplicate · Replace photo · Delete`), each item live only when the shell injects its
+   callback; inline rename; the 400 ms long-press drag with live renumber and a pointer-following
+   «Drop to move» chip; the warned replace dialog with a 600 ms hold on `Remove markup`; and a keyboard
+   `Move earlier`/`Move later` pair, added because a drag is unreachable by keyboard (WCAG 2.1.1) and because
+   it is the only machine-testable reorder path.
+3. **The storage chip (`projectSize.ts` + `StorageChip.tsx`).** §11.4's pill from real disk facts: a
+   recursive byte walk of the project folder and `project.json`'s `lastModified`. Nothing is rendered while
+   measuring, on failure, or without a real save time — the approved template needs both tokens, and a blank
+   time would be a claim the system never made.
+4. **The defect the wave exposed (D116).** `addSheetFromPhoto` wrote `sortIndex: sheets.length` — a gap-of-1,
+   0-based index against §20.6's gaps of 10. Invisible until a reorder existed: after renumbering live rows
+   to 10/20/30, a newly appended sheet would sort **before every existing sheet**. Fixed with
+   `nextSortIndex`, and both `sheetIntake` pins corrected with the arithmetic. The **shared fixture**
+   (`validProjectFile`) carried the same contradiction, which is why the lane brief's own arithmetic did not
+   hold against it — corrected to `10 × (i + 1)`, and `cameraFlow.test.tsx` followed.
+5. **The replace was reordered with a rollback (D117).** The first version removed the stale thumbnail last
+   and swallowed every failure, so a locked `thumb.jpg` left the card showing the **old** photo under a sheet
+   holding the new one, and a locked `project.json` left the new photo under the **old** dimensions — a
+   wrong-measurement state. Now: read the bytes being overwritten → drop the thumbnail **first** (its failure
+   aborts) → write + verify the photo → the row → clear the markup **last**; any failure restores the photo.
+6. **Not built, on purpose:** the selection bar's batch `Duplicate`/`Delete` (UI §11.2:717) — the spec pins
+   the buttons but no batch-delete/undo semantics and no copy, and an undo that restored only the last sheet
+   would be this session's recurring lie. Owed, not invented.
+
+**Machine gates (this commit's tree):** 4/4 passing — `tsc` 0 · `vitest` **91 files / 1293 tests** · `build` 0
+(26 precache, 1516.68 KiB) · `playwright` 5 passed / 5 skipped.
+
+**Owed:** the independent executed review of this wave, the real end-to-end run on hardware, the paused 1.10
+polish, D113's restore-side undo toast (copy), and the content-owner items.
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -1101,6 +1141,34 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   hardware, real `move()`/NTFS behaviour, H8/H12/H19–H22, the Sunlight porch check, the real touch reorder.
 - Carried: D105 (dev-mode is unstyled by CSP design — judge appearance from the built app), D106 (export owed),
   D107 (chip/toast items).
+
+## Known drift / watch items (session 22)
+
+- **The grid wave's independent review is owed.** This wave rewrote `project.json` (reorder/rename/duplicate/
+  replace) and the shell seam — the two places this project's real bugs have lived. Run
+  `docs/review-brief.md` against the commit, executed, the way D114 was.
+- **Not built, deliberately (D115):** the selection bar's batch `Duplicate` / `Delete` (UI §11.2:717).
+  The spec pins the buttons but neither batch-delete/undo semantics nor any copy, and an undo that restored
+  only the last sheet would be the lie this project keeps fixing.
+- **`CameraFlow`'s `onCaptured` field named `index` carries `sortIndex`** (D116). No consumer reads it
+  (the shell uses `id`/`title`); it is pinned at its true value rather than renamed inside a frozen interface
+  mid-wave.
+- **`⚠ PROPOSED` copy awaiting the content owner:** `sheetMenu.rename`, the six `…Named` accessible names,
+  `sheetMenu.renameLabel`, `Move earlier` / `Move later`, and the four failure lines
+  (`renameFailed`, `duplicateFailed`, `replaceFailed`, `reorderFailed`). `storage.local` and
+  `project.reorderChip` are approved appendix rows (261 and 63).
+- **`[Surface]` and manual, never faked:** the real touch drag (Chromium's implicit pointer capture, and
+  whether it honours a `touch-action` set *after* `pointerdown`); the «Drop to move» chip's real follow
+  (`element.animate` is absent in jsdom, so only its presence is asserted); a real replace against `move()`,
+  NTFS and an AV/Dropbox lock; the chip's numbers against Explorer; the grid's responsive columns and the
+  now-7-item card menu's popup height.
+- **The chip renders nothing until a real save exists** — `{time}` is `project.json`'s `lastModified`, and the
+  approved template needs both tokens, so a project with no `project.json` save shows no chip at all.
+  Deliberate (D115), not a bug to "fix" with `Date.now()`.
+- Carried: D105 (judge appearance from the built app, never `npm run dev`), D106 (the export owed list),
+  D107 (chip/toast items), D101 (the on-screen label halo), the **History flyout** (`writeHistorySnapshot`
+  still has no caller), the end-to-end **a11y audit**, the **arrow nudge**, and the content-owner items
+  (the PDF caption placement and the two `Skip`-row strings).
 
 ## How to resume
 

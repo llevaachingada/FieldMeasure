@@ -262,10 +262,23 @@
   border-radius: 10px;
   background: var(--g800);
   overflow: hidden;
+  /* The lift/put-down animation for a drag (UI §11.2:719: "lift + haptic-less scale"). */
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out, border-color 120ms ease-out;
 }
 
 .sheet-card[data-selected='true'] {
   border-color: var(--sel);
+}
+
+/* UI §11.2:719 — the lifted card: scaled, shadowed, above its neighbours, and the only
+   one that declines native touch panning (it is the drag in progress). State rides on the
+   data attribute; there are no inline styles anywhere on this screen. */
+.sheet-card[data-dragging='true'] {
+  touch-action: none;
+  z-index: 5;
+  transform: scale(1.04);
+  border-color: var(--sel);
+  box-shadow: 0 24px 48px rgba(11, 14, 18, 0.7);
 }
 
 .sheet-card-open {
@@ -377,6 +390,27 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Inline rename (UI §11.2:716, long-press → Rename). A SIBLING of the open button — an
+   `<input>` inside a `<button>` is invalid HTML and every click on it would also open the
+   sheet. It overlays the name row: `right: 56px` keeps clear of the 48 px select toggle,
+   and 48 px tall meets the touch floor inside the 320 px card. */
+.sheet-rename-input {
+  position: absolute;
+  left: 12px;
+  right: 56px;
+  bottom: 8px;
+  z-index: 3;
+  height: 48px;
+  padding: 0 10px;
+  border: 2px solid var(--sel);
+  border-radius: 10px;
+  background: var(--g900);
+  color: var(--g000);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .sheet-card-select {
@@ -504,6 +538,11 @@
 @media (prefers-reduced-motion: reduce) {
   .sheet-card-skeleton {
     animation: none;
+  }
+
+  /* The lift still happens (state is colour + shadow), it just stops moving. */
+  .sheet-card {
+    transition: none;
   }
 }
 
@@ -755,5 +794,95 @@
   margin: 0;
   color: var(--g300);
   font-size: 13px;
+}
+
+/* ---- the drag chip (UI §11.2:719 «Drop to move») ------------------------- */
+
+/* It mounts with no transform and is WALKED to the pointer with `element.animate()` —
+   the only CSP-safe way to give it a computed position (`style-src 'self'` forbids the
+   inline `transform` this would otherwise need, and the e2e suite asserts `[style]`
+   count === 0). Web Animations is not an inline style and adds no attribute. */
+.sheet-reorder-chip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 70;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--g000);
+  color: var(--g900);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 12px 28px rgba(11, 14, 18, 0.6);
+}
+
+/* ---- the replace-photo warned dialog (UI §11.2:720) ---------------------- */
+
+/* Local `.sheet-replace*` classes on purpose: `insetWire.css`'s `.replace-photo*` belongs
+   to the editor's inset flow and this screen must not depend on it. */
+.sheet-replace-scrim {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(11, 14, 18, 0.6);
+  z-index: 60;
+}
+
+.sheet-replace {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 480px;
+  padding: 20px;
+  background: var(--g750);
+  border: 2px solid var(--g700);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(11, 14, 18, 0.7);
+  color: var(--g000);
+}
+
+.sheet-replace-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+.sheet-replace-warn {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.sheet-replace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* `btn-danger` is not global; the destructive intent is `--err`, not colour alone (the
+   label also goes bold). Same treatment as the editor's replace dialog. */
+.sheet-replace .btn-danger {
+  background: var(--g800);
+  border-color: var(--err);
+  color: var(--err);
+  font-weight: 700;
+}
+
+.sheet-replace .btn.is-holding {
+  background: var(--err);
+  border-color: var(--err);
+  color: #ffffff;
+  font-weight: 700;
 }
 

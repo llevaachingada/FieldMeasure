@@ -24,8 +24,17 @@ import { useThemeRuntime } from '@/ui/themeRuntime';
 import { emitToast } from '@/editor/session';
 import ProjectScreen from '@/ui/ProjectScreen';
 import { listProjectSheets, type ProjectSheetCard } from '@/fs/projectSheets';
-import { createProject, readProjectFile, registerOpenProject, resolveOpenProjectDir } from '@/fs/projectStore';
+import { createProject, readProjectFile, registerOpenProject, resolveOpenProjectDir, writeJsonAtomic } from '@/fs/projectStore';
 import { deleteSheet, listTrash, pruneTrash, restoreSheet, type TrashedSheet } from '@/fs/sheetTrash';
+/**
+ * The grid's remaining card actions (D111): reorder / rename / duplicate / the
+ * constrained replace-photo. `reorderSheetRows` is pure and re-validates the permutation
+ * in the shell, so a stale screen (a sheet added in another tab) cannot scramble the file.
+ */
+import { duplicateSheet, renameSheet, replaceSheetPhoto, reorderSheetRows } from '@/fs/sheetOps';
+import { defaultSheetTitle } from '@/fs/sheetIntake';
+/** Type-only: the normalizer itself is imported lazily inside the replace handler. */
+import type { NormalizedImage } from '@/media/normalizeImage';
 import { STRINGS, t } from '@/ui/strings';
 import { getProjectsRoot } from '@/settings/projectsRoot';
 
@@ -84,6 +93,17 @@ export default function App() {
   const [trashRestoreFailed, setTrashRestoreFailed] = useState(false);
   /** A grid «Export» hand-off: the selection the wizard must open already scoped to. */
   const [pendingExportSelection, setPendingExportSelection] = useState<readonly string[] | null>(null);
+  /**
+   * §11.2:720's constrained replace. The SHELL owns the file picker and the dimension
+   * decision; the grid owns only the warned dialog. `replacePrompt` is the warned state
+   * (the new photo's working-image dimensions differ from the sheet's), and
+   * `pendingReplace` holds the normalized photo until the user answers — «Cancel» must
+   * leave the sheet exactly as it was.
+   */
+  const [replacePrompt, setReplacePrompt] = useState<{ sheetId: string; title: string } | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
+  const replaceTargetRef = useRef<string | null>(null);
+  const pendingReplaceRef = useRef<NormalizedImage | null>(null);
   /**
    * «New project» runs an async folder create. The flag makes a double-tap a no-op
    * (two clicks before the first create resolves must not mint two projects); the
@@ -154,6 +174,102 @@ export default function App() {
       // only inside the trash panel, which is CLOSED when the delete toast's Undo fires. A
       // failed restore must be visible wherever it was triggered.
       emitToast({ text: STRINGS.trash.restoreFailed, urgent: true });
+    }
+  }
+
+  // ---- the grid's remaining card actions (D111) ------------------------------
+
+  /**
+   * Persist a new sheet order (§20.6: `10 × position`). The screen has already applied the
+   * order locally — that IS the drag's live renumber — so a rejection is what makes it walk
+   * the order back and say so. The write goes through `projectStore.writeJsonAtomic`, the
+   * only atomic JSON path (AGENTS #3).
+   */
+  async function handleReorderSheets(orderedIds: readonly string[]): Promise<void> {
+    if (!editorTarget) throw new Error('no project open');
+    const dir = await resolveOpenProjectDir(editorTarget.projectId);
+    const file = await readProjectFile(dir);
+    const next = reorderSheetRows(file, orderedIds);
+    await writeJsonAtomic(dir, 'project.json', next, editorTarget.projectId);
+    setProjectRefresh((n) => n + 1);
+  }
+
+  /** Rename a sheet's TITLE. Its folder is never renamed — names are labels (§20.6). */
+  async function handleRenameSheet(id: string, title: string): Promise<void> {
+    if (!editorTarget) throw new Error('no project open');
+    await renameSheet(editorTarget.projectId, id, title);
+    setProjectRefresh((n) => n + 1);
+  }
+
+  /**
+   * Duplicate a sheet. The copy is the storage layer's (copy → verify → then the row); the
+   * title is the next `Sheet NN`, the same rule a capture uses, so there is one naming
+   * convention and not two.
+   */
+  async function handleDuplicateSheet(id: string): Promise<{ id: string }> {
+    if (!editorTarget) throw new Error('no project open');
+    const dir = await resolveOpenProjectDir(editorTarget.projectId);
+    const file = await readProjectFile(dir);
+    const copy = await duplicateSheet(editorTarget.projectId, id, defaultSheetTitle(file));
+    setProjectRefresh((n) => n + 1);
+    return copy;
+  }
+
+  /** «Replace photo» starts here: the picker is a shell control, not the grid's. */
+  function handleReplacePhoto(id: string): void {
+    replaceTargetRef.current = id;
+    const input = replaceInputRef.current;
+    if (!input) return;
+    // A second pick of the SAME file must still fire `change`.
+    input.value = '';
+    input.click();
+  }
+
+  /**
+   * The chosen file, normalized. §2.4's constrained replace: identical working-image
+   * dimensions → a **silent** swap with the markup kept; different dimensions → the warned
+   * dialog, whose answer the screen collects (a different photo is a different coordinate
+   * space, so the markup may land in the wrong place — that is the user's call, not ours).
+   */
+  async function onReplacePhotoPicked(file: File): Promise<void> {
+    const id = replaceTargetRef.current;
+    replaceTargetRef.current = null;
+    if (!id || !editorTarget) return;
+    try {
+      // Canvas work: imported only when a replace actually happens, so the Home route's
+      // bundle keeps the media pipeline out (the `CameraFlow` precedent).
+      const { normalizeImage } = await import('@/media/normalizeImage');
+      const photo = await normalizeImage(file);
+      const dir = await resolveOpenProjectDir(editorTarget.projectId);
+      const current = await readProjectFile(dir);
+      const row = current.sheets.find((sheet) => sheet.id === id);
+      if (!row) throw new Error(`sheet ${id} is not in project.json`);
+      if (photo.width === row.imageWidth && photo.height === row.imageHeight) {
+        await replaceSheetPhoto(editorTarget.projectId, id, photo, 'keep');
+        setProjectRefresh((n) => n + 1);
+        return;
+      }
+      pendingReplaceRef.current = photo;
+      setReplacePrompt({ sheetId: id, title: row.title });
+    } catch {
+      // Never a silent no-op: a decode failure, an unknown sheet and a failed write all
+      // surface the same honest line (there is no per-cause copy for this action).
+      emitToast({ text: STRINGS.sheetMenu.replaceFailed, urgent: true });
+    }
+  }
+
+  /** The warned dialog's answer. «Cancel» leaves the sheet exactly as it was. */
+  async function handleResolveReplace(choice: 'keep' | 'remove' | 'cancel'): Promise<void> {
+    const photo = pendingReplaceRef.current;
+    const prompt = replacePrompt;
+    pendingReplaceRef.current = null;
+    setReplacePrompt(null);
+    if (choice === 'cancel' || !photo || !prompt || !editorTarget) return;
+    try {
+      await replaceSheetPhoto(editorTarget.projectId, prompt.sheetId, photo, choice);
+      setProjectRefresh((n) => n + 1);
+    } catch {
+      emitToast({ text: STRINGS.sheetMenu.replaceFailed, urgent: true });
     }
   }
 
@@ -303,6 +419,18 @@ export default function App() {
           }}
           onRestoreSheet={handleRestoreSheet}
           onCloseTrash={() => setTrashRestoreFailed(false)}
+          // D111's remaining items: the chip's real measurement, and the card actions whose
+          // writes live at the shell (the storage layer is `src/fs/sheetOps.ts`).
+          projectId={editorTarget.projectId}
+          refreshKey={projectRefresh}
+          onReorderSheets={handleReorderSheets}
+          onRenameSheet={handleRenameSheet}
+          onDuplicateSheet={handleDuplicateSheet}
+          onReplacePhoto={handleReplacePhoto}
+          replacePrompt={replacePrompt}
+          onResolveReplace={(choice) => {
+            void handleResolveReplace(choice);
+          }}
           onBack={() => {
             setSelectedSheetIds([]);
             setRoute('home');
@@ -366,6 +494,20 @@ export default function App() {
   return (
     <>
       {renderRoute()}
+      {/* §11.2:720's replace picker. Mounted at the shell root with the other app-level
+          overlays: the grid hands the id over and gets a warned dialog if the dimensions
+          differ — the picker itself is not a grid control. */}
+      <input
+        ref={replaceInputRef}
+        className="editor-file-input"
+        type="file"
+        accept="image/*"
+        aria-label={STRINGS.sheetMenu.replacePhoto}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void onReplacePhotoPicked(file);
+        }}
+      />
       {/* Slice 1.11: the update prompt is mounted once at the shell root, so it survives
           route changes and is reachable from Home, the editor and first run alike. It
           renders nothing until a worker is waiting, and suppresses itself mid-measurement. */}

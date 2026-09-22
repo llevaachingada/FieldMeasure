@@ -93,8 +93,11 @@ describe('addSheetFromPhoto — the frozen photo→sheet write path', () => {
     expect(sheets[0]).toMatchObject({
       id: result.sheet.id,
       title: 'Sheet 01',
-      // `sortIndex` = the sheet count BEFORE the append: 0 existing → 0.
-      sortIndex: 0,
+      // `sortIndex` = `max(live) + 10` (§20.6 gaps of 10); no live sheets → max is
+      // defined as 0, so `0 + 10 = 10`. The old pin (`sheets.length` → 0) encoded the
+      // drift: after a reorder renumbers rows to 10/20/30, `length` would sort the new
+      // sheet before every existing one.
+      sortIndex: 10,
       imageWidth: 4096,
       imageHeight: 3072,
       createdAt: '2026-09-21T14:12:00.000Z', // CAPTURED_AT.toISOString()
@@ -104,10 +107,12 @@ describe('addSheetFromPhoto — the frozen photo→sheet write path', () => {
     expect(result.sheetDir.name).toBe(result.sheet.id);
   });
 
-  it('appends (not inserts): sortIndex equals the current sheet count', async () => {
+  it('appends (never inserts): sortIndex = max(live) + 10, after every existing sheet', async () => {
     const { root, projectDir } = freshRoot();
     locks();
+    // A post-reorder project: one live sheet renumbered to `10 × (position + 1)` = 10.
     const oneSheet = validProjectFile({ sheetCount: 1 });
+    oneSheet.sheets[0].sortIndex = 10;
 
     const result = await addSheetFromPhoto(PHOTO, {
       projectDir,
@@ -117,10 +122,11 @@ describe('addSheetFromPhoto — the frozen photo→sheet write path', () => {
       createdAt: CAPTURED_AT,
     });
 
-    // 1 sheet existed → the new one is index 1 (0-based, append).
-    expect(result.sheet.sortIndex).toBe(1);
+    // 1 live sheet at 10 → next = max(live) + 10 = 10 + 10 = 20. The new sheet lands at
+    // the END (a higher index than every existing sheet), never before them.
+    expect(result.sheet.sortIndex).toBe(20);
     const parsed = readProject(root.textAt('Riverside/project.json'));
-    expect(parsed.sheets.map((s) => s.sortIndex)).toEqual([0, 1]);
+    expect(parsed.sheets.map((s) => s.sortIndex)).toEqual([10, 20]);
   });
 
   it('writes photo.jpg BEFORE project.json (module-header write order)', async () => {

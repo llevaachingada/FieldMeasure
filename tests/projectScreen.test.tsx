@@ -8,7 +8,7 @@
  * asserted is the model, the copy contract, the interaction contract and the a11y contract.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ProjectScreen, { type ProjectScreenProps, type TrashedSheet } from '../src/ui/ProjectScreen';
 import type { ProjectSheetCard } from '../src/fs/projectSheets';
@@ -398,8 +398,8 @@ describe('sheet delete — recoverable, never a silent no-op (UI §13.3:800)', (
     trigger.focus();
     await user.keyboard('{Enter}');
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    // Focus moves onto the menu item.
-    expect(document.activeElement?.getAttribute('data-card-menu-item')).toBe('delete');
+    // Focus moves onto the FIRST item — `Open` leads the §11.2:720 menu.
+    expect(document.activeElement?.getAttribute('data-card-menu-item')).toBe('open');
 
     await user.keyboard('{Escape}');
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
@@ -451,5 +451,595 @@ describe('⋯ → «Trash…» (UI §11.2:711; build spec §11.9:2029)', () => {
   it('keeps the panel closed until the user opens it (no trash prop leaks onto the screen)', () => {
     renderScreen({ onOpenTrash: vi.fn(), trash: TRASHED, onRestoreSheet: vi.fn() });
     expect(screen.queryByTestId('trash-panel')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The card menu, rename, duplicate, replace photo and reorder (UI §11.2:719-720)
+// ---------------------------------------------------------------------------
+
+/**
+ * jsdom has no `PointerEvent`, and @testing-library's `fireEvent.pointerDown` silently
+ * DROPS `clientX`/`clientY` when the constructor is missing — which would make every
+ * geometric assertion below vacuously true. Dispatch a real bubbling `Event` and attach
+ * the pointer fields the handlers read, so the coordinates genuinely arrive.
+ */
+function dispatchPointer(
+  target: EventTarget,
+  type: string,
+  init: Record<string, unknown> = {},
+): void {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.assign(event, { pointerId: 1, button: 0, clientX: 0, clientY: 0, ...init });
+  act(() => {
+    target.dispatchEvent(event);
+  });
+}
+
+/**
+ * jsdom has no layout, so every `getBoundingClientRect()` is 0 × 0 at (0, 0) and any drop
+ * would resolve to the fallback index. This hands the component the same 4-across geometry
+ * `tests/sheetReorder.test.ts` uses for real (320 × 300 cards, 16 px gap), so the drag path
+ * is exercised against actual rectangles rather than a vacuous one.
+ */
+function stubCardRects(ids: readonly string[]): () => void {
+  const spy = vi
+    .spyOn(Element.prototype, 'getBoundingClientRect')
+    .mockImplementation(function (this: Element): DOMRect {
+      const id = this.getAttribute('data-sheet-id');
+      const index = id === null ? -1 : ids.indexOf(id);
+      const left = index < 0 ? 0 : index * 336;
+      return {
+        left,
+        top: 0,
+        width: 320,
+        height: 300,
+        right: left + 320,
+        bottom: 300,
+        x: left,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect;
+    });
+  return () => spy.mockRestore();
+}
+
+function cardMenuItem(id: string): HTMLElement {
+  return screen.getByTestId(`sheet-card-menu-${id}`);
+}
+
+function menuItemKeys(): (string | null)[] {
+  return [...document.querySelectorAll('[data-card-menu-item]')].map((el) =>
+    el.getAttribute('data-card-menu-item'),
+  );
+}
+
+/**
+ * The «04» badge of ONE card. The badge is the card's live position, so in DOM order the
+ * numbers always read 01…0N — the renumber is only visible per CARD (s1's badge going
+ * 01 → 03 as it is dragged to the end), which is exactly what this reads.
+ */
+function badgeFor(id: string): string | null {
+  const item = document.querySelector(`.sheet-grid-item[data-sheet-id="${id}"]`);
+  return item?.querySelector('.sheet-card-index')?.textContent ?? null;
+}
+
+describe('the card menu: live when injected, omitted when not (D102)', () => {
+  it('with only Delete injected, the menu is Open + Delete and nothing is faked', async () => {
+    const user = userEvent.setup();
+    renderScreen({ onDeleteSheet: vi.fn() });
+
+    await user.click(cardMenuItem('s1'));
+
+    expect(menuItemKeys()).toEqual(['open', 'delete']);
+  });
+
+  it('with every callback injected, the §11.2:720 items render in order and are live', async () => {
+    const user = userEvent.setup();
+    const onOpenSheet = vi.fn();
+    renderScreen({
+      onOpenSheet,
+      onDeleteSheet: vi.fn(),
+      onRenameSheet: vi.fn(),
+      onDuplicateSheet: vi.fn(),
+      onReplacePhoto: vi.fn(),
+      onReorderSheets: vi.fn(),
+    });
+
+    await user.click(cardMenuItem('s2'));
+    expect(menuItemKeys()).toEqual([
+      'open',
+      'rename',
+      'duplicate',
+      'replace',
+      'moveEarlier',
+      'moveLater',
+      'delete',
+    ]);
+
+    // `Open` is the menu's own route to the sheet, wired to the real callback.
+    await user.click(
+      screen.getByRole('menuitem', { name: t(STRINGS.sheetMenu.openNamed, { title: 'Sheet 02' }) }),
+    );
+    expect(onOpenSheet).toHaveBeenCalledWith('s2');
+  });
+
+  it('a partial injection omits exactly the absent affordances', async () => {
+    const user = userEvent.setup();
+    renderScreen({ onRenameSheet: vi.fn(), onReorderSheets: vi.fn() });
+
+    await user.click(cardMenuItem('s1'));
+
+    // No delete, no duplicate, no replace — those callbacks were not injected.
+    expect(menuItemKeys()).toEqual(['open', 'rename', 'moveEarlier', 'moveLater']);
+  });
+});
+
+describe('rename — inline on the card, honest about failure', () => {
+  async function openRename(user: ReturnType<typeof userEvent.setup>, id = 's1'): Promise<HTMLElement> {
+    await user.click(cardMenuItem(id));
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: t(STRINGS.sheetMenu.renameNamed, { title: id === 's1' ? 'Sheet 01' : 'Sheet 02' }),
+      }),
+    );
+    return screen.getByRole('textbox', { name: STRINGS.sheetMenu.renameLabel });
+  }
+
+  it('opens a focused, selected field seeded with the real title', async () => {
+    const user = userEvent.setup();
+    renderScreen({ onRenameSheet: vi.fn() });
+
+    const field = await openRename(user);
+
+    expect((field as HTMLInputElement).value).toBe('Sheet 01');
+    expect(document.activeElement).toBe(field);
+  });
+
+  it('Enter commits the trimmed value to the shell', async () => {
+    const user = userEvent.setup();
+    const onRenameSheet = vi.fn(async () => {});
+    renderScreen({ onRenameSheet });
+
+    const field = await openRename(user);
+    await user.clear(field);
+    await user.type(field, '  Front porch  ');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => expect(onRenameSheet).toHaveBeenCalledWith('s1', 'Front porch'));
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: STRINGS.sheetMenu.renameLabel })).toBeNull(),
+    );
+  });
+
+  it('Escape cancels without calling the shell', async () => {
+    const user = userEvent.setup();
+    const onRenameSheet = vi.fn();
+    renderScreen({ onRenameSheet });
+
+    const field = await openRename(user);
+    await user.type(field, 'Typed but abandoned');
+    await user.keyboard('{Escape}');
+
+    expect(onRenameSheet).not.toHaveBeenCalled();
+    expect(screen.queryByRole('textbox', { name: STRINGS.sheetMenu.renameLabel })).toBeNull();
+  });
+
+  it('a blank commit is a cancel, never a call with an empty title', async () => {
+    const user = userEvent.setup();
+    const onRenameSheet = vi.fn();
+    renderScreen({ onRenameSheet });
+
+    const field = await openRename(user);
+    await user.clear(field);
+    await user.keyboard('{Enter}');
+
+    expect(onRenameSheet).not.toHaveBeenCalled();
+    expect(screen.queryByRole('textbox', { name: STRINGS.sheetMenu.renameLabel })).toBeNull();
+  });
+
+  it('an unchanged value is a cancel, not a pointless write', async () => {
+    const user = userEvent.setup();
+    const onRenameSheet = vi.fn();
+    renderScreen({ onRenameSheet });
+
+    await openRename(user);
+    await user.keyboard('{Enter}');
+
+    expect(onRenameSheet).not.toHaveBeenCalled();
+  });
+
+  it('a rejected rename keeps the field open on the old title and says so', async () => {
+    const user = userEvent.setup();
+    const toasts: ToastMessage[] = [];
+    const off = subscribeToastMessage((toast) => toasts.push(toast));
+    const onRenameSheet = vi.fn(async () => {
+      throw new Error('write failed');
+    });
+    renderScreen({ onRenameSheet });
+
+    const field = await openRename(user);
+    await user.clear(field);
+    await user.type(field, 'Renamed');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => expect(toasts).toHaveLength(1));
+    expect(toasts[0].text).toBe(STRINGS.sheetMenu.renameFailed);
+    expect(toasts[0].urgent).toBe(true);
+
+    // The screen did not claim a rename that did not happen: the real title is back.
+    const after = screen.getByRole('textbox', { name: STRINGS.sheetMenu.renameLabel });
+    expect((after as HTMLInputElement).value).toBe('Sheet 01');
+    off();
+  });
+});
+
+describe('duplicate — the shell writes, the screen only reports (no optimistic card)', () => {
+  it('routes the id to the shell and inserts nothing', async () => {
+    const user = userEvent.setup();
+    const onDuplicateSheet = vi.fn(async () => ({ id: 'copy-1' }));
+    renderScreen({ onDuplicateSheet });
+
+    await user.click(cardMenuItem('s2'));
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: t(STRINGS.sheetMenu.duplicateNamed, { title: 'Sheet 02' }),
+      }),
+    );
+
+    expect(onDuplicateSheet).toHaveBeenCalledWith('s2');
+    // Three cards still — the shell's refresh is what will add the copy.
+    expect(document.querySelectorAll('.sheet-card')).toHaveLength(3);
+  });
+
+  it('a rejected duplicate emits the honest failure line', async () => {
+    const user = userEvent.setup();
+    const toasts: ToastMessage[] = [];
+    const off = subscribeToastMessage((toast) => toasts.push(toast));
+    const onDuplicateSheet = vi.fn(async () => {
+      throw new Error('write failed');
+    });
+    renderScreen({ onDuplicateSheet });
+
+    await user.click(cardMenuItem('s1'));
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: t(STRINGS.sheetMenu.duplicateNamed, { title: 'Sheet 01' }),
+      }),
+    );
+
+    await waitFor(() => expect(toasts).toHaveLength(1));
+    expect(toasts[0].text).toBe(STRINGS.sheetMenu.duplicateFailed);
+    expect(toasts[0].urgent).toBe(true);
+    off();
+  });
+});
+
+describe('replace photo — the warned dialog (UI §11.2:720)', () => {
+  const PROMPT = { sheetId: 's1', title: 'Sheet 01' };
+
+  it('the menu item hands off to the shell, and no dialog renders without a prompt', async () => {
+    const user = userEvent.setup();
+    const onReplacePhoto = vi.fn();
+    renderScreen({ onReplacePhoto });
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    await user.click(cardMenuItem('s1'));
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: t(STRINGS.sheetMenu.replaceNamed, { title: 'Sheet 01' }),
+      }),
+    );
+
+    expect(onReplacePhoto).toHaveBeenCalledWith('s1');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('renders the warned dialog with the pinned copy and the default focus on Keep', () => {
+    renderScreen({ onResolveReplace: vi.fn(), replacePrompt: PROMPT });
+
+    expect(screen.getByRole('dialog', { name: STRINGS.sheetMenu.replacePhoto })).toBeTruthy();
+    expect(screen.getByText(STRINGS.project.replacePhotoWarn)).toBeTruthy();
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: STRINGS.project.replacePhotoKeep }),
+    );
+  });
+
+  it('Keep and Cancel wire the right answers; Escape cancels', async () => {
+    const user = userEvent.setup();
+    const onResolveReplace = vi.fn();
+    renderScreen({ onResolveReplace, replacePrompt: PROMPT });
+
+    await user.click(screen.getByRole('button', { name: STRINGS.project.replacePhotoKeep }));
+    expect(onResolveReplace).toHaveBeenCalledWith('keep');
+
+    onResolveReplace.mockClear();
+    await user.keyboard('{Escape}');
+    expect(onResolveReplace).toHaveBeenCalledWith('cancel');
+
+    onResolveReplace.mockClear();
+    await user.click(screen.getByRole('button', { name: STRINGS.editor.cancel }));
+    expect(onResolveReplace).toHaveBeenCalledWith('cancel');
+  });
+
+  it('Remove markup does NOT fire before 600 ms and fires when the hold completes', () => {
+    vi.useFakeTimers();
+    try {
+      const onResolveReplace = vi.fn();
+      renderScreen({ onResolveReplace, replacePrompt: PROMPT });
+
+      const remove = screen.getByTestId('sheet-replace-remove');
+      dispatchPointer(remove, 'pointerdown');
+
+      // One millisecond short of the hold: firing here would be a wrong-measurement bug
+      // (the markup would be thrown away by a tap).
+      act(() => {
+        vi.advanceTimersByTime(599);
+      });
+      expect(onResolveReplace).not.toHaveBeenCalled();
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(onResolveReplace).toHaveBeenCalledWith('remove');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a released hold is cancelled — a tap on Remove never removes', () => {
+    vi.useFakeTimers();
+    try {
+      const onResolveReplace = vi.fn();
+      renderScreen({ onResolveReplace, replacePrompt: PROMPT });
+
+      const remove = screen.getByTestId('sheet-replace-remove');
+      dispatchPointer(remove, 'pointerdown');
+      dispatchPointer(remove, 'pointerup');
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+
+      expect(onResolveReplace).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('reorder — the keyboard path (WCAG 2.1.1) and the drag', () => {
+  it('Move earlier / Move later call onReorderSheets with the live order', async () => {
+    const user = userEvent.setup();
+    const onReorderSheets = vi.fn(async () => {});
+    renderScreen({ onReorderSheets });
+
+    // s1 moves one place later: [s1,s2,s3] → [s2,s1,s3].
+    await user.click(cardMenuItem('s1'));
+    await user.click(screen.getByRole('menuitem', { name: STRINGS.sheetMenu.moveLater }));
+    expect(onReorderSheets).toHaveBeenLastCalledWith(['s2', 's1', 's3']);
+
+    // The list re-rendered in the new order; s3 (now last) moves one place earlier.
+    await user.click(cardMenuItem('s3'));
+    await user.click(screen.getByRole('menuitem', { name: STRINGS.sheetMenu.moveEarlier }));
+    expect(onReorderSheets).toHaveBeenLastCalledWith(['s2', 's3', 's1']);
+  });
+
+  it('Move earlier is disabled at the first live position, Move later at the last', async () => {
+    const user = userEvent.setup();
+    renderScreen({ onReorderSheets: vi.fn() });
+
+    await user.click(cardMenuItem('s1'));
+    expect((screen.getByRole('menuitem', { name: STRINGS.sheetMenu.moveEarlier }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      screen.getByRole('menuitem', { name: STRINGS.sheetMenu.moveEarlier }).getAttribute('aria-disabled'),
+    ).toBe('true');
+
+    await user.keyboard('{Escape}');
+    await user.click(cardMenuItem('s3'));
+    expect((screen.getByRole('menuitem', { name: STRINGS.sheetMenu.moveLater }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      screen.getByRole('menuitem', { name: STRINGS.sheetMenu.moveLater }).getAttribute('aria-disabled'),
+    ).toBe('true');
+  });
+
+  it('a rejected reorder restores the pre-drag order and says so', async () => {
+    const user = userEvent.setup();
+    const toasts: ToastMessage[] = [];
+    const off = subscribeToastMessage((toast) => toasts.push(toast));
+    const onReorderSheets = vi.fn(async () => {
+      throw new Error('write failed');
+    });
+    renderScreen({ onReorderSheets });
+
+    await user.click(cardMenuItem('s2'));
+    await user.click(screen.getByRole('menuitem', { name: STRINGS.sheetMenu.moveEarlier }));
+
+    await waitFor(() => expect(toasts).toHaveLength(1));
+    expect(toasts[0].text).toBe(STRINGS.sheetMenu.reorderFailed);
+    expect(toasts[0].urgent).toBe(true);
+
+    // Order back to s1, s2, s3 — s2 is back at its middle position.
+    await waitFor(() => expect(badgeFor('s2')).toBe('02'));
+    off();
+  });
+
+  it('a 400 ms lift shows the «Drop to move» chip and marks the card as dragging', () => {
+    vi.useFakeTimers();
+    try {
+      renderScreen({ onReorderSheets: vi.fn() });
+      const card = screen.getByRole('button', { name: 'Sheet 01' });
+
+      dispatchPointer(card, 'pointerdown', { clientX: 40, clientY: 40 });
+      expect(screen.queryByTestId('sheet-reorder-chip')).toBeNull();
+
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+
+      const chip = screen.getByTestId('sheet-reorder-chip');
+      expect(chip.textContent).toBe(STRINGS.project.reorderChip);
+      // A live region, so a screen reader hears the drop affordance.
+      expect(chip.getAttribute('role')).toBe('status');
+      expect(document.querySelector('.sheet-card[data-dragging="true"]')).toBeTruthy();
+
+      dispatchPointer(document, 'pointercancel');
+      expect(screen.queryByTestId('sheet-reorder-chip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('the grid renumbers live while dragging and persists the final order', () => {
+    vi.useFakeTimers();
+    const restoreRects = stubCardRects(['s1', 's2', 's3']);
+    try {
+      const onReorderSheets = vi.fn(async () => {});
+      renderScreen({ onReorderSheets });
+      const card = screen.getByRole('button', { name: 'Sheet 01' });
+
+      dispatchPointer(card, 'pointerdown', { clientX: 10, clientY: 10 });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+
+      // Over the third card's rectangle (2 × 336 + 10 = 682) — a real drop decision.
+      dispatchPointer(document, 'pointermove', { clientX: 682, clientY: 10 });
+      // The dragged card's own badge renumbers live: s1 has moved from position 1 to 3.
+      expect(badgeFor('s1')).toBe('03');
+      expect(badgeFor('s2')).toBe('01');
+
+      dispatchPointer(document, 'pointerup', { clientX: 682, clientY: 10 });
+      expect(onReorderSheets).toHaveBeenCalledWith(['s2', 's3', 's1']);
+    } finally {
+      restoreRects();
+      vi.useRealTimers();
+    }
+  });
+
+  it('Escape aborts a drag and restores the pre-drag order', () => {
+    vi.useFakeTimers();
+    const restoreRects = stubCardRects(['s1', 's2', 's3']);
+    try {
+      const onReorderSheets = vi.fn(async () => {});
+      renderScreen({ onReorderSheets });
+      const card = screen.getByRole('button', { name: 'Sheet 01' });
+
+      dispatchPointer(card, 'pointerdown', { clientX: 10, clientY: 10 });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      dispatchPointer(document, 'pointermove', { clientX: 682, clientY: 10 });
+      expect(badgeFor('s1')).toBe('03');
+      dispatchPointer(document, 'keydown', { key: 'Escape' });
+
+      expect(onReorderSheets).not.toHaveBeenCalled();
+      expect(badgeFor('s1')).toBe('01');
+      expect(badgeFor('s2')).toBe('02');
+    } finally {
+      restoreRects();
+      vi.useRealTimers();
+    }
+  });
+
+  it('a drag never opens the sheet: the click that follows is swallowed once', () => {
+    vi.useFakeTimers();
+    const restoreRects = stubCardRects(['s1', 's2', 's3']);
+    try {
+      const onOpenSheet = vi.fn();
+      renderScreen({ onOpenSheet, onReorderSheets: vi.fn() });
+      const card = screen.getByRole('button', { name: 'Sheet 01' });
+
+      dispatchPointer(card, 'pointerdown', { clientX: 10, clientY: 10 });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      dispatchPointer(document, 'pointermove', { clientX: 682, clientY: 10 });
+      dispatchPointer(document, 'pointerup', { clientX: 682, clientY: 10 });
+
+      fireEvent.click(card);
+      expect(onOpenSheet).not.toHaveBeenCalled();
+
+      // …and the very next tap is an ordinary open again.
+      fireEvent.click(card);
+      expect(onOpenSheet).toHaveBeenCalledWith('s1');
+    } finally {
+      restoreRects();
+      vi.useRealTimers();
+    }
+  });
+
+  it('a cancelled pointer leaves no stale click-suppression behind', () => {
+    vi.useFakeTimers();
+    const restoreRects = stubCardRects(['s1', 's2', 's3']);
+    try {
+      const onOpenSheet = vi.fn();
+      renderScreen({ onOpenSheet, onReorderSheets: vi.fn() });
+      const card = screen.getByRole('button', { name: 'Sheet 01' });
+
+      dispatchPointer(card, 'pointerdown', { clientX: 10, clientY: 10 });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      dispatchPointer(document, 'pointercancel');
+
+      // No click EVER follows a cancelled pointer, so the next one is an ordinary open.
+      fireEvent.click(card);
+      expect(onOpenSheet).toHaveBeenCalledWith('s1');
+    } finally {
+      restoreRects();
+      vi.useRealTimers();
+    }
+  });
+
+  it('an Escape-cancelled drag leaves no stale click-suppression behind', () => {
+    // Escape is the same shape as `pointercancel`: a lift is abandoned without any click,
+    // so the armed suppression must be released — otherwise the next ordinary tap on a
+    // card opens nothing (a dead card, the D102 class).
+    vi.useFakeTimers();
+    const restoreRects = stubCardRects(['s1', 's2', 's3']);
+    try {
+      const onOpenSheet = vi.fn();
+      renderScreen({ onOpenSheet, onReorderSheets: vi.fn() });
+      const card = screen.getByRole('button', { name: 'Sheet 01' });
+
+      dispatchPointer(card, 'pointerdown', { clientX: 10, clientY: 10 });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      dispatchPointer(document, 'keydown', { key: 'Escape' });
+
+      fireEvent.click(card);
+      expect(onOpenSheet).toHaveBeenCalledWith('s1');
+    } finally {
+      restoreRects();
+      vi.useRealTimers();
+    }
+  });
+
+  it('a press on the ⋯ trigger or the select toggle never arms the drag', () => {
+    vi.useFakeTimers();
+    try {
+      renderScreen({ onReorderSheets: vi.fn(), onToggleSelected: vi.fn() });
+
+      dispatchPointer(cardMenuItem('s1'), 'pointerdown', { clientX: 40, clientY: 40 });
+      dispatchPointer(document.querySelector('.sheet-card-select') as Element, 'pointerdown');
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+
+      expect(document.querySelector('.sheet-card[data-dragging="true"]')).toBeNull();
+      expect(screen.queryByTestId('sheet-reorder-chip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('with no onReorderSheets the grid is not draggable and the move items are absent', async () => {
+    const user = userEvent.setup();
+    renderScreen({ onDeleteSheet: vi.fn() });
+
+    await user.click(cardMenuItem('s1'));
+    expect(menuItemKeys()).toEqual(['open', 'delete']);
   });
 });

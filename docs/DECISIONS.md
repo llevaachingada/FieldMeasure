@@ -2712,3 +2712,90 @@ the system had not done* — and it survived a lane's tests, the lane's own hone
 pass, because every check asked what the code **emitted** rather than what the **screen rendered**. The pin is
 route-level now, and the review brief should ask it directly: *does anything actually render what this emits,
 on every route that can emit it?*
+
+### D115 — the sheets grid's remaining items (D111): reorder, rename, duplicate, replace photo, and the storage chip
+
+The five items the handoff listed as owed are built. The choices this wave forced, each one a decision rather
+than an accident:
+
+1. **A keyboard reorder path was added, and it is not decoration.** UI §11.2:719 specifies the reorder as a
+   long-press drag only. A drag is unreachable by keyboard (WCAG 2.1.1) and jsdom cannot drive it, so the card
+   menu carries **`Move earlier` / `Move later`** (disabled at the ends). The drag remains the primary gesture;
+   the pair is the accessible equivalent and the only machine-testable path. Added copy is marked
+   `⚠ PROPOSED` like its neighbours.
+2. **The «Drop to move» chip follows the pointer via `element.animate()`.** §11.2:719 says the chip "follows
+   the card", but a computed anchor needs an inline `style`, and the CSP (`style-src 'self'`) plus the e2e
+   `[style]` count === 0 assertion both forbid one (the D75 mini-toolbar precedent). Web Animations positions
+   it without creating a `style` attribute, so the spec's behaviour is honoured rather than approximated by a
+   fixed slot.
+3. **The drop target is resolved geometrically** from rectangles captured once at gesture start, never from
+   hover events: Chromium implicitly captures the pointer to the card that received `pointerdown`, so
+   `pointerover` never fires on the others. That exact trap shipped a dead touch reorder once already (D77/F1).
+4. **Still deferred, deliberately: the selection bar's batch `Duplicate` / `Delete`** (UI §11.2:717). The spec
+   lists the buttons but pins neither batch-delete/undo semantics nor any copy for them, and a batch undo that
+   only restored the last sheet would be exactly the lie this project keeps fixing. Owed rather than invented.
+5. **`duplicateSheet` places the copy at the END** (`nextSortIndex`, the §20.2 create rule) and the shell
+   titles it with the existing `defaultSheetTitle` (`Sheet NN`, live count + 1) — one naming convention, not
+   two, and no `(copy)` convention invented.
+6. **`renameSheet` never touches `updatedAt`.** `updatedAt` is the sheet's content time (the card's «2:14 PM»
+   meta line); a rename must not claim a content change. Only `title` moves.
+7. **The storage chip reports disk facts, and renders nothing when it has none.** `{size}` is a recursive byte
+   walk of the whole project folder (including `.history/` and `.trash/` — that is what the disk actually
+   holds); `{time}` is `project.json`'s own `lastModified`. While measuring, on failure, or with no real save
+   time, the chip renders **nothing** — the approved template needs both tokens, and `Local · 176 MB · Saved `
+   would be a claim the system never made. (This is D110's lesson applied before the fact rather than after.)
+
+### D116 — the sheet `sortIndex` correction: two pins were wrong, and the fixture was the reason
+
+**`addSheetFromPhoto` wrote `sortIndex: projectFile.sheets.length`** (0-based, a gap of 1) while build spec
+§20.6:2584 pins **integers, gaps of 10, renumbered `10 × position`**. The contradiction was invisible until
+this wave added a reorder: the reorder renumbers live rows to `10, 20, 30…`, after which a newly appended
+sheet (say `2`) sorts **before every existing sheet**, because `projectSheets.ts:102` sorts ascending. It now
+uses `nextSortIndex` = `max(sortIndex of LIVE rows) + 10`, or **10** when there are none — arithmetic:
+`10 × (position + 1)` for position 0.
+
+`tests/sheetIntake.test.ts` pinned the old behaviour (`0`, then `[0, 1]`); both expectations are corrected
+(`10`, `[10, 20]`) with the arithmetic in the comment, per the standing rule that **a test which encodes a
+defect is corrected as a spec-expectation correction, with the arithmetic shown** — never by weakening a gate.
+
+**The shared fixture carried the same bug.** `tests/fakes/fsa.ts`'s `validProjectFile` (used by ~20 tests)
+also used `sortIndex: i`. That is why the lane brief's own arithmetic (`[10, 20]`) did *not* hold against it,
+and why `cameraFlow.test.tsx` asserted the append at `1`. Corrected to `10 × (i + 1)`; that test's two pins
+followed (`sortIndex: 20`, and the payload's `index` — see the watch item below). A fixture that disagrees
+with the convention under test manufactures wrong expectations, and it did: it produced one in the brief
+itself, inside a lane, in the same hour.
+
+**Watch item, not fixed:** `CameraFlow`'s `onCaptured` payload field named **`index` actually carries the
+sheet's `sortIndex`** (now `20`, not a 1-based position). No consumer reads it — the shell uses `id` and
+`title` — so the value is pinned at its truth and the misnomer is recorded here rather than renamed inside a
+frozen interface in this wave.
+
+### D117 — the replace-photo write order: an in-place overwrite needs a rollback
+
+`replaceSheetPhoto` is the one operation in this codebase that **overwrites the user's working image in
+place** — `sheetTrash`'s "never lose the source" property comes from copying to a *new* location, which is not
+available here. The first implementation ordered it photo → verify → row → thumb and treated the thumbnail
+removal as best-effort, swallowing every failure. Execution showed two lies in that ordering:
+
+- a **locked `thumb.jpg`** left the cached composite (the **old** photo) on the grid card under a sheet that
+  now contained a **new** one — the D110/D114 class exactly; and
+- a **locked `project.json`** left the new photo on disk under the **old** `imageWidth`/`imageHeight` — a
+  working-image space that disagrees with itself, i.e. a wrong-measurement state.
+
+The order is now, with the reason each step sits where it does:
+
+1. **Read the bytes being overwritten** (so a failure can put them back).
+2. **Remove the stale `thumb.jpg` first.** It is the only step that can fail for a reason we cannot work
+   around, and doing it first means the "cannot proceed" case changes nothing the user can see — the card
+   falls back to the honest placeholder. A non-`NotFoundError` here **aborts** the replace.
+3. **Write the photo atomically, then verify** it (re-read, compare `size` — the `copySheetTree` idiom).
+4. **Write the row's dimensions and `updatedAt`.** Any failure in 3–4 **restores the previous photo**.
+5. **Only then, on `'remove'`, clear `markup.json`.** A failure here leaves the photo and the row consistently
+   new and the markup still on disk — visible, recoverable. The opposite order would let a ledger failure
+   destroy markup the user never got a new photo for: a silent loss. The worst case of this order is markup
+   the user had already asked to discard.
+
+Two tests that had encoded the weaker behaviour were corrected to the stronger one (the photo is restored, and
+the stale thumbnail is gone), and a third was added: an unremovable thumbnail aborts the replace with the
+photo, the row and the markup untouched. `{ create: false }` on the sheet folder is deliberate too — an orphan
+row is not resurrected into a half-sheet (a photo, no markup) behind a card that looks healthy.
