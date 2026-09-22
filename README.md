@@ -9,17 +9,18 @@ self-contained, and the user drags the exported folder into Dropbox to share.
 > **Status: nine slices shipped and green — the app runs, takes a photo, and places typed
 > dimensions.** Slices 0.2 (input router), 1.1 (domain core), 0.3 (first-run/Settings/Home), 1.2
 > (storage core), 1.3 (media + canvas), 1.4 (capture flow), 1.4.5 (editor shell), 1.5 (dimension
-> tool) and 1.6 (markup tools) are complete, and slice 1.9 has shipped **step 1 of 5**
-> (`export/filenames.ts`). **Slice 1.6 is PARTIAL**: the tools and markup persistence ship, but the
-> Layers panel is built-and-unmounted and three wiring items are owed — see
-> [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md).
+> tool), 1.6 (markup tools, with the Layers panel mounted and wired) and **1.7 (image insets)** are
+> complete, and slice 1.9 has shipped **step 1 of 5** (`export/filenames.ts`). An **independent
+> adversarial review** of the 1.4→1.6 batch has now run (the session-10 waiver is discharged): it found
+> no wrong-measurement and no data-loss defect, **four of its findings are fixed and five remain
+> owed** — see `docs/DECISIONS.md` **D77/D78** and [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md).
 >
-> **Machine gates (on the reconciled tree):** `npx tsc --noEmit` clean · `npx vitest run` **526
-> tests / 40 files** · `npm run build` clean · `npx playwright test` 5 passed / 4 skipped.
+> **Machine gates (on the committed file set):** `npx tsc --noEmit` clean · `npx vitest run` **636
+> tests / 52 files** · `npm run build` clean (17 precache) · `npx playwright test` 5 passed / 5 skipped.
 >
-> **Annotations now persist** to each sheet's `markup.json`, so markup survives a reload. Read
+> **Annotations persist** to each sheet's `markup.json`, so markup survives a reload. Read
 > [`docs/CONTINUITY.md`](docs/CONTINUITY.md) for live state and
-> [`docs/handoff-session-11.md`](docs/handoff-session-11.md) for the current handoff. The origin
+> [`docs/handoff-session-12.md`](docs/handoff-session-12.md) for the current handoff. The origin
 > question ([`DECISIONS.md`](docs/DECISIONS.md) D24) is resolved in build spec **§21.1**.
 
 ## Why
