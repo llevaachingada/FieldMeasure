@@ -469,3 +469,44 @@ describe('pruneTrash — the ONLY path that removes a trash entry (14 days)', ()
     ]);
   });
 });
+
+describe('delete — the row is marked BEFORE the original is removed (review F2)', () => {
+  it('a project.json write failure leaves the sheet intact rather than half-deleted', async () => {
+    // Fail ONLY the atomic `project.json` rename — the §5.8 S5 locked/another-app case. The
+    // earlier order (remove the original, then write the row) left the sheet HALF-deleted: the
+    // folder gone from `sheets/`, its files in `.trash/`, and the row still live — so the grid
+    // showed a card for a sheet whose folder no longer existed, the trash panel could not see it,
+    // and Restore refused it as "already live". Marking first makes that failure harmless.
+    let locked = true;
+    const root = new FakeDir('root', {
+      // The hook receives the tmp file AND the rename TARGET name — the target is what makes
+      // this the `project.json` write and nothing else (the copy's own writes have other targets).
+      beforeMove: (_file, name) => {
+        if (locked && name === 'project.json') {
+          throw new DOMException('locked by another app', 'NoModificationAllowedError');
+        }
+      },
+    });
+    root.putFile(`${FOLDER}/project.json`, projectJson([sheetRow('s1', 'Sheet 01', 10)]));
+    putSheet(root, 's1');
+    await openProject(root);
+
+    await expect(deleteSheet(PROJECT_KEY, 's1')).rejects.toThrow();
+
+    // The original survives, the ledger still says live, and the grid still lists it — because it
+    // really is still there.
+    expect(root.has(`${FOLDER}/sheets/s1/photo.jpg`)).toBe(true);
+    expect(rowFor(root, 's1').deletedAt).toBeUndefined();
+    expect((await listProjectSheets(PROJECT_KEY)).map((c) => c.id)).toEqual(['s1']);
+
+    // With the lock cleared, a retry completes the delete. The files may already be in `.trash/`
+    // from the failed attempt — a harmless duplicate, which is the whole point of the new order.
+    locked = false;
+    await deleteSheet(PROJECT_KEY, 's1');
+
+    expect(root.has(`${FOLDER}/sheets/s1/photo.jpg`)).toBe(false);
+    expect(root.has(`${FOLDER}/.trash/s1/photo.jpg`)).toBe(true);
+    expect(rowFor(root, 's1').deletedAt).toBeTypeOf('string');
+    expect(await listProjectSheets(PROJECT_KEY)).toEqual([]);
+  });
+});

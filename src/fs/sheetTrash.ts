@@ -155,15 +155,15 @@ export async function deleteSheet(
       }
       throw e;
     }
-    // The copy is verified. Only now remove the original folder, recursively.
-    const sheetsDir = await projectDir.getDirectoryHandle(SHEETS_DIR, { create: false });
-    try {
-      await sheetsDir.removeEntry(sheetId, { recursive: true });
-    } catch (e) {
-      if (!isNotFound(e)) throw e; // already gone is fine
-    }
   }
 
+  // Review F2 — mark the row BEFORE removing the original. The earlier order (remove, then
+  // write) left a half-deleted sheet whenever the atomic `project.json` write failed — the S5
+  // locked/another-app case: the folder gone from `sheets/`, its files in `.trash/`, and the
+  // row still live, so the grid showed a card for a sheet whose folder no longer existed, the
+  // trash panel could not see it, and Restore refused it as "already live". Marking first makes
+  // that same failure the harmless state: the ledger says deleted, the files are safely in the
+  // trash, and any leftover folder in `sheets/` is inert (a later Restore simply copies over it).
   const next: ProjectFile = {
     ...file,
     sheets: file.sheets.map((s) =>
@@ -171,6 +171,17 @@ export async function deleteSheet(
     ),
   };
   await writeJsonAtomic(projectDir, 'project.json', next, projectId);
+
+  if (sheetDir) {
+    // The copy is verified and the ledger is written. Only now remove the original folder,
+    // recursively; "already gone" is fine.
+    const sheetsDir = await projectDir.getDirectoryHandle(SHEETS_DIR, { create: false });
+    try {
+      await sheetsDir.removeEntry(sheetId, { recursive: true });
+    } catch (e) {
+      if (!isNotFound(e)) throw e;
+    }
+  }
 }
 
 /**
@@ -289,9 +300,14 @@ export async function pruneTrash(
   const expiredIds = expired.map((s) => s.id);
   const expiredSet = new Set(expiredIds);
 
-  // Remove the `.trash/<id>/` folders first, tolerating an already-missing folder. A real
-  // failure here throws before `project.json` changes, so an entry is either fully pruned
-  // (folder + row) or untouched — never listed with its files gone.
+  // Remove the `.trash/<id>/` folders first, tolerating an already-missing folder, then rewrite
+  // the rows once. ORDER IS DELIBERATE, and the honest description of its failure mode is this:
+  // a failure part-way through a MULTI-entry prune can leave a row whose folder is already gone
+  // (the panel lists the name, Restore reports the missing copy honestly, and the next prune
+  // clears the ghost row). The alternatives are worse — rows-first would strand un-prunable
+  // orphan folders with no ledger, and a per-entry rewrite would multiply the failure windows.
+  // Review F3 corrected this comment: the earlier text claimed "fully pruned or untouched —
+  // never listed with its files gone", which execution disproved.
   let trashRoot: FileSystemDirectoryHandle | null = null;
   try {
     trashRoot = await projectDir.getDirectoryHandle(TRASH_DIR, { create: false });

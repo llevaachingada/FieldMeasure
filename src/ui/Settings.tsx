@@ -387,10 +387,15 @@ export default function Settings({ onBack }: SettingsProps) {
                 </button>
               )}
             </div>
+            {/* Review F6: this row had NO handler — an enabled, approved-copy button that did
+                nothing, in a wave that shipped a real «Trash…» entry point on the grid. Disabled
+                honestly until it is wired to something true (D102). */}
             <button
               type="button"
               className="settings-row settings-row-button hit-slop"
               aria-label={STRINGS.trash.open}
+              disabled
+              aria-disabled="true"
             >
               <span className="settings-row-label">{STRINGS.trash.open}</span>
             </button>
@@ -407,10 +412,14 @@ export default function Settings({ onBack }: SettingsProps) {
                 {t(STRINGS.settings.buildVersion, buildParts())}
               </span>
             </div>
+            {/* Review F6: same as the «Trash…» row — an enabled button with no handler (it
+                predates this wave). Disabled honestly rather than left looking live. */}
             <button
               type="button"
               className="settings-row settings-row-button hit-slop"
               aria-label={STRINGS.settings.thirdPartyNotices}
+              disabled
+              aria-disabled="true"
             >
               <span className="settings-row-label">{STRINGS.settings.thirdPartyNotices}</span>
             </button>

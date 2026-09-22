@@ -1098,3 +1098,67 @@ restore ordering deviation, and the honest delete toast).
 
 **Next:** the grid's remaining items (reorder, rename, duplicate, replace photo, the storage chip) and the
 paused 1.10 polish (History flyout, a11y audit, halo fix, PDF captions), then 2.0.
+
+---
+
+## Session 21 addendum — the trash/grid review resolutions (D114)
+**Date:** 2026-09-22 · **Commits:** see `git log` · **Branch:** `main`
+
+**Context:** the independent, executed review of the trash + grid wave returned six findings (`D114`).
+This entry records the resolutions; `docs/handoff-session-21.md` §9 carries the register in the same commit.
+
+**Fixed:**
+
+- **F1 — the severe one.** The Project route mounted **no `ToastHost`**, so every toast emitted on the sheets
+  grid — the delete's «Sheet deleted · Undo», the failure line, the «Added {sheetName}» capture toast, the
+  blocked-mutation line — went onto the bus and was **rendered nowhere**. A delete vanished the card with no
+  announcement and **no undo window**: the trash slice's central promise was false in production. **One host
+  now lives at the app shell root** (`.editor-toast` is `position: fixed`, so it belongs to no route), and the
+  Home-branch and `EditorLayout` hosts are gone — a second host would double-subscribe and double-render.
+  **Pinned by a new route-level test** (`tests/gridToast.test.tsx`) that mounts the real `App`, walks
+  Home → grid, and asserts the toast **DOM** and its action, with a Home-route control. The lane's own 28
+  tests asserted the **bus** — which is exactly why they could not see it. `editorShell`'s toast test now
+  composes the layout the way `App` does.
+- **F2 — a half-deleted sheet.** `deleteSheet` removed the original **before** marking the row, so a locked
+  `project.json` (the §5.8 S5 case) left the folder gone from `sheets/`, its files in `.trash/`, and the row
+  still live: the grid showed a card for a sheet that no longer existed, the trash panel could not see it, and
+  Restore refused it as "already live". **Reordered** to copy → verify → **mark the row** → remove (tolerating
+  `NotFoundError`), which turns that failure into the harmless duplicate the restore rationale already
+  describes. Pinned with a test driving the fake's `beforeMove(file, name)` hook.
+- **F3 — a false invariant.** The prune comment claimed "fully pruned or untouched — never listed with its
+  files gone", which execution disproved for **multi-entry** prunes. Folder-first is kept deliberately (the
+  alternatives are worse) and both the comment and `D113` now describe what actually happens.
+- **F4 — a dropped action.** The grid's «Export» with **no selection** navigated into an editor with **no
+  wizard** (`[]` means "every sheet", but the shell gated on a non-empty list). An empty selection now expands
+  to the project's live sheets at hand-off, and with zero sheets the action stays on the grid.
+- **F5 — a silent failure.** A failed **restore** that came from the delete toast's Undo was invisible (the
+  failure flag's only surface is the trash panel, which is **closed** at that moment). The catch now also
+  emits an urgent toast.
+- **F6 — dead controls.** Two Settings rows («Trash…», «Third-party notices») were enabled with approved copy
+  and no handler; both are now disabled honestly (the D102 pattern).
+
+**Verified sound by the review, with execution** (recorded because a register is only useful if it says what
+held): the 14-day boundary and `daysLeft`; the copy-failure paths, including a pre-existing `.trash/<id>/`
+never being touched by cleanup; the restore-ordering claim; the prune's blast radius; "the only reaper"; the
+D51 keys on every new caller; the honest delete at the screen level; the wizard's scoping; the panel's a11y.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `CI=true npx vitest run` → **87 files / 1208 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 25 precache entries (1498.22 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+
+**Deferred to hardware:** unchanged (the real FSA/NTFS behaviour, the 14-day clock, the SW update lifecycle).
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D114** (the register and every resolution above); **D113** carries a correction for
+F3.
+
+**Surprises:** **F1 is the seventh instance of this session's one defect class** — *the interface said
+something the system had not done* — and the first that survived a lane's own tests, that lane's honesty pass,
+**and** an integration review. Every check asked what the code **emitted**; none asked what the **screen
+rendered**. That question is now in the handoff and in `D114`.
+
+**Next:** unchanged — the grid's remaining items (reorder, rename, duplicate, replace photo, the storage
+chip), the paused 1.10 polish, and a real end-to-end run on the built app.

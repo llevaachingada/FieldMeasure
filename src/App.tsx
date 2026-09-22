@@ -150,6 +150,10 @@ export default function App() {
       await loadTrash(editorTarget.projectId);
     } catch {
       setTrashRestoreFailed(true);
+      // Review F5: this catch used to be silent for the user — `trashRestoreFailed` surfaces
+      // only inside the trash panel, which is CLOSED when the delete toast's Undo fires. A
+      // failed restore must be visible wherever it was triggered.
+      emitToast({ text: STRINGS.trash.restoreFailed, urgent: true });
     }
   }
 
@@ -279,10 +283,16 @@ export default function App() {
           }}
           onExport={(ids) => {
             // Export lives in the editor's wizard, which owns the destination and every write.
-            // The selection is handed over so the wizard opens ALREADY scoped to it — it derives
-            // its initial scope from `selectedSheetIds` (UI §12:712).
-            setSelectedSheetIds(ids);
-            setPendingExportSelection(ids.length > 0 ? ids : null);
+            // The selection is handed over so the wizard opens ALREADY scoped to it (it derives
+            // `'selected'` from `selectedSheetIds`, UI §12:712).
+            //
+            // Review F4: the grid calls this with `[]` to mean "every sheet", so an empty list
+            // must NOT be dropped — that navigated the user into an editor with no wizard at
+            // all. It is expanded here, where the live sheet list is known.
+            const scope = ids.length > 0 ? ids : projectSheets.map((card) => card.id);
+            if (scope.length === 0) return; // nothing to export — stay on the grid
+            setSelectedSheetIds(scope);
+            setPendingExportSelection(scope);
             setRoute('editor');
           }}
           onDeleteSheet={handleDeleteSheet}
@@ -345,9 +355,10 @@ export default function App() {
             /* slice 1.2 — reveals/opens an existing project folder */
           }}
         />
-        {/* §13.4: the Home route gets the same single-instance toast surface (the editor
-            mounts its own inside `EditorLayout`; only one route is mounted at a time). */}
-        <ToastHost />
+        {/* §13.4: the single-instance toast surface is mounted ONCE at the shell root (below),
+            so every route — Home, Settings, the sheets grid and the editor — can actually show
+            what the code emits. Before this, the project route had no host at all: a delete
+            emitted «Sheet deleted · Undo» into the void (review F1). */}
       </>
     );
   };
@@ -359,6 +370,9 @@ export default function App() {
           route changes and is reachable from Home, the editor and first run alike. It
           renders nothing until a worker is waiting, and suppresses itself mid-measurement. */}
       <PWAUpdate />
+      {/* §13.4: exactly ONE toast host for the whole app, mounted here rather than per route.
+          A route that renders none (the sheets grid) silently swallowed every toast. */}
+      <ToastHost />
       {/* Slice 1.4/1.10: the capture flow is a full-bleed overlay, mounted at the shell root
           so it works over the grid as well as the editor. It writes through the same
           `addSheetFromPhoto` path either way; `captureOrigin` decides where «Use photo»

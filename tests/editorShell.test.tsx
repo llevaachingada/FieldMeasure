@@ -19,7 +19,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
-import { createElement } from 'react';
+import { Fragment, createElement } from 'react';
+import ToastHost from '../src/ui/Toast';
 
 // Stub the canvas surface (Konva needs a real canvas; jsdom has none). The stub also
 // registers a fake import trigger so the top bar → canvas import seam can be proved.
@@ -66,14 +67,24 @@ function setViewport(w: number, h: number): void {
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: h });
 }
 
+/**
+ * Review F1: the toast host lives at the app shell — ONE host for every route — so a standalone
+ * layout is composed here exactly as `App` composes it. The toast assertion below is about what the
+ * user SEES, and seeing a toast requires a host in the tree.
+ */
 function renderLayout(overrides: Record<string, unknown> = {}) {
   return render(
-    createElement(EditorLayout, {
-      projectId: 'p:f',
-      folderName: 'Riverside',
-      onExit: () => {},
-      ...overrides,
-    }),
+    createElement(
+      Fragment,
+      null,
+      createElement(EditorLayout, {
+        projectId: 'p:f',
+        folderName: 'Riverside',
+        onExit: () => {},
+        ...overrides,
+      }),
+      createElement(ToastHost),
+    ),
   );
 }
 

@@ -58,7 +58,6 @@ import SheetEditor, { type EditorExportSource } from './SheetEditor';
 import ExportWizard, { type ExportSheetRef } from './ExportWizard';
 import StyleEditorSheet, { type StyleEditorSheetProps } from './StyleEditorSheet';
 import StylePanel, { type StylePanelProps, type StyleScope } from './StylePanel';
-import ToastHost from './Toast';
 import TopBar from './TopBar';
 import ToolRail, { TOOL_HOTKEYS, toolDefById, type ToolId } from './ToolRail';
 import { STRINGS, t } from './strings';
@@ -694,6 +693,9 @@ export default function EditorLayout({
       />
       {/* §7.5: the deep editor sheet, toggled by `More styles…`/`Custom…` and closed by
           `Esc`/`✕`/`Done` (the sheet owns its own focus trap and focus return). */}
+      {/* §13.4: the toast host is mounted ONCE at the app shell root (`App`), so it is reachable
+          from every route. A second host here would double-subscribe and render every message
+          twice. */}
       {styleEditorOpen ? <StyleEditorSheet {...styleEditorProps} /> : null}
       {/* Slice 1.9: the export wizard is a STATIC import (never a new lazy-chunk edge —
           handoff-14 §3 trap 5). It is its own sibling dialog (`z-index: 60`, capture-phase
@@ -715,9 +717,6 @@ export default function EditorLayout({
           copyPath={exportSession.copyPath}
         />
       ) : null}
-      {/* §13.4: the single-instance toast surface (bottom-centre, 8 s / 10 s with an
-          action, never stacked). */}
-      <ToastHost />
     </div>
   );
 }

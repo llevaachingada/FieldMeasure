@@ -2620,6 +2620,15 @@ was invented. Files MOVE to `<project>/.trash/<id>/`.
    rewriting `project.json`, so an entry is either fully pruned or untouched — never listed with its files
    gone. It is the **only** thing that ever removes a trash entry: nothing prunes `.history/` or `.trash/` to
    make room for a save (build spec line 848), and `cleanStaleTmp` still skips `.trash/` (re-pinned by test).
+
+   > **Corrected by the independent review (F3), which execution proved right.** The claim above is true for
+   > a *single* entry and **false for a multi-entry prune**: the folders are removed one by one and the rows
+   > are rewritten once, so a failure part-way through leaves a row whose folder is already gone — the panel
+   > lists the name, «Restore» reports the missing copy honestly, and the next prune clears the ghost row.
+   > **Folder-first is kept deliberately** — the alternatives are worse (rows-first would strand un-prunable
+   > orphan folders with no ledger; a per-entry rewrite multiplies the failure windows) — but the honest
+   > description is "the expired files go first; the rows follow, and a part-way failure can leave a ghost
+   > row", not the impossible invariant this entry originally claimed.
 3. **Restore clears the row before dropping the trash copy** — the lane's deliberate deviation from the
    spec's stated order. If the atomic `project.json` write failed *after* the copy was gone, the only
    remaining copy would be stranded behind a `deletedAt` the prune would later erase; row-first makes the
@@ -2644,3 +2653,62 @@ module and is re-exported by the panel, so the two can never drift (the D94 less
 restore reports itself by the row leaving the panel and the sheet reappearing in the grid; and the panel's
 two-pane layout, its card-`⋯` placement and its real focus/hit-slop behaviour are manual/CSS checks (jsdom
 has no layout engine, D40).
+
+### D114 — independent review of the trash + grid wave: the register, and what it changed
+
+An independent, **executed** register was run against `31ab0dd` covering `sheetTrash.ts` (delete/restore/prune),
+the trash panel and the grid's delete affordances, the App wiring, and the grid → editor Export hand-off. Six
+findings; five changed code or docs.
+
+- **F1 — the worst: the Project route mounted NO `ToastHost`.** Every toast emitted while the sheets grid was on
+  screen — including «Sheet deleted · Undo», the whole point of the trash slice — went onto the bus and was
+  rendered nowhere, so a delete vanished the card with **no announcement and no undo window**, and a failed
+  delete was silent: exactly the lie D113 claimed to have removed. **The lane's own 28 tests asserted the
+  bus, which is precisely why they could not see it** (a test that checks what the code emitted cannot notice
+  that nothing rendered it). **Fixed:** ONE host at the app shell root — `.editor-toast` is `position: fixed`,
+  so it belongs to no route — with the Home-branch and `EditorLayout` hosts removed (a second host would
+  double-subscribe and render everything twice). **Pinned by a new route-level test**
+  (`tests/gridToast.test.tsx`) that mounts the real `App`, walks Home → grid, and asserts the toast **DOM** and
+  its action, plus a Home-route control.
+- **F2 — `deleteSheet` removed the original before marking the row.** A locked `project.json` (the §5.8 S5
+  locked/another-app case, plausible in the field) therefore left the sheet **half-deleted**: the folder gone
+  from `sheets/`, its files in `.trash/`, and the row still live — so the grid showed a card for a sheet whose
+  folder no longer existed, the trash panel could not see it, and Restore refused it as "already live".
+  **Fixed by reordering:** copy → verify → **mark the row** → remove the original (tolerating `NotFoundError`),
+  which turns that same failure into the harmless duplicate this entry's restore rationale already describes.
+  **Pinned** with a test driving the fake's `beforeMove(file, name)` hook — the target name is what identifies
+  the `project.json` write.
+- **F3 — the prune's stated invariant was false.** "Fully pruned or untouched — never listed with its files
+  gone" holds for a single entry and **fails for a multi-entry prune**: the folders go one by one and the rows
+  are rewritten once, so a part-way failure can leave a row whose folder is already gone. **Folder-first is
+  kept deliberately** (rows-first would strand un-prunable orphan folders with no ledger; a per-entry rewrite
+  multiplies the failure windows), and both the code comment and D113 now describe what actually happens.
+- **F4 — grid «Export» with no selection dropped the action.** `ProjectScreen` passes `[]` to mean "every
+  sheet", but the shell gated the hand-off on a **non-empty** list, so the user was navigated into an editor
+  with no wizard at all. **Fixed:** an empty selection expands to the project's live sheets at the moment of
+  hand-off, and with zero sheets the action stays on the grid.
+- **F5 — a failed restore was invisible when it came from the delete toast's Undo.** `handleRestoreSheet`'s
+  catch set a flag whose only surface is the trash panel — which is **closed** when that Undo fires. **Fixed:**
+  the catch now also emits an urgent toast.
+- **F6 — Settings carried two enabled-but-dead rows** («Trash…», «Third-party notices»): real buttons, approved
+  copy, no handler — and the trash one now reads as a broken duplicate of a real affordance. **Disabled
+  honestly** (the D102 pattern).
+
+**Verified sound by execution** (recorded because a register is only useful if it says what held): the 14-day
+boundary and `daysLeft`; the copy-failure paths, including a **pre-existing** `.trash/<id>/` never being
+touched by cleanup; the restore-ordering claim; the prune's blast radius (only `.trash/<id>/` + its row;
+`.history/`, `assets/`, live sheets and `*.tmp` untouched); "the only reaper"; the D51 keys on every new
+caller; the honest delete at the screen level; the wizard's scoping; the panel's a11y; and the gate.
+
+**Not verified, and not to be inherited as true:** real File System Access on hardware (NTFS, Dropbox/AV
+locks), the 14-day clock on a real device, the hand-off against the real `SheetEditor`/Konva, and the panel's
+layout/focus (jsdom has no layout engine).
+
+**Watch item:** `makeProjectSeparate` still registers a **bare** project id (`projectStore.ts:749`,
+pre-existing, no live consumer) — the D51 full-key rule is not yet universal in that one path.
+
+**Lesson, and it is the session's lesson again.** F1 is the seventh instance of *the interface said something
+the system had not done* — and it survived a lane's tests, the lane's own honesty review, and my integration
+pass, because every check asked what the code **emitted** rather than what the **screen rendered**. The pin is
+route-level now, and the review brief should ask it directly: *does anything actually render what this emits,
+on every route that can emit it?*

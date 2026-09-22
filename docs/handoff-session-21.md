@@ -155,13 +155,33 @@ someone's time.
 
 ---
 
-## 9. The independent review register for the trash + grid wave
+## 9. The independent review register for the trash + grid wave — and what it changed
 
-**Status when this document was written:** the review lane (`oracle`, read-only, executing rather than reading)
-was still running against `31ab0dd`, covering `src/fs/sheetTrash.ts` (delete/restore/prune), the trash panel
-and the grid's delete affordances, the App wiring, and the grid → editor Export hand-off — plus a sweep for a
-**seventh** instance of the defect class in §5.
+An independent, **executed** register was run against `31ab0dd`. It found six issues and **one of them was
+severe enough to falsify a shipped promise**; all are resolved (full text and evidence: **`D114`**).
 
-**Its register lands in the commit that follows this document.** Until it does: treat the trash path as
-*reviewed by its author and its tests, not yet independently verified*, and do not ship a build containing it
-to anyone who would care about losing a sheet.
+| # | Finding (severity) | Resolution |
+|---|---|---|
+| **F1** | **The Project route mounted NO `ToastHost`** — every toast emitted on the grid (the delete undo, the failure line, the added-sheet toast) went onto the bus and rendered **nowhere**. A delete vanished the card with no announcement and **no undo window**; a failed delete was silent. *The lane's own 28 tests asserted the bus — which is exactly why they missed it.* | **One host at the app shell root** (`.editor-toast` is `position: fixed`); the Home-branch and editor hosts removed. **Pinned by a new route-level test** (`tests/gridToast.test.tsx`) that mounts the real `App`, walks Home → grid, and asserts the toast **DOM** + its action. |
+| **F2** | `deleteSheet` removed the original **before** marking the row: a locked `project.json` (§5.8 S5) left the sheet **half-deleted** — folder gone, files in `.trash/`, row still live → a grid card for a sheet that wasn't there, invisible to the panel, refused by Restore. | **Reordered:** copy → verify → **mark the row** → remove (tolerating `NotFoundError`). Pinned with a test driving the fake's `beforeMove(file, name)` hook. |
+| **F3** | The prune's "fully pruned or untouched" claim was **false for multi-entry prunes** (folders first, rows rewritten once). | Folder-first kept deliberately (the alternatives are worse); the code comment **and `D113`** now describe what actually happens. |
+| **F4** | Grid «Export» with **no selection** dropped the action — `[]` means "every sheet", but the shell gated on a non-empty list, so the user landed in an editor with **no wizard**. | An empty selection expands to the project's live sheets at hand-off; with zero sheets the action stays on the grid. |
+| **F5** | A failed **restore** was invisible when it came from the delete toast's Undo (the failure flag's only surface is the *closed* panel). | The catch now also emits an urgent toast. |
+| **F6** | Settings carried two enabled-but-dead rows («Trash…», «Third-party notices»). | Disabled honestly (the D102 pattern). |
+
+**Verified sound by execution** (a register is only useful if it says what held): the 14-day boundary and
+`daysLeft`; the copy-failure paths, including a **pre-existing** `.trash/<id>/` never being touched by cleanup;
+the restore-ordering claim; the prune's blast radius; "the only reaper"; the D51 keys on every new caller; the
+honest delete at the screen level; the wizard's scoping; the panel's a11y; and the gate.
+
+**Still not verified** (unchanged from §2): real File System Access on hardware, the 14-day clock on a device,
+the hand-off against the real `SheetEditor`/Konva, and the panel's layout/focus.
+
+**Watch item from the register:** `makeProjectSeparate` still registers a **bare** project id
+(`projectStore.ts:749` — pre-existing, no live consumer), so the D51 full-key rule is not yet universal there.
+
+**And the lesson, one last time:** F1 is the **seventh** instance of *the interface said something the system
+had not done* — and it survived a lane's tests, that lane's own honesty pass, **and** my integration review,
+because every check asked what the code **emitted** rather than what the **screen rendered**. Ask the review
+brief's question directly next time: *does anything actually render what this emits, on every route that can
+emit it?*
