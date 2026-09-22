@@ -1,0 +1,429 @@
+/**
+ * `src/ui/layersPanel.css` — slice 1.6, the Layers flyout (UI spec §9; build spec §8.6).
+ *
+ * EXTERNAL STYLESHEET, NO INLINE STYLES. The CSP is `style-src 'self'` and the e2e suite
+ * asserts `[style]` count === 0, so every bit of per-row state is carried by a `data-`
+ * attribute and dressed here — never by a `style=""` attribute.
+ *
+ * TOKENS are the "Site Slate" globals from `styles.css` (`--g750`, `--sel`, `--hi`…).
+ * `.mono` / `.hit-slop` / `.visually-hidden` are global too.
+ *
+ * TARGETS (§19.6, touch-primary): the row is 56 px and every control inside it is 48 px
+ * tall, so the floor is met by the VISUAL target — `.hit-slop` is deliberately NOT used on
+ * the eye/lock/menu buttons, because 16 px of slop on adjacent 48 px targets would overlap
+ * (UI §14.5: hit areas may never overlap by more than 0 px). Only the ✕ (which has room)
+ * carries the slop.
+ */
+
+.layers-panel {
+  position: fixed;
+  top: 52px; /* below the 52 px Editor top bar (UI §5.2) */
+  right: 0;
+  bottom: 0;
+  z-index: 25; /* over the mat, under the keypad sheet (40) */
+  width: 320px; /* UI §9 / §8.6: the flyout is 320 px */
+  display: flex;
+  flex-direction: column;
+  background: var(--g850);
+  border-left: 2px solid var(--g700);
+  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .layers-panel {
+    animation: layers-slide-in 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+}
+
+@keyframes layers-slide-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ---- header -------------------------------------------------------------- */
+
+.layers-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 2px solid var(--g700);
+}
+
+.layers-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--g300);
+}
+
+.layers-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  cursor: pointer;
+}
+
+.layers-close:hover {
+  background: var(--g750);
+}
+
+/* ---- body: refusal banner, skeletons, empty, list ------------------------ */
+
+.layers-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.layers-refusal {
+  margin: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  background: var(--g800);
+  color: var(--warn);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.layers-empty {
+  margin: 0;
+  padding: 40px 20px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--g300);
+}
+
+/* Loading is NOT the empty state (slice gate): four shimmer bars, no copy. */
+.layers-skeletons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.layers-skeleton {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+.layers-skeleton-bar {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--g700);
+  animation: fm-shimmer 1.4s ease-in-out infinite;
+}
+
+.layers-skeleton:nth-child(1) .layers-skeleton-bar {
+  width: 58%;
+}
+.layers-skeleton:nth-child(2) .layers-skeleton-bar {
+  width: 72%;
+}
+.layers-skeleton:nth-child(3) .layers-skeleton-bar {
+  width: 46%;
+}
+.layers-skeleton:nth-child(4) .layers-skeleton-bar {
+  width: 64%;
+}
+
+/* ---- the list ------------------------------------------------------------ */
+
+.layers-list,
+.layers-sublist,
+.layers-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.layers-section + .layers-section {
+  border-top: 1px solid var(--g700);
+}
+
+.layers-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--g400);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.layers-group-toggle:hover {
+  color: var(--g100);
+  background: var(--g800);
+}
+
+.layers-group-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.layers-group-toggle--outer {
+  color: var(--g300);
+  font-size: 13px;
+}
+
+.layers-sublist .layers-group-toggle {
+  padding-left: 20px;
+}
+
+/* ---- the 56 px row (§8.6) ------------------------------------------------ */
+
+.layers-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 56px;
+  padding: 0 6px 0 2px;
+}
+
+.layers-row[data-indent='1'] {
+  padding-left: 26px;
+}
+
+/* Selection is never colour-only: a --sel bar AND `aria-pressed` on the row button. */
+.layers-row[data-selected='true'] {
+  background: var(--g800);
+}
+
+.layers-row[data-selected='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--sel);
+}
+
+.layers-row[data-visible='false'] .layers-name,
+.layers-row[data-visible='false'] .layers-icon {
+  opacity: 0.45;
+}
+
+.layers-row[data-locked='true'] .layers-name {
+  color: var(--g300);
+}
+
+.layers-row[data-dragging='true'] {
+  opacity: 0.55;
+}
+
+.layers-row[data-drop-target='true'] {
+  box-shadow: inset 0 0 0 2px var(--sel);
+}
+
+.layers-grip {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: var(--g400);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.layers-grip svg {
+  width: 18px;
+  height: 18px;
+}
+
+.layers-grip--absent {
+  cursor: default;
+}
+
+.layers-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 8px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.layers-select:hover {
+  background: var(--g750);
+}
+
+.layers-select:active {
+  background: var(--g700);
+}
+
+.layers-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  color: var(--g300);
+}
+
+.layers-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.layers-toggle,
+.layers-menu-trigger {
+  flex: 0 0 48px;
+  width: 48px;
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g300);
+  cursor: pointer;
+}
+
+.layers-toggle:hover,
+.layers-menu-trigger:hover {
+  background: var(--g750);
+  color: var(--g100);
+}
+
+/* Pressed state is a filled well + the icon swap — a shape cue, not colour alone. */
+.layers-toggle[aria-pressed='false'] {
+  color: var(--g400);
+}
+
+.layers-toggle svg,
+.layers-menu-trigger svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---- inline rename ------------------------------------------------------- */
+
+.layers-rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 28px;
+}
+
+.layers-rename-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 10px;
+  border: 2px solid var(--sel);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g000);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---- row context menu ---------------------------------------------------- */
+
+.layers-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  right: 8px;
+  z-index: 5;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--g800);
+  border: 2px solid var(--g600);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+.layers-menu-item {
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.layers-menu-item:hover:not(:disabled) {
+  background: var(--g750);
+}
+
+.layers-menu-item:disabled {
+  color: var(--g400);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.layers-menu-item--destructive {
+  color: var(--err);
+}
+
+.layers-menu-item--destructive:hover:not(:disabled) {
+  background: rgba(255, 90, 95, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layers-panel {
+    animation: none;
+  }
+  .layers-skeleton-bar {
+    animation: none;
+  }
+}

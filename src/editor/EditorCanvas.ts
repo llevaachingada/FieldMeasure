@@ -31,6 +31,7 @@
 import Konva from 'konva';
 import { getStroke } from 'perfect-freehand';
 import type { InputIntent } from './inputRouter';
+import { regenerateInkNode } from './shapes/renderInk';
 
 export interface ScreenPoint {
   x: number;
@@ -227,6 +228,11 @@ export function applyScreenRules(
       if (Array.isArray(inkPoints) && typeof strokeWidthMu === 'number') {
         node.points(inkOutlinePoints(inkPoints as ScreenPoint[], strokeWidthMu, scale));
       }
+    }
+    // Freehand / highlighter ink is a FILLED `Konva.Path` (slice 1.6): a fill ignores
+    // `strokeScaleEnabled`, so the outline itself is regenerated at `mu / s`.
+    if (regenerateInk && node instanceof Konva.Path && typeof node.getAttr('strokeWidthMu') === 'number') {
+      regenerateInkNode(node, scale);
     }
     if (node instanceof Konva.Group) applyScreenRules(node, scale, options);
   }

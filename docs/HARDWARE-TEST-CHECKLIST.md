@@ -130,6 +130,23 @@ Fill this in before the first run — several gates are device-specific.
 | **Hardware-keyboard-only keypad operation**; focus is inside the sheet on open and returns to the canvas on close. | PENDING — machine half green: the jsdom suite asserts the focus trap, the Tab order and the focus return; the real Type Cover walk is deferred. |
 | **Object-first drag + second-finger restore with a real finger** (D37/D63 residual risk). | PENDING — machine half green: `tests/sheetEditor.dimension.browser.test.ts` (`describe(‘D63 …’)`) drags a dimension 120 px, lands a second pointer, and asserts the endpoints return to the pre-drag pair with **no commit at the displaced position**. |
 ### Slice 1.6 — Markup tools
+
+| Gate | Result |
+|---|---|
+| **[Surface — pen]** A hard-pressed pen stroke is visibly wider than a light one at the same style width (C9). If they look identical, `pressure` is being read from the wrong place. | PENDING (pen-only) — the CI counterpart is green: a ramped `pressure[]` yields a materially wider outline, and an all-`0.5` touch stroke renders at the constant 8-mu floor. |
+| **Touch freehand** (with «Finger draws (freehand)» ON) renders at the constant width floor and is zoom-constant; erase-stroke mode is hidden under touch with the pen-required note shown. | PENDING — machine half green (`markupTools.browser.test.ts`): constant 8-mu ink, and the stroke-mode radio is absent with the note rendered. |
+| **Every tool places with touch / draws with the pen; each is selectable, movable and undoable.** Touch: tap-tap for Line/Arrow/Rect/Ellipse/Angle; Polygon unchanged; each control has an on-screen equivalent. | PENDING — machine half: shape/angle tap-tap and drag both commit, handle-drag translate is undoable, and Delete removes the selection. **Selection is only partially shell-driven** (marquee, rotate UI, groups and the mini-toolbar are implemented but not wired — D73). |
+| **On-glass selection handles:** 28 px visual / 72 px hit under touch, the 56 px proximity halo, the 0 px-overlap invariant when a selection is ≤ 96 px wide. | PENDING — the geometry and hit radii are pure-tested; the fingertip walk is deferred. |
+| **Touch palm + selection gauntlet**, and the 2.0 timing gates (450 ms settle, 600 ms long-press, the 56 px polygon close ring). | PENDING — see **C10** and `H8`. |
+
+### Slice 1.6 — Layers panel (built, not yet mounted — D73)
+| Gate | Result |
+|---|---|
+| **320 px flyout / 56 px row / 48 px eye-lock-menu targets at DPR 2**, portrait and landscape, with a fingertip; the flyout slide-in. | PENDING — CSS-declared only; jsdom has no layout and the lane correctly declined to assert the CSS text as a measurement. |
+| **400 ms long-press feel:** tap-select vs row-menu vs grip-drag must be reliably distinguishable; confirm the 8 px drift-cancel is not twitchy. | PENDING — the split (grip = drag, row body = menu) is the resolution of UI §8.6’s self-contradiction (D73). |
+| **Name truncation at 320 px:** icon + eye + lock + menu ≈ 144 px, so confirm a truncated name is still identifiable, and decide whether a tooltip is needed. | PENDING. |
+| **Row menu opens under the finger without clipping at the viewport bottom** (flip-up when headroom < 160 px). | PENDING — the flip is CSS/unverified in jsdom. |
+| **Cross-band refusal alert legibility in sunlight.** | PENDING. |
 ### Slice 1.7 — Insets
 ### Slice 1.8 — Style system
 ### Slice 1.9 — Export

@@ -43,6 +43,17 @@ vi.mock('@/fs/projectStore', () => ({
   resolveSheetDir: vi.fn(async () => ({ kind: 'directory', name: 'sheet' })),
   writeAtomic: vi.fn(async () => undefined),
   writeJsonAtomic: vi.fn(async () => undefined),
+  readSheetMarkup: vi.fn(async () => ({ schemaVersion: 1, sheetId: 's', objects: [] })),
+  // persistQueue (imported by SheetEditor since slice 1.6) classifies failures with
+  // this class and calls the write helpers above.
+  StorageWriteError: class StorageWriteError extends Error {
+    kind: string;
+    constructor(kind: string, cause?: unknown) {
+      super('write failed');
+      this.kind = kind;
+      this.cause = cause;
+    }
+  },
 }));
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

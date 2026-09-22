@@ -106,6 +106,18 @@ export const STRINGS = {
     unitFtIn: 'ft-in',
     ghostLabel: 'tap to enter value',
     snapChip90: '90°',
+    // APPROVED inventory (appendix-strings.md) — slice 1.6.
+    complement: 'Complement',
+    supplement: 'Supplement',
+    complementChip: 'Complement {angle}°',
+    supplementChip: 'Supplement {angle}°',
+    chainFromRay: 'Chain from this ray',
+    snapChip45: '45°',
+    // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
+    anglePrecisionOne: '1°',
+    anglePrecisionHalf: '0.5°',
+    anglePrecisionTenth: '0.1°',
+    angleReadout: '≈ {angle}°',
   },
 
   // APPROVED inventory (appendix-strings.md `## placement`; the appendix itself notes
@@ -116,6 +128,9 @@ export const STRINGS = {
     secondPoint: 'Tap the second point',
     adjustEndpoints: 'Adjust endpoints',
     adjusting: 'Adjusting dimension',
+    // APPROVED inventory (appendix-strings.md) — slice 1.6.
+    undoPoint: 'Undo point',
+    closeShape: 'Close shape',
   },
 
   // APPROVED inventory (appendix-strings.md `## keypad`). Lane D's keypad sheet owns
@@ -158,6 +173,13 @@ export const STRINGS = {
     actionDeleteDimension: 'Delete dimension',
     actionSetValue: 'Set dimension value',
     actionAdjustDimension: 'Adjust dimension',
+    // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
+    actionAddShape: 'Add shape',
+    actionAddInk: 'Add ink',
+    actionAddHighlight: 'Add highlight',
+    actionAddText: 'Add text',
+    actionAddAngle: 'Add angle',
+    actionSplitStroke: 'Split stroke',
   },
 
   // APPROVED inventory (appendix-strings.md `## project`)
@@ -257,6 +279,17 @@ export const STRINGS = {
     // the Style Chip's accessible name in the docked container (slice 1.8 fills
     // the panel; 1.4.5 renders only the chip slot).
     styleChip: 'Current style',
+    // APPROVED inventory (appendix-strings.md) — slice 1.6.
+    holdToShapeChip: '⇧ Shape',
+    lockedToast: 'Locked — unlock in Layers',
+    eraseNameRectangle: 'Rectangle',
+    eraseNameDimension: 'Dimension {measurement}',
+    layersNameFreehand: 'Freehand',
+    layersEmpty: 'No markup yet',
+    addLabel: 'Add label',
+    undo: 'Undo',
+    done: 'Done',
+    highlighterBandMessage: 'Highlighter always sits under other markup',
   },
 
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §11): the 14
@@ -322,11 +355,65 @@ export const STRINGS = {
     cameraFlip: 'Flip camera',
     rotate: 'Rotate',
     close: 'Close',
+    // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
+    selectionHandle: 'Adjust {handle}',
+    visibilityToggle: 'Show or hide {name}',
+    lockToggle: 'Lock or unlock {name}',
   },
 
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §17)
   export: {
     back: 'Back',
+  },
+
+  erase: {
+    // APPROVED inventory (appendix-strings.md) — slice 1.6.
+    strokeNeedsPen: 'Splitting a stroke needs the pen. Touch can delete the whole stroke.',
+    // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
+    modeObject: 'Objects',
+    modeStroke: 'Stroke',
+  },
+
+  select: {
+    // APPROVED inventory (appendix-strings.md) — slice 1.6.
+    touchHint: 'Drag to move. Two fingers to pan.',
+    // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
+    duplicate: 'Duplicate',
+    delete: 'Delete',
+    lock: 'Lock',
+    bringFront: 'Bring to front',
+    sendBack: 'Send to back',
+    editPoints: 'Edit points',
+    focus: 'Focus',
+    editText: 'Edit text',
+  },
+
+  touch: {
+    // APPROVED inventory (appendix-strings.md) — slice 1.6.
+    freehandPenBetter: 'Freehand is most precise with the pen.',
+  },
+
+  style: {
+    // APPROVED inventory (appendix-strings.md) — slice 1.6.
+    highlighterStraightLine: 'Straight line',
+    // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
+    straightLineLock: 'Straight-line lock',
+    chiselWidth: 'Chisel width',
+  },
+
+  layers: {
+    // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
+    groupMarkup: 'Markup',
+    groupDimensions: 'Dimensions',
+    groupShapes: 'Shapes',
+    groupInk: 'Ink',
+    groupText: 'Text',
+    menuBringFront: 'Bring to front',
+    menuSendBack: 'Send to back',
+    menuGroup: 'Group',
+    menuUngroup: 'Ungroup',
+    menuRename: 'Rename',
+    menuDelete: 'Delete',
   },
 } as const;
 

@@ -307,3 +307,38 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 **Owed, explicitly:** `markup.json` persistence is **not** wired — `MarkupScene` is in-memory only, so annotations do not yet survive a reload. Slice 1.2’s `persistQueue` exists; a later slice must connect it. The Offset Nudge Pad was optional for 1.5 and is not built.
 
 **Next:** slice 1.6 (markup tools).
+
+## Slice 1.6 — Markup tools (PARTIAL — the tools ship; three wiring items are owed)
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built** (two parallel lanes — `@fixer` tools/spine ∥ `@designer` Layers panel — integrated by the orchestrator):
+
+- **Tools** — `shapes/svgPath.ts` (plus `strokeInputPoints`, the ONE place that indexes the parallel `pressure[]` array — the session-4 F7 trap), `shapes/renderShape.ts`, `shapes/renderInk.ts`, `shapes/renderText.ts`, and `tools/`: `ShapeTool` (Line/Arrow/Rect/Ellipse tap-tap + drag, Polygon tap-by-tap with the 56/56/32 close affordances), `AngleTool` (vertex-first 3 taps, 8 px ray refusal, 450 ms settle, complement/supplement/chain), `FreehandTool` (pressure-weighted pen ink; constant 8-mu touch ink; hold-to-shape; highlighter straight-line chisel), `TextTool`, `EraseTool` (object/stroke modes, raw-point split, touch = object-only + the pen-required note), `SelectTool` (8 handles 28/72 touch, edge suppression, axis lock, rotate snap, marquee).
+- **Document** — `scene.ts` extended to every §3.3 geometry kind with §20.2 z-bands (highlighter below other markup, above the photo), plus generic translate/bounds/keys-in-rect. `EditorCanvas` regenerates filled ink paths at `mu/s` through the existing §4.2 seam.
+- **Persistence (the D70 carry-in) — DONE.** `MarkupScene.onChange` queues `markupFile(sheetId)` through slice 1.2’s `createPersistQueue`; `loadSheet` restores via `readSheetMarkup`, gated so a restore does not queue a redundant write, and cleanup flushes. **Annotations now survive a reload.**
+- **Layers panel** — `ui/LayersPanel.tsx` + `layersPanel.css`: a complete, tested (45 tests), props-driven §9 panel with the long-press row menu, cross-band refusal, photo-row protection and full keyboard operation. See "owed" — it is **not mounted yet**.
+
+**Machine gates:** 4/4 passing (orchestrator, on the reconciled tree)
+- [x] `npx tsc --noEmit` clean
+- [x] `npx vitest run` — **526 tests / 40 files** (was 437/36), including the browser project for ink zoom constancy, the highlighter z-band and the touch-erase wiring
+- [x] `npm run build` — 17 precache; main chunk 345 kB, `EditorLayout` 303 kB
+- [x] `npx playwright test` 5 passed / 4 skipped (CSP-as-a-test green at both viewports)
+- [x] Gate halves with a machine form: ink zoom constancy 1× → 8×; highlighter inserted below all markup; shape tap-tap pure **and** wired; Polygon closes on `✓ Done`; a right angle reads 90 and a < 8 px ray is **refused**; touch erase deletes with a named undo toast and hides stroke-scope; every mutation undoable; markup round-trips through `markup.json`
+
+**Deferred to hardware:** the pen-pressure comparison (C9), the on-glass handle walk, the touch palm/selection gauntlet, the panel’s 320 px/56 px/48 px target walk and the 2.0 timing gates — logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.6. None faked.
+
+**Checkpoints fired:** **C9** (pen pressure response) → the **touch-only** row: the CI counterpart is green (a ramped pen array yields a materially wider outline; an all-`0.5` touch stroke renders at the constant 8-mu floor), and the on-device pen comparison is marked **PENDING (pen-only)**, never FAIL and never faked.
+
+**Decisions recorded:** D72 (the machinery, the deviations, and the persistence completion), D73 (the Layers panel and what integration found).
+
+**Surprises:**
+- **The build caught a defect the whole unit suite structurally could not.** The tools lane wrote a **CP1252 em dash (byte `0x97`)** into `src/styles.css`, making the file invalid UTF-8; `npm run build` failed with `UNLOADABLE_DEPENDENCY … stream did not contain valid UTF-8` while `tsc` and **526 tests were green**. Repaired to U+2014 and a tree-wide sweep confirmed no other file carried the damage. Without the build in the loop this would have shipped as a white-screen bundle.
+- **The staged copy module’s own marker list was wrong** — `PROPOSED_GAP_KEYS` listed `selection.*` while the object paths are `select.*`, so eight proposals would have folded **unmarked** and failed the copy gate. The fold derives provenance from the appendices instead of trusting the list, which caught it (D73).
+- **`a11y.rotate` folded as an exact duplicate** of the key the 1.4 camera fold had already added from the same gaps row — deduped by byte comparison rather than overwritten.
+
+**Owed, explicitly (this slice is PARTIAL):**
+1. **The Layers panel is not mounted** — the TopBar `Layers` button is still disabled; a real mount needs scene methods it does not have (visibility, lock, rename, z-order), history commands, and a `layersOpen` state.
+2. **`SelectTool` is partially driven** — marquee-on-empty-drag, the rotate UI, groups, the lock toast and the mini-toolbar pin are implemented and pure-tested in the class but not yet driven by `SheetEditor` pointer/long-press handling.
+3. **Erase long-press (600 ms) preview** — `isErasePreview`/`beginPreview` exist and are pure-tested; no timer drives them.
+
+**Next:** close the three owed items above (a focused wiring slice), then 1.7 (image insets).

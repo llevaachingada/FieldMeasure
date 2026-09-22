@@ -144,11 +144,21 @@ describe('TOOL_DEFS — the frozen 14-tool table', () => {
     }
   });
 
-  it('implements select, pan and dimension (1.5 flips dimension)', () => {
+  it('implements every rail tool except the image inset (slice 1.6)', () => {
     expect(TOOL_DEFS.filter((d) => d.implemented).map((d) => d.id).sort()).toEqual([
+      'angle',
+      'arrow',
       'dimension',
+      'ellipse',
+      'erase',
+      'freehand',
+      'highlight',
+      'line',
       'pan',
+      'polygon',
+      'rect',
       'select',
+      'text',
     ]);
   });
 
@@ -203,7 +213,7 @@ describe('ToolRail', () => {
     const { view, onSelectTool } = renderRail();
     expect(() => {
       act(() => {
-        (view.container.querySelector('[data-tool="angle"]') as HTMLButtonElement).click();
+        (view.container.querySelector('[data-tool="inset"]') as HTMLButtonElement).click();
       });
     }).not.toThrow();
     expect(onSelectTool).not.toHaveBeenCalled();
@@ -364,7 +374,7 @@ describe('EditorLayout — composition, docking, rotation, keys', () => {
     const { container } = renderLayout();
     expect(() => {
       act(() => {
-        (container.querySelector('[data-tool="angle"]') as HTMLButtonElement).click();
+        (container.querySelector('[data-tool="inset"]') as HTMLButtonElement).click();
       });
     }).not.toThrow();
     expect(useEditorStore.getState().activeTool).toBe('select');
@@ -391,7 +401,7 @@ describe('EditorLayout — composition, docking, rotation, keys', () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true }));
     });
-    expect(useEditorStore.getState().activeTool).toBe('dimension'); // Angle still inert
+    expect(useEditorStore.getState().activeTool).toBe('angle'); // 1.6 implements it
   });
 
   it('advances the Esc ladder one rung per press, ending in exit', () => {

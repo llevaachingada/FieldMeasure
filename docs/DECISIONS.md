@@ -1213,3 +1213,91 @@ ambiguous — the wrapper is now positioning-only. (2) The keypad copy was folde
 identifier replacement that doubled three references, caught by `tsc`; and one row inserted as
 the appendix’s *rendered* example instead of the shipped *template* form, caught by `vitest`)
 were fixed before commit. Neither was a lane defect.
+
+## Checkpoint C9 — Pen pressure response (slice 1.6, 2026-09-21)
+
+**Measured:** the **touch-only** row — there is no pen and no Surface, so the on-device
+comparison cannot run. What is machine-proven: `svgPath.strokeInputPoints` indexes the
+**parallel** `pressure[]` array (`pressure[i] ?? 0.5`) and is the only place that does (the
+F7 trap), and the CI counterpart passes — a ramped pen-pressure array produces a materially
+wider outline at the last point than the first, while an all-`0.5` synthetic touch stroke
+renders at the constant **8-mu** floor with `thinning: 0`.
+
+**Decision row taken:** "No pen present (touch-only run) → Mark **PENDING (pen-only)** — never FAIL."
+
+**Action:** the pen half is logged in `docs/HARDWARE-TEST-CHECKLIST.md` (slice 1.6) and
+`CHECKPOINTS.md` C9 carries the pen-pending wording. Freehand ships on touch at the constant
+width floor by design; no number was invented.
+
+### D72 — slice 1.6 markup tools: the machinery, the deviations, and the completed carry-in
+
+**The tool set and the document.** `shapes/svgPath.ts`, `renderShape.ts`, `renderInk.ts`,
+`renderText.ts`; `tools/ShapeTool`, `AngleTool`, `FreehandTool`, `TextTool`, `EraseTool`,
+`SelectTool`; `scene.ts` extended to every §3.3 geometry kind with §20.2 z-bands (highlighter
+below other markup, above the photo) plus generic translate/bounds/keys-in-rect; `EditorCanvas`
+regenerates filled ink at `mu/s` through the existing §4.2 seam (fills ignore
+`strokeScaleEnabled`, which is exactly how ink width drifts).
+
+**F7 discharged.** `strokeInputPoints` is the single place that reads the parallel
+`pressure[]`; the spec’s pre-session-4 snippet (`p.pressure`) does not compile under `strict`,
+and casting around it would silently pin every point to `0.5`.
+
+**Touch smoothing 60 → `TOUCH_SMOOTHING = 0.6`.** perfect-freehand’s `smoothing` is a 0..1
+fraction, so the touch model’s "60" is the percent form. Verified against the installed package,
+not by reading.
+
+**Highlighter "chisel".** perfect-freehand has no chisel tip: the freehand highlighter is a
+constant-width bar (`thinning: 0`) and the **tap-tap straight-line mode is the true chisel**
+(24-mu default under touch). Recorded so the label is not read as a claim the renderer cannot meet.
+
+**`PendingOp` has no generic-shape member.** `editorStore.ts` was contended this wave, so a
+generic shape/ink placement borrows `'polygon'` — the plan’s own sanctioned generic-placement
+precedent — so `Esc` cancels the placement instead of exiting the editor.
+
+**Erase hit target.** An unfilled shape is grabbable only on its stroke (`fillColor` null), so
+touch tap-to-delete hits the visible outline; the wiring test documents this rather than hiding it.
+
+**The D70 carry-in is DONE.** `MarkupScene.onChange` queues `markupFile(sheetId)` through
+`createPersistQueue` (400 ms coalesce, per-project lock, D51 runtime key) and `loadSheet` restores
+via `readSheetMarkup`, gated by a sheet-id ref so a restore does not queue a redundant write;
+cleanup calls `flush()`. Annotations now survive a reload. Nuance: writes are **not** suppressed
+when the project is read-only — the queue parks and retries, and the 1.10 autosave chip owns that
+state.
+
+### D73 — the Layers panel, and what integration found
+
+**The panel ships complete and unmounted.** It is a props-driven §9 component (45 tests, no scene
+access — deliberately, so it was disjoint from the tools lane). **It is not mounted**: the TopBar’s
+`Layers` button is still `disabled`, because a real mount needs scene methods the document does not
+have yet (visibility, lock, rename, z-order), history commands for each, and a `layersOpen` state.
+Recorded as owed, in the same way 1.9 step 1 was committed as PARTIAL — not faked by wiring a
+button to an empty shell.
+
+**UI §8.6 contradicts itself on long-press** — "a 400 ms long-press starts the drag" *and*
+"Long-press a row = menu". Resolved by target: **grip = drag, row body = menu**, both 400 ms. That
+is the only reading that honours both sentences.
+
+**`Group`/`Ungroup` render disabled.** The pinned props carry no channel, and `SelectTool`’s
+grouping is not driven by the shell yet; they stay disabled until both exist rather than appearing
+to work.
+
+**Group-level mass-restyle (UI §9) is not expressible** with `AnnotationPath`-keyed selection — a
+group header is not a row. It needs an `onSelectGroup` channel.
+
+**No error prop and no scrim.** A scene load error has no channel (the shell owns it); the absence
+of a scrim is correct for a flyout and avoids racing the trigger toggle.
+
+**The staging module’s own marker list was inaccurate.** `markupCopy.PROPOSED_GAP_KEYS` listed
+`selection.*` while the object paths are `select.*`, so **eight** proposals would have folded
+**unmarked** — a copy-gate failure, and worse, unmarked proposals that a content owner could not
+find. The fold derives provenance from the **appendices** (the same authority the gate uses) rather
+than trusting either list; that is what caught it. Worth remembering: a hand-maintained list of
+"which keys are proposed" is a second source of truth that can silently disagree with the file it
+describes.
+
+**The build caught what the unit suite structurally could not.** The tools lane wrote a
+**CP1252 em dash (byte `0x97`)** into `src/styles.css`, making the file invalid UTF-8;
+`npm run build` failed with `UNLOADABLE_DEPENDENCY … stream did not contain valid UTF-8` while
+`tsc` and **526 tests were green** (vitest’s transform path is lenient; rolldown’s is not). Repaired
+to U+2014 and a full-tree sweep confirmed no other file carried the damage. **This is the standing
+argument for keeping the build in the gate even when every test is green.**

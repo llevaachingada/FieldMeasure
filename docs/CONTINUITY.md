@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 10 — slices **1.4 ∥ 1.4.5** and **1.5** shipped in two parallel waves; the owner waived the independent oracle review for this batch, so an orchestrator internal review was run instead)
+**Last updated:** 2026-09-21 (session 11 — slice **1.6 markup tools** shipped as a PARTIAL: the tools, the document and `markup.json` persistence are in; three wiring items are owed — see below)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 complete and green** (input router · domain core · first-run/Settings/Home · storage core · media+canvas · capture flow · editor shell · **dimension tool**). The first end-to-end field-capable loop — take a photo, then place a typed dimension — now exists. Next: **1.6 (markup tools)** |
-| Application code | **Eight slices shipped**, ~437 machine tests. 1.5 adds `editor/history.ts`, `editor/shapes/{scene,renderDimension,dimensionLabel}.ts`, `editor/Loupe.ts`, `editor/tools/DimensionTool.ts`, `editor/session.ts` and `ui/DimensionKeypadSheet.tsx`; 1.4 adds `ui/CameraFlow.tsx` + `fs/sheetIntake.ts`; 1.4.5 adds the shell (`EditorLayout`/`ToolRail`/`TopBar`/`editorStore`/14 glyphs). Plus slice 1.9 **step 1 only** (`export/filenames.ts`) |
+| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 (PARTIAL) complete and green.** Markup tools ship; **annotations now persist** to `markup.json`. Next: close 1.6’s three owed wiring items, then **1.7 (image insets)** |
+| Application code | **Nine slices**, **526 machine tests / 40 files**. 1.6 adds `shapes/{svgPath,renderShape,renderInk,renderText}.ts`, `tools/{toolTypes,ShapeTool,AngleTool,FreehandTool,TextTool,EraseTool,SelectTool}.ts`, `ui/LayersPanel.tsx` (+CSS) and the `markup.json` persistence wiring. Plus 1.9 **step 1 only** |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Slice 1.6 — markup tools** (`src/editor/tools/*`, shapes, erase split, layers). **Carry-in:** wire `markup.json` persistence through slice 1.2’s `persistQueue` — 1.5's document is in-memory only, so annotations do not survive a reload yet (D70). |
+| Next action | **Close 1.6’s owed items** (a focused wiring slice): mount `LayersPanel` (needs scene visibility/lock/rename/z-order + history commands + `layersOpen`), finish `SelectTool`’s shell wiring (marquee, rotate UI, groups, lock toast, mini-toolbar pin), and drive the erase 600 ms long-press preview. Then **1.7 (image insets)**. |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -400,6 +400,33 @@ proven, on-glass walk deferred). C1/C2 were refreshed earlier in the batch; C4 w
 
 **Still owed:** `markup.json` persistence (D70) — annotations are in-memory until a later slice
 connects `persistQueue`; the Offset Nudge Pad (optional for 1.5); and 1.9 steps 2–5.
+
+### 2026-09-21 — Session 11: slice 1.6 markup tools (PARTIAL)
+
+Two lanes: the tool/document spine (`@fixer`) and the props-driven Layers panel (`@designer`),
+split so that exactly one lane touched `strings.ts`, `SheetEditor.tsx`, `scene.ts` and the tools.
+
+**Shipped:** every remaining drawing tool (shapes, angle, freehand/highlighter, text, erase,
+select), the document extended to all §3.3 kinds with §20.2 z-bands, ink regeneration on zoom, the
+touch-model rules (touch erase is object-only; finger ink is constant-width; the highlighter’s
+straight-line tap-tap chisel), and — closing the D70 carry-in — **`markup.json` persistence**, so
+annotations survive a reload.
+
+**Machine gates:** `tsc` 0 · `vitest` **526 / 40 files** · `build` 0 (17 precache) · `playwright`
+5 passed / 4 skipped. **Checkpoint C9** fired → touch-only row proven, pen half PENDING.
+
+**Two defects found by the gate, not by the lanes:** the tools lane wrote a **CP1252 em dash** into
+`src/styles.css`, which broke `npm run build` while **526 tests stayed green** (vitest is lenient;
+rolldown is not) — repaired, then swept tree-wide; and the staged copy module’s own “proposed keys”
+list disagreed with its own object paths, which would have folded eight proposals **unmarked**. The
+fold takes provenance from the appendices instead of the list.
+
+**Owed (this slice is PARTIAL):** the Layers panel is built and tested but **not mounted**;
+`SelectTool`’s marquee/rotate/groups/mini-toolbar are implemented but not shell-driven; the erase
+600 ms long-press preview has no timer. All three are recorded in D72/D73.
+
+**Carry-in closed:** D70 (`markup.json` persistence). **New watch item:** the read-only project
+case is not suppressed at the queue — it parks and retries, and the 1.10 chip owns that state.
 
 ## Done
 

@@ -1125,3 +1125,108 @@ button.crumb:hover {
 
 
 
+
+/* ------------------------------------------------------------------ *
+ * Slice 1.6 — markup tools: erase panel, angle sheet, text entry.
+ * Touch floor: every control >= 48 px with 16 px hit slop (`hit-slop`).
+ * ------------------------------------------------------------------ */
+
+.erase-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(14, 19, 24, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--g100);
+  z-index: 25;
+}
+
+.erase-modes {
+  display: flex;
+  gap: 8px;
+}
+
+.erase-modes button {
+  min-height: 48px;
+  min-width: 96px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--g100);
+  font-size: 15px;
+}
+
+.erase-modes button.is-active {
+  border-color: #2fd4e0;
+  background: rgba(47, 212, 224, 0.16);
+}
+
+.erase-pen-note {
+  max-width: 320px;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--g100);
+}
+
+.angle-sheet,
+.text-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 16px 16px 0 0;
+  background: rgba(14, 19, 24, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--g100);
+}
+
+.angle-readout {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.angle-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.angle-chips button {
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--g100);
+  font-size: 15px;
+}
+
+.angle-actions,
+.text-entry-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.text-entry-input {
+  width: min(80vw, 520px);
+  min-height: 56px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--g100);
+  font-size: 18px;
+}

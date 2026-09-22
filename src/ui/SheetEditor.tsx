@@ -24,6 +24,8 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Maximize, Minus, Plus } from 'lucide-react';
 import type { ProjectFile } from '@/domain/schema';
 import type { Px } from '@/domain/types';
+import { DEFAULT_STYLE } from '@/domain/types';
+import type { Annotation, Geometry } from '@/domain/types';
 import {
   EditorCanvas,
   TAP_SLOP,
@@ -35,14 +37,22 @@ import {
 } from '@/editor/EditorCanvas';
 import { createInputRouter, type InputIntent } from '@/editor/inputRouter';
 import { History } from '@/editor/history';
-import { MarkupScene } from '@/editor/shapes/scene';
+import { MarkupScene, translateGeometry } from '@/editor/shapes/scene';
 import { Loupe } from '@/editor/Loupe';
 import {
   DimensionTool,
   type DimensionSnapshot,
   type KeypadRequest,
 } from '@/editor/tools/DimensionTool';
-import { setEditorSession, type EditorSession } from '@/editor/session';
+import { ShapeTool, type ShapeKind } from '@/editor/tools/ShapeTool';
+import { AngleTool, type AngleSheetRequest } from '@/editor/tools/AngleTool';
+import { FreehandTool, isFingerInkAllowed } from '@/editor/tools/FreehandTool';
+import { TextTool } from '@/editor/tools/TextTool';
+import { EraseTool, effectiveEraseMode, eraseNameKey, strokeModeAvailable, type EraseMode } from '@/editor/tools/EraseTool';
+import { SelectTool } from '@/editor/tools/SelectTool';
+import { setEditorSession, emitToast, type EditorSession } from '@/editor/session';
+import { createPersistQueue, type PersistQueue } from '@/state/persistQueue';
+import { HIGHLIGHT_CHISEL_TOUCH_MU } from '@/editor/tools/toolTypes';
 import DimensionKeypadSheet from '@/ui/DimensionKeypadSheet';
 import { useEditorStore } from '@/state/editorStore';
 import { readExifInfo } from '@/media/exif';
@@ -58,6 +68,7 @@ import {
   isPhotoDamaged,
   openProjectChannel,
   readProjectFile,
+  readSheetMarkup,
   registerOpenProject,
   resolveOpenProjectDir,
   resolveSheetDir,
@@ -100,6 +111,40 @@ export interface SheetEditorProps {
   sheetId?: string;
 }
 
+/**
+ * The erase object-mode name (plan step 6: the undo toast names the object). Every
+ * branch uses appendix copy; nothing is invented. A dimension carries its measurement
+ * in the name (the appendix's `editor.eraseNameDimension` template).
+ */
+function eraseObjectName(ann: Annotation): string {
+  switch (ann.type) {
+    case 'dimension':
+      return t(STRINGS.editor.eraseNameDimension, {
+        measurement: ann.enteredText ?? '',
+      });
+    case 'rect':
+      return STRINGS.editor.eraseNameRectangle;
+    case 'freehand':
+      return STRINGS.editor.layersNameFreehand;
+    case 'highlight':
+      return STRINGS.tool.highlighter;
+    case 'line':
+      return STRINGS.tool.line;
+    case 'arrow':
+      return STRINGS.tool.arrowLeader;
+    case 'ellipse':
+      return STRINGS.tool.ellipse;
+    case 'polygon':
+      return STRINGS.tool.polygon;
+    case 'angle':
+      return STRINGS.tool.angle;
+    case 'text':
+      return STRINGS.tool.textNote;
+    case 'image':
+      return STRINGS.tool.imageInset;
+  }
+}
+
 interface Contact {
   intent: InputIntent;
   session: DragSession;
@@ -111,11 +156,18 @@ interface Contact {
   /** Pan even while a placement is pending (settle-time contact → pan, §1.4). */
   forcePan: boolean;
   objectKey: string | null;
+  /** Set while a freehand/highlighter ink stroke is being sampled. */
+  freehandKind: 'freehand' | 'highlight' | null;
+  /** Which machine owns this contact's lift: the dimension tool or a 1.6 markup tool. */
+  owner: 'dimension' | 'markup' | null;
+  /** Raw `PointerEvent.pressure` for the ink path (pen-only signal; touch is 0.5). */
+  pressure: number;
 }
 
 interface ObjectDrag {
   key: string;
-  from: { a: Px; b: Px };
+  /** Geometry captured at drag start (any kind). */
+  geometry: Geometry;
   startImage: Px;
   moved: boolean;
 }
@@ -148,6 +200,23 @@ export default function SheetEditor({
   const activeToolRef = useRef<EditorTool>(activeTool);
   const placementPendingRef = useRef(placementPending);
   const zoomRef = useRef(100);
+  // The REAL tool id lives in the store; `activeTool` (the prop) is the coarse seam.
+  const toolIdRef = useRef<string>('select');
+  const shapeToolsRef = useRef<Map<ShapeKind, ShapeTool>>(new Map());
+  const angleRef = useRef<AngleTool | null>(null);
+  const freehandRef = useRef<FreehandTool | null>(null);
+  const highlightRef = useRef<FreehandTool | null>(null);
+  const textRef = useRef<TextTool | null>(null);
+  const eraseRef = useRef<EraseTool | null>(null);
+  const selectRef = useRef<SelectTool | null>(null);
+  const persistRef = useRef<PersistQueue | null>(null);
+  const sheetIdRef = useRef<string | null>(null);
+
+  const [polygon, setPolygon] = useState<{ count: number } | null>(null);
+  const [angleSheet, setAngleSheet] = useState<AngleSheetRequest | null>(null);
+  const [textAnchor, setTextAnchor] = useState<Px | null>(null);
+  const [textDraft, setTextDraft] = useState('');
+  const [eraseMode, setEraseMode] = useState<EraseMode>('object');
 
   const [status, setStatus] = useState<EditorStatus>('loading');
   const [sheetTitle, setSheetTitle] = useState('');
@@ -163,6 +232,8 @@ export default function SheetEditor({
     key: null,
   });
   const precisionDenominator = useAppStore((s) => s.precisionDenominator);
+  const activeToolId = useEditorStore((s) => s.activeTool);
+  const [inputKind, setInputKind] = useState<string | null>(null);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -223,6 +294,20 @@ export default function SheetEditor({
       ghostText: STRINGS.dimension.ghostLabel,
     });
     sceneRef.current = scene;
+
+    // ---- slice 1.6 step 9: markup.json persistence (the D70 carry-in) ----
+    // The document is in memory only; this is the writer. Writes are coalesced 400 ms
+    // and atomic (tmp → move) inside `persistQueue` / `writeJsonAtomic`, under the
+    // per-project Web Lock, addressed by the D51 runtime key `projectId`.
+    const persist = createPersistQueue({
+      onStatus: (status) => useAppStore.getState().setStorageStatus(status),
+    });
+    persistRef.current = persist;
+    scene.onChange = () => {
+      const sid = sheetIdRef.current;
+      if (!sid) return;
+      persist.queueSheet(projectId, sid, scene.markupFile(sid, 1));
+    };
     const loupe = new Loupe({
       layer: canvas.overlayLayer,
       getImage: () => bitmapRef.current,
@@ -266,6 +351,158 @@ export default function SheetEditor({
     tool.selectedKeys = () => useEditorStore.getState().selection;
     dimRef.current = tool;
 
+    // ---- slice 1.6 markup tools ----
+    const mkSettings = () => {
+      const s = useAppStore.getState();
+      return {
+        precisionDenominator: s.precisionDenominator,
+        unitSystem: s.unitSystem,
+        unitFormat: s.unitFormat,
+        glovedTouch: s.glovedTouch,
+        fingerDraws: s.fingerDraws,
+        touchPlaces: s.touchPlaces,
+        penOnly: s.penOnly,
+      };
+    };
+    const markupPending = (pending: boolean): void => {
+      // `PendingOp` has no generic-shape member; a generic placement borrows 'polygon'
+      // (the plan's sanctioned generic placement precedent) so Escape cancels it instead
+      // of exiting the editor. Recorded in DECISIONS.
+      const id = toolIdRef.current;
+      const op = !pending
+        ? 'none'
+        : id === 'angle'
+          ? 'angle'
+          : id === 'text'
+            ? 'text'
+            : id === 'erase'
+              ? 'erase'
+              : 'polygon';
+      useEditorStore.getState().setPendingOp(op);
+    };
+
+    function cancelActiveMarkup(): void {
+      for (const shape of shapeToolsRef.current.values()) shape.onToolChange();
+      angleRef.current?.onToolChange();
+      freehandRef.current?.cancel();
+      highlightRef.current?.cancel();
+      textRef.current?.cancel();
+      selectRef.current?.onToolChange();
+    }
+
+    for (const kind of ['line', 'arrow', 'rect', 'ellipse', 'polygon'] as ShapeKind[]) {
+      const shape = new ShapeTool(kind, {
+        canvas,
+        scene,
+        history,
+        getSettings: mkSettings,
+        onSnapshot: (pending) => {
+          if (kind === 'polygon') setPolygon(pending ? { count: shape.points.length } : null);
+          markupPending(pending);
+        },
+        labels: {
+          add: STRINGS.toasts.actionAddShape,
+          move: STRINGS.toasts.actionMoveDimension,
+          delete: STRINGS.select.delete,
+        },
+        newId: () => crypto.randomUUID(),
+      });
+      shapeToolsRef.current.set(kind, shape);
+    }
+
+    angleRef.current = new AngleTool({
+      canvas,
+      scene,
+      history,
+      onSheetOpen: (request) => {
+        setAngleSheet(request);
+        useEditorStore.getState().setKeypadOpen(request !== null);
+      },
+      onSnapshot: (phase) => markupPending(phase !== 'idle'),
+      labels: {
+        add: STRINGS.toasts.actionAddAngle,
+        delete: STRINGS.select.delete,
+        setValue: STRINGS.toasts.actionSetValue,
+      },
+      newId: () => crypto.randomUUID(),
+    });
+
+    const inkCommon = {
+      canvas,
+      scene,
+      history,
+      getSettings: mkSettings,
+      onSnapshot: markupPending,
+      highlightStyle: () => ({
+        ...DEFAULT_STYLE,
+        strokeColor: '#FFD400',
+        strokeWidthMu: HIGHLIGHT_CHISEL_TOUCH_MU,
+      }),
+      newId: () => crypto.randomUUID(),
+    };
+    freehandRef.current = new FreehandTool('freehand', {
+      ...inkCommon,
+      labels: { add: STRINGS.toasts.actionAddInk, delete: STRINGS.select.delete },
+    });
+    highlightRef.current = new FreehandTool('highlight', {
+      ...inkCommon,
+      labels: { add: STRINGS.toasts.actionAddHighlight, delete: STRINGS.select.delete },
+    });
+
+    textRef.current = new TextTool({
+      canvas,
+      scene,
+      history,
+      onRequestEntry: (at) => {
+        setTextAnchor(at);
+        setTextDraft('');
+        markupPending(true);
+      },
+      onSnapshot: markupPending,
+      labels: { add: STRINGS.toasts.actionAddText, delete: STRINGS.select.delete },
+      newId: () => crypto.randomUUID(),
+    });
+
+    eraseRef.current = new EraseTool({
+      canvas,
+      scene,
+      history,
+      objectName: (ann) => eraseObjectName(ann),
+      onDeleteToast: (name) => emitToast(t(STRINGS.toasts.undoAction, { actionName: `${STRINGS.select.delete} ${name}` })),
+      onSnapshot: markupPending,
+      labels: { delete: STRINGS.select.delete, split: STRINGS.toasts.actionSplitStroke },
+    });
+
+    selectRef.current = new SelectTool({
+      canvas,
+      scene,
+      history,
+      getSelection: () => useEditorStore.getState().selection,
+      setSelection: (keys) => useEditorStore.getState().setSelection(keys),
+      onSelectionChange: () => selectRef.current?.refresh(),
+      onPinnedToolbar: () => undefined,
+      labels: {
+        move: STRINGS.toasts.actionMoveDimension,
+        rotate: STRINGS.a11y.rotate,
+        delete: STRINGS.select.delete,
+        locked: STRINGS.editor.lockedToast,
+      },
+    });
+
+    // Track the real tool id (the prop is the coarse seam) and cancel on switch.
+    toolIdRef.current = useEditorStore.getState().activeTool;
+    const unsubscribeTool = useEditorStore.subscribe((state, prev) => {
+      if (state.activeTool === prev.activeTool) return;
+      cancelActiveMarkup();
+      toolIdRef.current = state.activeTool;
+      if (state.activeTool === 'select') selectRef.current?.refresh();
+      else selectRef.current?.onToolChange();
+    });
+    const unsubscribeSelection = useEditorStore.subscribe((state, prev) => {
+      if (state.selection === prev.selection) return;
+      selectRef.current?.refresh();
+    });
+
     // Bridge the shell's chrome to the imperative canvas (undo/redo/delete/✓/adjust).
     const session: EditorSession = {
       undo: () => {
@@ -279,9 +516,7 @@ export default function SheetEditor({
       deleteSelection: () => {
         const keys = [...useEditorStore.getState().selection];
         if (keys.length === 0) return null;
-        for (const key of keys) tool.deleteDimension(key);
-        useEditorStore.getState().clearSelection();
-        return { label: STRINGS.toasts.actionDeleteDimension };
+        return selectRef.current?.deleteSelection() ?? null;
       },
       requestValue: () => tool.requestKeypad(),
       adjustEndpoints: () => tool.adjustEndpoints(),
@@ -304,8 +539,85 @@ export default function SheetEditor({
     const placementArmed = (): boolean =>
       activeToolRef.current !== 'select' && activeToolRef.current !== 'pan';
 
+    /**
+     * Slice 1.6 dispatch. The coarse `activeTool` prop says "some placement tool"; the
+     * store's real `activeTool` says which. Returns `'none'` when the contact is not the
+     * markup layer's (the dimension machine and the object-first drag keep their paths).
+     */
+    const markupPointerDown = (
+      imagePoint: Px,
+      pointerType: string,
+      pressure: number,
+      contact: Contact,
+    ): 'consume' | 'pan' | 'none' => {
+      const id = toolIdRef.current;
+      if (id === 'select') {
+        // Only handle drags are routed here; taps/marquee keep the existing path.
+        return selectRef.current?.hitHandleAt(imagePoint, pointerType)
+          ? selectRef.current!.onPointerDown(imagePoint, pointerType)
+          : 'none';
+      }
+      const shape = shapeToolsRef.current.get(id as ShapeKind);
+      if (shape) return shape.onPointerDown(imagePoint, pointerType);
+      if (id === 'angle') return angleRef.current!.onPointerDown(imagePoint, pointerType);
+      if (id === 'text') return textRef.current!.onPointerDown(imagePoint);
+      if (id === 'erase') return eraseRef.current!.onPointerDown(imagePoint, pointerType);
+      if (id === 'freehand' || id === 'highlight') {
+        const ink = id === 'freehand' ? freehandRef.current! : highlightRef.current!;
+        if (id === 'freehand' && pointerType === 'touch' && !isFingerInkAllowed(mkSettings())) {
+          return 'pan';
+        }
+        if (ink.usePlacementMachine(pointerType)) {
+          return ink.placement().onPointerDown(imagePoint, pointerType);
+        }
+        ink.begin(imagePoint, pressure, pointerType);
+        contact.freehandKind = id;
+        return 'consume';
+      }
+      return 'none';
+    };
+
+    const markupPointerMove = (imagePoint: Px, moved: boolean): 'consume' | 'pan' | null => {
+      const id = toolIdRef.current;
+      const shape = shapeToolsRef.current.get(id as ShapeKind);
+      if (shape) return shape.onPointerMove(imagePoint, moved);
+      if (id === 'angle') return angleRef.current!.onPointerMove(imagePoint);
+      if (id === 'erase') return eraseRef.current!.onPointerMove();
+      if (id === 'select') return selectRef.current!.onPointerMove(imagePoint, moved);
+      if (id === 'text') return textRef.current!.onPointerMove();
+      return null;
+    };
+
+    const markupPointerUp = (imagePoint: Px, tapped: boolean, pointerType: string): void => {
+      const id = toolIdRef.current;
+      const shape = shapeToolsRef.current.get(id as ShapeKind);
+      if (shape) {
+        shape.onPointerUp(imagePoint, tapped, pointerType);
+        return;
+      }
+      if (id === 'angle') {
+        angleRef.current!.onPointerUp(imagePoint, tapped, pointerType);
+        return;
+      }
+      if (id === 'erase') {
+        eraseRef.current!.onPointerUp(imagePoint, tapped, pointerType);
+        return;
+      }
+      if (id === 'select') {
+        selectRef.current!.onPointerUp(imagePoint, tapped, pointerType);
+        return;
+      }
+      if (id === 'freehand' || id === 'highlight') {
+        const ink = id === 'freehand' ? freehandRef.current! : highlightRef.current!;
+        if (ink.usePlacementMachine(pointerType)) ink.placement().onPointerUp(imagePoint, tapped, pointerType);
+        return;
+      }
+      if (id === 'text') textRef.current!.onPointerUp();
+    };
+
     const onPointerDown = (e: PointerEvent): void => {
       const point = canvas.pointerPosition(e);
+      setInputKind(e.pointerType);
       if (e.pointerType === 'pen') router.notePenEvent();
       if (e.pointerType === 'touch') {
         router.noteTouchDown(e.pointerId, isAtEdge(point, host));
@@ -326,6 +638,9 @@ export default function SheetEditor({
         toolAction: 'none',
         forcePan: false,
         objectKey: null,
+        freehandKind: null,
+        owner: null,
+        pressure: e.pressure,
       };
       contacts.set(e.pointerId, contact);
 
@@ -336,24 +651,50 @@ export default function SheetEditor({
       if (keypadOpen) {
         contact.forcePan = true;
         contact.session.target = 'pan';
-      } else if (intent !== 'ignore' && (placementArmed() || tool.state.phase !== 'idle')) {
+      } else if (
+        intent !== 'ignore' &&
+        toolIdRef.current === 'select' &&
+        selectRef.current?.hitHandleAt(imagePoint, e.pointerType)
+      ) {
+        selectRef.current.onPointerDown(imagePoint, e.pointerType);
+        contact.toolAction = 'consume';
+        contact.forcePan = true;
+        contact.owner = 'markup';
+      } else if (intent !== 'ignore' && placementArmed()) {
+        const dispatched = markupPointerDown(imagePoint, e.pointerType, e.pressure, contact);
+        if (dispatched !== 'none') {
+          contact.toolAction = dispatched;
+          contact.forcePan = true;
+          contact.owner = 'markup';
+          if (dispatched === 'pan') contact.session.target = 'pan';
+        } else {
+          // The dimension machine (the coarse `'place'` prop's original owner).
+          const action = tool.onPointerDown(imagePoint, e.pointerType);
+          contact.toolAction = action;
+          contact.forcePan = true;
+          contact.owner = 'dimension';
+          if (action === 'pan') contact.session.target = 'pan';
+        }
+      } else if (intent !== 'ignore' && tool.state.phase !== 'idle') {
         const action = tool.onPointerDown(imagePoint, e.pointerType);
         contact.toolAction = action;
         contact.forcePan = true;
+        contact.owner = 'dimension';
         if (action === 'pan') contact.session.target = 'pan';
       } else if (contact.session.target === 'object' && hit) {
         const key = scene.keyForAnnotationId(hit.id);
-        const from = key ? scene.geometryAt(key) : null;
-        if (key && from) {
+        const geometry = key ? scene.geometryCopy(key) : null;
+        const bounds = key ? scene.boundsAt(key) : null;
+        if (key && geometry && bounds) {
           contact.objectKey = key;
           objectDrags.set(e.pointerId, {
             key,
-            from,
+            geometry,
             startImage: imagePoint,
             moved: false,
           });
           // D63: record the pre-drag position for the second-finger restore.
-          contact.session.preDragPosition = canvas.imageToScreen(from.a);
+          contact.session.preDragPosition = canvas.imageToScreen({ x: bounds.x, y: bounds.y });
         }
       }
 
@@ -364,8 +705,7 @@ export default function SheetEditor({
           // D63 — restore the object's pre-drag position; never commit at the displaced spot.
           const drag = objectDrags.get(pointerId);
           if (drag) {
-            scene.setAnchor(drag.key, 'a', drag.from.a);
-            scene.setAnchor(drag.key, 'b', drag.from.b);
+            scene.setGeometry(drag.key, drag.geometry);
             objectDrags.delete(pointerId);
           }
           other.session.target = 'pan';
@@ -387,8 +727,17 @@ export default function SheetEditor({
       const imagePoint = canvas.screenToImage(point);
       const moved = Math.hypot(point.x - contact.start.x, point.y - contact.start.y) > TAP_SLOP;
 
+      if (contact.freehandKind) {
+        const ink = contact.freehandKind === 'freehand' ? freehandRef.current! : highlightRef.current!;
+        ink.extend(imagePoint, e.pressure);
+        contact.last = point;
+        return;
+      }
+
       if (contact.toolAction !== 'none') {
-        const action = tool.onPointerMove(imagePoint, moved);
+        const markupAction =
+          contact.owner === 'markup' ? markupPointerMove(imagePoint, moved) : null;
+        const action = markupAction ?? tool.onPointerMove(imagePoint, moved);
         if (action === 'consume') {
           contact.last = point;
           return;
@@ -410,8 +759,7 @@ export default function SheetEditor({
             const dx = imagePoint.x - drag.startImage.x;
             const dy = imagePoint.y - drag.startImage.y;
             drag.moved = drag.moved || moved;
-            scene.setAnchor(drag.key, 'a', { x: drag.from.a.x + dx, y: drag.from.a.y + dy });
-            scene.setAnchor(drag.key, 'b', { x: drag.from.b.x + dx, y: drag.from.b.y + dy });
+            scene.setGeometry(drag.key, translateGeometry(drag.geometry, dx, dy));
           }
         }
       }
@@ -430,8 +778,14 @@ export default function SheetEditor({
       if (e.pointerType === 'touch') router.noteTouchUp(e.pointerId);
 
       // The tool owns this contact's lift (commit B / end refine).
+      if (contact.freehandKind) {
+        const ink = contact.freehandKind === 'freehand' ? freehandRef.current! : highlightRef.current!;
+        ink.end(tapped);
+        return;
+      }
       if (contact.toolAction === 'consume') {
-        tool.onPointerUp(imagePoint, tapped, e.pointerType);
+        if (contact.owner === 'markup') markupPointerUp(imagePoint, tapped, e.pointerType);
+        else tool.onPointerUp(imagePoint, tapped, e.pointerType);
         return;
       }
 
@@ -443,7 +797,12 @@ export default function SheetEditor({
           if (drag.moved && !tapped) {
             const dx = imagePoint.x - drag.startImage.x;
             const dy = imagePoint.y - drag.startImage.y;
-            tool.moveDimension(drag.key, drag.from, dx, dy);
+            const to = translateGeometry(drag.geometry, dx, dy);
+            history.exec({
+              label: STRINGS.toasts.actionMoveDimension,
+              do: () => scene.setGeometry(drag.key, to),
+              undo: () => scene.setGeometry(drag.key, drag.geometry),
+            });
           } else if (tapped) {
             useEditorStore.getState().setSelection([drag.key]);
           }
@@ -485,17 +844,56 @@ export default function SheetEditor({
       objectDrags.delete(e.pointerId);
       if (e.pointerType === 'pen') router.penStrokeEnd();
       if (e.pointerType === 'touch') router.noteTouchUp(e.pointerId);
-      if (contact.toolAction !== 'none') tool.onPointerCancel(e.pointerType);
+      if (contact.freehandKind) {
+        const ink = contact.freehandKind === 'freehand' ? freehandRef.current! : highlightRef.current!;
+        ink.cancel();
+        return;
+      }
+      if (contact.toolAction !== 'none') {
+        if (contact.owner === 'markup') cancelActiveMarkup();
+        else tool.onPointerCancel(e.pointerType);
+      }
     };
 
-    // Delete the current selection (keyboard path; touch uses the mini-toolbar later).
+    const markupToolPending = (): boolean => {
+      for (const shape of shapeToolsRef.current.values()) if (shape.pending) return true;
+      return Boolean(
+        angleRef.current?.pending ||
+          freehandRef.current?.pending ||
+          highlightRef.current?.pending ||
+          textRef.current?.pending ||
+          eraseRef.current?.pending,
+      );
+    };
+
+    // Keyboard: Escape cancels a markup op; Enter/Backspace drive Polygon; Delete removes
+    // the selection (a11y §19.6 — every tool operable from the keyboard).
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
       if (useEditorStore.getState().keypadOpen) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
       }
+      const id = toolIdRef.current;
+      if (event.key === 'Escape') {
+        if (id !== 'dimension' && markupToolPending()) {
+          event.preventDefault();
+          cancelActiveMarkup();
+          useEditorStore.getState().setPendingOp('none');
+        }
+        return;
+      }
+      if (id === 'polygon' && event.key === 'Enter') {
+        event.preventDefault();
+        shapeToolsRef.current.get('polygon')?.done();
+        return;
+      }
+      if (id === 'polygon' && event.key === 'Backspace') {
+        event.preventDefault();
+        shapeToolsRef.current.get('polygon')?.undoPoint();
+        return;
+      }
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
       const keys = useEditorStore.getState().selection;
       if (keys.length === 0) return;
       event.preventDefault();
@@ -551,7 +949,28 @@ export default function SheetEditor({
       host.removeEventListener('pointercancel', cancelContact);
       window.removeEventListener('keydown', onKeyDown);
       unsubscribeCtx();
+      unsubscribeTool();
+      unsubscribeSelection();
       setEditorSession(null);
+      // Land any coalesced markup write before the scene is torn down.
+      void persist.flush();
+      scene.onChange = null;
+      persistRef.current = null;
+      sheetIdRef.current = null;
+      for (const shape of shapeToolsRef.current.values()) shape.dispose();
+      shapeToolsRef.current.clear();
+      angleRef.current?.dispose();
+      angleRef.current = null;
+      freehandRef.current?.dispose();
+      freehandRef.current = null;
+      highlightRef.current?.dispose();
+      highlightRef.current = null;
+      textRef.current?.dispose();
+      textRef.current = null;
+      eraseRef.current?.dispose();
+      eraseRef.current = null;
+      selectRef.current?.dispose();
+      selectRef.current = null;
       schedulerRef.current?.cancel();
       schedulerRef.current = null;
       channelRef.current?.close();
@@ -631,6 +1050,17 @@ export default function SheetEditor({
       const height = sheet.imageHeight || bitmap.height;
       canvas.setPhoto(bitmap, width, height);
       canvas.fit();
+      // Restore this sheet's markup (D70). The scene is cleared for the new sheet first,
+      // then re-populated; `sheetIdRef` gates the persistence seam so the restore itself
+      // never queues a redundant write.
+      sheetIdRef.current = null;
+      const markup = await readSheetMarkup(projectDir, sheet.id, () => ({
+        schemaVersion: 1,
+        sheetId: sheet.id,
+        objects: [],
+      }));
+      sceneRef.current?.load(markup.objects);
+      sheetIdRef.current = sheet.id;
       return 'ready';
     } catch {
       return 'damaged';
@@ -687,6 +1117,39 @@ export default function SheetEditor({
     setStatus('loading');
     setRetryToken((n) => n + 1);
   };
+
+  // ---- slice 1.6 sheet/HUD handlers ------------------------------------------
+  const commitText = (): void => {
+    if (textAnchor) textRef.current?.commit(textDraft);
+    setTextAnchor(null);
+    setTextDraft('');
+    useEditorStore.getState().setPendingOp('none');
+  };
+  const cancelText = (): void => {
+    textRef.current?.cancel();
+    setTextAnchor(null);
+    setTextDraft('');
+    useEditorStore.getState().setPendingOp('none');
+  };
+  const commitAngle = (chain: boolean): void => {
+    const request = angleSheet;
+    if (!request) return;
+    angleRef.current?.commitValue({
+      valueDeg: request.degrees,
+      enteredText: request.degrees.toFixed(1),
+      chain,
+    });
+    setAngleSheet(null);
+    useEditorStore.getState().setKeypadOpen(false);
+  };
+  const cancelAngle = (): void => {
+    angleRef.current?.cancelValue();
+    setAngleSheet(null);
+    useEditorStore.getState().setKeypadOpen(false);
+  };
+
+  const eraseAvailable = activeToolId === 'erase';
+  const strokeMode = strokeModeAvailable(inputKind ?? 'pen');
 
   const placementAnnouncement =
     placement.phase === 'anchorA'
@@ -793,6 +1256,66 @@ export default function SheetEditor({
           </div>
         ) : null}
 
+        {/* Polygon HUD (plan step 2): `«Undo point»` replaces Backspace, `✓ Done`
+            (approved `editor.done`) replaces Enter — every control on screen. */}
+        {activeToolId === 'polygon' && polygon ? (
+          <div className="placement-hud" role="group" aria-label={STRINGS.tool.polygon}>
+            <button
+              type="button"
+              className="placement-hud-button"
+              onClick={() => shapeToolsRef.current.get('polygon')?.undoPoint()}
+            >
+              {STRINGS.placement.undoPoint}
+            </button>
+            <button
+              type="button"
+              className="placement-hud-button placement-hud-primary"
+              onClick={() => shapeToolsRef.current.get('polygon')?.done()}
+            >
+              {`✓ ${STRINGS.editor.done}`}
+            </button>
+          </div>
+        ) : null}
+
+        {/* Erase panel (plan step 6 / touch model §4.1): under touch stroke-scope is
+            hidden and the pen-required note is shown. */}
+        {eraseAvailable ? (
+          <div className="erase-panel" role="group" aria-label={STRINGS.tool.erase}>
+            {strokeMode ? (
+              <div className="erase-modes" role="radiogroup" aria-label={STRINGS.tool.erase}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={eraseMode === 'object'}
+                  className={eraseMode === 'object' ? 'is-active' : undefined}
+                  onClick={() => {
+                    setEraseMode('object');
+                    eraseRef.current?.setMode('object');
+                  }}
+                >
+                  {STRINGS.erase.modeObject}
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={eraseMode === 'stroke'}
+                  className={eraseMode === 'stroke' ? 'is-active' : undefined}
+                  onClick={() => {
+                    setEraseMode('stroke');
+                    eraseRef.current?.setMode('stroke');
+                  }}
+                >
+                  {STRINGS.erase.modeStroke}
+                </button>
+              </div>
+            ) : (
+              <p className="erase-pen-note" role="note">
+                {STRINGS.erase.strokeNeedsPen}
+              </p>
+            )}
+          </div>
+        ) : null}
+
         <input
           ref={fileInputRef}
           className="editor-file-input"
@@ -844,6 +1367,67 @@ export default function SheetEditor({
             onCommit={(result) => dimRef.current?.commitValue(result)}
             onCancel={() => dimRef.current?.cancelValue()}
           />
+        </div>
+      ) : null}
+
+      {/* Angle commit sheet (plan step 3): `≈ 43.2°` readout, complement/supplement
+          chips, chain. Opened by the tool's 450 ms settle rule. */}
+      {angleSheet ? (
+        <div className="keypad-sheet-mount" data-testid="angle-sheet">
+          <div className="angle-sheet" role="dialog" aria-modal="true" aria-label={STRINGS.tool.angle}>
+            <p className="angle-readout mono">
+              {t(STRINGS.dimension.angleReadout, { angle: angleSheet.degrees.toFixed(1) })}
+            </p>
+            <div className="angle-chips">
+              <button type="button" onClick={() => commitAngle(false)}>
+                {t(STRINGS.dimension.complementChip, { angle: angleSheet.complement.toFixed(1) })}
+              </button>
+              <button type="button" onClick={() => commitAngle(false)}>
+                {t(STRINGS.dimension.supplementChip, { angle: angleSheet.supplement.toFixed(1) })}
+              </button>
+            </div>
+            <div className="angle-actions">
+              <button type="button" className="btn btn-secondary hit-slop" onClick={cancelAngle}>
+                {STRINGS.editor.cancel}
+              </button>
+              <button type="button" className="btn btn-secondary hit-slop" onClick={() => commitAngle(true)}>
+                {STRINGS.keypad.chain}
+              </button>
+              <button type="button" className="btn btn-primary hit-slop" onClick={() => commitAngle(false)}>
+                {STRINGS.editor.done}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Text entry sheet (plan step 4): tap-to-type at the anchor. */}
+      {textAnchor ? (
+        <div className="keypad-sheet-mount" data-testid="text-entry">
+          <div className="text-entry" role="dialog" aria-modal="true" aria-label={STRINGS.tool.textNote}>
+            <label className="visually-hidden" htmlFor="text-note-input">
+              {STRINGS.tool.textNote}
+            </label>
+            <input
+              id="text-note-input"
+              className="text-entry-input"
+              autoFocus
+              value={textDraft}
+              onChange={(e) => setTextDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitText();
+                else if (e.key === 'Escape') cancelText();
+              }}
+            />
+            <div className="text-entry-actions">
+              <button type="button" className="btn btn-secondary hit-slop" onClick={cancelText}>
+                {STRINGS.editor.cancel}
+              </button>
+              <button type="button" className="btn btn-primary hit-slop" onClick={commitText}>
+                {STRINGS.editor.done}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
