@@ -6,19 +6,21 @@ built-in camera, draw **feet-inch dimension lines** and rich markup on it, inser
 server, no database, no sign-in, no cloud SDK, no Bluetooth, and no multi-user** — each Surface is
 self-contained, and the user drags the exported folder into Dropbox to share.
 
-> **Status: pre-flight + planning complete, hardened through four review rounds.** No functional
-> application code yet. Each round has **executed** the spec's reference code rather than reading it,
-> and each has found real defects the previous round missed — round 2 a wrong test expectation and a
-> fraction-dropping bug; round 4 another wrong test expectation, a silent sign flip in the ft-in
-> parser, a keypad that would commit lengths the user never typed, a write path whose comment
-> promised a lock it never took, and tmp cleanup that never entered the directories tmp files live
-> in. Round 4 also found the work **no slice owned**: the tool rail, the save pipeline, test
-> infrastructure, and how the app reaches a Surface at all.
+> **Status: nine slices shipped and green — the app runs, takes a photo, and places typed
+> dimensions.** Slices 0.2 (input router), 1.1 (domain core), 0.3 (first-run/Settings/Home), 1.2
+> (storage core), 1.3 (media + canvas), 1.4 (capture flow), 1.4.5 (editor shell), 1.5 (dimension
+> tool) and 1.6 (markup tools) are complete, and slice 1.9 has shipped **step 1 of 5**
+> (`export/filenames.ts`). **Slice 1.6 is PARTIAL**: the tools and markup persistence ship, but the
+> Layers panel is built-and-unmounted and three wiring items are owed — see
+> [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md).
 >
-> **No open items block the build.** The origin question ([`DECISIONS.md`](docs/DECISIONS.md) D24) is
-> resolved in build spec **§21.1** (static HTTPS host + origin-agnostic `base` + an origin-change
-> guard). See [`docs/CONTINUITY.md`](docs/CONTINUITY.md) for live state and
-> [`docs/review-session-4-hardening.md`](docs/review-session-4-hardening.md) for the finding register.
+> **Machine gates (on the reconciled tree):** `npx tsc --noEmit` clean · `npx vitest run` **526
+> tests / 40 files** · `npm run build` clean · `npx playwright test` 5 passed / 4 skipped.
+>
+> **Annotations now persist** to each sheet's `markup.json`, so markup survives a reload. Read
+> [`docs/CONTINUITY.md`](docs/CONTINUITY.md) for live state and
+> [`docs/handoff-session-11.md`](docs/handoff-session-11.md) for the current handoff. The origin
+> question ([`DECISIONS.md`](docs/DECISIONS.md) D24) is resolved in build spec **§21.1**.
 
 ## Why
 
@@ -40,7 +42,7 @@ folders.
 | Continuity log | [`docs/CONTINUITY.md`](docs/CONTINUITY.md) | Read first when resuming work. |
 | File index | [`docs/INDEX.md`](docs/INDEX.md) | Map of every file. |
 | UI strings | [`docs/appendix-strings.md`](docs/appendix-strings.md) | Complete inventory of user-visible copy, keyed for `src/ui/strings.ts`. |
-| Checkpoints | [`docs/CHECKPOINTS.md`](docs/CHECKPOINTS.md) | C1–C7 — things measurable only once code exists. |
+| Checkpoints | [`docs/CHECKPOINTS.md`](docs/CHECKPOINTS.md) | **C1–C10** — things measurable only once code exists (C5 lucide API, C9 pen pressure and C10 touch accuracy all fired in 1.4.5/1.6). |
 | Hardware checklist | [`docs/HARDWARE-TEST-CHECKLIST.md`](docs/HARDWARE-TEST-CHECKLIST.md) | `[Surface]` gate ledger + H1–H12 end-of-build checks. |
 | Build log | [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) | Cross-session agent memory; one entry per slice. |
 | Agent instructions | [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md) | Entry instructions for the building agent. |
@@ -59,12 +61,12 @@ folders.
 |---|---|
 | Build spec (v0.3, hardened ×2 review rounds) | ✅ |
 | UI/UX spec (v2, hardened) | ✅ |
-| Adversarial review | ✅ rounds 1, 2 and **4** complete — findings folded in |
+| Adversarial review | ✅ rounds 1, 2, 4, 5; ✅ sessions 7–9 (orchestrator + an independent `oracle` pass on 1.3 that caught F1). ✅ **Session 11**: an orchestrator internal review of the 1.4/1.4.5/1.5/1.6 batch (the owner waived the independent `@oracle` pass — recorded in DECISIONS/CONTINUITY, so this batch has **not** had independent adversarial review). |
 | Implementation plan (slice gates) | ✅ v1.2 hardened — 17 slices, per-slice gates |
 | Origin / distribution decision | ✅ **resolved** — static HTTPS host + origin guard (D24 / §21.1) |
 | Decisions log (ADR) | ✅ |
 | Dependencies installed | ✅ (`package.json`, Node 24 LTS, React 19.3) |
-| Application code | ❌ not started (slice 0.0 executes the resolved origin decision; slice 0.1 is the first code) |
+| Application code | ✅ **nine slices** — input router, domain core, first-run/Settings/Home, storage core, media+canvas, capture flow, editor shell, dimension tool, markup tools (PARTIAL). **526 tests / 40 files**, build + e2e green. Slice 1.9 is step 1 of 5. |
 
 ## Prerequisites
 
@@ -74,7 +76,7 @@ folders.
 
 ## Quick start
 
-> Not runnable yet — the Vite scaffold (slice 0.1) is not done. Once it is:
+> Runnable: `npm ci`, then `npm run dev` (Vite dev server) or `npm run build`. The three test
 
 ```bash
 npm ci           # install exact locked versions

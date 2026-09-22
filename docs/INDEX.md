@@ -1,6 +1,6 @@
 # Documentation & File Index
 
-A map of everything in this repository. Last updated **2026-09-21 (session 9 — slice 1.3 shipped + slice 1.9 step 1; oracle review; D54–D66)**.
+A map of everything in this repository. Last updated **2026-09-21 (session 11 — slices 1.4, 1.4.5, 1.5 shipped; 1.6 markup tools PARTIAL; D67–D73)**.
 
 ## Root
 
@@ -56,7 +56,7 @@ A map of everything in this repository. Last updated **2026-09-21 (session 9 —
 | `.slim/deepwork/` | OpenCode deepwork progress files (session state). |
 | `dist/`, `coverage/`, `playwright-report/`, `test-results/` | Build / test output. |
 
-## Built (slices 0.1–1.3, plus slice 1.9 step 1)
+## Built (slices 0.1–1.6, plus slice 1.9 step 1)
 
 | Path | What it holds |
 |---|---|
@@ -73,6 +73,15 @@ A map of everything in this repository. Last updated **2026-09-21 (session 9 —
 | `src/media/` | `normalizeImage.ts` (EXIF baked via `from-image`, ≤4096 clamp), `exif.ts` (manual APP1 scan, 64 KB bound, `stripExif`), `thumbnails.ts`, `decodeWorker.ts` (real decode, provenance-marked). |
 | `src/export/filenames.ts` | Slice 1.9 step 1 — the filename sanitizer + NTFS case-insensitive conflict policy (`tests/filenames.test.ts`, 29-row table). |
 | `public/icons/` | Placeholder app icons. |
+| `src/editor/shapes/` | `scene.ts` (the in-memory `Annotation[]` document, Konva sync, `AnnotationPath` addressing, §20.2 z-bands, `markupFile`/`load`), `svgPath.ts` (local `getSvgPathFromStroke` + `strokeInputPoints` — the one place that indexes the parallel `pressure[]`), `renderDimension/renderShape/renderInk/renderText/dimensionLabel`. |
+## Planned (not yet created)
+
+| Path | What it will hold |
+|---|---|
+| `src/editor/inset/` | Inset container + crop/hit-test model (1.7). |
+| `src/export/` | `renderStage.ts`, `pdf.ts`, `png.ts` (zip via `fflate`) (1.9 steps 2–5). |
+| `src/state/styleByTool.ts` | The style system (1.8). |
+| `src/ui/` | Style panel, export wizard, autosave chip, history flyout (1.8–1.10). |
 
 ## Planned (not yet created)
 
