@@ -333,6 +333,11 @@ export const STRINGS = {
     // unclassified write error); `permission`, `target-locked` and `disk-full` reuse the
     // approved `errors.*` lines instead.
     saveFailed: "Couldn't save this photo",
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices). A save that HANGS is not
+    // the same as one that failed: nothing has been rejected, and the write may still land
+    // (a Web Lock held by an earlier stuck write, or an OS lock held by another app). This is
+    // the bounded-wait exit that stops the app claiming progress forever.
+    folderNotResponding: "The folder isn't responding",
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §14):
     // the viewfinder toggles and zoom chips. `capture.autoCapture` is deliberately
     // absent — auto-capture-on-level is not built in v1 (UI §10.1: off by default).

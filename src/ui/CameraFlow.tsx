@@ -301,6 +301,41 @@ export interface CaptureFailure {
   needsResolve: boolean;
 }
 
+/**
+ * Where the save has got to. Shown while it runs, so a save that never finishes NAMES the step
+ * it is stuck on instead of spinning («Adding…» covers the image work; «Saving…» the folder
+ * write) — a real run reported being "stuck on adding…", and the two have different causes.
+ */
+export type SaveStage = 'idle' | 'prepare' | 'write';
+
+/** The saving overlay's label for a stage (approved copy only — no new strings). */
+export function savingLabel(stage: SaveStage): string {
+  return stage === 'write' ? STRINGS.storage.saving : STRINGS.capture.adding;
+}
+
+/**
+ * How long a save may run before the app stops claiming progress. A write CAN hang rather than
+ * fail — a Web Lock held by an earlier stuck write, or an OS-level lock in another app — and a
+ * pending promise never reaches the `catch`, so without this the photo stays trapped behind a
+ * spinner forever (`navigator.locks.request` has no timeout and queues silently). Generous on
+ * purpose: a slow disk is not a failure.
+ */
+export const SAVE_TIMEOUT_MS = 30_000;
+
+/**
+ * Arm the bounded-wait timer for a save. Returns the cancel function.
+ *
+ * Extracted so the mechanism is testable WITHOUT the camera flow: the first attempt to test it
+ * end to end had to fight the capture's own async path under fake timers (and a queued mock
+ * leaked into the next test), which is the trap `docs/review-brief.md` §8 names — a test that
+ * depends on an environment which cannot exercise the path. The DOM half (the stage label and
+ * the photo staying on screen) is pinned with real timers instead.
+ */
+export function createSaveWatchdog(onTimeout: () => void, ms: number = SAVE_TIMEOUT_MS): () => void {
+  const id = window.setTimeout(onTimeout, ms);
+  return () => window.clearTimeout(id);
+}
+
 /** The `StorageWriteError` kind, duck-typed so a duplicated class identity cannot defeat it. */
 function writeFailureKind(e: unknown): 'permission' | 'target-locked' | 'disk-full' | 'unknown' {
   const kind = (e as { kind?: unknown } | null)?.kind;
@@ -338,6 +373,10 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   const streamRef = useRef<MediaStream | null>(null);
   const generationRef = useRef(0);
   const projectRef = useRef<ProjectState | null>(null);
+  /** The armed bounded-wait timer for an in-flight save (cleared on unmount, not left behind). */
+  const watchdogRef = useRef<(() => void) | null>(null);
+  /** True while a save's promise is unsettled — even after the bounded wait stopped waiting. */
+  const inFlightRef = useRef(false);
   const schedulerRef = useRef<ThumbnailScheduler | null>(null);
   const longPressRef = useRef<{ timer: number; x: number; y: number } | null>(null);
   const reticleTimerRef = useRef<number | null>(null);
@@ -346,6 +385,10 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   const [write, setWrite] = useState<WriteState>('idle');
   /** Why the last write failed — the overlay must never be a blank `role="alert"`. */
   const [failure, setFailure] = useState<CaptureFailure | null>(null);
+  /** Which step of the save is running, so a hang names itself. */
+  const [stage, setStage] = useState<SaveStage>('idle');
+  /** Whether a save is still unsettled (drives whether an in-place retry is safe to offer). */
+  const [inFlight, setInFlight] = useState(false);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [high, setHigh] = useState(true);
@@ -394,6 +437,17 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
       alive = false;
     };
   }, [resolveProject]);
+
+  // A save interrupted by a route change must not leave its timer behind to fire setState on
+  // an unmounted component (and the sheet it may still write is the shell's business, not a
+  // stale overlay's).
+  useEffect(
+    () => () => {
+      watchdogRef.current?.();
+      watchdogRef.current = null;
+    },
+    [],
+  );
 
   /* ---- camera lifecycle -------------------------------------------------- */
 
@@ -671,16 +725,43 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   /* ---- write path -------------------------------------------------------- */
 
   const commit = useCallback(
-    async (blob: Blob): Promise<void> => {
+    async (blob: Blob, options: { askGrant?: boolean } = {}): Promise<void> => {
       setWrite('saving');
+      setStage('prepare');
       setFailure(null);
+      // ONE save in flight at a time. After the bounded wait below the visible state is
+      // `failed` while the write is still PENDING, so without this guard a «Retry» (or a second
+      // «Use photo») would queue a second write behind the stuck one — and if the first ever
+      // lands, the project gets two sheets. A ref for the guard, state for the render.
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      setInFlight(true);
+
+      // A save can HANG — a Web Lock held by an earlier stuck write, or an OS lock held by
+      // another app — and a pending promise never reaches the `catch` below, so without this
+      // the photo stays trapped behind a spinner forever (`navigator.locks.request` has no
+      // timeout and queues silently). Generous on purpose: a slow disk is not a failure.
+      const stopWatchdog = createSaveWatchdog(() => {
+        setFailure({
+          message: STRINGS.capture.folderNotResponding,
+          needsGrant: false,
+          needsResolve: false,
+        });
+        setWrite('failed');
+      });
+      watchdogRef.current = stopWatchdog;
+
       try {
-        // §5.2/§5.3: the write grant does NOT survive a page load, and it can only be asked
-        // for inside a user gesture. Ask at the TOP of the gesture — before the EXIF read and
-        // the normalization, which are slow enough to outlive the activation window — which is
-        // the same fix «New project» needed in D103. Free while the grant is held.
-        if (!(await ensureRootAccess({ request: true }))) {
-          throw new StorageWriteError('permission', new Error('the folder write grant was refused'));
+        // §5.2: the write grant does not survive a page load and can only be re-asked for
+        // inside a user gesture. ONLY the recovery path asks (`askGrant`) — the recovery is
+        // the gesture whose button reads «Re-authorize», so a prompt there is expected. The
+        // PRIMARY path must never block on it: a request the browser never answers would hang
+        // the save instead of reporting it, and the failure is honest either way (the write
+        // itself fails fast with `NotAllowedError`, and the overlay offers «Re-authorize»).
+        if (options.askGrant === true) {
+          if (!(await ensureRootAccess({ request: true }))) {
+            throw new StorageWriteError('permission', new Error('the folder write grant was refused'));
+          }
         }
 
         let state = projectRef.current;
@@ -704,6 +785,9 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         const exif = await readExifInfo(blob);
         const oriented = rotation % 360 === 0 ? blob : await bakeRotation(blob, rotation);
         const normalized = await normalizeImage(oriented);
+        // The folder work starts here: the overlay's label follows the stage, so a save that
+        // never finishes says WHICH step it is on.
+        setStage('write');
         const { sheet, projectFile: nextFile, sheetDir } = await addSheetFromPhoto(
           { blob: normalized.blob, width: normalized.width, height: normalized.height },
           {
@@ -731,6 +815,12 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         // cannot fix a lost folder grant) — §13.4, and the D103 lesson again.
         setFailure(describeWriteFailure(e));
         setWrite('failed');
+      } finally {
+        stopWatchdog();
+        watchdogRef.current = null;
+        inFlightRef.current = false;
+        setInFlight(false);
+        setStage('idle');
       }
     },
     [onCaptured, projectId, resolveProject, rotation],
@@ -743,7 +833,10 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
 
   const retryWrite = (): void => {
     const current = capturedRef.current;
-    if (current) void commit(current.blob);
+    // The recovery is the gesture that may prompt: ONLY it asks for the write grant (§5.2), so
+    // a browser permission prompt appears for a user who just asked to fix a permission
+    // problem — never for one who only tapped a photo.
+    if (current) void commit(current.blob, { askGrant: true });
   };
 
   const saveACopy = (): void => {
@@ -791,7 +884,10 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   const savingOverlay =
     write === 'saving' ? (
       <div className="camera-progress" role="status" aria-live="polite">
-        <p className="camera-progress-label">{STRINGS.capture.adding}</p>
+        {/* The label follows the STAGE: «Adding…» is the image work, «Saving…» is the folder
+            write — so a save that never finishes names the step it is stuck on (both lines are
+            already-approved copy; a real run could not tell which one it was in). */}
+        <p className="camera-progress-label">{savingLabel(stage)}</p>
         <div className="camera-progress-track" aria-hidden="true">
           <div className="camera-progress-fill" />
         </div>
@@ -807,10 +903,15 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         <p className="camera-failure-message">{failure?.message ?? STRINGS.capture.saveFailed}</p>
         <div className="camera-failure-actions">
           {/* The recovery the cause needs: a lost folder grant must be re-asked for inside
-              this click (§5.2) — a plain «Retry» can never fix it. */}
-          <button type="button" className="btn btn-primary hit-slop" onClick={retryWrite}>
-            {failure?.needsGrant ? STRINGS.errors.reAuthorize : STRINGS.errors.retry}
-          </button>
+              this click (§5.2) — a plain «Retry» can never fix it. While the write is STILL
+              pending (the bounded wait gave up, not the write) no in-place retry is offered at
+              all: queuing a second write behind a stuck one is how a project ends up with two
+              sheets. Save a copy… is always safe. */}
+          {inFlight ? null : (
+            <button type="button" className="btn btn-primary hit-slop" onClick={retryWrite}>
+              {failure?.needsGrant ? STRINGS.errors.reAuthorize : STRINGS.errors.retry}
+            </button>
+          )}
           <button type="button" className="btn btn-secondary hit-slop" onClick={saveACopy}>
             {STRINGS.storage.saveACopy}
           </button>

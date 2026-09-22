@@ -17,7 +17,7 @@ import { cleanup, fireEvent, render, screen, waitFor, act } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import { createThumbnailScheduler } from '@/media/thumbnails';
 import { normalizeImage } from '@/media/normalizeImage';
-import CameraFlow from '../src/ui/CameraFlow';
+import CameraFlow, { createSaveWatchdog, SAVE_TIMEOUT_MS, savingLabel } from '../src/ui/CameraFlow';
 import { initStore } from '../src/fs/projectStore';
 import { parseProjectFile, type ProjectFile } from '../src/domain/schema';
 import {
@@ -481,5 +481,86 @@ describe('a11y — keyboard operability and labelling', () => {
     expect(image.getAttribute('data-rotation')).toBe('0');
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.rotate }));
     expect(image.getAttribute('data-rotation')).toBe('90');
+  });
+});
+describe('a save that never finishes names its stage and gives the photo back (owner-reported hang)', () => {
+  it('labels the two stages with approved copy, and bounds the wait', () => {
+    // The real run could not say WHICH step it was stuck on: «Adding…» is the image work and
+    // «Saving…» is the folder write, and the two have different causes. Both lines are
+    // already-approved copy, so naming the stage costs no new wording.
+    expect(savingLabel('prepare')).toBe(STRINGS.capture.adding);
+    expect(savingLabel('write')).toBe(STRINGS.storage.saving);
+    // The bounded wait is finite and generous: a slow disk is not a failure, but an app that
+    // claims progress forever is worse than one that admits it is waiting.
+    expect(Number.isFinite(SAVE_TIMEOUT_MS)).toBe(true);
+    expect(SAVE_TIMEOUT_MS).toBeGreaterThan(5000);
+  });
+
+  it('the bounded-wait timer fires once, and not at all when the save settles first', () => {
+    // Pinned WITHOUT the camera flow on purpose: driving the capture under fake timers fights
+    // the component own async path (and leaves a queued mock behind), which is the trap
+    // review-brief §8 names. The mechanism is a timer; it is tested as one.
+    vi.useFakeTimers();
+    try {
+      const onTimeout = vi.fn();
+      const stop = createSaveWatchdog(onTimeout, 1000);
+
+      vi.advanceTimersByTime(999);
+      expect(onTimeout).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(onTimeout).toHaveBeenCalledTimes(1);
+
+      // A save that settles first cancels it: no stale timeout can fire at a finished save.
+      const cancelled = vi.fn();
+      const stopSecond = createSaveWatchdog(cancelled, 1000);
+      stopSecond();
+      vi.advanceTimersByTime(5000);
+      expect(cancelled).not.toHaveBeenCalled();
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a hung pipeline keeps saying which step it is on, and never traps the photo', async () => {
+    // The owner-reported symptom: the promise never settles, so nothing reaches the catch —
+    // the app has to keep SAYING what it is waiting on, and keep the photo in reach.
+    await setup();
+    // Consumed by this test only, so it cannot leak into the next one.
+    vi.mocked(normalizeImage).mockImplementationOnce(() => new Promise(() => {}));
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    renderFlow();
+    const user = userEvent.setup();
+    await screen.findByTestId('camera-resolution');
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+
+    // The save is in flight and names its stage (the image work), not a bare spinner.
+    await waitFor(() => expect(document.querySelector('.camera-progress-label')).not.toBeNull());
+    expect(document.querySelector('.camera-progress-label')?.textContent).toBe(
+      STRINGS.capture.adding,
+    );
+    // The photo is still on screen and the escape hatch is one tap away — nothing is trapped.
+    expect(document.querySelector('.camera-review-image')).not.toBeNull();
+    expect(screen.getByRole('button', { name: STRINGS.capture.retake })).toBeTruthy();
+  });
+
+  it('a primary attempt files the sheet without waiting on any permission request', async () => {
+    // The primary path must never BLOCK on the write grant: a browser may never answer the
+    // request, and a pending request would hang the save instead of reporting it. Only the
+    // recovery path asks (the button reading «Re-authorize»), which is where a user expects a
+    // prompt. The fake handles expose no permission API, so the observable half is pinned
+    // here: the primary attempt reaches the write and the sheet lands.
+    await setup();
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    const { onCaptured } = renderFlow();
+    const user = userEvent.setup();
+    await screen.findByTestId('camera-resolution');
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+    await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+    expect(readProject(root.textAt('Riverside/project.json')).sheets).toHaveLength(2);
   });
 });

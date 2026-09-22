@@ -2935,3 +2935,43 @@ said what had failed. Behind it, two different failures landed on the same scree
 identifies it in one line, and the four kinds map to four different remedies (re-grant, wait for the lock to
 clear, free space, or a browser that cannot do the atomic write at all). Guessing further without that line
 would be the pattern this project keeps paying for.
+
+### D120 — the capture save HANGS: a pending write never reaches the honest-failure path
+
+**Reported next:** *"it still gets stuck on adding… after clicking use photo"*. «Adding…» is the **saving**
+overlay — so the promise never settles. D119 covered *rejection*; a hang is a different defect and the
+honest-failure fix structurally cannot see it (a pending promise never reaches a `catch`).
+
+**Three things were wrong:**
+
+1. **The primary path could wait on a permission request that may never be answered.** D119 moved
+   `ensureRootAccess({ request: true })` to the top of the capture gesture. The intent was D103's (ask inside the
+   click), but a `requestPermission` the browser never answers — or one waiting on a prompt the user never sees
+   over a full-bleed camera — turns "ask for the grant" into "hang forever". **The primary path no longer asks**;
+   only the **recovery** path does, because that is the click whose button reads «Re-authorize», where a prompt
+   is expected. The primary path still fails honestly: the write itself fails fast with `NotAllowedError`, and
+   the overlay offers the granting recovery.
+2. **Nothing bounded the wait.** `navigator.locks.request` has no timeout and queues silently, so a Web Lock held
+   by an earlier stuck write makes every later write wait forever. A 30 s watchdog (`SAVE_TIMEOUT_MS`, via
+   `createSaveWatchdog`) now stops the app claiming progress, with the honest line «The folder isn't responding»
+   and the escape hatch beside it.
+3. **Nothing said WHICH step was running.** The saving overlay's label now follows the stage — «Adding…» for the
+   image work, «Saving…» for the folder write, both **already-approved** lines, so naming the stage cost no new
+   wording. A hang now names itself; that is also the only reason this report could be diagnosed at all.
+
+Plus **one save in flight at a time** (`inFlightRef` + `inFlight`): after the bounded wait the visible state is
+`failed` while the write is still *pending*, so an in-place retry would queue a second write behind the stuck one
+— and if the first ever lands, the project gets **two sheets**. While a save is unsettled the overlay therefore
+offers «Save a copy…» and **no** in-place retry.
+
+**Recorded, not fixed:** `writeAtomic` acquires its per-project Web Lock with **no timeout**, so a stuck holder
+blocks every later write until the page is reloaded (locks die with the page). A lock-acquisition timeout inside
+`projectStore` is the deeper fix and belongs with that module's own review, not inside a UI bug fix. The reload
+is the reliable escape and is the first thing the hardware row asks for.
+
+**Test honesty, and one gap stated plainly:** the first attempt to pin the watchdog drove the capture flow under
+fake timers, which fought the component's own async path **and leaked a queued mock implementation into the next
+test** — the environment-coupling trap `docs/review-brief.md` §8 names. Restructured: the timer mechanism is
+pinned as a timer (`createSaveWatchdog`, no camera), the label mapping as a pure function, and the owner's
+symptom (a hung pipeline keeps its stage label and never traps the photo) with **real** timers. The 30 s exit's
+post-timeout button set is *not* machine-verified end to end; the hardware row covers it.

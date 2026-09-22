@@ -1330,3 +1330,38 @@ drives the happy path plus a single mocked write failure — and the honest fail
 report from "it's stuck" into a cause.
 
 **Next:** the owner's next run, with the message on screen; then the owed items above.
+
+## Fix (owner-reported, second round) - the save HANGS: bounded wait, a named stage, and no stacked writes
+**Date:** 2026-09-22 · **Commit:** this commit
+
+**Reported:** *"it still gets stuck on adding… after clicking use photo"* — «Adding…» is the SAVING overlay, so
+the promise never settles. D119 handled rejection only; a pending promise never reaches the `catch`, so it could
+not see this.
+
+**Fixed (D120):** the **primary** capture path no longer awaits the write grant (only the recovery that reads
+«Re-authorize» asks, where a prompt is expected — an unanswered request was hanging the save); a **30 s bounded
+wait** stops the app claiming progress and shows «The folder isn't responding»; the saving label now **names the
+stage** («Adding…» = image work, «Saving…» = folder write — both approved lines); and **one save in flight at a
+time**, so a retry can no longer queue a second write behind a stuck one and land two sheets.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **93 files / 1315 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 26 precache entries (1519.72 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+
+**Deferred to hardware:** the 30 s exit's post-timeout button set (the timer mechanism, the label mapping and
+the hung-save symptom are machine-pinned; the full exit is not), and which condition a real run hits — the row
+under slice 1.10 asks for the line and the stage label.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D120**.
+
+**Surprises:** the first attempt to pin the watchdog used fake timers around the whole capture flow — it fought
+the component's async path AND leaked a queued mock into the next test, producing a false "regression" in an
+unrelated case. That is `review-brief.md` §8's trap (a test coupled to an environment that cannot exercise the
+path) caught in the act; the test was restructured rather than patched, and the leftover gap is stated in D120
+instead of hidden.
+
+**Next:** the owner's run with the stage label visible (and a reload first, to clear any stuck Web Lock).
