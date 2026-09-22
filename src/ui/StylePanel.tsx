@@ -373,7 +373,11 @@ export function swatchLabel(nameKey: SwatchNameKey): string {
   return S[nameKey];
 }
 
-function colorName(hex: string): string {
+/** The palette name for a hex, or the uppercased hex when it is not one of the 12 (P §11.7).
+ *  Exported (D129) so the deep editor's ~48-swatch grid names its colours the same way — an
+ *  `aria-label` of the bare hex is not a name a person can use, while an unnamed hex in the deep
+ *  palette stays honest as `#RRGGBB` rather than being given an invented word. */
+export function colorName(hex: string): string {
   const match = PALETTE.find((entry) => entry.hex.toUpperCase() === hex.toUpperCase());
   return match ? S[match.nameKey] : hex.toUpperCase();
 }

@@ -631,9 +631,9 @@ test('beta-critical path + gesture lab on the Surface profile', async ({ page, c
         const created = after.length - before.length;
         return `pen barrel press (buttons: 2) with the freehand tool active: objects ${before.length} -> ${after.length} — ${
           created > 0
-            ? 'the barrel press was treated as a pen contact and drew'
-            : 'no object was created'
-        } (the barrel is not distinguished from the tip in this build)`;
+            ? 'REGRESSION: the barrel press was treated as a pen contact and drew'
+            : 'no object was created (D128: only the pen tip draws)'
+        }`;
       },
     },
 

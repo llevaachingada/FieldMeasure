@@ -44,6 +44,7 @@ import {
   alphaFromTransparencyPercent,
   arrowEnds,
   clampDisplayWidth,
+  colorName,
   formatPt,
   hexToHsl,
   hslToHex,
@@ -228,7 +229,7 @@ export default function StyleEditorSheet(props: StyleEditorSheetProps): JSX.Elem
                           ? 'true'
                           : 'false'
                       }
-                      aria-label={hex}
+                      aria-label={colorName(hex)}
                       aria-pressed={!mixed && style.strokeColor.toUpperCase() === hex.toUpperCase()}
                       onClick={() => onChange({ strokeColor: hex })}
                     />

@@ -646,6 +646,29 @@ export default function EditorLayout({
       data-layers-open={layersOpen ? 'true' : 'false'}
       data-focus-inset={focusInsetId ?? 'false'}
     >
+      {/*
+       * DOM ORDER IS THE FOCUS ORDER (UI spec §14.9: "logical tab order = top bar -> rail ->
+       * canvas -> style panel"), so the top bar is the FIRST element here.
+       *
+       * It used to be last, with `order: 0` in CSS pulling it up the SCREEN while Tab still
+       * visited it after the rail and all 37 style-panel stops. `order` moves paint, not the
+       * focus sequence: an audited keyboard walk in Chromium reached the top bar as stops
+       * 38-41 of 41. The implementation plan's §19.6 checkbox says "rail -> canvas -> panel
+       * -> top bar", but §19.6 (build spec) specifies no order at all and the UI spec, which
+       * outranks the plan, says the reverse. Corrected here; reported for DECISIONS.
+       */}
+      <TopBar
+        projectName={projectName ?? folderName}
+        sheetName={sheetTitle || undefined}
+        onExit={onExit}
+        onAddSheet={onAddSheet}
+        onImportFile={onImportFile ?? (() => importTriggerRef.current?.())}
+        autosaveChip={autosaveChip ?? <AutosaveChip status={storageStatus} onRetry={retrySave} />}
+        compact={compact}
+        onToggleLayers={() => useEditorStore.getState().setLayersOpen(!layersOpen)}
+        layersOpen={layersOpen}
+        onExport={openExport}
+      />
       <div className="editor-main">
         <ToolRail
           activeTool={activeTool}
@@ -681,18 +704,6 @@ export default function EditorLayout({
           </div>
         ) : null}
       </div>
-      <TopBar
-        projectName={projectName ?? folderName}
-        sheetName={sheetTitle || undefined}
-        onExit={onExit}
-        onAddSheet={onAddSheet}
-        onImportFile={onImportFile ?? (() => importTriggerRef.current?.())}
-        autosaveChip={autosaveChip ?? <AutosaveChip status={storageStatus} onRetry={retrySave} />}
-        compact={compact}
-        onToggleLayers={() => useEditorStore.getState().setLayersOpen(!layersOpen)}
-        layersOpen={layersOpen}
-        onExport={openExport}
-      />
       {/* §7.5: the deep editor sheet, toggled by `More styles…`/`Custom…` and closed by
           `Esc`/`✕`/`Done` (the sheet owns its own focus trap and focus return). */}
       {/* §13.4: the toast host is mounted ONCE at the app shell root (`App`), so it is reachable

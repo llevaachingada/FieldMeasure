@@ -3189,7 +3189,71 @@ decides** — with the order inverted, the harness measured a trigger the app ne
   not become ready within 60000ms" alongside Vite's "unexpectedly reloaded a test" warning — the D84 shape
   (mid-run dep re-optimization with the lazy-loaded editor). Flaky-until-explained, recorded in CONTINUITY.
 
-### D127 — the rail ignored the handedness setting (found by LOOKING at the clickthru's screenshots)
+### D128 — a pen barrel press must never draw (the spec's own degrade, applied)
+
+**Found by the clickthru harness on the built app** (step 17, real CDP pen input): *"pen barrel press
+(`buttons: 2`) with the freehand tool active: objects 2 → 3 — the barrel press was treated as a pen contact
+and drew."* On a real Surface pen that is an **unintended stroke** in a measurement record.
+
+**What the spec says.** §8.2 routes **pen → `'draw'`** with no mention of the barrel; the barrel is governed by
+§11.4/§2.4/§11.6 #3, where the pen's **barrel-button hold is only an *optional accelerator*** for the radial
+quick-menu, whose **primary entry path is the rail's press-and-hold for every input** — and the radial itself is
+**not built** (`editorStore` still calls it a later slice, and no radial component exists). The documented
+degrade is explicit (UI §10.1 / H13): *"if the button cannot be read, keep the documented degrade path (radial
+absent rather than broken)."* So the honest behaviour for a barrel press is a **no-op**.
+
+**Fixed:** `inputRouter.classify` returns `'draw'` only for a **tip** contact (`button === 0`); a non-tip pen
+contact (barrel `2`, eraser end `5` on some pens) is `'ignore'`, with the pen-presence bookkeeping still running
+first so a barrel press refreshes the palm window exactly as a tip does. `SheetEditor` then returns **before a
+`Contact` exists**, so a barrel press cannot draw, ink **or pan** (without that, an ignored pen contact still
+falls into the drag-target path). Touch and mouse routing are untouched; the tip still draws.
+
+**Evidence:** three new router tests (`barrel → ignore`, `eraser-end → ignore`, `barrel still refreshes the palm
+window`) **fail against the pre-fix router restored byte-exactly**, while the tip test passes — so the change is
+scoped to the barrel; 19/19 after. **Spec §8.2 amended** (the truth table gains the barrel row and the prose is
+corrected from "pen … draws … always" to the tip), because the router was lifted from that block verbatim and
+the authority chain runs spec-ward.
+
+**Still `[Surface]`:** whether a real digitiser reports the barrel as `button === 2` at all remains **H13,
+PENDING** — the emulated run is the strongest evidence available and never promotes it.
+
+### D129 — the editor chrome's a11y audit by execution: two real defects, and one spec contradiction
+
+`AGENTS.md`'s a11y rule is *per-slice* and had never been audited end to end. It was audited by
+**execution** in real Chromium (54 interactive chrome controls, at 1920×1120, 1440×960 and 960×1440 —
+portrait added by the lane), not by reading.
+
+**Found 1 — four controls collapsed to 16×48 in the portrait bottom dock.** The ARROWHEADS options were
+squeezed by `.style-panel-option { flex: 1 1 0; min-width: 0 }` when the dock turns horizontal and its sections
+become flex items in a scroller. Fixed with a `min-width: 48px` **floor** (the dock already scrolls, so the cost
+is scroll, never a shrunken target). Landscape was never affected (options are 59/81 px there). 0 failures after;
+**proof it is a real pin:** reverting the floor fails two tests at 960×1440 with
+`style-panel-option 16x48`.
+
+**Found 2 — the tab order contradicted UI §14.9, and it was not a JSX accident.** §14.9 states the logical tab
+order is **top bar → rail → canvas → style panel**; the walk put `Projects, Layers, Export, More actions` **last**
+(stops 38–41). Cause: `TopBar` was the last DOM child with CSS `order: 0` — and **`order` moves paint, not
+focus**. Fixed by hoisting `<TopBar>` to the first DOM child and dropping the now-pointless `order` values, with
+the pin asserting §14.9's sequence and **failing against the pre-change source**. All 54 controls are reachable,
+and the rail is **one** tab stop with ArrowDown roving (correct toolbar ARIA, all 14 tools reached).
+
+**Verified sound, with evidence:** accessible names (**0 missing**; a `title`-only control now fails, so the
+check is not masked); no keyboard trap (including the Fill disclosure — its hidden swatches are `display:none`,
+i.e. 0×0, not phantom tab stops — and the deep sheet's `aria-modal` trap holds over 40 Tab presses and returns
+focus on Escape); and the visible focus ring asserted on **every** stop of the walk, not a sample.
+
+**Fixed from the audit's report (files it did not own):**
+- The deep sheet's ~48-swatch grid named its colours with a **bare hex** — now `colorName(hex)`: the 12-palette
+  names where they exist (so it agrees with the panel's «Hi-Vis Orange»), and the **uppercase hex otherwise**,
+  because inventing names for the deep palette would be worse than an honest code.
+- The editor rendered Home's «Loading projects…» while loading a **sheet** (`SheetEditor.tsx:2256` →
+  `STRINGS.home.loading`); it now renders `editor.loadingSheet` («Loading sheet…», a marked proposal) — the
+  same defect family as D110's Home cards, caught by reading every chrome string as part of the audit.
+
+**Deliberately left, as a spec question rather than a guess:** UI §14.9 mandates *rail → canvas → panel*
+regardless of handedness, so for a right-handed user (rail on the **right**) the walk crosses the row
+right→left. A handedness-consistent order would be a **spec change** (and would argue with the first-run note's
+"element order, never a CSS flip" principle), so it is recorded for the owner. — the rail ignored the handedness setting (found by LOOKING at the clickthru's screenshots)
 
 **How it survived every gate.** `EditorLayout` sets `data-rail={railSideFor(handedness)}` — and the default is
 **`right`** (a right-handed user) — while the rotation gate asserts that `data-rail` **does not move** across

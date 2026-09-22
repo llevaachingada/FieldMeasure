@@ -400,6 +400,10 @@ export const STRINGS = {
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §9)
     menuSettings: 'Settings',
     menuProjectSettings: 'Project settings',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): the sheet-loading line. The
+    // editor used to render Home's «Loading projects…» while loading a SHEET, which named the wrong
+    // thing (found by the D129 chrome audit); the singular is the honest wording for one sheet.
+    loadingSheet: 'Loading sheet…',
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §9):
     // the remaining seven editor overflow items (slice 1.4.5 top bar).
     menuDuplicateSheet: 'Duplicate sheet',

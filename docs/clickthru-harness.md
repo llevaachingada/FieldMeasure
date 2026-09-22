@@ -168,13 +168,22 @@ someone later weakens to make green.
 - **Concurrent writers.** This repo is often worked by more than one session at once. Run the clickthru
   on a tree you can name, and when reading its pixels remember the build may include another lane's
   uncommitted edits (see D125's caveat about the rail-side observation).
+- **THE E2E GATE WIPES YOUR ARTIFACTS.** `test-results/` is Playwright's default `outputDir`, so running
+  `npx playwright test` (the e2e gate) **after** a clickthru deletes `test-results/clickthru/latest/` —
+  screenshots, `run.json`, video, everything. Review the contact sheet, or copy the folder aside, **before**
+  the gate. Learned the hard way in the beta wave: by the time a second look at two screenshots was wanted,
+  the whole run was gone. This is exactly why §8's "the run reports; **the orchestrator records**" is not
+  optional — the numbers and notes in `CONTINUITY.md`/`DECISIONS.md` are what survive.
+- **A guard that only reads an attribute is not a guard.** The rotation gate asserted `data-rail` did not move
+  while the rail rendered on the wrong side for the whole life of the setting (**D127**): assert where things
+  ARE (a rect), not only what the DOM says.
 
 ## 10. What it has found so far
 
 | Finding | Status |
 |---|---|
 | **`thumb.jpg` is never written for a captured sheet** — absent at all 20 steps, including after the dimension persisted, after reload and after export, so the grid card can only show its placeholder. Mechanism traced: `CameraFlow` arms a **3 s** debounce, then unmounts on `onCaptured`, and its cleanup **cancels** the scheduler. `tests/cameraFlow.test.tsx` hand-drives `write()` and so asserts only that `schedule()` was called. | **D125 — FIXED and re-verified by this harness.** `CameraFlow` now flushes the scheduler **before** `onCaptured`; on the reconciled tree step 03 reports *card thumbnail rendered: true* and step 20 finds `thumb.jpg` (6256 B) in the sheet directory. Pinned by a test that asserts the **order** (a call is not an effect). |
-| **The pen barrel button is not distinguished from the tip** — a `buttons: 2` press with freehand active **draws**, exactly like a tip stroke. | evidence for **H13**; recorded |
+| **The pen barrel button is not distinguished from the tip** — a `buttons: 2` press with freehand active **drew**, exactly like a tip stroke. | **FIXED — D128.** Only the pen **tip** (`button === 0`) draws; a non-tip pen contact is `'ignore'` and the editor registers no contact at all, so the barrel can no longer draw, ink **or pan** (build spec §8.2 amended; three router tests fail against the pre-fix code). The run after the fix reports *"objects 2 -> 2 — no object was created"*, and the exported markup loses exactly the object the barrel used to create. The real digitiser's `button` value stays **H13, `[Surface]`**. |
 | **A dimension's midpoint is a handle, not the body** — dragging from the exact midpoint does not move the object. | recorded; the harness works around it |
 | **The rotation gate's machine half is green** — `data-rail` fixed, `data-dock` `side→bottom→side`, tool/selection/zoom survive. | recorded; the `[Surface]` half stays owed |
 | Rail renders as the left-most column while `data-rail="right"`, with no `[data-rail='right'] .tool-rail { order }` rule. | **CONFIRMED on the reconciled tree, and FIXED — D127.** `.tool-rail` carried no `order` of its own, so with the dock also given `0` the flex container fell back to **source order** and the rail stayed left-most — the handedness setting did nothing, and every attribute assertion still passed. Fixed (`.editor-layout[data-rail='right'] .tool-rail { order: 2 }`) and pinned in **real layout** by `tests/editorChromeFit.browser.test.ts` (the attribute must agree with where the rail is). |

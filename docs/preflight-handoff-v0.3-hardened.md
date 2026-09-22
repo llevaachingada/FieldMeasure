@@ -1570,7 +1570,8 @@ export function createInputRouter(o: InputRouterOptions = {}) {
 
 | Pen seen this session? | Contact | Active pen stroke? | Time since last pen event | Edge-born / burst? | Result |
 |---|---|---|---|---|---|
-| yes | pen | — | — | — | `'draw'` (sets `penSeen`, refreshes the window) |
+| yes | pen **tip** (`button === 0`) | — | — | — | `'draw'` (sets `penSeen`, refreshes the window) |
+| yes | pen **barrel / eraser** (`button !== 0`) | — | — | — | `'ignore'` — **never a drawing contact (D128)** |
 | yes | touch | yes | — | — | `'ignore'` (gate 2) |
 | yes | touch | no | `< 1200 ms` | — | `'ignore'` (gate 1) |
 | yes | touch | no | `≥ 1200 ms` | no | `'draw'` if a toggle is on, else `'navigate'` |
@@ -1581,7 +1582,9 @@ export function createInputRouter(o: InputRouterOptions = {}) {
 
 **Input routing rules (complete, binding):**
 
-- **Pen** (`pointerType === 'pen'`): draws with the active tool, always. Every pen `pointermove`
+- **Pen** (`pointerType === 'pen'`), **tip only** (`button === 0`): draws with the active tool, always. A
+  **barrel/eraser** contact (`button !== 0`) is `'ignore'` — never a draw (D128: it is the radial quick-menu's
+  *optional accelerator*, and that radial is not built, so the documented degrade is a no-op). Every pen `pointermove`
   refreshes the palm window (`notePenEvent`) and keeps `penSeenThisSession = true`.
 - **Two-gate palm rule — pen present.** Touch is suppressed when **either** gate is closed:
   **gate 1** = within `palmWindowMs` (1200 ms) of the last pen event (refreshed by every pen event,

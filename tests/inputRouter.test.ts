@@ -21,8 +21,12 @@ function setNow(ms: number): void {
   now = ms;
 }
 
+// A pen TIP contact: `button === 0`, `buttons === 1` (the primary contact).
 const pen = (id = 1): PointerEvent =>
-  ({ pointerType: 'pen', pointerId: id }) as unknown as PointerEvent;
+  ({ pointerType: 'pen', pointerId: id, button: 0, buttons: 1 }) as unknown as PointerEvent;
+// A pen BARREL-button press: the secondary button (`button === 2`, `buttons === 2`).
+const penBarrel = (id = 1): PointerEvent =>
+  ({ pointerType: 'pen', pointerId: id, button: 2, buttons: 2 }) as unknown as PointerEvent;
 const touch = (id = 1): PointerEvent =>
   ({ pointerType: 'touch', pointerId: id }) as unknown as PointerEvent;
 const mouse = (id = 1): PointerEvent =>
@@ -46,7 +50,27 @@ afterEach(() => {
 });
 
 describe('inputRouter — pen', () => {
-  it("classifies every pen event as 'draw' regardless of the touch toggles", () => {
+  it("classifies a pen TIP as 'draw' regardless of the touch toggles", () => {
+    const r = createInputRouter({ touchPlaces: () => false, fingerDraws: () => false });
+    expect(r.classify(pen())).toBe('draw');
+  });
+
+  it("classifies a pen barrel-button press (button === 2) as 'ignore' — never a draw", () => {
+    const r = createInputRouter({ touchPlaces: () => true });
+    // §11.4/§20.6: the barrel hold is only an *optional accelerator* for the radial
+    // quick-menu, which is not built — the documented degrade is a no-op. If this
+    // returned 'draw' the barrel press would leave an unintended ink stroke.
+    expect(r.classify(penBarrel())).toBe('ignore');
+  });
+
+  it("classifies a non-tip pen contact (eraser end, button === 5) as 'ignore' too", () => {
+    const r = createInputRouter({ touchPlaces: () => true });
+    expect(r.classify({ pointerType: 'pen', pointerId: 1, button: 5, buttons: 32 } as unknown as PointerEvent)).toBe(
+      'ignore',
+    );
+  });
+
+  it('still classifies a pen TIP (button === 0) as draw when both toggles are off', () => {
     const r = createInputRouter({ touchPlaces: () => false, fingerDraws: () => false });
     expect(r.classify(pen())).toBe('draw');
   });
@@ -56,6 +80,14 @@ describe('inputRouter — pen', () => {
     setNow(1000);
     expect(r.classify(pen())).toBe('draw');
     // A touch 1100 ms later is inside the 1200 ms window set by that pen event.
+    expect(r.classify(touch(), 2100)).toBe('ignore'); // 2100 - 1000 = 1100 < 1200
+  });
+
+  it('refreshes the palm window on a pen barrel press too (it is still a pen event)', () => {
+    const r = createInputRouter();
+    setNow(1000);
+    expect(r.classify(penBarrel())).toBe('ignore');
+    // The barrel press is a real pen-in-range event, so the 1200 ms palm window re-arms.
     expect(r.classify(touch(), 2100)).toBe('ignore'); // 2100 - 1000 = 1100 < 1200
   });
 

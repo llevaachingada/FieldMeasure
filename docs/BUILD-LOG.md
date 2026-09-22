@@ -1491,6 +1491,51 @@ with the D84 signature reappeared once and did not reproduce in isolation.
 **Next:** the owner runs the hardware rows on the Surface (with the projects root pointed at a real folder, not
 the source repo); the two non-fitting chrome states need their decision; then the owed polish.
 
+## Round (continuing the beta wave) - the barrel press stops drawing, and the editor chrome's a11y contract is audited by execution
+**Date:** 2026-09-22 · **Commit:** this commit
+
+**Built:** two lanes on disjoint files, integrated here.
+
+1. **A pen barrel press no longer draws (D128).** The clickthru's step 17 found that a `buttons: 2` press with
+   freehand active created a stroke: `inputRouter.classify` returned `'draw'` for **any** pen contact. Per
+   §11.4/§2.4/§11.6 #3 the barrel hold is only an *optional accelerator* for the radial quick-menu, which is
+   **not built** — so the documented degrade applies ("radial absent rather than broken"): only the **tip**
+   (`button === 0`) draws; the editor now registers **no contact at all** for a non-tip press, so it cannot draw,
+   ink *or* pan. Build spec **§8.2 amended** (the router was lifted from that block verbatim). **Evidence:**
+   three router tests fail against the pre-fix router restored byte-exactly, the tip test passes, 19/19 after.
+2. **The editor chrome's per-slice a11y contract, audited by execution (D129)** — 54 interactive controls at
+   three viewports. Two real defects, both fixed with pre-fix proof: **four controls at 16×48** in the portrait
+   bottom dock (`.style-panel-option`'s `flex: 1 1 0; min-width: 0` squeezing them; now a 48 px floor, and the
+   dock scrolls instead), and a **tab order contradicting UI §14.9** (`TopBar` was the last DOM child with
+   `order: 0` doing the painting — `order` moves paint, not focus — so the top bar was reached last; hoisted to
+   the first DOM child). Names, traps, the focus ring and the rail's roving tabindex were verified sound.
+3. **Two items from that audit's report, fixed here** (files the lane did not own): the deep sheet's ~48 swatches
+   were named with a **bare hex** (now `colorName(hex)` — the 12-palette names where they exist, the honest
+   uppercase hex otherwise), and the editor no longer renders Home's «Loading projects…» while loading a *sheet*
+   (`editor.loadingSheet`, a marked proposal).
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **98 files / 1397 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 26 precache entries (1524.70 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+- [x] `npm run clickthru` (inspection) → re-run on this tree; the barrel step's note is the witness
+
+**Deferred to hardware:** H13 (does the real digitiser report `button === 2`?), 200 % text scaling, real
+screen-reader output (no NVDA/VoiceOver here), and the handedness-consistent tab order, which is a **spec
+question** (D129) rather than a guess.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D128** (the barrel degrade), **D129** (the a11y audit + the §14.9 contradiction).
+
+**Surprises:** a guard that measures the *right* thing is cheap — the target-size sweep found four controls that
+no landscape test could see (portrait only, 16 px wide), and the focus walk found a spec contradiction that had
+been invisible because `order` was doing the painting. Both are now pinned by tests that fail pre-fix.
+
+**Next:** the arrow nudge pad and the History flyout are the two biggest owed items left; then the owner's
+hardware pass.
+
 ---
 
 ## Clickthru harness — drive the whole app with real touch/pen, then look at the pixels

@@ -1,9 +1,14 @@
 /**
  * Input router — `src/editor/inputRouter.ts`
  *
- * TOUCH-PRIMARY (HARDENED). Copied verbatim from build spec §8.2, which is the
- * single authority on input routing (§8.4/§8.5, §11.1 and slice 0.2 defer to it).
- * Design source: `docs/touch-first-interaction-model.md` §1, §3, §9.
+ * TOUCH-PRIMARY (HARDENED). Based on build spec §8.2, the single authority on input
+ * routing (§8.4/§8.5, §11.1 and slice 0.2 defer to it). One addition is not yet in
+ * §8.2's code block: a non-tip pen contact (`button !== 0` — the barrel button) is
+ * 'ignore', never a draw, because §11.4/§20.6 make the barrel hold only an *optional
+ * accelerator* for the radial quick-menu and that radial is not built — the documented
+ * degrade is "radial absent rather than broken" (no-op, never ink). The orchestrator
+ * should fold this row into §8.2. Design source: `docs/touch-first-interaction-model.md`
+ * §1, §3, §9.
  *
  * Intent is decided once, at `pointerdown`, and is sticky for the whole contact.
  * A contact classified `'draw'` stays `'draw'` for its lifetime (a drifting
@@ -14,7 +19,8 @@
  *
  * | Pen seen this session? | Contact       | Active pen stroke? | Time since last pen event | Edge-born / burst? | Result |
  * |---|---|---|---|---|---|
- * | yes | pen                | —   | —             | —     | 'draw' (sets penSeen, refreshes the window) |
+ * | yes | pen **tip** (`button 0`) | — | —        | —     | 'draw' (sets penSeen, refreshes the window) |
+ * | yes | pen **barrel** (`button 2`) | — | —      | —     | 'ignore' (§11.4/§20.6 accelerator — radial not built → no-op, never ink) |
  * | yes | touch              | yes | —             | —     | 'ignore' (gate 2) |
  * | yes | touch              | no  | < 1200 ms     | —     | 'ignore' (gate 1) |
  * | yes | touch              | no  | ≥ 1200 ms     | no    | 'draw' if a toggle is on, else 'navigate' |
@@ -30,7 +36,7 @@
  */
 
 export type InputIntent = 'draw' | 'navigate' | 'ignore';
-// 'draw'     = may create/edit geometry with the active tool (pen always; touch per the toggles)
+// 'draw'     = may create/edit geometry with the active tool (the pen TIP always; touch per the toggles)
 // 'navigate' = pan/zoom only
 // 'ignore'   = palm/heel/OS gesture — no action, no state change
 
@@ -80,7 +86,15 @@ export function createInputRouter(o: InputRouterOptions = {}) {
     classify(e: PointerEvent, now = performance.now()): InputIntent {
       if (e.pointerType === 'pen') {
         penSeenThisSession = true; lastPenAt = now;
-        return 'draw';
+        // §8.2/§11.4/§20.6: only the TIP is a drawing contact (`button === 0`). A
+        // barrel-button press (`button === 2`; some pens report the eraser end as
+        // `button === 5`) is the radial quick-menu's *optional accelerator*, not a tip
+        // contact. The radial is not built, so the spec's degrade rule applies —
+        // "radial absent rather than broken": no contact, no geometry, no ink. A later
+        // radial slice may replace this with a dedicated intent; today it is a no-op.
+        // The pen-presence bookkeeping above still runs, so a barrel press keeps the
+        // palm window refreshed exactly as the tip does.
+        return e.button === 0 ? 'draw' : 'ignore';
       }
       if (e.pointerType === 'touch') {
         if (burstIgnoreUntilLift) return 'ignore';                        // pen-free (b)

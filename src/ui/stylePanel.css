@@ -546,7 +546,12 @@
 
 .style-panel-option {
   flex: 1 1 0;
-  min-width: 0;
+  /* 48 px is a FLOOR, not a preference: in the portrait bottom dock the sections are flex
+     items in a horizontal scroller and `min-width: 0` let these four collapse to 16 px
+     wide (measured at 960x1440). The dock already scrolls horizontally, so enforcing the
+     floor costs scroll, never a shrunken target. In the landscape side panel the row is
+     3-4 options in 260 px, so every option is already >= 48 and nothing moves. */
+  min-width: 48px;
   min-height: 48px;
   display: grid;
   place-items: center;

@@ -660,10 +660,11 @@ pre,
   background: var(--g900);
 }
 
-/* DOM order is rail → canvas → panel → top bar (the required tab order, plan gate).
-   `order` puts the top bar back at the visual top without touching tab order. */
+/* The top bar is the FIRST DOM child (UI §14.9: "logical tab order = top bar -> rail ->
+   canvas -> style panel"). It used to be last with `order: 0` pulling it up the screen —
+   but `order` moves paint, not focus, so Tab reached it after the whole rail and panel.
+   No `order` here any more: DOM order IS the focus order, on purpose. */
 .editor-main {
-  order: 1;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -699,7 +700,6 @@ pre,
 /* ---- top bar (52 px Editor variant, UI §5.2) ----------------------------- */
 
 .editor-topbar {
-  order: 0;
   flex: 0 0 52px;
   display: flex;
   align-items: center;

@@ -362,14 +362,24 @@ describe('TopBar', () => {
 });
 
 describe('EditorLayout — composition, docking, rotation, keys', () => {
-  it('mounts the canvas between the rail and the top bar in DOM (tab) order', () => {
+  it('orders the DOM (the focus order) as UI §14.9 does: top bar → rail → canvas → panel', () => {
     const { container } = renderLayout();
+    const topbar = container.querySelector('.editor-topbar')!;
     const rail = container.querySelector('.tool-rail')!;
     const center = container.querySelector('.editor-center')!;
-    const topbar = container.querySelector('.editor-topbar')!;
-    expect(rail.compareDocumentPosition(center) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(center.compareDocumentPosition(topbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(rail.compareDocumentPosition(topbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const dock = container.querySelector('.style-dock')!;
+
+    // UI spec §14.9: "logical tab order = top bar → rail → canvas → style panel". `order`
+    // moves paint, not focus, so the DOM must be in this order — the top bar used to be
+    // DOM-LAST (and therefore the last tab stop of 41, audited in
+    // `tests/editorA11y.browser.test.ts`). The implementation plan's §19.6 checkbox said
+    // rail → canvas → panel → top bar, but §19.6 specifies no order and the UI spec
+    // outranks the plan (runbook §1).
+    const follows = (first: Element, second: Element) =>
+      (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(topbar, rail)).toBe(true);
+    expect(follows(rail, center)).toBe(true);
+    expect(follows(center, dock)).toBe(true);
   });
 
   it('puts the rail on the left for a left-handed user', () => {

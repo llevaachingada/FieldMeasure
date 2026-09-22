@@ -1063,6 +1063,12 @@ export default function SheetEditor({
         router.noteTouchDown(e.pointerId, isAtEdge(point, host));
       }
       const intent = router.classify(e);
+      // §8.2/§11.4: a pen contact that is not the tip (`button === 2` = the barrel
+      // button) is the radial quick-menu's *optional accelerator*. The radial is not
+      // built, so the documented degrade is a no-op — register no contact at all, so
+      // the barrel produces no geometry, no ink and no pan (not even the ignored-contact
+      // pan path). The tip (`button === 0`) is unaffected and still draws.
+      if (e.pointerType === 'pen' && intent === 'ignore') return;
       const panTool = activeToolRef.current === 'pan';
       const hit = canvas.hitObject(point);
       const dragSession: DragSession = {
@@ -2247,7 +2253,9 @@ export default function SheetEditor({
 
         {status === 'loading' ? (
           <p className="editor-panel" role="status">
-            {STRINGS.home.loading}
+            {/* The editor loads a SHEET, not a project list: borrowing Home's line named the wrong
+                thing (D129's audit of every chrome string). */}
+            {STRINGS.editor.loadingSheet}
           </p>
         ) : null}
 
