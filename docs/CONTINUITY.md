@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 23)
+**Last updated:** 2026-09-22 (session 24, in progress)
 
 **What this project has now that it did not before: a clickthru harness.** One command drives the *built*
 app end to end with real touch and pen input on the Surface geometry and screenshots every step, so an agent
@@ -11,8 +11,15 @@ can *look* instead of trusting a green gate. `npm.cmd run clickthru` | `playwrig
 `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc `docs/clickthru-harness.md`;
 a `clickthru` skill; an OMO orchestrator rule. It is **never a gate** and **never promotes a `[Surface]` row**.
 
-**Gates:** `tsc` 0 | **100 files / 1409 tests** (node + jsdom + browser) | `build` 0 (26 precache, 1525.57 KiB)
-| `playwright` 5 passed / 5 skipped | **`clickthru` 20 PASS / 0 FAIL / 0 UNREACHED**.
+**Session 24, so far:** the owner's `docs/handoff-ui-pass-for-claude.md` (the UI/GUI pass — make every rail/
+panel/HUD/menu control real, §0–§8) plus a direct watermark request. **Shipped: the VANGARDE watermark**
+(**D132**) — `Settings › Display › Watermark` (default ON), a light mark on the app's always-dark chrome, the
+full vector lockup composited onto exported PDFs/PNGs. The handoff pass itself is next, in its own §8 order.
+
+**Gates (session 24, watermark slice):** `tsc` 0 | **74 files / 1216 tests** (node + jsdom) + **29 files / 210
+tests** (browser) | `build` 0 (28 precache, 1628.71 KiB) | `playwright` 5 passed / 5 skipped (CSP's zero-
+inline-style assertion included — the new `<img>` carries no `style=""`) | **`clickthru` 20 PASS / 0 FAIL / 0
+UNREACHED** (run twice).
 
 **The beta-readiness wave (this session), all from the owner's two Surface screenshots:** the 14 tool glyphs
 are real (they were numbered placeholders), the editor chrome fits ~1920x1120, the sheets grid scrolls with its
@@ -1022,6 +1029,42 @@ handle rather than the body.
 `[Surface]` row. It also flagged — and deliberately did **not** assert — a `data-rail="right"` rail-side
 oddity, because the build under test contained a concurrent lane's uncommitted `src/styles.css` /
 `EditorLayout.tsx`; confirm on a clean tree (D66).
+
+### 2026-09-22 — Session 24: the VANGARDE watermark (owner request), and the UI/GUI handoff pass begins
+
+The owner's next message carried two things: `docs/handoff-ui-pass-for-claude.md` (the UI/GUI pass brief,
+§0–§8, written from a `main == origin/main` at `d2bd8ad` recon — see the doc itself for its own inventory) and a
+direct, separate request — incorporate the client's two supplied logos ("VANGARDE woodworks") as a small,
+toggleable watermark in the app and its exports. The watermark was self-contained and shipped first; the
+handoff pass's own §8 priority order (§4.1 data channel → §4.2 mini-toolbar → §4.3 overflow menus) is next.
+
+**Shipped (D132): the watermark, settings-gated, default ON.** `src/settings/watermark.ts` (the `density.ts`/
+`theme.ts` shape) + `useAppStore.watermarkEnabled` + `useWatermarkRuntime` (boot hydration, the `themeRuntime.ts`
+shape) + `WatermarkOverlay.tsx` (mounted once at the `App` shell root) + a `Settings › Display › Watermark`
+switch. Two assets derived from the client's vector PDF at 600 dpi (`public/branding/vangarde-mark-light.png`
+for the app's always-dark chrome, `vangarde-full.png` — the full lockup with "woodworks" — for exports).
+Exports composite it in `renderStage.ts`'s `renderSheet` (a new optional `watermark` field on
+`ExportSheetInput`), sized as a FRACTION of the bitmap (`src/export/watermark.ts`'s `watermarkRect`) so it stays
+the same fraction of the printed page at every M — the §4.2 export invariant's own reasoning, applied to a
+non-measurement overlay. `runExport.ts` reads `Settings › Display › Watermark` once per run and loads the image
+once (module-level cache), never per sheet.
+
+**A real trade-off, not a defect:** `position: fixed` always paints above ordinary (non-positioned) chrome
+regardless of z-index, so the corner mark sits over the tool rail's Undo/Redo pair on the editor screen —
+verified harmless (never blocks a tap, glyphs stay legible) against the clickthru harness's own screenshots, and
+kept small/low-opacity rather than given route-aware positioning. Full reasoning and the rejected alternative
+in **D132**.
+
+**Verification:** `tsc` 0 · `vitest` **74 files / 1216 tests** (node + jsdom) + **29 files / 210 tests**
+(browser) — both up from session 23's 72/1205 + 29/208 by exactly the new watermark tests, nothing else moved ·
+`build` 0 (28 precache, 1628.71 KiB, +2 branding assets over session 23's 1525.57 KiB) · `playwright` **5
+passed / 5 skipped**, unchanged from session 23 (the CSP spec's zero-inline-style assertion covers the new
+`<img>`) · **`npm run clickthru` 20/20**, run twice (before and after a corner-placement tweak), and the
+exported PDF read back out of OPFS and rasterised to confirm the export mark composites cleanly. `tests/watermark.test.ts` (the `watermarkRect`
+arithmetic), `tests/watermarkRuntime.test.tsx` (hydration + live toggle + the decorative-node contract),
+`tests/settings.test.tsx` (the switch + its persistence), and two new cases in
+`tests/renderStage.browser.test.ts` (real-pixel proof: absent by default when no `watermark` is passed, and the
+opacity-blended corner when one is).
 
 ## Done
 

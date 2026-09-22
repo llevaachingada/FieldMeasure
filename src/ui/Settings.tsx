@@ -26,6 +26,7 @@ import {
 } from '@/settings/units';
 import { getTheme, setTheme, type Theme } from '@/settings/theme';
 import { getDensity, setDensity, type Density } from '@/settings/density';
+import { getWatermarkEnabled, setWatermarkEnabled } from '@/settings/watermark';
 import { getProjectsRoot, pickProjectsFolder, SUGGESTED_PROJECTS_PATH } from '@/settings/projectsRoot';
 
 export interface SettingsProps {
@@ -135,14 +136,16 @@ export default function Settings({ onBack }: SettingsProps) {
     let alive = true;
     void (async () => {
       try {
-        const [handedness, input, unitSystem, unitFormat, theme, density] = await Promise.all([
-          getHandedness(),
-          getInputToggles(),
-          getUnitSystem(),
-          getUnitFormat(),
-          getTheme(),
-          getDensity(),
-        ]);
+        const [handedness, input, unitSystem, unitFormat, theme, density, watermarkEnabled] =
+          await Promise.all([
+            getHandedness(),
+            getInputToggles(),
+            getUnitSystem(),
+            getUnitFormat(),
+            getTheme(),
+            getDensity(),
+            getWatermarkEnabled(),
+          ]);
         if (alive) {
           useAppStore.getState().applySettings({
             handedness,
@@ -151,6 +154,7 @@ export default function Settings({ onBack }: SettingsProps) {
             unitFormat,
             theme,
             density,
+            watermarkEnabled,
           });
         }
       } catch {
@@ -228,6 +232,16 @@ export default function Settings({ onBack }: SettingsProps) {
     state.setDensity(next);
     try {
       await setDensity(next);
+    } catch {
+      /* best-effort persistence */
+    }
+  }
+
+  async function changeWatermark(): Promise<void> {
+    const next = !state.watermarkEnabled;
+    state.setWatermarkEnabled(next);
+    try {
+      await setWatermarkEnabled(next);
     } catch {
       /* best-effort persistence */
     }
@@ -365,6 +379,12 @@ export default function Settings({ onBack }: SettingsProps) {
                 { value: 'field', label: STRINGS.settings.densityField },
                 { value: 'desk', label: STRINGS.settings.densityDesk },
               ]}
+            />
+            <SwitchRow
+              label={STRINGS.settings.rowWatermark}
+              checked={state.watermarkEnabled}
+              onToggle={() => void changeWatermark()}
+              description={STRINGS.settings.watermarkHint}
             />
           </div>
         </section>

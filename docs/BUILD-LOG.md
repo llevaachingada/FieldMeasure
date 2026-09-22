@@ -1645,3 +1645,48 @@ writes `thumb.jpg` — and the test that structurally cannot see it).
    clean tree before calling it a defect.
 
 **Next:** fix D125's `thumb.jpg` defect; then the independent review of the grid wave (D115–D117).
+
+## Feature (owner request) — the VANGARDE watermark, settings-gated, app + exports
+
+**Date:** 2026-09-22 · **Commit:** (this commit)
+
+**Built:** a `Settings › Display › Watermark` switch (default ON) that shows the client's "VANGARDE woodworks"
+mark as a subtle corner watermark — a light-ink compact mark in the app's own (always-dark) chrome, the full
+vector lockup on exported PDFs/PNGs. New: `src/settings/watermark.ts`, `src/ui/watermarkRuntime.ts`,
+`src/ui/WatermarkOverlay.tsx`, `src/export/watermark.ts`, `public/branding/{vangarde-mark-light,vangarde-full}.png`
+(both derived from the client's supplied vector PDF via `pdftocairo`, 600 dpi — provenance and derivation steps
+in **D132**). Changed: `src/state/appStore.ts` (+`watermarkEnabled`), `src/ui/Settings.tsx` (+the switch row,
+Display group), `src/ui/strings.ts` (+`settings.rowWatermark`/`watermarkHint`, the "beyond both appendices"
+marker), `src/App.tsx` (+`useWatermarkRuntime()` + `<WatermarkOverlay />`, mounted once at the shell root — the
+`ToastHost`/`PWAUpdate` precedent), `src/export/renderStage.ts` (`ExportSheetInput.watermark`, composited in
+`renderSheet` after every layer), `src/export/runExport.ts` (reads the setting and loads the image once per
+run, not per sheet).
+
+**Machine gates:**
+- [x] `npx tsc --noEmit` — 0 errors.
+- [x] `npx vitest run --project node --project jsdom` — **74 files / 1216 tests** (was 72/1205; +2 files,
+      +11 tests: `tests/watermark.test.ts`, `tests/watermarkRuntime.test.tsx`, plus additions to
+      `tests/settings.test.tsx`).
+- [x] `npx vitest run --project browser` — **29 files / 210 tests** (was 29/208; +2 tests in
+      `tests/renderStage.browser.test.ts` — real-pixel proof the mark composites at the computed opacity
+      and is absent when no `watermark` is passed).
+- [x] `npm run build` — 0 errors, 28 precache entries, 1628.71 KiB (was 26 / 1525.57 KiB).
+- [x] `npx playwright test` — 5 passed / 5 skipped (unchanged from the last recorded baseline; the CSP
+      spec's zero-inline-style assertion covers the new `<img>`).
+- [x] `npm run clickthru` — **20 PASS / 0 FAIL / 0 UNREACHED**, run twice (before and after the corner-size
+      tweak below). The exported PDF was read back out of OPFS and rasterised (`pdftoppm`) to confirm the
+      full lockup composites cleanly in the corner of the printed sheet.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D132** — the two derived assets (why one vector source, why PNG not SVG), the
+settings/runtime shape (mirrors `theme.ts`/`themeRuntime.ts` exactly), the export sizing invariant (a
+FRACTION of the bitmap so the mark stays the same fraction of the page at every export multiplier M), and a
+real, accepted trade-off: `position: fixed` always paints above ordinary non-positioned chrome regardless of
+z-index, so the in-app mark's bottom-right corner overlaps the tool rail's Undo/Redo pair on the editor screen
+specifically. Verified harmless (never blocks a tap, glyphs stay legible) against the clickthru harness's own
+screenshots rather than assumed; kept small/low-opacity rather than given route-aware positioning logic.
+
+**Next:** the UI/GUI handoff pass itself (`docs/handoff-ui-pass-for-claude.md`), starting with its own §8
+priority order — §4.1 (extend `AnnotationStyle` with the per-tool style keys the panel has no data channel
+for), §4.2 (the mini-toolbar to spec), §4.3 (the two overflow menus).

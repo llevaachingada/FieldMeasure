@@ -23,6 +23,7 @@ import {
 } from '@/settings/units';
 import type { InputToggleKey, InputToggles } from '@/settings/input';
 import { INPUT_DEFAULTS } from '@/settings/input';
+import { DEFAULT_WATERMARK_ENABLED } from '@/settings/watermark';
 
 export interface ProjectSummary {
   id: string;
@@ -52,6 +53,7 @@ export interface AppState extends InputToggles {
   unitSystem: UnitSystem;
   unitFormat: UnitFormat;
   precisionDenominator: number;
+  watermarkEnabled: boolean;
 }
 
 export interface AppActions {
@@ -65,6 +67,7 @@ export interface AppActions {
   setUnitSystem: (system: UnitSystem) => void;
   setUnitFormat: (format: UnitFormat) => void;
   setPrecisionDenominator: (denominator: number) => void;
+  setWatermarkEnabled: (value: boolean) => void;
   setTouchPlaces: (value: boolean) => void;
   setFingerDraws: (value: boolean) => void;
   setPenOnly: (value: boolean) => void;
@@ -90,6 +93,7 @@ export function createInitialAppState(): AppState {
     unitSystem: DEFAULT_UNIT_SYSTEM,
     unitFormat: DEFAULT_UNIT_FORMAT,
     precisionDenominator: DEFAULT_PRECISION_DENOMINATOR,
+    watermarkEnabled: DEFAULT_WATERMARK_ENABLED,
     ...INPUT_DEFAULTS,
   };
 }
@@ -107,6 +111,7 @@ export const useAppStore = create<AppStore>((set) => ({
   setUnitSystem: (unitSystem) => set({ unitSystem }),
   setUnitFormat: (unitFormat) => set({ unitFormat }),
   setPrecisionDenominator: (precisionDenominator) => set({ precisionDenominator }),
+  setWatermarkEnabled: (watermarkEnabled) => set({ watermarkEnabled }),
   setTouchPlaces: (touchPlaces) => set({ touchPlaces }),
   setFingerDraws: (fingerDraws) => set({ fingerDraws }),
   setPenOnly: (penOnly) => set({ penOnly }),

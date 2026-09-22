@@ -1439,3 +1439,35 @@ button.crumb:hover {
 :root[data-theme='sunlight'] .settings-switch-knob {
   transition: none;
 }
+
+/* ---------------------------------------------------------------------------
+   UI/GUI handoff pass (2026-09-22) — the in-app VANGARDE watermark.
+   `WatermarkOverlay.tsx` mounts this once at the app shell root, so it is
+   consistent across every screen rather than re-implemented per route.
+   Low z-index (below every dock/panel/menu/toast, all of which sit at 5+) and
+   `pointer-events: none` so it can never intercept a touch or pen gesture; a
+   fixed corner mark, not a full-bleed layer, so it reads as a subtle print-style
+   watermark rather than a screen tint. Settings › Display › Watermark toggles it.
+--------------------------------------------------------------------------- */
+.watermark-overlay {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* `position: fixed` always paints above ordinary (non-positioned) chrome — the tool
+   rail's Undo/Redo pair (`.tool-rail-history`, `styles.css`) included — regardless of
+   z-index, so on the editor screen this sits over the rail's bottom-most corner. Kept
+   deliberately small and low-opacity so that stays a faint corner texture rather than
+   a real legibility problem: button glyphs and labels stay fully readable (verified
+   against the built app's own screenshots), and it never intercepts a click
+   (`pointer-events: none`). A route-aware placement was considered and rejected as
+   more complexity than a brand mark warrants. */
+.watermark-overlay-mark {
+  display: block;
+  width: clamp(56px, 6vw, 96px);
+  height: auto;
+  opacity: 0.08;
+}

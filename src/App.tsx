@@ -21,6 +21,8 @@ import Settings from '@/ui/Settings';
 import ToastHost from '@/ui/Toast';
 import PWAUpdate from '@/ui/PWAUpdate';
 import { useThemeRuntime } from '@/ui/themeRuntime';
+import { useWatermarkRuntime } from '@/ui/watermarkRuntime';
+import WatermarkOverlay from '@/ui/WatermarkOverlay';
 import { emitToast } from '@/editor/session';
 import ProjectScreen from '@/ui/ProjectScreen';
 import { listProjectSheets, type ProjectSheetCard } from '@/fs/projectSheets';
@@ -63,6 +65,7 @@ export default function App() {
   // Display theme (slice 1.10): applies `<html data-theme="…">` and hydrates the
   // persisted choice on boot. Runs for every route — chrome is themed app-wide.
   useThemeRuntime();
+  useWatermarkRuntime();
 
   const [route, setRoute] = useState<Route>('loading');
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
@@ -521,6 +524,10 @@ export default function App() {
           route changes and is reachable from Home, the editor and first run alike. It
           renders nothing until a worker is waiting, and suppresses itself mid-measurement. */}
       <PWAUpdate />
+      {/* UI/GUI handoff pass (2026-09-22): the VANGARDE watermark, mounted once so it is
+          consistent across every route. Renders nothing when Settings › Display ›
+          Watermark is off. */}
+      <WatermarkOverlay />
       {/* §13.4: exactly ONE toast host for the whole app, mounted here rather than per route.
           A route that renders none (the sheets grid) silently swallowed every toast. */}
       <ToastHost />

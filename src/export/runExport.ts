@@ -73,6 +73,11 @@ import {
   renderSheet,
   renderSheetJpeg,
 } from './renderStage';
+import {
+  EXPORT_WATERMARK_ASPECT_RATIO,
+  loadExportWatermarkImage,
+} from './watermark';
+import { getWatermarkEnabled } from '@/settings/watermark';
 import type {
   ConflictPolicy,
   ExportFileResult,
@@ -511,6 +516,17 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
     const listing = await listFileNames(dest.handle);
     const ctx = deps.getContext();
     const assets = createAssetProvider(projectDir, source.assetProvider);
+    // UI/GUI handoff pass (2026-09-22): decided ONCE per run, not per sheet — a
+    // storage failure or a decode failure both mean "no watermark this run" rather
+    // than aborting the export the user asked for.
+    const watermark = await (async (): Promise<{ image: CanvasImageSource; aspectRatio: number } | null> => {
+      try {
+        if (!(await getWatermarkEnabled())) return null;
+        return { image: await loadExportWatermarkImage(), aspectRatio: EXPORT_WATERMARK_ASPECT_RATIO };
+      } catch {
+        return null;
+      }
+    })();
 
     const files: ExportFileResult[] = [];
     let sheetsWithoutPhoto = 0;
@@ -555,6 +571,7 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
                 ghostText: deps.ghostText,
                 photo,
                 assetProvider: assets.provider,
+                watermark,
               },
               plan.multiplier,
             );
@@ -606,6 +623,7 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
                 ghostText: deps.ghostText,
                 photo,
                 assetProvider: assets.provider,
+                watermark,
               },
               plan.multiplier,
             );

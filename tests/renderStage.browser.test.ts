@@ -503,3 +503,69 @@ describe('§4.2 angle-label halo scales with M', () => {
     expect(t3).toBeGreaterThan(t2);
   });
 });
+
+/**
+ * UI/GUI handoff pass (2026-09-22) — the export watermark, measured in real pixels.
+ *
+ * A synthetic solid-white square stands in for the shipped mark (no network fetch in a
+ * unit test): over a solid-black photo, `EXPORT_WATERMARK_OPACITY` (0.32) blended white
+ * onto black is exactly `round(255 * 0.32) = 82` per channel — arithmetic, not a fixture
+ * value pulled from a screenshot.
+ */
+describe('export watermark — composited onto the flattened bitmap', () => {
+  async function whiteSquareBitmap(size: number): Promise<ImageBitmap> {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no 2D context for the synthetic watermark');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, size, size);
+    return createImageBitmap(canvas);
+  }
+
+  it('is absent when no watermark is passed (the existing renderSheet contract)', async () => {
+    const rendered = await renderSheet(sheetInput(blackPhoto()), 1);
+    try {
+      const img = readPixels(rendered.canvas);
+      const i = (273 * img.width + 370) * 4;
+      // (370, 273) — inside where a watermark WOULD land (see the next test's
+      // `watermarkRect` derivation) — stays pure black photo, untouched.
+      expect([img.data[i], img.data[i + 1], img.data[i + 2]]).toEqual([0, 0, 0]);
+    } finally {
+      rendered.canvas.width = 0;
+      rendered.canvas.height = 0;
+    }
+  });
+
+  it('composites into the bottom-right corner at the computed opacity, and leaves the top-left untouched', async () => {
+    const image = await whiteSquareBitmap(64);
+    const input: ExportSheetInput = { ...sheetInput(blackPhoto()), watermark: { image, aspectRatio: 1 } };
+    const rendered = await renderSheet(input, 1);
+    try {
+      const img = readPixels(rendered.canvas);
+      const at = (x: number, y: number) => {
+        const i = (y * img.width + x) * 4;
+        return [img.data[i]!, img.data[i + 1]!, img.data[i + 2]!] as const;
+      };
+
+      // watermarkRect(400, 300, 1): width = 400*0.16 = 64, height = 64 (aspect 1, under
+      // the 300*0.12=36 cap? No — 64 > 36, so the height-cap branch applies: height=36,
+      // width=36. margin = 400*0.03=12 / 300*0.03=9. rect = x:352..388, y:255..291.
+      // A point well inside that rect (370, 273) must show the blended white.
+      const inside = at(370, 273);
+      // round(255 * 0.32) = 82 (white blended onto black at the fixed opacity).
+      expect(inside[0]).toBeGreaterThanOrEqual(74);
+      expect(inside[0]).toBeLessThanOrEqual(90);
+      expect(inside[0]).toBe(inside[1]);
+      expect(inside[0]).toBe(inside[2]);
+
+      // Top-left corner is nowhere near the mark — still pure black.
+      const outside = at(10, 10);
+      expect(outside).toEqual([0, 0, 0]);
+    } finally {
+      rendered.canvas.width = 0;
+      rendered.canvas.height = 0;
+    }
+  });
+});

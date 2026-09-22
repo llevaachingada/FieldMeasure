@@ -91,6 +91,9 @@ export const STRINGS = {
     rowUnitFormat: 'Unit format',
     rowTheme: 'Theme',
     rowDensity: 'Density',
+    // UI/GUI handoff pass (2026-09-22, owner request): the VANGARDE watermark toggle.
+    rowWatermark: 'Watermark',
+    watermarkHint: 'Adds the VANGARDE mark to the app and your exports',
     rowPalmWindow: 'Palm rejection',
     // Unit-system option labels (metric is deferred in v1 — §2.4 / §21.3).
     unitSystemImperial: 'Imperial',

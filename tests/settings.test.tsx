@@ -138,6 +138,29 @@ describe('Settings', () => {
     expect(themeChecked(STRINGS.settings.themeDim)).toBe('false');
   });
 
+  // ── UI/GUI handoff pass (2026-09-22) — the Display → Watermark switch ──────
+
+  it('defaults the watermark switch to on', async () => {
+    await renderSettings();
+    expect(switchFor(STRINGS.settings.rowWatermark).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('persists the watermark switch and reads it back on reload', async () => {
+    const user = userEvent.setup();
+    await renderSettings();
+
+    await user.click(switchFor(STRINGS.settings.rowWatermark));
+    await waitFor(() => expect(idbStore.get('fm:settings:watermark')).toBe(false));
+    expect(switchFor(STRINGS.settings.rowWatermark).getAttribute('aria-checked')).toBe('false');
+
+    // Simulate a reload: drop in-memory store state and re-hydrate from idb.
+    cleanup();
+    useAppStore.setState(createInitialAppState());
+    await renderSettings();
+
+    expect(switchFor(STRINGS.settings.rowWatermark).getAttribute('aria-checked')).toBe('false');
+  });
+
   // ── Slice 1.11 — the About build id (§19.2) ────────────────────────────────
 
   it('renders the build id and date injected at build time', async () => {

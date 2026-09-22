@@ -3349,3 +3349,59 @@ the doc layer while every machine gate stayed green.**
 uniqueness check**, so two writers can mint the same number, and an insert anchored on a heading can delete it.
 What would catch it mechanically: **a test asserting the decision numbers are unique and ascending** — the doc
 layer has no gate today, which is why this survived four review rounds and a green suite. Owed.
+
+### D132 — the VANGARDE watermark: settings-gated, a light mark in-app, the vector lockup on exports
+
+**Owner request, not a numbered spec section.** `docs/handoff-ui-pass-for-claude.md` is the UI/GUI pass this
+session works from; the watermark was asked for separately in the same message, with two source logos (a raster
+brand lockup and a Bluebeam-traced vector PDF of "VANGARDE woodworks") and explicit latitude on layout: *"I will
+let you lay it out but it just needs to be visible like a watermark not obnoxious."*
+
+**Two derived assets, not the two files as supplied.** Both source files trace the SAME mark (chevron + VANGARDE
+wordmark; the PDF adds a "woodworks" script line the raster lacks) — deriving both shipped assets from the one
+clean vector source (`pdftocairo`, 600 dpi, transparent) avoids carrying the raster's own vignette/JPEG
+artefacts:
+- `public/branding/vangarde-mark-light.png` — icon + wordmark only (cropped above the vignette/"woodworks" gap,
+  measured from the alpha channel: rows 923–951 of the 1050-row render are empty), recoloured to white via the
+  alpha channel alone (RGB fill only — the alpha, i.e. the actual mark shape, is untouched) for the app's
+  always-dark chrome (`:root`/Sunlight/Dim never remap to a light background — `styles.css` §"display themes").
+  Used by `WatermarkOverlay.tsx`.
+- `public/branding/vangarde-full.png` — the full lockup including "woodworks", dark ink, for exports (a printed
+  page is expected to be light). Used by `runExport.ts` via `src/export/watermark.ts`.
+No SVG shipped: a single high-res PNG (1911 px wide) is already far above the ~96 px display size and the ~16%-
+of-sheet-width export size, and using one raster format for both call sites (a plain `<img>` in-app, `drawImage`
+in the export canvas) avoids maintaining an SVG-to-canvas rasterisation path for one feature.
+
+**Settings module follows the existing shape exactly** (`src/settings/watermark.ts` mirrors `density.ts`/
+`theme.ts`: idb-keyval get/set behind a typed default, `fm:settings:watermark`), wired into `useAppStore` the
+same way `theme`/`density` are, hydrated app-wide by `useWatermarkRuntime` (mirrors `themeRuntime.ts`) rather
+than only on a Settings visit — the overlay is mounted once at the `App` shell root (the `ToastHost`/`PWAUpdate`
+precedent), not per screen. **Default ON** — it is the owner's own shop mark on their own tool, and a
+default-off toggle would ship a dark feature nobody finds.
+
+**Export sizing is a FRACTION of the bitmap, not an absolute px count** (`src/export/watermark.ts`,
+`watermarkRect`): 16% of sheet width, 3% margin, capped at 12% of sheet height, bottom-right. Because the
+bitmap `renderSheet` draws onto is `imagePx × M` and page pt is `imagePx × 0.75` (independent of M, §4.2's own
+invariant), sizing as a fraction of the bitmap keeps the mark the same fraction of the PRINTED PAGE at every
+export multiplier — an absolute px size would triple the mark's apparent size on the page between M=1 and M=3.
+Pinned in `tests/watermark.test.ts` (the arithmetic) and `tests/renderStage.browser.test.ts` (real pixels: a
+synthetic white square blended onto a black photo at the fixed 0.32 opacity measures 82 ±8 per channel —
+`round(255 × 0.32)`).
+
+**Decided against a route-aware placement — a real, accepted trade-off.** `position: fixed` always paints
+above ordinary (non-positioned) chrome regardless of z-index (CSS2.1 Appendix E: non-positioned in-flow content
+paints at stacking level "3", any positioned descendant — z-index 0 or otherwise — at level "6"), which is
+demonstrable rather than theoretical: on the Home/Project screens the corner mark sits cleanly in open
+background (verified against the clickthru harness's own screenshots); on the editor screen it paints over the
+bottom of `.tool-rail`'s Undo/Redo pair, because `.tool-rail` is a plain flex child with no `position` set. The
+overlap does not block interaction (`pointer-events: none`) and does not harm legibility (button glyphs/labels
+stay fully readable — checked against the built app, not assumed), so the mark was kept small (`clamp(56px,
+6vw, 96px)`) and low-opacity (`0.08`) rather than given per-route positioning logic: a route flag threaded from
+`App.tsx` into `styles.css` is real complexity for a brand mark, and the rail is only ONE corner of ONE screen.
+If a future pass wants this exact, the fix is a `data-` attribute on `<html>` while the editor is mounted (the
+same mechanism `theme`/handedness already use) and a `bottom` offset override scoped to it — deliberately not
+built here.
+
+**Verified end to end**, not just unit-tested: the full clickthru harness (`npm run clickthru`, 20/20) was run
+before and after, and the exported PDF was read back out of OPFS and rasterised — the full lockup sits cleanly
+in the corner of the printed sheet, clear of the markup it was drawn over.

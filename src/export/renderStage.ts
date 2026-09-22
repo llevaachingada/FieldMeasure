@@ -62,6 +62,7 @@ import type { Annotation, Px } from '@/domain/types';
 import type { LabelContext } from '@/editor/shapes/dimensionLabel';
 import type { InsetAssetImage } from '@/editor/inset/renderInset';
 import type { SheetExport } from './pdf';
+import { drawWatermark } from './watermark';
 
 /** §4.2 / §9.3: the only three export multipliers. */
 export type ExportMultiplier = 1 | 2 | 3;
@@ -78,6 +79,11 @@ export interface ExportSheetInput {
   /** Decoded sheet photo, or `null` for a damaged photo → white page (§19.4a). */
   photo: CanvasImageSource | null;
   assetProvider?: (assetId: string) => InsetAssetImage | null;
+  /** UI/GUI handoff pass (2026-09-22): the VANGARDE mark, decided ONCE per export run
+   *  by `runExport.ts` (reads `Settings › Display › Watermark`) and threaded through
+   *  rather than read here — `renderSheet` stays a pure rendering function with no
+   *  settings/idb dependency of its own. Absent/`null` = no watermark. */
+  watermark?: { image: CanvasImageSource; aspectRatio: number } | null;
 }
 
 export interface RenderedSheet {
@@ -417,6 +423,12 @@ export async function renderSheet(
     layer.drawScene();
     ctx2d.drawImage(layer.getCanvas()._canvas, 0, 0);
     layer.getCanvas().setSize(0, 0);
+  }
+
+  // UI/GUI handoff pass: drawn straight onto the flattened bitmap, on top of every
+  // layer just composited — same as a real watermark sits on top of a printed page.
+  if (input.watermark) {
+    drawWatermark(ctx2d, input.watermark.image, bitmapWidthPx, bitmapHeightPx, input.watermark.aspectRatio);
   }
 
   // Free everything: destroy the nodes, the stage (Konva releases the layer canvases on
