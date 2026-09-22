@@ -724,6 +724,11 @@ export const STRINGS = {
     swatchBlack: 'Black',
     swatchConcrete: 'Concrete',
     swatchDeepNavy: 'Deep Navy',
+    // D133 (UI/GUI handoff pass, 2026-09-22): the image-inset controls
+    // (`insetBorder`/`insetRadius`/`insetShadow`) had no data channel until this pass.
+    insetBorder: 'Border',
+    insetRadius: 'Corner radius',
+    insetShadow: 'Shadow',
   },
 
   layers: {

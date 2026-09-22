@@ -3405,3 +3405,114 @@ built here.
 **Verified end to end**, not just unit-tested: the full clickthru harness (`npm run clickthru`, 20/20) was run
 before and after, and the exported PDF was read back out of OPFS and rasterised — the full lockup sits cleanly
 in the corner of the printed sheet, clear of the markup it was drawn over.
+
+### D133 — §4.1 (the handoff's own priority #1): the inset controls get a real data channel; five others stay owed, and why
+
+`docs/handoff-ui-pass-for-claude.md` §4.1 names the missing per-tool controls' schema problem as "the single
+highest-value change" in the whole pass — without it, any panel button that used one of them would be a stub.
+Its own suggested key list (§4.1 step 1) is fifteen names across seven tools. This session shipped three,
+wired end to end (schema → render → panel → tests), and is explicit about why the other twelve are not all in
+this pass — most were never a schema gap at all, and the ones that are stay honestly stubbed rather than
+shipped as a control with no visible effect (the brief's own standard: "any button you add is a lie").
+
+**What actually needed a NEW `AnnotationStyle` key, and shipped:** `insetBorder?: boolean`, `insetRadius?:
+number`, `insetShadow?: boolean` (`src/domain/types.ts`, `.nullish()` in `schema.ts` — same translation as
+`Annotation.visible`, so **no schema version bump**: an old `markup.json` has none of the three, which reads
+as "off" everywhere they are read, exactly like a pre-1.6 file with no `visible` key reads as "shown").
+Rendered in `renderInset.ts` (border inset by half its stroke width so the whole stroke survives the group's
+own `clipFunc`; shadow is a radial vignette, not a bleeding drop-shadow — see the note below on why); wired
+into the panel (`StylePanel.tsx`'s new INSET section) via the EXISTING `onChange(patch: Partial<AnnotationStyle>)`
+callback, so no prop-interface or caller-chain change was needed for these three.
+
+**The clipped-container constraint, discovered by an existing test, not by inspection.** The first
+implementation wrapped the clip in an inner group so the shadow could bleed outside it — and broke
+`tests/insetWire.browser.test.ts`'s pinned §8.5 containment contract ("a child's Konva parent is the exact
+tagged/transformed node"), which exists precisely to catch a structural change like this. Rather than weaken
+that test (AGENTS: never), the shadow's ambition was scaled back to what a clipped sibling can honestly draw —
+a radial vignette, darker at the edges, still inside the same `clipFunc` as everything else. `insetShadow`
+therefore reads as depth-at-the-edges, not a Material-style drop shadow; a real bleeding shadow would need the
+group restructured (a wrapper wide enough to hold an unclipped shadow layer alongside the clipped content),
+which is a bigger, riskier change than this pass's scope for one visual effect.
+
+**Arrow elbow shipped WITHOUT a new style key**, because it never needed one: `Geometry`'s `arrow` arm already
+carries `elbow?: 'straight'|'right'|'curved'` (`types.ts:33`) — the brief's own inventory (§2.2) lists "arrow
+elbow" among the missing controls, but what was actually missing was the RENDERER (`renderShape.ts`'s
+`buildArrow` drew every arrow as a straight `a→b` regardless of `elbow`) and the panel control. The renderer
+is now built (`elbowPoints`, moved to `src/domain/geometry.ts` so it stays pure/node-testable — Konva itself
+cannot be imported into the `node` project, see the comment at the top of `renderStage.ts`); `shapeBounds`
+routes the same points so the selection frame covers a bowed `'curved'` elbow. **The panel control for it is
+owed** (see below) — this is the clearest instance of "render ships ahead of the panel" in this pass.
+
+**`STYLE_KEYS` (`src/state/styleByTool.ts`) was extended from 8 to 11**, appending the three inset keys rather
+than inserting them, so every existing `STYLE_KEYS[i]` reference stays valid. This is the change
+`tests/typeToolMap.test.ts`'s own header comment explicitly invited ("If the product answer later becomes
+'fall back to what the non-inset members share', THIS is the test that must be changed deliberately, with a
+DECISIONS entry" — that test asserted `only({})` for `inset`, i.e. every control disabled): `applicableFor`
+now gives `inset` exactly the three D133 keys, and the two tests that pinned the old all-disabled outcome
+(`typeToolMap.test.ts`, `styleByTool.test.ts`) were updated with this entry as their required paper trail, not
+silently changed.
+
+**The highlighter's "Chisel width" label was staged copy with nowhere to render** (`STRINGS.style.chiselWidth`
+existed before this pass; `HIGHLIGHT_CHISEL_TOUCH_MU` in `renderInk.ts`/`toolTypes.ts` already proved the
+highlighter's bar width is just `strokeWidthMu`, contextually meant to read differently — no second style key
+was ever needed). The panel's WIDTH section now relabels itself to "Chisel width" when `tool === 'highlight'`
+**or** the current selection is a homogeneous highlight selection (`selectionScope`) — checked BOTH ways
+because `EditorLayout`'s `tool` prop is the literal active tool (`activeTool`), which stays `'select'` the
+moment a user re-selects a highlight stroke they already drew; labelling off `tool` alone would have made the
+control correctly named only while actively drawing a new stroke, and silently wrong the instant the user
+selected the one they just made. Caught by writing the test for the second case, not by inspection.
+
+**Explicitly deferred, each for a reason that would make shipping it a stub or a real behavioural risk, not
+"ran out of time":**
+
+- **Rect corner radius / polygon closed-path / text background — render already works (all three read an
+  EXISTING `Geometry` field: `rect.cornerRadius`, `polygon.closed`, `text.background`), but `StylePanel.tsx`
+  has no path to write geometry at all.** `StylePanelProps.onChange` is typed `Partial<AnnotationStyle>` only
+  — there is no `onGeometryChange`. Adding one is real, scoped, low-risk work (extend the pinned props
+  interface — precedent: session 13's own extension for the §7.4 selection bar — then thread a new callback
+  through `EditorLayout.tsx`'s `stylePanelProps`/`styleEditorProps` to a geometry-patch command on the
+  selection, mirroring how `SelectTool.setLocked`/`nudgeSelection` already patch other per-object state
+  through `history.execCoalesced`). Left owed rather than rushed in this pass because the caller-chain change
+  is exactly the kind of edit that needs its own verification pass (an untested new callback is worse than no
+  callback), and because §4.1 itself names schema work as the priority, not this wiring.
+- **`textAlign`** — no new key was added, on purpose. §2.2 lists "text align" but v1's text tool is
+  single-line, auto-width (`SheetEditor.tsx`'s `#text-note-input` is a plain `<input>`, never a `<textarea>`),
+  and `renderText.ts`'s box auto-sizes to the glyph content — a Konva `Text.align` has NO visible effect
+  without an independently-set box width. Shipping the control would be exactly the brief's own worst
+  outcome ("any button you add is a lie"); it needs the text box to gain a real, user-settable width first.
+- **"Leader"** — `TextRenderInput.leaderFrom` already exists in `renderText.ts` and IS drawn when supplied,
+  but nothing in the codebase ever supplies it (verified: `grep -rn leaderFrom src/` finds only the renderer
+  and the UNRELATED dimension-label leader in `dimensionLabel.ts`/`renderDimension.ts`). A text note's
+  `Geometry` (`{at, text, background}`) has no second anchor point to hold a leader target — this is a real
+  feature (a new geometry field, a way to place the second point, hit-testing for it), not a style toggle.
+- **Polygon `sides`** — a regular-polygon SIDE COUNT is a construction-time parameter for the polygon tool,
+  not a property of an already-drawn point list; "editing" it after the fact means regenerating the point
+  geometry from a centre/radius/side-count model the domain does not have. Different shape of problem from
+  the other deferred items — a tool-behaviour feature, not a missing style key.
+- **Angle `arcRadius`** — currently DERIVED in `renderShape.ts`'s `buildAngle`
+  (`Math.max(12/scale, Math.min(r1,r2)*0.4)`), not stored. Making it user-settable needs a geometry field plus
+  a render/hit-test change to honour it instead of computing it; the derived default already reads correctly
+  at every scale (§4.2), so this is a feature request, not a data-channel gap.
+- **Highlighter `straightLineLock`** — has copy staged (`S.straightLineLock`) but the mechanism
+  (`FreehandTool.ts`'s `straightMachine`) is currently hardcoded to `pointerType === 'touch'` with no way to
+  turn it on for pen or off for touch. Promoting it to a real per-annotation toggle risks changing existing,
+  verified touch behaviour (the tap-tap chisel bar default) for a control with no spec-given default value —
+  a behavioural risk this pass chose not to take without its own verification pass.
+- **Freehand `pressureWidth` / `smoothing`** — ink tuning with no spec-given default/range; pressure-vs-width
+  already varies implicitly by pointer type (pen tapers, touch is constant, `freehandParamsFor`). Inventing
+  numbers here is exactly what AGENTS asks NOT to do ("do not invent features; v1 scope is §2.4") absent a
+  spec line to anchor them to.
+- **Erase `eraseScope`** — already fully functional as local component state (`SheetEditor.tsx`'s `eraseMode`,
+  rendered at `:2399-2412`); the brief's complaint is that it has no PERSISTENCE across a tool swap/reload, not
+  that it doesn't work. It is an erase-tool MODE, not a property of a created annotation (erasing creates
+  nothing to carry a style), so `AnnotationStyle` is the wrong home for it — the honest fix is per-tool memory
+  in `styleByTool.ts`'s own store (a `Record<ToolId, …>`-shaped addition parallel to, not inside,
+  `AnnotationStyle`), which is a different, smaller, separate change.
+
+**Machine gates (this slice, on top of D132's tree):** `tsc` 0 · `vitest` **74 files / 1236 tests** (node +
+jsdom) + **31 files / 223 tests** (browser, +2 new files: `renderShape.browser.test.ts`,
+`renderInset.browser.test.ts`) · `build` 0 (28 precache, 1632.03 KiB) · `playwright` 5 passed / 5 skipped,
+unchanged. New pure tests: `tests/geometry.test.ts` (`elbowPoints`, 6 cases with arithmetic shown),
+`tests/schema.test.ts` (D133 round-trip + a rejected negative radius), `tests/styleByTool.test.ts` /
+`tests/typeToolMap.test.ts` (the extended/deliberately-changed applicability table), `tests/stylePanel.test.tsx`
+(the new INSET section + the chisel-width relabel, including the re-selection case).

@@ -214,6 +214,19 @@
   color: var(--g000);
 }
 
+/* D133: a readout that also carries a label (e.g. "Corner radius … 12") — the plain
+   `.style-panel-readout` is right-aligned only, for a value with no label of its own
+   (fontSizeMu's). Modifier, not a replacement, so every existing readout is untouched. */
+.style-panel-readout--labeled {
+  justify-content: space-between;
+}
+
+.style-panel-readout-label {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--g300);
+}
+
 .style-panel-note {
   margin: 2px 0 0;
   font-size: 12px;

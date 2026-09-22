@@ -14,12 +14,16 @@ a `clickthru` skill; an OMO orchestrator rule. It is **never a gate** and **neve
 **Session 24, so far:** the owner's `docs/handoff-ui-pass-for-claude.md` (the UI/GUI pass — make every rail/
 panel/HUD/menu control real, §0–§8) plus a direct watermark request. **Shipped: the VANGARDE watermark**
 (**D132**) — `Settings › Display › Watermark` (default ON), a light mark on the app's always-dark chrome, the
-full vector lockup composited onto exported PDFs/PNGs. The handoff pass itself is next, in its own §8 order.
+full vector lockup composited onto exported PDFs/PNGs. **Shipped: §4.1** (**D133**) — the handoff's own
+priority #1, scoped: three new `AnnotationStyle` keys for the inset (border/corner-radius/shadow), the arrow
+elbow renderer (the `Geometry` field already existed; the renderer didn't), the highlighter's "Chisel width"
+label — with five items explicitly deferred (each with its own reason in D133, not silently dropped). §4.2
+(mini-toolbar) and §4.3 (overflow menus) are next, per the handoff's own §8 order.
 
-**Gates (session 24, watermark slice):** `tsc` 0 | **74 files / 1216 tests** (node + jsdom) + **29 files / 210
-tests** (browser) | `build` 0 (28 precache, 1628.71 KiB) | `playwright` 5 passed / 5 skipped (CSP's zero-
-inline-style assertion included — the new `<img>` carries no `style=""`) | **`clickthru` 20 PASS / 0 FAIL / 0
-UNREACHED** (run twice).
+**Gates (session 24, latest slice — §4.1):** `tsc` 0 | **74 files / 1236 tests** (node + jsdom) + **31 files /
+223 tests** (browser) | `build` 0 (28 precache, 1632.03 KiB) | `playwright` 5 passed / 5 skipped | **`clickthru`
+20 PASS / 0 FAIL / 0 UNREACHED** (run twice, on the watermark slice; owed a re-run after §4.1 — no clickthru
+step currently exercises an inset).
 
 **The beta-readiness wave (this session), all from the owner's two Surface screenshots:** the 14 tool glyphs
 are real (they were numbered placeholders), the editor chrome fits ~1920x1120, the sheets grid scrolls with its
@@ -1065,6 +1069,34 @@ arithmetic), `tests/watermarkRuntime.test.tsx` (hydration + live toggle + the de
 `tests/settings.test.tsx` (the switch + its persistence), and two new cases in
 `tests/renderStage.browser.test.ts` (real-pixel proof: absent by default when no `watermark` is passed, and the
 opacity-blended corner when one is).
+
+**Shipped (D133): §4.1, the handoff's own priority #1 — scoped, not the full 15-key list.** Three new
+`AnnotationStyle` keys that genuinely had no channel (`insetBorder`/`insetRadius`/`insetShadow`, rendered in
+`renderInset.ts`, wired into a new StylePanel INSET section); the arrow elbow (`straight`/`right`/`curved`)
+now actually renders — it already had a `Geometry` field (`arrow.elbow`) but no renderer, the true gap; the
+highlighter's WIDTH section relabels to "Chisel width" (staged copy with nowhere to render before this),
+checked against both the active tool and a selected highlight so it survives re-selection. **Five items stay
+explicitly deferred, each with its own reason in D133** rather than shipped as a stub: rect corner-radius /
+polygon closed-path / text-background PANEL controls (render already works; blocked on a new
+`onGeometryChange` callback `StylePanel.tsx` does not have), `textAlign` (no visible effect without a
+text-box-width feature v1 doesn't have), a text "leader" (needs a new geometry anchor point), polygon `sides`
+and angle `arcRadius` (construction-time/derived, not stored — feature requests, not data-channel gaps),
+highlighter `straightLineLock` (hardcoded to touch; promoting it risks verified behaviour), freehand
+`pressureWidth`/`smoothing` (no spec-given numbers), and `eraseScope` persistence (belongs in `styleByTool.ts`,
+not `AnnotationStyle`). `src/state/styleByTool.ts`'s `STYLE_KEYS` table extended 8 → 11 (appended, not
+inserted) and `inset`'s applicability row changed from all-disabled to the three D133 keys — a change
+`tests/typeToolMap.test.ts`'s own header comment had invited, done with D133 as the required paper trail and
+both its pinned tests updated deliberately.
+
+**A real defect an existing test caught before it shipped:** the first `insetShadow` implementation wrapped
+the inset's clip in a new inner group so the shadow could bleed outside it, and broke
+`tests/insetWire.browser.test.ts`'s pinned §8.5 containment contract (a child's Konva parent must be the
+exact tagged/transformed node). Per AGENTS ("never weaken a test"), the structure was reverted and the shadow
+scaled back to what a clipped sibling can honestly draw — a radial vignette, not a bleeding drop-shadow.
+
+**Verification:** `tsc` 0 · `vitest` **74 files / 1236 tests** (node + jsdom, +11 over the watermark slice) +
+**31 files / 223 tests** (browser, +2 files: `renderShape.browser.test.ts`, `renderInset.browser.test.ts`) ·
+`build` 0 (28 precache, 1632.03 KiB) · `playwright` 5 passed / 5 skipped, unchanged.
 
 ## Done
 

@@ -148,14 +148,18 @@ describe('selectionStyleState (§7.4 #2)', () => {
     expect(result.style.strokeColor).toBe(DEFAULT_STYLE.strokeColor);
   });
 
-  it('stylesEqual compares exactly the 8 keys', () => {
+  it('stylesEqual compares every STYLE_KEYS entry (the original 8 plus D133\'s 3 inset keys)', () => {
     expect(stylesEqual(style({}), style({}))).toBe(true);
     expect(stylesEqual(style({ fillAlpha: 0.5 }), style({ fillAlpha: 0.5 }))).toBe(true);
     expect(stylesEqual(style({ lineStyle: 'dashed' }), style({ lineStyle: 'solid' }))).toBe(false);
   });
 });
 
-describe('applicableFor — the §7.2 table over the 8 expressible keys', () => {
+describe('applicableFor — the §7.2 table over STYLE_KEYS', () => {
+  // D133 (UI/GUI handoff pass) appended insetBorder/insetRadius/insetShadow to
+  // STYLE_KEYS; every non-inset row is false on all three (only `inset` sets them).
+  const NO_INSET_KEYS = { insetBorder: false, insetRadius: false, insetShadow: false };
+
   it('Dimension exposes Color, Width, Arrowheads only', () => {
     expect(applicableFor('dimension')).toEqual({
       strokeColor: true,
@@ -166,6 +170,7 @@ describe('applicableFor — the §7.2 table over the 8 expressible keys', () => 
       arrowheads: true,
       fontSizeMu: false,
       bold: false,
+      ...NO_INSET_KEYS,
     });
   });
 
@@ -179,6 +184,7 @@ describe('applicableFor — the §7.2 table over the 8 expressible keys', () => 
       arrowheads: false,
       fontSizeMu: true,
       bold: true,
+      ...NO_INSET_KEYS,
     });
   });
 
@@ -192,6 +198,7 @@ describe('applicableFor — the §7.2 table over the 8 expressible keys', () => 
       arrowheads: false,
       fontSizeMu: false,
       bold: false,
+      ...NO_INSET_KEYS,
     });
   });
 
@@ -205,6 +212,7 @@ describe('applicableFor — the §7.2 table over the 8 expressible keys', () => 
       arrowheads: true,
       fontSizeMu: false,
       bold: false,
+      ...NO_INSET_KEYS,
     });
   });
 
@@ -218,6 +226,23 @@ describe('applicableFor — the §7.2 table over the 8 expressible keys', () => 
       arrowheads: false,
       fontSizeMu: false,
       bold: false,
+      ...NO_INSET_KEYS,
+    });
+  });
+
+  it('Image inset (D133) exposes Border, Corner radius, Shadow only', () => {
+    expect(applicableFor('inset')).toEqual({
+      strokeColor: false,
+      strokeWidthMu: false,
+      fillColor: false,
+      fillAlpha: false,
+      lineStyle: false,
+      arrowheads: false,
+      fontSizeMu: false,
+      bold: false,
+      insetBorder: true,
+      insetRadius: true,
+      insetShadow: true,
     });
   });
 

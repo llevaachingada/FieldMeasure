@@ -11,7 +11,7 @@
  */
 import Konva from 'konva';
 import type { AnnotationStyle, Px } from '@/domain/types';
-import { angleDeg, midpoint, readableAngleDeg } from '@/domain/geometry';
+import { angleDeg, elbowPoints, midpoint, readableAngleDeg } from '@/domain/geometry';
 import { screenFontSize } from '@/editor/EditorCanvas';
 
 /** Shared per-annotation render context. */
@@ -61,17 +61,25 @@ function buildLine(geometry: { a: Px; b: Px }, style: AnnotationStyle): Konva.Sh
   return node;
 }
 
-/** Arrow `a→b` (Konva.Arrow; pointer size scales with stroke width). */
-function buildArrow(geometry: { a: Px; b: Px }, style: AnnotationStyle): Konva.Shape {
+/** Arrow `a→b` (Konva.Arrow; pointer size scales with stroke width). D133: an elbow
+ *  routes through an extra point instead of the straight `a, b` pair — the pointer
+ *  heads still compute from the FIRST/LAST point pair, so they read correctly either way. */
+function buildArrow(
+  geometry: { a: Px; b: Px; elbow?: 'straight' | 'right' | 'curved' },
+  style: AnnotationStyle,
+): Konva.Shape {
   const heads = arrowheadConfig(
     style.arrowheads === 'none' ? { ...style, arrowheads: 'end' as const } : style,
   );
+  const { points, tension } = elbowPoints(geometry);
   const node = new Konva.Arrow({
-    points: [geometry.a.x, geometry.a.y, geometry.b.x, geometry.b.y],
+    points,
+    tension,
     stroke: style.strokeColor,
     fill: style.strokeColor,
     strokeWidth: style.strokeWidthMu,
     lineCap: 'round',
+    lineJoin: 'round',
     dash: dashOf(style),
     pointerLength: style.strokeWidthMu * 3,
     pointerWidth: style.strokeWidthMu * 3,
@@ -286,8 +294,7 @@ export function shapeBounds(
   geometry: ShapeRenderInput['geometry'],
 ): { x: number; y: number; width: number; height: number } {
   switch (geometry.kind) {
-    case 'line':
-    case 'arrow': {
+    case 'line': {
       const x = Math.min(geometry.a.x, geometry.b.x);
       const y = Math.min(geometry.a.y, geometry.b.y);
       return {
@@ -296,6 +303,18 @@ export function shapeBounds(
         width: Math.abs(geometry.b.x - geometry.a.x),
         height: Math.abs(geometry.b.y - geometry.a.y),
       };
+    }
+    case 'arrow': {
+      // D133: a 'right' elbow's corner is always inside the a/b box (it reuses their own
+      // x/y), but a 'curved' elbow's control point can bow outside it — include every
+      // routed point, not just the endpoints, so the selection frame covers the visible
+      // stroke.
+      const { points } = elbowPoints(geometry);
+      const xs = points.filter((_, i) => i % 2 === 0);
+      const ys = points.filter((_, i) => i % 2 === 1);
+      const x = Math.min(...xs);
+      const y = Math.min(...ys);
+      return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
     }
     case 'rect':
     case 'ellipse':

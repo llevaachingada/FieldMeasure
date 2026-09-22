@@ -813,6 +813,7 @@ export class MarkupScene {
           asset,
           children: ann.children ?? [],
           locked: ann.locked,
+          style: ann.style,
           renderChild: (child) => {
             const childGroup = this.buildNode(child);
             this.groups.set(pathToKey({ kind: 'child', insetId: ann.id, annotationId: child.id }), childGroup);

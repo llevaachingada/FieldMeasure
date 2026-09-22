@@ -92,10 +92,12 @@ describe('TOOL_FOR_TYPE is single-sourced and pinned (finding 7)', () => {
 });
 
 describe('§7.4 #4 applicability intersection — the executed table (finding 7)', () => {
-  // Executed, not assumed. `only({})` for `inset` = all eight keys false, so any
-  // intersection that includes `image` is empty.
-  it('an inset alone enables NOTHING', () => {
-    expect(enabledFor(['image'])).toEqual([]);
+  // D133 (UI/GUI handoff pass) is the deliberate change this file's own header comment
+  // (§2) invited: `renderInset.ts` gained a real, rendered control set
+  // (`insetBorder`/`insetRadius`/`insetShadow`), so `inset`'s row is no longer
+  // `only({})` and a lone inset selection is no longer a dead panel.
+  it('an inset alone enables its three D133 controls (border/radius/shadow), nothing else', () => {
+    expect(enabledFor(['image'])).toEqual(['insetBorder', 'insetRadius', 'insetShadow']);
   });
 
   it('Rect + inset enables NOTHING — a truthful scope chip over a dead panel', () => {

@@ -29,7 +29,13 @@ import type { AnnotationStyle, AnnotationType } from '@/domain/types';
 import { DEFAULT_STYLE } from '@/domain/types';
 import type { ToolId } from '@/ui/ToolRail';
 
-/** The eight `AnnotationStyle` keys, in a stable order (used by every comparison below). */
+/**
+ * The `AnnotationStyle` keys the per-tool table covers, in a stable order (used by every
+ * comparison below). D133 (UI/GUI handoff pass) appended the three inset-only keys after
+ * the original eight — appending, not inserting, keeps every existing `STYLE_KEYS[i]`
+ * index and every array built by filtering it (`enabledFor` et al.) stable except where a
+ * test deliberately asserts the new tail, per `tests/typeToolMap.test.ts`'s own note.
+ */
 export const STYLE_KEYS = [
   'strokeColor',
   'strokeWidthMu',
@@ -39,6 +45,9 @@ export const STYLE_KEYS = [
   'arrowheads',
   'fontSizeMu',
   'bold',
+  'insetBorder',
+  'insetRadius',
+  'insetShadow',
 ] as const;
 
 export type StyleKey = (typeof STYLE_KEYS)[number];
@@ -77,7 +86,7 @@ void _everyToolIsListed;
  * Pure helpers
  * ------------------------------------------------------------------ */
 
-/** Deep equality over exactly the 8 style keys (strings/numbers/booleans/null). */
+/** Deep equality over every STYLE_KEYS entry (strings/numbers/booleans/null). */
 export function stylesEqual(a: AnnotationStyle, b: AnnotationStyle): boolean {
   for (const key of STYLE_KEYS) {
     if (a[key] !== b[key]) return false;
@@ -86,7 +95,7 @@ export function stylesEqual(a: AnnotationStyle, b: AnnotationStyle): boolean {
 }
 
 /**
- * The §7.2 per-tool control table, reduced to the 8 keys `AnnotationStyle` can express.
+ * The §7.2 per-tool control table, reduced to the `STYLE_KEYS` subset of `AnnotationStyle`.
  *
  * A key the table does not list for a tool is **`false`** — the panel disables that
  * control and never hides it (§7.4 #4 / §11.6 #5). Ambiguities between the table and what
@@ -97,8 +106,9 @@ export function stylesEqual(a: AnnotationStyle, b: AnnotationStyle): boolean {
  *     Size → table-faithful `false`.
  *   - §7.2's Highlighter row lists Transparency, but `renderInk` consumes only
  *     `strokeColor`/`strokeWidthMu` → `fillAlpha` stays `true` (the table wins).
- *   - Image inset / Erase / Select / Pan map to no `AnnotationStyle` key at all → all
- *     `false` (`renderInset` consumes none of the 8).
+ *   - Erase / Select / Pan map to no `AnnotationStyle` key at all → all `false`.
+ *   - Image inset (D133) maps to exactly `insetBorder`/`insetRadius`/`insetShadow` —
+ *     `renderInset.ts` consumes none of the original eight.
  */
 type Applicability = Partial<Record<StyleKey, boolean>>;
 
@@ -112,6 +122,9 @@ function only(on: Partial<Record<StyleKey, boolean>>): Applicability {
     arrowheads: false,
     fontSizeMu: false,
     bold: false,
+    insetBorder: false,
+    insetRadius: false,
+    insetShadow: false,
   };
   return { ...base, ...on };
 }
@@ -130,11 +143,14 @@ const APPLICABILITY: Record<ToolId, Applicability> = {
   freehand: only({ strokeColor: true, strokeWidthMu: true }),
   highlight: only({ strokeColor: true, strokeWidthMu: true, fillAlpha: true }),
   text: only({ strokeColor: true, fontSizeMu: true, bold: true }),
-  inset: only({}),
+  // D133: the inset row was `only({})` — see tests/typeToolMap.test.ts's own note that
+  // this is where a real inset control set gets added, deliberately, with a DECISIONS
+  // entry. `renderInset.ts` now consumes exactly these three.
+  inset: only({ insetBorder: true, insetRadius: true, insetShadow: true }),
   erase: only({}),
 };
 
-/** The §7.2 control table for one tool, as booleans over the 8 style keys. */
+/** The §7.2 control table for one tool, as booleans over STYLE_KEYS. */
 export function applicableFor(tool: ToolId): Applicability {
   return APPLICABILITY[tool] ?? only({});
 }
@@ -225,7 +241,7 @@ export interface SelectionStyleState {
   style: AnnotationStyle;
 }
 
-/** `'mixed'` when the selected objects' styles are not all equal over the 8 keys (§7.4 #2). */
+/** `'mixed'` when the selected objects' styles are not all equal over STYLE_KEYS (§7.4 #2). */
 export function selectionStyleState(styles: readonly AnnotationStyle[]): SelectionStyleState {
   if (styles.length === 0) return { mode: 'none', style: { ...DEFAULT_STYLE } };
   const first = styles[0];

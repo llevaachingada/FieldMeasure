@@ -156,3 +156,42 @@ describe('v0.2 tolerance', () => {
     }
   });
 });
+
+// D133 (UI/GUI handoff pass): the inset-only style keys added to `AnnotationStyleZ`.
+// `.nullish()`, same translation as `Annotation.visible` — no schema version bump, so
+// the § 3.6 example above (whose 'image' style predates these keys) is itself the
+// "an old file still parses with the keys absent" case, already exercised by the
+// round-trip test.
+describe('D133 — insetBorder/insetRadius/insetShadow', () => {
+  const imageAnnotation = () => MARKUP_EXAMPLE.objects[1]!;
+
+  it('parses when present, with the correct types', () => {
+    const withKeys = {
+      ...MARKUP_EXAMPLE,
+      objects: [
+        MARKUP_EXAMPLE.objects[0],
+        { ...imageAnnotation(), style: { ...imageAnnotation().style, insetBorder: true, insetRadius: 24, insetShadow: true } },
+      ],
+    };
+    const res = parseMarkupFile(JSON.stringify(withKeys));
+    expect(res.success).toBe(true);
+    if (res.success) {
+      const style = res.data.objects[1]!.style;
+      expect(style.insetBorder).toBe(true);
+      expect(style.insetRadius).toBe(24);
+      expect(style.insetShadow).toBe(true);
+    }
+  });
+
+  it('rejects a negative insetRadius (no visual meaning; renderInset also clamps it, but the schema should not accept it)', () => {
+    const negative = {
+      ...MARKUP_EXAMPLE,
+      objects: [
+        MARKUP_EXAMPLE.objects[0],
+        { ...imageAnnotation(), style: { ...imageAnnotation().style, insetRadius: -1 } },
+      ],
+    };
+    const res = parseMarkupFile(JSON.stringify(negative));
+    expect(res.success).toBe(false);
+  });
+});

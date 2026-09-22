@@ -168,6 +168,10 @@ export const FONT_SIZE_MAX = 72;
 /** UI §7.2: precision `1/16`→`1"` — the domain's own denominator enum (units.ts). */
 export const PRECISION_LADDER: readonly number[] = VALID_DENOMINATORS;
 
+/** D133: the inset corner-radius range, in markup (crop-window) units — clamped again
+ *  at render time (`clampedRadius`, renderInset.ts) against the inset's own crop size. */
+export const INSET_RADIUS_MAX_MU = 60;
+
 /** The three unit formats (M11). */
 export const UNIT_FORMATS = ['ft-in', 'in', 'ft-decimal'] as const;
 
@@ -773,6 +777,17 @@ export default function StylePanel({
 
   const widthIndex = nearestLadderIndex(style.strokeWidthMu);
   const descriptor = describeStyle(style);
+  // D133: the highlighter's bar width is the same `strokeWidthMu` key, relabelled — but
+  // `tool` (EditorLayout's `activeTool`) alone only covers "about to draw a new stroke".
+  // Re-selecting an EXISTING highlight with the Select tool leaves `tool === 'select'`,
+  // so a homogeneous highlight selection is checked too (`selectionScope`, the same data
+  // `applicabilityForSelection` uses) — otherwise the label would silently revert to the
+  // generic "Width" the moment the user selects the very object they just drew.
+  const widthSectionLabel =
+    tool === 'highlight' ||
+    (selectionScope.length === 1 && selectionScope[0]!.type === 'highlight')
+      ? S.chiselWidth
+      : S.sectionWidth;
 
   /**
    * §7.2's "the panel is contextual, not a fixed form" / §15's `<ContextualControls
@@ -996,9 +1011,14 @@ export default function StylePanel({
             </div>
           </Section>
 
-          {/* ---- WIDTH (§7.2/§7.3) ------------------------------------------ */}
+          {/* ---- WIDTH / CHISEL WIDTH (§7.2/§7.3) ---------------------------- */}
+          {/* D133: the highlighter has no separate style key for its bar width — it
+              already reads `strokeWidthMu` like every other tool (renderInk.ts's
+              `inkParamsFor`); what was missing was the panel LABEL (`style.chiselWidth`,
+              staged since before this pass) so it reads as "Chisel width" rather than
+              the generic "Width" while the Highlighter tool is the one being edited. */}
           <Section
-            title={S.sectionWidth}
+            title={widthSectionLabel}
             testid="style-section-width"
             hidden={hideUnused(['strokeWidthMu'])}
             head={
@@ -1019,7 +1039,7 @@ export default function StylePanel({
                 className="style-panel-stepper"
                 data-testid="style-width-minus"
                 data-style-focusable="true"
-                aria-label={`${S.sectionWidth} −`}
+                aria-label={`${widthSectionLabel} −`}
                 disabled={notApplicable('strokeWidthMu') || widthIndex === 0}
                 onClick={() => onChange({ strokeWidthMu: stepWidthMu(style.strokeWidthMu, -1) })}
               >
@@ -1030,7 +1050,7 @@ export default function StylePanel({
                 className="style-panel-range style-panel-range--width"
                 data-testid="style-width-range"
                 data-style-focusable="true"
-                aria-label={nameFor(S.sectionWidth, 'strokeWidthMu')}
+                aria-label={nameFor(widthSectionLabel, 'strokeWidthMu')}
                 aria-valuetext={
                   mixed ? S.mixedValue : t(S.widthReadout, { widthPt: formatPt(style.strokeWidthMu) })
                 }
@@ -1048,7 +1068,7 @@ export default function StylePanel({
                 className="style-panel-stepper"
                 data-testid="style-width-plus"
                 data-style-focusable="true"
-                aria-label={`${S.sectionWidth} +`}
+                aria-label={`${widthSectionLabel} +`}
                 disabled={
                   notApplicable('strokeWidthMu') || widthIndex === WIDTH_LADDER_MU.length - 1
                 }
@@ -1257,6 +1277,62 @@ export default function StylePanel({
                 <span>{S.bold}</span>
               </button>
             </div>
+          </Section>
+
+          {/* ---- INSET: BORDER / CORNER RADIUS / SHADOW (D133) --------------- */}
+          <Section
+            title={S.insetBorder}
+            testid="style-section-inset"
+            hidden={hideUnused(['insetBorder', 'insetRadius', 'insetShadow'])}
+          >
+            <div className="style-panel-row">
+              <button
+                type="button"
+                className="style-panel-button"
+                data-testid="style-inset-border"
+                data-style-focusable="true"
+                aria-label={nameFor(S.insetBorder, 'insetBorder')}
+                aria-pressed={!mixed && style.insetBorder === true}
+                disabled={notApplicable('insetBorder')}
+                title={titleFor('insetBorder', S.insetBorder)}
+                onClick={() => onChange({ insetBorder: !style.insetBorder })}
+              >
+                <span>{S.insetBorder}</span>
+              </button>
+              <button
+                type="button"
+                className="style-panel-button"
+                data-testid="style-inset-shadow"
+                data-style-focusable="true"
+                aria-label={nameFor(S.insetShadow, 'insetShadow')}
+                aria-pressed={!mixed && style.insetShadow === true}
+                disabled={notApplicable('insetShadow')}
+                title={titleFor('insetShadow', S.insetShadow)}
+                onClick={() => onChange({ insetShadow: !style.insetShadow })}
+              >
+                <span>{S.insetShadow}</span>
+              </button>
+            </div>
+            <div className="style-panel-readout style-panel-readout--labeled">
+              <span className="style-panel-readout-label">{S.insetRadius}</span>
+              <span className="style-panel-readout-value mono">
+                {mixed ? S.mixedDash : String(style.insetRadius ?? 0)}
+              </span>
+            </div>
+            <input
+              type="range"
+              className="style-panel-range"
+              data-testid="style-inset-radius-range"
+              data-style-focusable="true"
+              aria-label={nameFor(S.insetRadius, 'insetRadius')}
+              aria-valuetext={mixed ? S.mixedValue : String(style.insetRadius ?? 0)}
+              min={0}
+              max={INSET_RADIUS_MAX_MU}
+              step={2}
+              value={style.insetRadius ?? 0}
+              disabled={notApplicable('insetRadius')}
+              onChange={(event) => onChange({ insetRadius: Number(event.target.value) })}
+            />
           </Section>
 
           {/* ---- PRECISION + UNIT FORMAT (project-level; D31) ---------------- */}

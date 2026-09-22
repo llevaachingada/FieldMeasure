@@ -1690,3 +1690,55 @@ screenshots rather than assumed; kept small/low-opacity rather than given route-
 **Next:** the UI/GUI handoff pass itself (`docs/handoff-ui-pass-for-claude.md`), starting with its own §8
 priority order — §4.1 (extend `AnnotationStyle` with the per-tool style keys the panel has no data channel
 for), §4.2 (the mini-toolbar to spec), §4.3 (the two overflow menus).
+
+## Slice §4.1 (UI/GUI handoff pass) — the style data channel: inset controls, arrow elbow
+
+**Date:** 2026-09-22 · **Commit:** (this commit)
+
+**Built:** `docs/handoff-ui-pass-for-claude.md` §4.1's data-channel work, scoped to what genuinely needed it
+(full reasoning + the five deferred items in **D133**). Three new `AnnotationStyle` keys —
+`insetBorder`/`insetRadius`/`insetShadow` — additive/`.nullish()`, no schema version bump. Rendered in
+`renderInset.ts` (border inset by half its stroke width so it survives the group's own clip; shadow is a
+radial vignette, kept inside the same clip rather than restructuring the group — see D133). Arrow elbow
+(`straight`/`right`/`curved`) now actually renders (`renderShape.ts`'s `buildArrow` drew every arrow straight
+regardless of `geometry.elbow` before this) — the routing math (`elbowPoints`) moved to
+`src/domain/geometry.ts` so it stays pure/node-testable (Konva cannot be imported into the `node` project).
+`StylePanel.tsx` gained a new INSET section (border/shadow toggles, a corner-radius range) wired through the
+existing `onChange` callback, and the highlighter's WIDTH section now relabels to "Chisel width"
+(`STRINGS.style.chiselWidth`, staged copy with nowhere to render before this) — checked against both the
+active tool AND a homogeneous highlight selection, so the label survives re-selecting a stroke the user
+already drew. `src/state/styleByTool.ts`'s `STYLE_KEYS`/`APPLICABILITY` table extended 8 → 11 keys (appended,
+not inserted); `inset`'s row changed from "every control disabled" to the three D133 keys — a change
+`tests/typeToolMap.test.ts`'s own header comment invited, done with this entry as its required paper trail.
+
+**Machine gates:**
+- [x] `npx tsc --noEmit` — 0 errors.
+- [x] `npx vitest run --project node --project jsdom` — **74 files / 1236 tests** (was 74/1225 after the
+      watermark slice; +11 tests: `elbowPoints` in `geometry.test.ts`, the D133 schema round-trip, the
+      extended/updated applicability tables, the new StylePanel section + relabel tests).
+- [x] `npx vitest run --project browser` — **31 files / 223 tests** (was 29/210; +2 files —
+      `renderShape.browser.test.ts` (the elbow reaches the real Konva node),
+      `renderInset.browser.test.ts` (border/shadow/radius as real Konva node structure)).
+- [x] `npm run build` — 0 errors, 28 precache entries, 1632.03 KiB.
+- [x] `npx playwright test` — 5 passed / 5 skipped, unchanged.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D133** — the full scope decision (what got a new key vs. what already had a
+render-ready `Geometry` field vs. what stays owed and why each deferred item would be a stub or a real
+behavioural risk if shipped now), the clipped-container shadow constraint (an existing test,
+`tests/insetWire.browser.test.ts`, caught a structural change before it shipped), and the `STYLE_KEYS`
+extension with its two deliberately-updated pinned tests.
+
+**Owed (named in D133, not silently dropped):** a `StylePanelProps.onGeometryChange` callback (and the
+`EditorLayout.tsx` wiring to a real geometry-patch command) is what the rect corner-radius, polygon
+closed-path, arrow-elbow and text-background PANEL CONTROLS are actually waiting on — their render support
+already ships in this slice. Also owed, each with its own reason in D133: `textAlign` (no visible effect
+without a real text-box-width feature), a text "leader" (needs a new geometry anchor point), polygon `sides`
+(a construction-time parameter, not a post-hoc edit), angle `arcRadius` (currently derived, not stored),
+highlighter `straightLineLock` (hardcoded to touch today; promoting it risks existing verified behaviour),
+freehand `pressureWidth`/`smoothing` (no spec-given numbers to anchor to), and `eraseScope` persistence (belongs
+in `styleByTool.ts`'s own per-tool memory, not `AnnotationStyle` — erasing creates no styled object).
+
+**Next:** §4.2 (the mini-toolbar to spec) and §4.3 (the two overflow menus), per the handoff's own §8
+priority order.

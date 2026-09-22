@@ -57,6 +57,11 @@ export const AnnotationStyleZ = z.object({
   arrowheads: z.enum(['none', 'start', 'end', 'both']),
   fontSizeMu: z.number().positive(),
   bold: z.boolean(),
+  // D133: additive, same `.nullish()` shape as `Annotation.visible` — absent = off,
+  // so a pre-existing `markup.json` still parses and no schema version bump is needed.
+  insetBorder: z.boolean().nullish(),
+  insetRadius: z.number().nonnegative().nullish(),
+  insetShadow: z.boolean().nullish(),
 });
 
 export const GeometryZ = z.discriminatedUnion('kind', [

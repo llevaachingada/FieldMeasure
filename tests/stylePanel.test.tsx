@@ -492,6 +492,92 @@ describe('StylePanel — line style, arrowheads and text', () => {
 });
 
 // ---------------------------------------------------------------------------
+// D133 (UI/GUI handoff pass) — inset border/corner-radius/shadow, chisel width
+// ---------------------------------------------------------------------------
+
+describe('StylePanel — D133 inset controls (border/radius/shadow)', () => {
+  it('fires insetBorder and insetShadow as booleans, toggling the CURRENT value', () => {
+    const { onChange } = mountPanel({ tool: 'inset', style: { ...STYLE, insetBorder: false, insetShadow: false } });
+    fireEvent.click(screen.getByTestId('style-inset-border'));
+    expect(onChange).toHaveBeenCalledWith({ insetBorder: true });
+    fireEvent.click(screen.getByTestId('style-inset-shadow'));
+    expect(onChange).toHaveBeenCalledWith({ insetShadow: true });
+  });
+
+  it('the border/shadow buttons announce their PRESSED state', () => {
+    mountPanel({ tool: 'inset', style: { ...STYLE, insetBorder: true, insetShadow: false } });
+    expect(screen.getByTestId('style-inset-border').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('style-inset-shadow').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('fires insetRadius as a number from the range input', () => {
+    const { onChange } = mountPanel({ tool: 'inset' });
+    fireEvent.change(screen.getByTestId('style-inset-radius-range'), { target: { value: '24' } });
+    expect(onChange).toHaveBeenCalledWith({ insetRadius: 24 });
+  });
+
+  it('reads an unset insetRadius back as 0, not undefined/NaN', () => {
+    mountPanel({ tool: 'inset', style: { ...STYLE, insetRadius: undefined } });
+    const range = screen.getByTestId('style-inset-radius-range') as HTMLInputElement;
+    expect(range.value).toBe('0');
+  });
+
+  it('is hidden while nothing is selected and the active tool is not Inset (§7.2 contextual panel)', () => {
+    mountPanel({ tool: 'select', selection: 'none', applicable: { insetBorder: false, insetRadius: false, insetShadow: false } });
+    expect(screen.getByTestId('style-section-inset').getAttribute('data-hidden')).toBe('true');
+  });
+
+  it('is visible (not hidden) with the Inset tool active', () => {
+    mountPanel({ tool: 'inset', applicable: { insetBorder: true, insetRadius: true, insetShadow: true } });
+    expect(screen.getByTestId('style-section-inset').getAttribute('data-hidden')).toBe('false');
+  });
+
+  it('a control that does not apply (e.g. a non-inset selection) is disabled, never hidden, named with the reason', () => {
+    mountPanel({
+      tool: 'select',
+      selection: 'single',
+      applicable: { insetBorder: false, insetRadius: false, insetShadow: false },
+    });
+    const border = screen.getByTestId('style-inset-border') as HTMLButtonElement;
+    expect(border.disabled).toBe(true);
+    // `baseReason` keys off `selection === 'mixed'` specifically, not "any selection" —
+    // a single (homogeneous) selection still reads "for this tool" (the same rule every
+    // other control in the panel follows; see the disabled-never-hidden block above).
+    expect(border.getAttribute('aria-label')).toBe(`${S.insetBorder}. ${S.disabledForTool}`);
+    // Present, not hidden — the section itself is visible because the selection is
+    // homogeneous-but-inapplicable, not "nothing selected and the wrong tool".
+    expect(screen.getByTestId('style-section-inset')).not.toBeNull();
+  });
+});
+
+describe('StylePanel — D133 highlighter "Chisel width" relabel', () => {
+  it('labels the width section "Chisel width" while the Highlighter tool is active', () => {
+    mountPanel({ tool: 'highlight' });
+    expect(screen.getByTestId('style-section-width').textContent).toContain(S.chiselWidth);
+  });
+
+  it('keeps "Chisel width" when an EXISTING highlight is selected via the Select tool', () => {
+    // The real gap this closes: `tool` alone is `activeTool` (EditorLayout), which stays
+    // 'select' when the user re-selects an object they already drew — the label must not
+    // silently revert to the generic "Width" the moment that happens.
+    mountPanel({ tool: 'select', selectionScope: [{ type: 'highlight', count: 1 }] });
+    expect(screen.getByTestId('style-section-width').textContent).toContain(S.chiselWidth);
+  });
+
+  it('stays the generic "Width" for every other tool', () => {
+    mountPanel({ tool: 'line' });
+    expect(screen.getByTestId('style-section-width').textContent).toContain(S.sectionWidth);
+    expect(screen.getByTestId('style-section-width').textContent).not.toContain(S.chiselWidth);
+  });
+
+  it('the width minus/plus steppers carry the relabelled accessible name too', () => {
+    mountPanel({ tool: 'highlight' });
+    expect(screen.getByTestId('style-width-minus').getAttribute('aria-label')).toBe(`${S.chiselWidth} −`);
+    expect(screen.getByTestId('style-width-plus').getAttribute('aria-label')).toBe(`${S.chiselWidth} +`);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Project precision + unit format (D31)
 // ---------------------------------------------------------------------------
 

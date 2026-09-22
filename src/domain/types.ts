@@ -19,6 +19,16 @@ export interface AnnotationStyle {
   arrowheads: 'none' | 'start' | 'end' | 'both';
   fontSizeMu: number;         // text + dimension labels
   bold: boolean;
+  /**
+   * UI/GUI handoff pass (2026-09-22, D133): inset-only decoration. Additive/optional,
+   * same shape as `Annotation.visible` (types.ts) — an old `markup.json` has none of
+   * these keys, which reads as "off" everywhere they are consumed, so no schema
+   * version bump. See D133 for why `cornerRadius`/`polygonSides`/`arcRadius`/
+   * `textAlign`/`leader`/`eraseScope` are NOT here despite being named in the brief.
+   */
+  insetBorder?: boolean | null;
+  insetRadius?: number | null;
+  insetShadow?: boolean | null;
 }
 
 export const DEFAULT_STYLE: AnnotationStyle = {
