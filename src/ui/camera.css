@@ -365,7 +365,11 @@
 .camera-review {
   display: grid;
   place-items: center;
-  background: rgba(11, 14, 18, 0.92);
+  /* OPAQUE, like `.camera` itself. This used to be `rgba(11, 14, 18, 0.92)`, which let the
+     app's own chrome ghost through the capture surface (the project bar, its «Export»
+     button) — an overlay drawn over live UI read as a rendering fault. Full-bleed means
+     full-bleed (UI §10). */
+  background: var(--g900);
 }
 .camera-review-image {
   max-width: min(100%, 90vw);
