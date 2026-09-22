@@ -26,6 +26,9 @@ never infer progress from this file.
    signatures, test tables, and a checkable gate.
 5. **`docs/preflight-handoff-v0.3-hardened.md`** — the build spec. The authority on *what*.
    §2.4 is the v1 scope table and overrides everything.
+6. **`docs/clickthru-harness.md`** — how to *look at the app*: one command that drives the built app
+   with real touch/pen input on the Surface geometry and screenshots every step. Read it before you
+   claim anything "works end to end", and run it after any wave that changes what the user sees.
 
 Do not start a slice before reading its entry in the implementation plan in full.
 
@@ -92,6 +95,11 @@ A bug in any of these is a wrong measurement or a wrong artifact. Test them exha
   machine-checked: `tests/strings.test.ts`.
 - **Accessibility is per-slice**, not a final pass: focus order, visible focus ring, `aria-label`
   on every control, 48 px minimum target (touch-primary floor), no keyboard trap.
+- **Look at the app, don't just test it** — run **`npm.cmd run clickthru`** after any wave that
+  changes what the user sees, and read the contact sheet (`docs/clickthru-harness.md`). It is an
+  *inspection* tool, **never a gate**: do not wire it into `playwright.config.ts` or `npm run e2e`,
+  and a green run **never promotes a `[Surface]` row**. The last six owner-visible defects here were
+  all found by running the app, not by a green gate.
 - Commit at the end of each slice, with the slice number in the subject. Update
   `docs/BUILD-LOG.md` in the same commit.
 
@@ -104,6 +112,11 @@ instead of being done serially. If you are orchestrating, read **`docs/BUILD-RUN
 *before* dispatching — contended files, per-lane verification limits, the integration checklist —
 and hand every review lane **`docs/review-brief.md`**.
 
+The **clickthru** (`docs/clickthru-harness.md`) is the UI-verification tool. It needs the built app
+and port 4173 — both reserved by the lane protocol — so the **orchestrator** runs it, on the
+reconciled tree. Lanes still never write `docs/**`: they report findings and the orchestrator writes
+the entries.
+
 ---
 
 ## You do not have a Surface
@@ -112,6 +125,11 @@ Many gates are marked `[Surface]` (real hardware with a pen). You cannot run the
 **This does not block you.** Follow `docs/BUILD-RUNBOOK.md` §4: machine-checkable gates block the
 slice; `[Surface]` gates get logged to `docs/HARDWARE-TEST-CHECKLIST.md` and the slice proceeds.
 Never fake a `[Surface]` result, and never silently skip one.
+
+The clickthru harness (`docs/clickthru-harness.md`) now exercises the machine-checkable half on the
+real Surface geometry with real touch/pen input — but it is **emulation**. It still cannot prove
+contact geometry, palm physics, the digitiser pressure curve, OS gesture delays, camera optics,
+thermal behaviour or sunlight, so it **never promotes a `[Surface]` row**.
 
 ---
 

@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 22 — **the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **94 files / 1319 tests** · build 0 (26 precache, 1520.63 KiB) · playwright 5/5. Three rounds of the capture blocker are root-caused: **D121** (a Web Lock name collision — fixed and pinned), **D119/D120** (the honest failure surface and the bounded wait), and **D122** (the owner's folder grant is **`denied`**, which no prompt can fix — the app now offers a **re-pick** and `Settings → Storage → «Change folder…»` finally **adopts** the picked handle). **Both reviews of the wave landed and are discharged** — an executed correctness register (no wrong-measurement, no data-loss; one claim-fidelity inversion and one wiring-seam gap, both fixed) and a **measured** UI/UX review (three Highs, all fixed) — full register and owed items in **D118**. Owed here: the **real end-to-end run on hardware**, and four recorded review items (drag autoscroll, the inert scroll container/top bar, the editor's replace dialog, `aria-pressed` on the hold))
+**Last updated:** 2026-09-22 (session 23 — **there is now a clickthru harness: one command drives the *built* app end to end with real touch and pen input on the Surface geometry and screenshots every step**, so an agent can *look* at the app instead of trusting a green gate. `npm run clickthru` · `playwright.clickthru.config.ts` · `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc **`docs/clickthru-harness.md`**; a **`clickthru` skill**; an OMO orchestrator rule. **20 PASS / 0 FAIL / 0 UNREACHED** on a headed real Chrome 153 at `surfaceLandscape` 1440×960 @ DPR 2 (~30 s) with a self-contained contact sheet, and the existing `npm run e2e` gate is untouched. Two decisions en route: **D123** — the built-in desktop browser *loads* the app but cannot *drive* it (with no visible desktop window it has no screenshot and no click; and structurally no camera, no picker, no coordinate click, no `addInitScript`, and all permissions hard-denied), so **Playwright is the driver of record**; **D124** — **D81 is corrected**: the renderer death is on the IndexedDB **read** of an OPFS handle (`put` ✅ / `get` ❌), on the **same** page load and in both headed and headless builds, fixed for the harness by an `IDBObjectStore` sentinel shim, with OPFS verified as a real store. **D125** is the harness's first *product* finding: **`thumb.jpg` is never written for a captured sheet** — `CameraFlow` cancels its own 3 s debounce when it unmounts, and `tests/cameraFlow.test.tsx` hand-drives `write()` so it only asserts `schedule()` was *called* (a test that proves nothing) — plus the pen barrel being indistinguishable from the tip (**H13**) and a dimension's midpoint being a handle rather than the body. The harness's own caveats keep every `[Surface]` row `PENDING`). **Session 22 (retained):** (**the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **94 files / 1319 tests** · build 0 (26 precache, 1520.63 KiB) · playwright 5/5. Three rounds of the capture blocker are root-caused: **D121** (a Web Lock name collision — fixed and pinned), **D119/D120** (the honest failure surface and the bounded wait), and **D122** (the owner's folder grant is **`denied`**, which no prompt can fix — the app now offers a **re-pick** and `Settings → Storage → «Change folder…»` finally **adopts** the picked handle). **Both reviews of the wave landed and are discharged** — an executed correctness register (no wrong-measurement, no data-loss; one claim-fidelity inversion and one wiring-seam gap, both fixed) and a **measured** UI/UX review (three Highs, all fixed) — full register and owed items in **D118**. Owed here: the **real end-to-end run on hardware**, and four recorded review items (drag autoscroll, the inert scroll container/top bar, the editor's replace dialog, `aria-pressed` on the hold))
 
 ---
 
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **An independent executed review of the grid wave (D115–D117)** against the commit — data-critical `project.json` code plus a shell rewire, so it earns the same treatment as D114. Then the handoff's §3 path **run for real** on a machine with a webcam (built app → new project → camera → shutter → dimension → text → export → open the PDF): that run, not another test, is what turns this into a beta. Then the **paused 1.10 polish**: the History flyout (`writeHistorySnapshot` still has no caller), the end-to-end a11y audit, the arrow nudge, and D101's label-halo fix; the PDF caption placement (F1) and the `Skip`-row copy sign-off (F4) still need the content owner. Then 2.0 |
+| Next action | **Fix D125's `thumb.jpg` defect** (a captured sheet never gets a thumbnail) — it is the capture path's **third** escape in a row, all in the same unmount/lifecycle seam. Then **an independent executed review of the grid wave (D115–D117)** against the commit — data-critical `project.json` code plus a shell rewire, so it earns the same treatment as D114. The handoff's §3 path now has a **machine harness** — `npm run clickthru`, 20 steps green on the Surface profile (`docs/clickthru-harness.md`) — so what is left of it is the **devices half**: a real webcam, real File System Access on a real disk, and the `[Surface]` rows, which no emulation promotes. Then the **paused 1.10 polish**: the History flyout (`writeHistorySnapshot` still has no caller), the end-to-end a11y audit, the arrow nudge, and D101's label-halo fix; the PDF caption placement (F1) and the `Skip`-row copy sign-off (F4) still need the content owner. Then 2.0 |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -897,6 +897,50 @@ content-owner items.
    is **cross-tab** (recorded; the fake had taught the opposite). Written up for the next session in
    **`docs/handoff-capture-save.md`**.
 
+### 2026-09-22 — Session 23: the clickthru harness (look at the app, don't just test it)
+
+Three lanes — an `@explorer` recon of the existing e2e/boot surface, an independent `@librarian` review of
+what the built-in desktop browser can actually do, and one `@fixer` build lane — plus direct orchestrator
+measurement of the candidate failure modes *before* anything was delegated.
+
+**The requirement** was a repeatable clickthru an agent with vision can run. The two candidate drivers were
+**measured, not assumed** (**D123**): the built-in desktop browser loads and renders the app correctly
+(`styleSheets: 1`, Archivo, DPR 2, OPFS available) and its `evaluate`/`snapshot`/`wait`/`console` all work
+— but `browser.screenshot` refuses without a **visible** desktop window and `browser.click` fails
+`UnknownVizError`, so it has **no vision and no input**; and the independent source review confirms the rest
+is **structural** (ref-only clicking, no `addInitScript`, no CDP access, no launch flags, `browser.dialog`
+for JS dialogs only, **all permissions hard-denied**) — which makes the camera step impossible there by
+construction. So **Playwright is the driver of record**: already pinned, so spec §2.2's closed runtime list
+is intact.
+
+**The blocker that took measurement** was the folder picker plus the D81 renderer death. Isolating it one
+operation at a time (**D124**) **corrected D81**: `IDB put` of an OPFS handle **succeeds**; `IDB get`
+**kills the renderer** — on the *same* page load, because Home re-reads its root the moment first-run
+completes. It reproduces headed *and* headless, so the variable is the Chromium **build** (consistent with
+D86). The harness fixes it with a ~20-line `IDBObjectStore` sentinel shim that keeps the handle from ever
+round-tripping, and OPFS was then verified as a genuine backing store — `queryPermission` granted,
+`createWritable()`, **`move()`** and the exact `NotFoundError` semantics `createProject` needs.
+
+**Shipped:** the three Surface profiles, a raw-CDP gesture lab (tap-tap with the 450 ms settle, 600 ms
+long-press, one-finger drag, two-finger pan, second-finger cancel-and-restore, pinch, palm+tap, and pen with
+force/hover/barrel), the rotation gate, per-step screenshots + `run.json` evidence + a self-contained
+contact sheet, `npm run clickthru`, **`docs/clickthru-harness.md`**, the **`clickthru` skill**, and an OMO
+orchestrator rule. **20 PASS / 0 FAIL / 0 UNREACHED** at 1440×960 @ DPR 2; `playwright.config.ts` and
+`npm run e2e` untouched.
+
+**First product finding (D125):** a captured sheet **never gets `thumb.jpg`** — absent at all 20 steps,
+including after the dimension persisted and after a reload — because `CameraFlow` arms a 3 s debounce and
+then **unmounts** on `onCaptured`, whose cleanup **cancels** the scheduler. `tests/cameraFlow.test.tsx`
+**mocks the scheduler** and calls `options.write()` by hand, so it asserts `schedule()` was *called* and
+structurally cannot see the file — the review brief's *a test that proves nothing*, in its purest form.
+Also recorded: the pen barrel is indistinguishable from the tip (**H13**), and a dimension's midpoint is a
+handle rather than the body.
+
+**Honesty boundary:** the run emits **13 caveats** and states that a green run **never** promotes a
+`[Surface]` row. It also flagged — and deliberately did **not** assert — a `data-rail="right"` rail-side
+oddity, because the build under test contained a concurrent lane's uncommitted `src/styles.css` /
+`EditorLayout.tsx`; confirm on a clean tree (D66).
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -1256,6 +1300,29 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   still has no caller), the end-to-end **a11y audit**, the **arrow nudge**, and the content-owner items
   (the PDF caption placement and the two `Skip`-row strings).
 
+## Known drift / watch items (session 23)
+
+- **`thumb.jpg` is never written for a captured sheet (D125).** The capture path's **third** escape in a
+  row, all in the same unmount/lifecycle seam (D119/D120 → D121 → D122 → now the thumbnail). The fix likely
+  needs the scheduler **flushed** (or its write awaited) before `CameraFlow` unmounts — and
+  `tests/cameraFlow.test.tsx` must stop mocking `write()` before it can see anything.
+- **The pen barrel button is not distinguished from the tip** — a `buttons: 2` press with freehand active
+  **draws** a stroke. Feeds **H13**; the documented degrade path (radial absent rather than broken) holds,
+  but the button is not currently readable as a distinct signal.
+- **Rail renders left-most while `data-rail="right"`,** and `src/styles.css` has no
+  `[data-rail='right'] .tool-rail { order }` rule. **Observation only** — the build under test contained a
+  concurrent lane's uncommitted CSS, so confirm on a clean tree before filing it as a defect (D66).
+- **The clickthru is not a gate and must never become one.** It lives outside `playwright.config.ts` and
+  `npm run e2e`; the fastest way to lose its value is to let a green run be read as a `[Surface]` pass.
+- **Concurrent writers.** While this session ran, another lane held ~25 modified files (`projectStore.ts`,
+  `styles.css`, `EditorLayout.tsx`, `ProjectScreen.tsx`, `StylePanel.tsx`, the 14 tool icons,
+  `sheetReorder.ts` and their tests) plus three new test files, and `main` advanced three commits. Commit by
+  **explicit path**, never `git add -A`, and re-check `git status` immediately before committing.
+- Carried: D105 (judge appearance from the built app, never `npm run dev`), D106 (the export owed list),
+  D107 (chip/toast items), D101 (the on-screen label halo), the **History flyout** (`writeHistorySnapshot`
+  still has no caller), the end-to-end **a11y audit**, the **arrow nudge**, and the content-owner items
+  (the PDF caption placement and the two `Skip`-row strings).
+
 ## How to resume
 
 1. Read this file.
@@ -1272,3 +1339,5 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
 8. At step 2 of each slice, check `docs/CHECKPOINTS.md` for a checkpoint that fires, and log the
    slice in `docs/BUILD-LOG.md` in the same commit. Copy strings from `docs/appendix-strings.md` into
    `src/ui/strings.ts` — never invent wording.
+9. Before claiming anything works end to end, run `npm.cmd run clickthru` and read the contact sheet —
+   `docs/clickthru-harness.md`. It is an inspection tool, never a gate.

@@ -1437,3 +1437,69 @@ handle's permission, which is why a folder change looked like it did nothing.
 expired" diagnosis.
 
 **Next:** the owner re-picks the folder (and reloads manually on the build they have), then captures again.
+
+---
+
+## Clickthru harness — drive the whole app with real touch/pen, then look at the pixels
+
+**Date:** 2026-09-22 · **Commit:** this commit · **Not a slice** — verification tooling.
+
+**Why:** `docs/handoff-session-21.md` §2 records it plainly — *"No agent has ever driven the app end to
+end."* Several of the recent owner-visible defects were all found by **running** the app, never by a green
+gate. This harness closes that loop for the machine-checkable half.
+
+**Built:**
+- `playwright.clickthru.config.ts` — a **separate** config (headed real Chrome, `video: 'on'`,
+  `reuseExistingServer: true`). **`playwright.config.ts` and `npm run e2e` are untouched.**
+- `tests/clickthru/devices.ts` — the three Surface profiles (1440×960 / 960×1440 / 1200×800, all DPR 2,
+  `hasTouch`, desktop UA, `isMobile: false`), plus the rotation gate.
+- `tests/clickthru/gestures.ts` — a raw-CDP gesture lab: tap-tap (450 ms settle), 600 ms long-press,
+  one-finger drag, two-finger pan, second-finger cancel-and-restore, pinch, palm+tap, and pen
+  stroke/hover/barrel via `pointerType: 'pen'`. **Never synthetic `dispatchEvent`** (D77/F1).
+- `tests/clickthru/{harness.ts,betaPath.spec.ts,README.md}` — 20 steps, per-step screenshots, `run.json`,
+  video, and a self-contained `contact-sheet.html`.
+- `npm run clickthru` → `test-results/clickthru/latest/` (gitignored).
+
+**Machine gates (this commit's tree):**
+- [x] `npm.cmd run clickthru` → **20 PASS / 0 FAIL / 0 UNREACHED**, headed real Chrome 153,
+  `surfaceLandscape` 1440×960 @ DPR 2, ~30 s. Export artifact read back out of OPFS: **279,266 bytes**,
+  magic `%PDF`.
+- [x] `npx tsc --noEmit` → **no errors in this change set**. The tree currently reports one **unrelated**
+  error in a concurrent lane's brand-new file (`tests/_glyphpreview.browser.test.tsx`: `Cannot find
+  namespace 'JSX'`), which is not mine to fix.
+- [x] The **existing** `npm run e2e` and `vitest` gates are **byte-identical and unaffected**: this change
+  adds no `tests/**/*.test.ts(x)` file and does not touch `playwright.config.ts`. They were **not** re-run
+  here, because the tree holds another lane's uncommitted work and a result would not be attributable to
+  this commit (D66: a recorded gate must be reproducible from the commit it names).
+
+**Deferred to hardware:** everything `[Surface]`. The harness records **13 caveats** in `run.json` and in
+the contact sheet, and states that a green run **never** promotes a `[Surface]` row.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D123** (the built-in desktop browser can load the app but cannot drive it → the
+driver of record is Playwright), **D124** (D81 corrected: the renderer death is on the IndexedDB **read**
+of an OPFS handle; the sentinel shim; OPFS verified as a real store), **D125** (a captured sheet never
+writes `thumb.jpg` — and the test that structurally cannot see it).
+
+**Surprises:**
+1. **`thumb.jpg` is never written for a captured sheet** (absent at all 20 steps; the grid card can only
+   show its placeholder). `CameraFlow` arms a 3 s thumbnail debounce and then **unmounts**, and its cleanup
+   **cancels** the scheduler — so the debounce can never elapse. `tests/cameraFlow.test.tsx` **mocks the
+   scheduler** and calls `options.write()` by hand, so it asserts only that `schedule()` was *called*: the
+   review brief's first question, *a test that proves nothing*, in its purest form. **Recorded, not fixed.**
+2. **D81's mechanism was wrong.** It is not the write and not "the next load": the renderer dies on
+   **`IDB get`** while **`put` succeeds**, on the **same** page load (Home re-reads its root the moment
+   first-run completes). Reproduced headed *and* headless, so the variable is the Chromium **build**.
+3. **The pen barrel button is not distinguished from the tip** — a `buttons: 2` press with freehand active
+   **draws**, exactly like a tip stroke. Evidence for **H13**.
+4. **A dimension's midpoint is a handle, not the body** — dragging from the exact midpoint does not move
+   the object (the harness's first step-7 FAIL); from 25 % along the body it moves. jsdom cannot see this.
+5. **`[data-tool]` is ambiguous** — the `StylePanel` root carries `data-tool` as well as the tool rail, so
+   an unscoped locator throws a strict-mode violation once the panel's tool matches.
+6. Flagged for the owning lane, **not** asserted: the rail renders left-most while `data-rail="right"`, and
+   `src/styles.css` has no matching `[data-rail='right'] .tool-rail { order }` rule. The build under test
+   contained a **concurrent lane's uncommitted** `src/styles.css` / `EditorLayout.tsx`, so confirm on a
+   clean tree before calling it a defect.
+
+**Next:** fix D125's `thumb.jpg` defect; then the independent review of the grid wave (D115–D117).
