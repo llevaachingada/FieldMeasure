@@ -611,3 +611,43 @@ what sets it.
 
 **Gate on the pushed tree (`250668c`):** `tsc` 0 · `vitest` **71 files / 1015 tests** (node + jsdom +
 browser) · `build` 0 (17 precache, 857.62 KiB) · `playwright` 5 passed / 5 skipped.
+
+### 2026-09-22 — Session 15: the D84 root cause isolated and fixed; the suite green on Windows for the first time
+
+**Session 15 pulled the branch (`claude/amazing-carson-ocp8q7`, top `b2d6dea`) onto the Windows build
+machine and reproduced the gate before changing a line — and the reproduction FAILED**, which is exactly
+what that rule exists for:
+
+- `tsc --noEmit` → 0 ✅ · `npm run build` → 0 (17 precache, 857.62 KiB) ✅ · `playwright` 5 passed /
+  5 skipped ✅ · **`CI=true vitest run` → 71 files / 1015 tests passed but the run exited 1 with 5
+  unhandled rejections**, all `PresetsBindingError` from `presets.ts` (D91's guard firing at use time).
+
+**The investigation (D95):** the D90 owed experiment was run first — reverting `presets.ts` to a named
+import still failed with the exact recorded D84 `SyntaxError`, and `optimizeDeps.entries` (D90 step 2)
+changed nothing, killing the mid-run re-optimization hypothesis for good. Serving the dev server's own
+transformed `projectStore.ts` in a real browser tab showed all 33 exports present and importable — the
+module was never the problem. The cause: **six browser suites mock `@/fs/projectStore` with factory
+functions that predate slice 1.8 and omit the three presets bindings.** A `vi.mock` factory replaces the
+whole namespace, so the named import was a link-time SyntaxError (D84's symptom) and the namespace import
+yielded `undefined` → `PresetsBindingError` at use time (the Windows symptom). Both recorded symptoms,
+one cause — the mocks, on both platforms; the Linux gate simply swallowed the rejections.
+
+**Fixed (all executed):** the six factories spread `importOriginal` first and override only what they
+drive, with an explicit `resolveFieldMeasureDir` stub reporting `.fieldmeasure/` absent (these suites do
+not exercise presets); `presets.ts` is back to an ordinary **named import** (D90's answer: it links
+cleanly with complete mocks, and makes any future missing binding a loud link error); the use-time guard
+STAYS, with the bindings referenced directly — a snapshot object version blinded the guard and was caught
+by `tests/presetsLinking.test.ts` failing (4 tests) before it could ship. Windows environment notes
+recorded in D95: `core.autocrlf=true` had CRLF-rewritten 33 source files (re-smudged to LF); node here
+is 24.19.0; the CRLF hypothesis for the link error was tested and disproved.
+
+**Gate on the repaired tree (this commit):** `tsc` 0 · `vitest` **71 files / 1015 tests, 0 errors**
+(node + jsdom + browser) · `build` 0 (17 precache, 857.62 KiB) · `playwright` 5 passed / 5 skipped.
+
+**Deferred to hardware:** H8, H12, H19, H20, H21, H22 unchanged (1.9's rows; nothing this session could
+measure on a dev box).
+
+**Checkpoints fired:** none.
+
+**Next:** the independent review of the session-14 batch (dispatched; findings register pending), then
+`src/export/runExport.ts` + mounting the wizard (handoff-14 §3) — the first end-to-end export.

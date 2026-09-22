@@ -1992,3 +1992,33 @@ intersection still uses the `highlight` row, and `tsc`, node, jsdom and browser 
 by re-introducing exactly that divergence). `StylePanel` imports one pure data constant — no hook, no
 store read, no runtime cycle — and its header records the narrowing. If the seam must stay byte-pure, a
 third module both files import is a five-minute change.
+### D95
+
+**D84's root cause is ISOLATED by execution, and the D90 experiment has a definitive answer: the
+namespace import is reverted to a named import.** The recorded "link error" was never Vite. Six browser
+suites (`insetWire`, `layersWire`, `layersReorder`, `markupTools`, `sheetEditor`, `sheetEditor.dimension`)
+mock `@/fs/projectStore` with factory functions that list only the bindings each suite drives, and those
+factories predate slice 1.8 — so they omit `resolveFieldMeasureDir`, `resolveOpenProjectDir` and
+`writePresetsFile`. A `vi.mock` factory replaces the whole module namespace: a named import of an omitted
+binding is a **link-time** `SyntaxError` (the exact D84 error), while `import * as` silently yields
+`undefined` and the D91 guard throws `PresetsBindingError` at use time. Both recorded symptoms, one
+cause. The Linux gate did not surface the resulting use-time rejections; the first Windows run reported
+them as 5 unhandled rejections, which is what reopened the case.
+
+Fixes, all executed: (1) the six factories now spread `importOriginal` first and override only what they
+drive, plus an explicit `resolveFieldMeasureDir` stub that reports `.fieldmeasure/` as absent (the
+suites do not exercise presets), so the failure mode cannot silently re-create itself when a new binding
+is added; (2) `presets.ts` is back to an ordinary named import — with complete mocks it links cleanly,
+and a named import turns any future missing binding into a loud link error instead of a use-time
+undefined; (3) the use-time guard (`requireBinding` + `isProgrammingError`) STAYS — the named bindings
+are referenced directly (never snapshotted into an object; a snapshot freezes the values at module-eval
+time and blinds the guard against the post-eval hiding `tests/presetsLinking.test.ts` performs — found
+by that test failing when the interim version did exactly that). Full gate re-run green on the repaired
+tree: tsc 0, vitest 71 files / 1015 tests 0 errors, build 0 (17 precache, 857.62 KiB), playwright 5
+passed / 5 skipped.
+
+**Also recorded: the Windows environment facts the handoff guessed wrong.** `core.autocrlf=true` on this
+machine silently rewrote working-tree files to CRLF (33 src/test files); the tree was re-smudged to LF
+with `git config core.autocrlf false` + `git read-tree HEAD` + `git checkout-index -f -a`. Node on this
+box is 24.19.0 (package.json's >=24 satisfied — the handoff's node-22 note does not apply). The CRLF
+hypothesis for the link error was tested and DISPROVED: LF made no difference; the mocks were the cause.

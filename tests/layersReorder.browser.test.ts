@@ -26,8 +26,21 @@ import { useAppStore, createInitialAppState } from '../src/state/appStore';
 import { STRINGS } from '../src/ui/strings';
 import { subscribeToast, resetToastBus, editorSession } from '../src/editor/session';
 
-vi.mock('@/fs/projectStore', () => ({
+vi.mock('@/fs/projectStore', async (importOriginal) => ({
+  // Spread the REAL module first (session 15, D90 follow-up): presets.ts resolves its
+  // projectStore bindings at use time from this namespace (D84/D91), so any binding the
+  // factory omits arrives as `undefined` and loadPresets throws PresetsBindingError at
+  // use time. The explicit vi.fn() overrides below replace only what this suite drives;
+  // everything else stays real so an incomplete factory can never silently re-create
+  // the missing-export failure mode.
+  ...(await importOriginal<typeof import('@/fs/projectStore')>()),
   registerOpenProject: vi.fn(),
+  // This suite does not exercise presets: report `.fieldmeasure/` as absent so
+  // loadPresets resolves to { ok: true, presets: empty } (a fresh project),
+  // never a PresetsBindingError from the real resolver spread in above.
+  resolveFieldMeasureDir: vi.fn(async () => {
+    throw new DOMException('no .fieldmeasure dir in this suite', 'NotFoundError');
+  }),
   clearOpenProject: vi.fn(),
   acquireWriterLease: vi.fn(async () => ({ held: true, release: vi.fn() })),
   openProjectChannel: vi.fn(() => null),

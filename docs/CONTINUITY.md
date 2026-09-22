@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 14 — **slice 1.9's export modules ship and the §4.2 invariant is proven in real pixels**; the independent review session 13 deferred was RUN and **7 of its 9 findings are fixed**, including two data-integrity bugs in shipped code; D84's recorded root cause is **disproved** (D90). **Work is on branch `claude/amazing-carson-ocp8q7`, PR #2 — `main` is still at `4a12168`.** Next: `src/export/runExport.ts` + mounting the wizard — see `docs/handoff-session-14.md` §3)
+**Last updated:** 2026-09-22 (session 15 — the branch was pulled to the **Windows** build machine and the gate was reproduced BEFORE any change: **it failed** — 1015/1015 tests pass but 5 `PresetsBindingError` unhandled rejections, the D84 "link error" resurfacing. **D84's root cause is now isolated by execution (D95): six browser suites mock `@/fs/projectStore` with factories that predate 1.8 and omit the presets bindings** — a named import is a link-time SyntaxError, a namespace import yields `undefined` at use time. Both symptoms, one cause; the Linux gate had swallowed it. Fixed: complete mocks + `presets.ts` back to a named import (D90 answered); the guard stays. Gate green on Windows for the first time. An independent review of the session-14 batch is IN FLIGHT; `runExport.ts` is next)
 
 ---
 

@@ -28,30 +28,47 @@
 import type { AnnotationStyle } from '@/domain/types';
 import type { ToolId } from '@/ui/ToolRail';
 import { AnnotationStyleZ } from '@/domain/schema';
-// A NAMESPACE import, deliberately — NOT a named-import list.
+// Session 15 (D90 resolved): this is a NAMED import again, and that is deliberate too.
 //
-// In the Vitest **browser** project a named import from this module failed to LINK:
-//   SyntaxError: The requested module '/src/fs/projectStore.ts' does not provide an export
-//   named 'resolveFieldMeasureDir'
-// …while the export demonstrably exists: `tsc --noEmit`, the rolldown build, node+jsdom,
-// and an `import * as` namespace probe in the SAME browser context all see it. Resolving the
-// bindings at use time is behaviour-identical and avoids the link-time name check.
-// Recorded in DECISIONS D84.
+// History: this was `import * as projectStore` (D84) because a named import failed to
+// LINK in the browser project — `SyntaxError: … does not provide an export named
+// 'resolveFieldMeasureDir'` — while every other gate saw the export. D84's recorded
+// root cause (mid-run dep re-optimization because `EditorLayout` is lazy) was DISPROVED
+// by the session-14 review, and the cause stayed unisolated, so the namespace import was
+// GUARDED (`requireBinding` + `isProgrammingError`) rather than trusted.
 //
-// D84's *recorded root cause* is DISPROVED (session-14 review, finding 5): it blamed Vite
-// discovering `zod` as a NEW bare import here because `EditorLayout` is lazy. Both halves are
-// false against the import graph — `projectStore` itself reaches `zod` through
-// `../domain/schema` (`src/domain/schema.ts:32`), so every failing suite already had `zod` in
-// its scan; and the three failing suites import `EditorLayout` STATICALLY
-// (`tests/insetWire.browser.test.ts:25`, `tests/layersWire.browser.test.ts:23`,
-// `tests/sheetEditor.dimension.browser.test.ts:20`) — it is lazy only at `src/App.tsx:29`.
-// The `import { z } from 'zod'` this module used to carry was moreover UNUSED, and has been
-// removed. The cause is therefore still unknown, which is exactly why the namespace import is
-// now GUARDED rather than trusted: `import * as` yields `undefined` for a missing export
-// instead of throwing at link time, so a recurrence would otherwise surface as a `TypeError`
-// inside the IO catches below and be reported to the user as a CORRUPT PRESETS FILE.
-// `requireBinding` + `isProgrammingError` make that impossible; see `tests/presetsLinking.test.ts`.
-import * as projectStore from './projectStore';
+// ROOT CAUSE, isolated by execution on the Windows machine (session 15): the mechanism
+// was never Vite. Three browser suites (and three more like them) mock `@/fs/projectStore`
+// with FACTORY functions that list only the bindings each suite drives — and the factories
+// predate slice 1.8, so they omit `resolveFieldMeasureDir`, `resolveOpenProjectDir` and
+// `writePresetsFile`. A vi.mock factory replaces the whole module namespace, so a named
+// import of an omitted binding is a LINK-TIME SyntaxError — the exact recorded error —
+// while `import * as` silently yields `undefined` and the guard throws PresetsBindingError
+// at use time instead. Both symptoms, one cause. (The Windows run surfaced it as 5
+// unhandled rejections where the Linux gate swallowed them; the mocks were broken on
+// both.) The factories now spread `importOriginal` first and override only what they
+// drive, so the failure mode cannot silently re-create itself when a new binding is
+// added to projectStore.
+//
+// A named import is strictly safer here: it turns any future missing binding into a loud
+// link-time error instead of a use-time undefined. The use-time guard stays — defence in
+// depth — because `tests/presetsLinking.test.ts` proves a missing binding can never be
+// laundered into a user-facing «corrupt file» / «folder unavailable» data error, which is
+// the actual harm D91 fixed. Do not re-namespace this import without re-running the D90
+// experiment; see DECISIONS D95.
+import {
+  resolveFieldMeasureDir,
+  resolveOpenProjectDir,
+  writePresetsFile,
+} from './projectStore';
+
+// NOTE: the three bindings above are referenced DIRECTLY in the functions below, never
+// copied into an intermediate object. ESM imports are LIVE bindings: `tests/presetsLinking
+// .test.ts` hides a binding through a mock getter AFTER this module has been evaluated,
+// and `requireBinding` must see that hidden state at use time. A `const projectStore = {
+// resolveFieldMeasureDir, … }` snapshot would freeze the values at module-eval time and
+// silently blind the guard (found by that test failing when this file briefly did exactly
+// that during the D90 experiment).
 
 /** Bump when the on-disk shape changes; unknown versions parse leniently today. */
 export const PRESETS_SCHEMA_VERSION = 1;
@@ -236,11 +253,11 @@ export async function readPresetsFromDir(
   const dir = projectDir as FileSystemDirectoryHandle;
   let fieldDir: FileSystemDirectoryHandle;
   try {
-    const resolveFieldMeasureDir = requireBinding(
+    const resolveFieldMeasureDirFn = requireBinding(
       'resolveFieldMeasureDir',
-      projectStore.resolveFieldMeasureDir,
+      resolveFieldMeasureDir,
     );
-    fieldDir = await resolveFieldMeasureDir(dir, { create: false });
+    fieldDir = await resolveFieldMeasureDirFn(dir, { create: false });
   } catch (e) {
     if (isProgrammingError(e)) throw e; // our bug — never «your presets file is corrupt»
     return (e as DOMException)?.name === 'NotFoundError' ? { kind: 'missing' } : { kind: 'corrupt' };
@@ -276,11 +293,11 @@ export type PresetsLoadResult =
 export async function loadPresets(projectId: string): Promise<PresetsLoadResult> {
   let projectDir: FileSystemDirectoryHandle;
   try {
-    const resolveOpenProjectDir = requireBinding(
+    const resolveOpenProjectDirFn = requireBinding(
       'resolveOpenProjectDir',
-      projectStore.resolveOpenProjectDir,
+      resolveOpenProjectDir,
     );
-    projectDir = await resolveOpenProjectDir(projectId);
+    projectDir = await resolveOpenProjectDirFn(projectId);
   } catch (e) {
     if (isProgrammingError(e)) throw e;
     return { ok: false, error: 'folder-unavailable' };
@@ -293,13 +310,13 @@ export async function loadPresets(projectId: string): Promise<PresetsLoadResult>
 
 /** Write presets for an OPEN project (atomic, lock-guarded). Throws on write failure. */
 export async function savePresets(projectId: string, file: PresetsFile): Promise<void> {
-  const resolveOpenProjectDir = requireBinding(
+  const resolveOpenProjectDirFn = requireBinding(
     'resolveOpenProjectDir',
-    projectStore.resolveOpenProjectDir,
+    resolveOpenProjectDir,
   );
-  const writePresetsFile = requireBinding('writePresetsFile', projectStore.writePresetsFile);
-  const projectDir = await resolveOpenProjectDir(projectId);
-  await writePresetsFile(projectDir, file, projectId);
+  const writePresetsFileFn = requireBinding('writePresetsFile', writePresetsFile);
+  const projectDir = await resolveOpenProjectDirFn(projectId);
+  await writePresetsFileFn(projectDir, file, projectId);
 }
 
 /** Write presets to an already-resolved project directory (used by tests and callers that hold the dir). */
@@ -308,6 +325,6 @@ export async function savePresetsToDir(
   file: PresetsFile,
   projectId: string,
 ): Promise<void> {
-  const writePresetsFile = requireBinding('writePresetsFile', projectStore.writePresetsFile);
-  await writePresetsFile(projectDir as FileSystemDirectoryHandle, file, projectId);
+  const writePresetsFileFn = requireBinding('writePresetsFile', writePresetsFile);
+  await writePresetsFileFn(projectDir as FileSystemDirectoryHandle, file, projectId);
 }
