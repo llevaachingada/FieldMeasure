@@ -39,6 +39,7 @@ A map of everything in this repository. Last updated **2026-09-22 (session 17 �
 | `docs/gui-ux-readiness-and-design-handoff.md` | **Session-5 senior GUI/UX readiness report + design handoff** — architecture assessment, the Claude Design verdict, the pre-code tooling stack, contradiction register C1–C14, the pre-code decision package, and the touch workstream. |
 | `docs/touch-first-interaction-model.md` | **Session-5 touch-first interaction design** — one `PlacementController`, the 450 ms settle window, the touch loupe, the Offset Nudge Pad, the object-first drag predicate, tap precedence, the gesture budget, latency budgets and the required spec deltas. |
 | `docs/investigation-torch-and-capture.md` | **Investigation (owner request, 2026-09-22)** — is the ⚡ Torch toggle able to fire the camera LED on a Surface, and is photo capture/import complete? Verdict: the toggle is wired to the real `applyConstraints({ torch })` path, but Windows/Chromium does not expose a torch capability, so the LED cannot be driven from the browser (platform limitation, `[Surface]`-verifiable). Capture and import are both complete and atomic. Carries two un-numbered candidate items. |
+| `docs/handoff-session-21.md` | **Session-21 handoff → the next orchestrator (to the beta).** The state in one screen, exactly what is verified and what is *not*, the beta-critical path, the traps that already cost time (dev-CSP, the D51 registry key, this shell), the one review question worth asking every time, the owed work in beta-priority order, orchestration lessons, and the independent review register for the trash/grid wave. **Read it before resuming.** |
 
 ## docs/ — superseded (kept for history)
 
@@ -98,14 +99,16 @@ A map of everything in this repository. Last updated **2026-09-22 (session 17 �
 1. `README.md` — orientation.
 2. `docs/BUILD-RUNBOOK.md` — how to work: the slice loop, gate policy, `[Surface]` deferral, three-strike rule.
 3. `docs/CONTINUITY.md` — where things stand right now.
-4. `docs/review-session-4-hardening.md` — what the latest review found, and how to review.
-5. `docs/implementation-plan.md` — the execution order and gates.
-6. `docs/preflight-handoff-v0.3-hardened.md` — the build spec (start with §2.4, the v1 scope table;
+4. `docs/handoff-session-21.md` — **the previous session's handoff**: what is verified vs assumed, the traps
+   that already cost time, and the owed work in beta-priority order. Read this before resuming.
+5. `docs/review-session-4-hardening.md` — what the latest review found, and how to review.
+6. `docs/implementation-plan.md` — the execution order and gates.
+7. `docs/preflight-handoff-v0.3-hardened.md` — the build spec (start with §2.4, the v1 scope table;
    then the session-4 changelog rows 21–38, §5.8, §19, and the session-4b §20–§21).
-7. `docs/ui-spec-field-measure-v2-hardened.md` — the UI.
-8. `docs/appendix-strings.md` — every user-visible string, keyed for `src/ui/strings.ts`.
-9. `docs/CHECKPOINTS.md` — the C1–C10 checkpoints; `docs/BUILD-LOG.md` — where the build stands.
-10. `docs/DECISIONS.md` — why things are the way they are.
-11. `docs/touch-first-interaction-model.md` — the touch-first interaction design (read with the UI spec).
-12. `docs/gui-ux-readiness-and-design-handoff.md` — the session-5 GUI/UX readiness review and its reasoning.
-13. `docs/review-brief.md` — hand this to any review lane; it is the checklist of defects that have already shipped here once.
+8. `docs/ui-spec-field-measure-v2-hardened.md` — the UI.
+9. `docs/appendix-strings.md` — every user-visible string, keyed for `src/ui/strings.ts`.
+10. `docs/CHECKPOINTS.md` — the C1–C10 checkpoints; `docs/BUILD-LOG.md` — where the build stands.
+11. `docs/DECISIONS.md` — why things are the way they are.
+12. `docs/touch-first-interaction-model.md` — the touch-first interaction design (read with the UI spec).
+13. `docs/gui-ux-readiness-and-design-handoff.md` — the session-5 GUI/UX readiness review and its reasoning.
+14. `docs/review-brief.md` — hand this to any review lane; it is the checklist of defects that have already shipped here once.
