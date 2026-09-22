@@ -15,8 +15,8 @@
  * comment below): `recoverFromHistory` (referenced by §5.3 but not given),
  * history snapshotting (§5.5/§5.8e), path helpers for the §3.1 layout,
  * `readProjectFile`/`readSheetMarkup` wrappers, `isPhotoDamaged` (§5.3), the
- * deterministic writer lease + BroadcastChannel (§5.8d/§5.4), and `scanProjects`
- * (§5.6/§5.8c).
+ * deterministic writer lease + BroadcastChannel (§5.8d/§5.4), `scanProjects`
+ * (§5.6/§5.8c), and `createProject` (Home «New project»: an app-named subfolder).
  *
  * SPEC DELTAS (reported, not silently taken):
  *  - `pickRoot` persists through `src/settings/projectsRoot.ts` instead of the
@@ -34,11 +34,19 @@
 import { setProjectsRoot } from '../settings/projectsRoot';
 import { newId } from '../domain/ids';
 import {
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_PRECISION_DENOMINATOR,
+  DEFAULT_UNIT_FORMAT,
+} from '../domain/migrate';
+import {
   parseMarkupFile,
   parseProjectFile,
   type MarkupFile,
   type ProjectFile,
 } from '../domain/schema';
+// The new-project folder name is the APPROVED Home copy (`STRINGS.home.newProject`,
+// 'New project') — there is no new copy and no name prompt (§2.4).
+import { STRINGS } from '../ui/strings';
 import { chooseBackend, ROOT_LOCK_SCOPE, type MovableFileHandle, type StorageBackend } from './backend';
 
 type MaybePromise<T> = T | Promise<T>;
@@ -692,6 +700,86 @@ export async function makeProjectSeparate(
   await writeJsonAtomic(projectDir, 'project.json', updated, projectId);
   registerOpenProject(nextId, folderName);
   return nextId;
+}
+
+/* ------------------------------------------------------------------ *
+ * Create a new project folder (Home «New project»)
+ * ------------------------------------------------------------------ */
+
+/** Bound on folder-name probing — a pathological root cannot hang the button. */
+export const MAX_NEW_PROJECT_NAMES = 200;
+
+export interface CreatedProject {
+  /** Fresh `crypto.randomUUID()` project id. */
+  id: string;
+  /** The generated, free folder name under the projects root. */
+  folderName: string;
+  /** The exact envelope written to `project.json`. */
+  projectFile: ProjectFile;
+  /** The created folder handle (`root/<folderName>`). */
+  projectDir: FileSystemDirectoryHandle;
+}
+
+/**
+ * Create a new project as an APP-NAMED subfolder of the projects root (product
+ * decision: «New project» creates a folder — no OS picker and no name prompt).
+ *
+ * Naming: the approved Home copy `STRINGS.home.newProject` ('New project'), then
+ * 'New project 2', 'New project 3', … A name is free when `getDirectoryHandle(name,
+ * { create: false })` throws NotFoundError. An EXISTING folder is NEVER adopted by a
+ * "new project" action (that would silently reopen old work). The probe is bounded by
+ * `MAX_NEW_PROJECT_NAMES` and throws when exhausted.
+ *
+ * `title` defaults to the chosen folder name; the user may rename the TITLE later,
+ * which (per its own copy) does not rename the folder on disk.
+ *
+ * The write goes through the ONE atomic helper, `writeJsonAtomic`, keyed by the D51
+ * runtime key `${id}:${folderName}` (also the per-project Web Lock key).
+ * Callers (Home) treat a throw as a silent no-op — error surfacing is slice 1.10.
+ */
+export async function createProject(options?: { title?: string }): Promise<CreatedProject> {
+  const root = await getRootDir();
+  if (!root) throw new Error('no projects root is open');
+
+  const base = STRINGS.home.newProject; // 'New project' — approved copy
+  let folderName: string | null = null;
+  for (let n = 1; n <= MAX_NEW_PROJECT_NAMES; n += 1) {
+    const candidate = n === 1 ? base : `${base} ${n}`;
+    try {
+      // `create: false` THROWS NotFoundError when the name is free; resolving means
+      // the folder already exists, so this candidate is skipped (never adopted).
+      await root.getDirectoryHandle(candidate, { create: false });
+    } catch (e) {
+      if ((e as DOMException)?.name === 'NotFoundError') {
+        folderName = candidate;
+        break;
+      }
+      throw e; // TypeMismatchError etc. — a real filesystem problem, not a taken name
+    }
+  }
+  if (folderName === null) {
+    throw new Error(
+      `could not find a free project folder name after ${MAX_NEW_PROJECT_NAMES} attempts`,
+    );
+  }
+
+  const id = newId();
+  const projectFile: ProjectFile = {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    project: {
+      id,
+      title: options?.title ?? folderName,
+      unitSystem: 'imperial',
+      unitFormat: DEFAULT_UNIT_FORMAT,
+      precisionDenominator: DEFAULT_PRECISION_DENOMINATOR,
+    },
+    sheets: [],
+  };
+
+  const projectDir = await root.getDirectoryHandle(folderName, { create: true });
+  await writeJsonAtomic(projectDir, 'project.json', projectFile, `${id}:${folderName}`);
+
+  return { id, folderName, projectFile, projectDir };
 }
 
 export { ROOT_LOCK_SCOPE };

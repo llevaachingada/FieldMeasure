@@ -1872,6 +1872,150 @@ failed** its reorder assertion, so it was **deleted**, not committed. F1's real-
 remains **OWED** alongside D81's harness blocker. That failing run is evidence the CDP route *can* produce
 a real touch; it just has not been made to pass.
 
+### D85 — first-run handedness cards: the LEFT-hand card belongs on the left (owner decision; the spec was ambiguous)
+
+The product owner found this by **running the app**, and the DOM confirmed it: the step-1 radiogroup rendered
+`[Right][Left]`, so the "Right" card sat on the **left** of the screen. The spec's enumeration — UI §4.4:177
+"two big cards (Right / Left)" — was being read as *listing* the options (Right first because Right is the
+default), not as pinning screen position. The owner has now decided the position: **the card for a hand sits
+on that hand's side** (Left card left, Right card right), which mirrors the layout the answer produces (a
+right-handed user's tool rail and style panel swap sides).
+
+**Fix:** the two `<button role="radio">` elements are **re-ordered in the DOM** (`src/ui/FirstRun.tsx`) —
+deliberately **not** flipped with CSS. **DOM order is the focus order**, so a `row-reverse` flip would have
+made the focus ring travel against the visual order (WCAG 2.4.3); ordering the elements keeps visual order ==
+focus order == reading order. `Right` remains pre-selected (`DEFAULT_HANDEDNESS`) — unchanged.
+
+**Guard:** `tests/firstRun.test.tsx` now asserts the **DOM order** (`getAllByRole('radio')` →
+`[Left, Right]`). jsdom has no layout, so DOM order is the honest machine-checkable form of "Left is on the
+left" (the visual order follows it by construction). The keyboard test now expects the first `Tab` to land
+on the **Left** card; it previously asserted Right, which was true of the old order and was **not** a
+stronger test — no assertion was weakened or removed.
+
+UI §4.4:177 was **amended in the same commit** to state the arrangement, so the change cannot be silently
+reverted by a later reader treating the old enumeration as normative.
+
+### D86 — B1 evidence: a REAL directory handle survives a page load; the OPFS case is the odd one
+
+Reviewing the running product (session 13 follow-up) produced a data point the test harness could not: the
+automated browser auto-granted `showDirectoryPicker`, the app persisted a **real**
+`FileSystemDirectoryHandle` (name `FieldMeasureVW`, the workspace root) under `fm:projects-root`, and the
+page then **reloaded and rendered Home normally** — no renderer death, 11 project cards, and no console error
+beyond the known `frame-ancestors` CSP-meta notice.
+
+That is the first evidence on the question **D81** left open, and it points **away from a product defect**:
+the renderer death reproduced in session 13 was with an **OPFS** handle written directly by a probe.
+> It is **evidence, not proof**: a different Chromium invocation (the review browser, not Playwright's),
+> a handle that was *auto-granted* rather than *user-picked*, and a single run.
+> The check in `docs/HARDWARE-TEST-CHECKLIST.md` therefore stays, **narrowed** to *"does a user-picked
+> folder survive a reload?"*, and that row now records this positive data point so the next session does not
+> re-derive it.
+### D87 — Home «New project»: app-created, auto-named folder (owner decision; the control had been dead since 1.4)
+
+The owner found this by **using the running app**: `«New project»` — a real, enabled button with approved copy
+(`home.newProject`, `src/ui/ProjectList.tsx:182`) — did nothing. `App.tsx` handed it a no-op stub commented
+*"slice 1.4 — capture flow"*; **no create-project code existed anywhere in `src/`**; the implementation plan
+never described the flow; and **it was not recorded as owed** anywhere. `«Open existing folder…»` was a second
+stub in the same block. The class is the *inverse* of D77's "the wiring exists and the real input cannot reach
+it" — here the **control** exists and the **wiring does not** — and it is equally invisible to a green gate,
+because nothing tested it: nothing owned it.
+
+**Owner decision (asked and answered — not invented):** «New project» creates an **app-named subfolder of the
+projects root**. No OS folder picker, no name prompt.
+
+**Implemented:** `createProject(options?: { title?: string }): Promise<CreatedProject>` in
+`src/fs/projectStore.ts`. The write goes through the one atomic helper, `writeJsonAtomic`, under the **D51**
+runtime key `` `${id}:${folderName}` `` (also the per-project Web Lock key).
+- **Naming:** base = the approved copy `STRINGS.home.newProject` (`'New project'`), then `New project 2`,
+  `New project 3`, … A candidate is free when `getDirectoryHandle(candidate, { create: false })` throws
+  `NotFoundError`; any other error propagates. Bounded by `MAX_NEW_PROJECT_NAMES = 200`, then throws.
+- **Never adopts an existing folder** — a "new project" action must not silently reopen old work. Asserted:
+  a seeded `New project/project.json` is byte-identical afterwards, and the new folder is `New project 2`.
+- **Envelope:** `{ schemaVersion: CURRENT_SCHEMA_VERSION, project: { id: newId(), title, unitSystem:
+  'imperial', unitFormat: DEFAULT_UNIT_FORMAT, precisionDenominator: DEFAULT_PRECISION_DENOMINATOR },
+  sheets: [] }`. There is **no** file-level `createdAt`/`updatedAt` — `ProjectFileZ` is the authority.
+- **`title` defaults to the folder name.** Renaming the *title* later does not rename the folder on disk (the
+  spec's own rename copy says exactly that), so a generated folder name is deliberately **not** user-facing
+  identity.
+
+**Landing:** the new project's editor. Its empty state already reads `STRINGS.project.noSheetsEmpty`
+(«No sheets yet — take a photo to start.») and the top bar carries «Add sheet» → capture, so the flow is made
+entirely of approved parts — **no new UI and no new copy**.
+
+**Guard:** a `useRef` makes a double-tap a no-op (two clicks before the first create resolves must not mint
+two projects); asserted in jsdom. The button stays enabled — no spinner, no new copy.
+
+**Recorded owed (not silently dropped):**
+1. **`«Open existing folder…»` is still a no-op** (`App.tsx`, `onOpenFolder`). Wiring it needs a decision the
+   specs do not make: §11.9 says it "opens `showDirectoryPicker`", but it is unspecified whether that
+   **re-points the projects root** (hiding existing projects) or **adopts a folder from outside the root**
+   (which the root-keyed Home scan does not model). Needs an owner answer or a spec amendment.
+2. **A creation failure is silent to the user.** `createProject()` itself never swallows — no root → throws;
+   name exhaustion → throws; write failure → throws (via `writeJsonAtomic`) — but the Home caller swallows and
+   stays on Home, because this slice has **no error-surface copy**. The toast/autosave layer (**slice 1.10**,
+   which already owns the read-only/failed-save state) takes it.
+3. The **`New project` button has no busy/disabled visual** while a create is in flight (the ref only blocks
+   the second create). Any spinner or disabled state is copy/design work for 1.10, not invented here.
+
+### D88 — The **Project screen** (`/p/:projectId`, the sheets grid) was never built, and no slice owns it
+
+Found by the owner **using the app** on 2026-09-22, asking whether «New project» should open the camera. It
+should open the **Project screen** — which does not exist.
+
+**The specs are unambiguous.** UI §4.1's screen table lists **Project `/p/:projectId` — "Sheets grid for one
+project. Add sheet, reorder, export, project info."** §11.9 specifies it in full: top bar (`‹ Projects` ·
+inline-editable project name · `«N sheets»` · `Export`), a 4-column grid at 1440 (card 320 × 300), each card a
+320 × 240 **composite thumbnail** + index badge + inset badge + name/meta line. Its **grid's first two tiles
+are always the add affordances** — `📷 «Take photo»` (primary, `--hi` tinted) and `⬆ «Import»` — with the
+rationale *"In a field app the 'add' affordance must be the easiest thing on the screen."* Its **empty state
+is defined** as *"the two add tiles plus a centered line «No sheets yet — take a photo to start.»"*. And
+§11.8:667 fixes capture's return path: *"If this capture was launched from Home/Project, `Use photo` returns
+to the sheets grid with a toast «Added «Sheet 05»» + ↶ «Undo»."*
+
+**The build spec already knew.** §20.5, "Screens that had no owner":
+
+> **(a) Project screen (`/p/:projectId`) — the sheets grid.** UI §4.1 and §11.9 define it … but **no slice
+> built it**. It owns: the sheet grid, `Add sheet` (→ capture/import), sheet reorder (drag, writes
+> `sortIndex`), sheet rename, delete-to-`.trash`, `Export…` entry, and project info. It is now part of
+> **slice 1.2** (it is the screen that makes storage visible) with reorder and trash arriving in their own
+> slices.
+
+**What actually happened.** Slice 1.2 built `src/ui/ProjectList.tsx` — *Home's* project-card list — and the
+plan recorded that work as "create/open project". The Project screen appears in **no slice's file list** in
+`docs/implementation-plan.md`, and the miss was recorded **nowhere**: it is absent from DECISIONS, from
+`docs/handoff-session-13.md` §9, and from CONTINUITY's watch items. This is the same class as **D87** — *work
+that no slice owned* — and it is invisible to every gate, because nothing asserts it. The plan is the
+authority on order and done-ness; the build spec's reassignment of this screen to 1.2 was simply never carried
+into it.
+
+**The observable consequence (what the owner hit).** `Home → «New project»` lands in the **Editor**, because
+the Editor is the only project surface that exists. The editor's empty state reuses the *Project screen's*
+empty copy — `STRINGS.project.noSheetsEmpty` («No sheets yet — take a photo to start.»,
+`src/ui/SheetEditor.tsx:2031`) — but pairs it with only an **`Import a photo`** button: the promise and the
+affordance disagree, and nothing on the screen is a camera. The only route to the camera is the editor top bar
+menu's **`Add sheet`** → capture (`src/App.tsx:124`) — itself a stand-in, since per spec *adding a sheet is the
+Project screen's job* (capture is entered from Home/Project, or from the Editor only for the inset flow).
+
+Missing with it: **any UI that lists a project's sheets** (there is no sheet-list/grid/switcher component in
+`src/ui/` at all), hence no sheet reorder, no sheet rename/duplicate/delete-to-`.trash`, no per-sheet entry, no
+selection + batch export, and none of the spec'd `thumb.jpg` composite thumbnails.
+
+**Disposition — the owner must choose (asked; the answer is not yet recorded):**
+- **A — build the Project screen (spec-faithful).** A new slice: route `/p/:projectId`; the sheets grid; the two
+  add tiles first; the spec'd empty state; the top bar (`‹ Projects` / name / count / `Export`). Navigation
+  becomes Home → Project → Editor; «New project» lands there and capture returns there. Watch item: the spec's
+  card thumbnails are **photo + markup composites cached as `thumb.jpg`** — a first cut may use the existing
+  photo thumbnail and owe the composite, or pull the render pipeline into that route (bundle cost). Sheet
+  reorder, the selection bar and the card menus can land in their own slices.
+- **B — minimal contradiction-killer.** «New project» opens the **camera** immediately, and the editor's empty
+  state gains the spec'd pair («Take photo» + «Import»). Cheap, but a deliberate deviation: §11.8's return
+  target (*the sheets grid*) still does not exist.
+- **C — smallest.** Leave the landing alone; give the editor's empty state the «Take photo» + «Import» pair so
+  the copy and the affordance agree.
+
+**Not a scope question.** v1 scope (§2.4) includes the Project screen; it is **unbuilt, not out of scope**.
+Nothing is implemented under this entry — it records the gap, the evidence, and the pending choice.
+
 ---
 
 ### D85

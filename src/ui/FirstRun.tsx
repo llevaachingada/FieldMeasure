@@ -68,16 +68,11 @@ export default function FirstRun({ onDone }: FirstRunProps) {
             role="radiogroup"
             aria-label={STRINGS.firstRun.handednessQuestion}
           >
-            <button
-              type="button"
-              role="radio"
-              aria-checked={hand === 'right'}
-              aria-label={STRINGS.firstRun.handednessRight}
-              className={`choice-card hit-slop${hand === 'right' ? ' is-selected' : ''}`}
-              onClick={() => void chooseHand('right')}
-            >
-              {STRINGS.firstRun.handednessRight}
-            </button>
+            {/* Order is Left-then-Right, deliberately (owner decision, session 13). The card for a
+                hand sits on that hand's side of the screen, so the answer mirrors the layout it
+                produces (a right-handed user's tool rail docks right). DOM order IS the focus
+                order, so this is done by ordering the elements — never by CSS `row-reverse`,
+                which would make the focus ring travel against the reading order. */}
             <button
               type="button"
               role="radio"
@@ -87,6 +82,16 @@ export default function FirstRun({ onDone }: FirstRunProps) {
               onClick={() => void chooseHand('left')}
             >
               {STRINGS.firstRun.handednessLeft}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={hand === 'right'}
+              aria-label={STRINGS.firstRun.handednessRight}
+              className={`choice-card hit-slop${hand === 'right' ? ' is-selected' : ''}`}
+              onClick={() => void chooseHand('right')}
+            >
+              {STRINGS.firstRun.handednessRight}
             </button>
           </div>
         </section>

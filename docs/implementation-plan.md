@@ -1523,6 +1523,21 @@ export function UpdateToast(props: { needRefresh: boolean; onReload: () => Promi
 
 ---
 
+## Unassigned work found after the plan was written
+
+Real v1 requirements (§2.4) that **no slice in this plan owns**. Recorded here so they cannot disappear again;
+each needs an owner decision or a scheduled slice before the phase it would touch.
+
+- **The Project screen (`/p/:projectId`, the sheets grid) — unowned (D88).** Build spec §20.5(a) reassigned it to
+  slice 1.2 ("the screen that makes storage visible"); this plan's 1.2 built **Home's** `ProjectList.tsx`
+  instead, and the screen appears in no slice's file list. UI §4.1/§11.9 specify it, including that its grid's
+  **first two tiles are always the add affordances** (`📷 «Take photo»` primary + `⬆ «Import»`) and that its
+  empty state is those two tiles plus «No sheets yet — take a photo to start.». Consequence today:
+  `Home → «New project»` lands in the **Editor**, and **no surface lists a project's sheets** (so no reorder,
+  rename, per-sheet entry, or selection/batch export). The owner chooses *A: build the screen / B: «New
+  project» → camera now / C: empty-state fix only* (DECISIONS **D88**). Schedule before **1.10**, whose
+  end-to-end a11y audit would otherwise have to be repeated once the screen exists.
+
 ## Checkpoint summary (print this)
 
 | # | Slice | One-line gate | Type |

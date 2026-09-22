@@ -39,12 +39,20 @@ afterEach(() => {
 });
 
 describe('FirstRun', () => {
-  it('renders step 1 with Right pre-selected', () => {
+  it('renders step 1 with Right pre-selected, and Left is the LEFT-hand card', () => {
     render(<FirstRun onDone={() => {}} />);
 
     expect(
       screen.getByRole('heading', { name: STRINGS.firstRun.handednessQuestion }),
     ).toBeTruthy();
+    // Order is part of the design (owner decision, session 13): the card for a hand sits on that
+    // hand's side of the screen. jsdom has no layout, so the DOM order IS the assertion — the
+    // visual order follows it, and so does the focus order (which is exactly why the elements are
+    // ordered rather than flipped with CSS `row-reverse`).
+    expect(screen.getAllByRole('radio').map((r) => r.getAttribute('aria-label'))).toEqual([
+      STRINGS.firstRun.handednessLeft,
+      STRINGS.firstRun.handednessRight,
+    ]);
     expect(
       screen.getByRole('radio', { name: STRINGS.firstRun.handednessRight }).getAttribute(
         'aria-checked',
@@ -57,13 +65,15 @@ describe('FirstRun', () => {
     ).toBe('false');
   });
 
-  it('is completable by keyboard alone (Tab + Enter advances to step 2)', async () => {
+  it('is completable by keyboard alone (Tab reaches the first card, Enter advances to step 2)', async () => {
     const user = userEvent.setup();
     render(<FirstRun onDone={() => {}} />);
 
+    // The first Tab lands on the FIRST card in DOM order — which is the LEFT-hand card, so the
+    // focus ring travels left-to-right with the reading order.
     await user.tab();
     expect(document.activeElement).toBe(
-      screen.getByRole('radio', { name: STRINGS.firstRun.handednessRight }),
+      screen.getByRole('radio', { name: STRINGS.firstRun.handednessLeft }),
     );
 
     await user.keyboard('{Enter}');

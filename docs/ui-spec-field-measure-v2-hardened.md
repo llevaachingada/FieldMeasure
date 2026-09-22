@@ -174,7 +174,7 @@ Home ──open/create──▶ Project ──open sheet──▶ Editor
 
 Two steps only, no tutorial carousel:
 
-1. **«Which hand do you write with?»** — two big cards (Right / Left), **Right pre-selected as the plain default.** 〔v1 scope: do NOT claim to pre-select from the Windows pen setting — no web API can read it. The v1 copy is simply: `«Which hand do you write with?»` with Right highlighted.〕 Auto-advance on tap. (This drives rail side, style panel side, loupe offset, keypad side, and handle ordering.)
+1. **«Which hand do you write with?»** — two big cards — **the LEFT-hand card on the left, the RIGHT-hand card on the right** (the card for a hand sits on that hand's side, because the answer mirrors the layout it produces: a right-handed user's rail and style panel dock right; DOM order is the focus order, so this is element order, never a CSS flip), **Right pre-selected as the plain default.** 〔v1 scope: do NOT claim to pre-select from the Windows pen setting — no web API can read it. The v1 copy is simply: `«Which hand do you write with?»` with Right highlighted.〕 Auto-advance on tap. (This drives rail side, style panel side, loupe offset, keypad side, and handle ordering.)
 2. **«Where should your projects live?»** — a folder picker (`showDirectoryPicker`) with a suggested default `Documents\FieldMeasure`. Show the resolved path in mono. Buttons: `«Choose folder»` / `«Use Documents\FieldMeasure»`.
 
 Then land on Home with an empty state. Contextual tips appear the first time each tool is used (one line, dismissible, never blocking, shown once per tool, re-enable-able in Settings). Take a photo within 20 seconds of first launch — that is the success bar.

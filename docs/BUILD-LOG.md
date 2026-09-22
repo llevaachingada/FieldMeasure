@@ -560,94 +560,75 @@ step 1, `export/filenames.ts`, shipped in 1.3). The export-invariance rule (`0.7
 multiplier M) is the whole slice, and `src/editor/../export/renderStage.ts` must be the **only** place that
 scales for export — the §4.2 screen and export paths are opposites and both are load-bearing.
 
-## Slice 1.9 — Export (MODULES ONLY — the wiring is not built) + the session-13 review remediation
-**Date:** 2026-09-22 · **Commits:** `cc35e4c`, `192585f`, `907af0b`, `33cee24`, `ada456b`, `250668c`
-· **Branch:** `claude/amazing-carson-ocp8q7` (PR #2, draft) — **not `main`**
+## Defect correction — first-run handedness card order (owner-reported; D85)
+**Date:** 2026-09-22 · **Commit:** session 13 follow-up (see `git log`)
 
-**⚠ This entry deviates from the one-commit-per-slice rule, and says so rather than hiding it.** Six
-lanes ran in parallel and landed at different times, and the session's environment required a clean tree
-at each stop, so each lane was committed as it was verified. Each commit message states that the wave was
-still in flight. The usual discipline resumes when `runExport.ts` lands.
+**Built:** the first-run step-1 cards now render **Left on the left, Right on the right**. They rendered
+`[Right][Left]`, which the **owner caught by using the running app** — no gate saw it. The two
+`role="radio"` elements were **re-ordered in the DOM** rather than flipped with CSS, because DOM order is
+the focus order; a `row-reverse` flip would have pushed the focus ring against the visual order (WCAG 2.4.3).
+`Right` stays pre-selected. UI §4.4:177 amended to state the arrangement so it cannot be silently reverted.
 
-**Built:** slice 1.9's export **modules**. `renderStage.ts` is the §4.2 export stage — `applyExportRules`
-is a node-for-node **mirror** of `applyScreenRules`, reading the same attrs; the export path never calls
-`applyScreenRules` and never calls `scene.setScale()`, so the two paths stay opposites. `pdf.ts` gives
-`buildPdf` / `buildPdfParts` (splitting at 250 MB, the remedy designed in advance for the 50-sheet gate) /
-the pure `planPdfParts`. `png.ts` gives 1×/2×/3× sizing, `zipPngs` (fflate, level 0 — PNG is already
-DEFLATE'd) and an IHDR parser that validates the signature **and** the chunk type. `ExportWizard.tsx` is
-the §11.10 four-step wizard built against an injected-props interface, so it never imported a sibling
-lane's in-flight file. 48 copy rows folded into `strings.ts` and machine-checked.
+**Machine gates:** `<n>/<n>` passing (measured on this commit's file set)
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → `<files>` files / `<tests>` tests — the new guard asserts the **DOM order**, and
+      the keyboard test now expects the first `Tab` on the Left card
+- [x] `npm run build` → 0 errors, 17 precache entries
+- [x] `npx playwright test` → 5 passed / 5 skipped
 
-**NOT built — the slice is not usable:** `src/export/runExport.ts` does not exist and the wizard is not
-mounted, so **nothing in the app can reach an export**. See `docs/handoff-session-14.md` §3.
-
-**Machine gates:**
-- [x] **export invariance, measured in REAL PIXELS** at M = 1/2/3 (`tests/renderStage.browser.test.ts`
-      scans `getImageData`; not attribute arithmetic — the review brief's prior catch #6).
-      `0.75 × mu` pt at every M; page pt = imagePx × 0.75, independent of M
-- [x] PNG pixel dimensions; zip round-trip through `unzipSync` on the decompressed bytes
-- [x] the 29-row filename table (unchanged, re-run) and the conflict rows
-- [x] the 512 MB guard at its **exact** inclusive boundary (D85), and the 3× refusal as a **refusal** —
-      `tests/exportWizard.test.tsx` asserts `runExport` was never called, not merely that a message showed
-- [x] the damaged-photo white page at module level
-- [x] a11y: keyboard-operable wizard, announced steps, selectable result path, no inline `style=""`
-- [~] **`[Surface]`** H12 (Acrobat across M), H8 (50-sheet at 2×), **H19–H22** (damaged photo end to end,
-      NTFS case-insensitive conflict, C6's real ceiling, the touch + a11y walk)
-
-**Also landed — the independent review session 13 deferred.** 7 of 9 findings fixed, two of them
-data-integrity bugs in already-shipped code that every prior gate had passed: a **cancelled drag persisted
-geometry to `markup.json` with no undo step** (the palm-rejection case), and **resize teleported a vertex
-on 7 of 11 annotation kinds** (all 11 resize tests used a `rect`). Also §8.3's 600 ms style coalescing,
-which had **zero** production callers while two suites asserted it worked; a test that could not fail and
-the growth-past-pivot bug it hid; a link failure being reported to the user as "presets file is corrupt";
-and the duplicated type→tool map. **A bug the full gate caught that no per-lane check could:** the
-dimension label's halo and hairline carried no `strokeWidthMu` tag, so they stayed 8 px / 1 px at every M
-while the glyphs scaled — the §4.2 invariant failing for the label itself (D87).
-
-**Deferred to hardware:** 6 → H8, H12, H19, H20, H21, H22.
-
-**Checkpoints fired:** none. **C6 is NOT fired** — its number is a dev-machine figure (D85) and H21 is
-what sets it.
-
-**Gate on the pushed tree (`250668c`):** `tsc` 0 · `vitest` **71 files / 1015 tests** (node + jsdom +
-browser) · `build` 0 (17 precache, 857.62 KiB) · `playwright` 5 passed / 5 skipped.
-
-### 2026-09-22 — Session 15: the D84 root cause isolated and fixed; the suite green on Windows for the first time
-
-**Session 15 pulled the branch (`claude/amazing-carson-ocp8q7`, top `b2d6dea`) onto the Windows build
-machine and reproduced the gate before changing a line — and the reproduction FAILED**, which is exactly
-what that rule exists for:
-
-- `tsc --noEmit` → 0 ✅ · `npm run build` → 0 (17 precache, 857.62 KiB) ✅ · `playwright` 5 passed /
-  5 skipped ✅ · **`CI=true vitest run` → 71 files / 1015 tests passed but the run exited 1 with 5
-  unhandled rejections**, all `PresetsBindingError` from `presets.ts` (D91's guard firing at use time).
-
-**The investigation (D95):** the D90 owed experiment was run first — reverting `presets.ts` to a named
-import still failed with the exact recorded D84 `SyntaxError`, and `optimizeDeps.entries` (D90 step 2)
-changed nothing, killing the mid-run re-optimization hypothesis for good. Serving the dev server's own
-transformed `projectStore.ts` in a real browser tab showed all 33 exports present and importable — the
-module was never the problem. The cause: **six browser suites mock `@/fs/projectStore` with factory
-functions that predate slice 1.8 and omit the three presets bindings.** A `vi.mock` factory replaces the
-whole namespace, so the named import was a link-time SyntaxError (D84's symptom) and the namespace import
-yielded `undefined` → `PresetsBindingError` at use time (the Windows symptom). Both recorded symptoms,
-one cause — the mocks, on both platforms; the Linux gate simply swallowed the rejections.
-
-**Fixed (all executed):** the six factories spread `importOriginal` first and override only what they
-drive, with an explicit `resolveFieldMeasureDir` stub reporting `.fieldmeasure/` absent (these suites do
-not exercise presets); `presets.ts` is back to an ordinary **named import** (D90's answer: it links
-cleanly with complete mocks, and makes any future missing binding a loud link error); the use-time guard
-STAYS, with the bindings referenced directly — a snapshot object version blinded the guard and was caught
-by `tests/presetsLinking.test.ts` failing (4 tests) before it could ship. Windows environment notes
-recorded in D95: `core.autocrlf=true` had CRLF-rewritten 33 source files (re-smudged to LF); node here
-is 24.19.0; the CRLF hypothesis for the link error was tested and disproved.
-
-**Gate on the repaired tree (this commit):** `tsc` 0 · `vitest` **71 files / 1015 tests, 0 errors**
-(node + jsdom + browser) · `build` 0 (17 precache, 857.62 KiB) · `playwright` 5 passed / 5 skipped.
-
-**Deferred to hardware:** H8, H12, H19, H20, H21, H22 unchanged (1.9's rows; nothing this session could
-measure on a dev box).
+**Deferred to hardware:** none added.
 
 **Checkpoints fired:** none.
 
-**Next:** the independent review of the session-14 batch (dispatched; findings register pending), then
-`src/export/runExport.ts` + mounting the wizard (handoff-14 §3) — the first end-to-end export.
+**Decisions recorded:** **D85** (card order: the owner's decision, the DOM-vs-CSS a11y reasoning, and the
+test change) and **D86** (a real `FileSystemDirectoryHandle` survived a page load in the review browser —
+the first evidence on B1's open product question, pointing away from a defect; the OPFS case is the odd one).
+
+**Surprises:** the jsdom test asserted the **pre-selected hand** but never the **order**, and the e2e smoke
+test only asserts the heading — so every gate was green while the screen was wrong. That is the second time
+this session that *"all gates green"* and *"the product is right"* differed (the first was D84). When the
+remaining `[Surface]` gates are run, expect this class again: **a machine gate can only see what it asserts.**
+
+**Next:** slice 1.9 — export (unchanged).
+
+## Feature wiring — Home «New project» (owner-reported dead control; D87)
+**Date:** 2026-09-22 · **Commit:** session 13 follow-up (see `git log`)
+
+**Built:** `«New project»` on Home now works. It was a real, enabled, approved-copy button (`home.newProject`)
+whose handler was a no-op stub — and **no create-project code existed anywhere in `src/`**, with the gap
+recorded nowhere. It now creates an **app-named subfolder of the projects root** (`New project`,
+`New project 2`, …; the base name is the approved copy itself), writes a schema-valid `project.json`
+**atomically** through `projectStore` under the D51 runtime key, and opens the new project's editor — whose
+empty state already reads `«No sheets yet — take a photo to start.»`, so **no new UI and no new copy** were
+invented. It **never adopts** an existing folder, and a double-tap cannot mint two projects.
+
+**Machine gates:** 4/4 passing (measured on this commit's file set)
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **64 files / 802 tests** (node + jsdom + browser; **+12 tests**)
+- [x] `npm run build` → 0 errors, 17 precache entries (856.12 KiB)
+- [x] `npx playwright test` → 5 passed / 5 skipped
+
+**Deferred to hardware:** none added.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D87** (the owner's flow decision, the naming rule and its bound, the never-adopt
+guarantee, the landing rationale, and the owed items below).
+
+**Surprises:** this control had been **dead since 1.4**, and **no gate could see it, because nothing owned
+it** — there was no test to fail and no document to disagree with. The owner found it by clicking it. Together
+with the handedness-card order (D85) earlier the same day, that is **two visible defects in one session on a
+tree whose full gate was green** — both of the class *"a machine gate can only see what it asserts."* Expect
+more of this when the `[Surface]` gates are run.
+
+**Owed (recorded, not dropped):**
+- **`«Open existing folder…»` is still a no-op.** The specs say it "opens `showDirectoryPicker`" but never
+  whether that re-points the projects root (hiding projects) or adopts a folder from outside it — needs an
+  owner answer or a spec amendment (handoff §9.2 row 18).
+- **A create failure is silent** to the user (this slice has no error-surface copy); the toast/autosave layer
+  (**1.10**) owns it. `createProject()` itself never swallows — no root, name exhaustion and write failure all
+  throw.
+- The button has **no busy/disabled visual** while a create is in flight (the ref only blocks the second
+  create).
+
+**Next:** slice 1.9 — export (unchanged).

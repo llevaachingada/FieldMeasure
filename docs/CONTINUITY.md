@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 15 — the branch was pulled to the **Windows** build machine and the gate was reproduced BEFORE any change: **it failed** — 1015/1015 tests pass but 5 `PresetsBindingError` unhandled rejections, the D84 "link error" resurfacing. **D84's root cause is now isolated by execution (D95): six browser suites mock `@/fs/projectStore` with factories that predate 1.8 and omit the presets bindings** — a named import is a link-time SyntaxError, a namespace import yields `undefined` at use time. Both symptoms, one cause; the Linux gate had swallowed it. Fixed: complete mocks + `presets.ts` back to a named import (D90 answered); the guard stays. Gate green on Windows for the first time. An independent review of the session-14 batch is IN FLIGHT; `runExport.ts` is next)
+**Last updated:** 2026-09-22 (session 13 — **the D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed**, **B1's blocker is root-caused** (D81), **C4's machine half is measured** (D80, provisional), and **slice 1.8 (style system) is complete and green** (D82–D84)) **Follow-up (later the same day):** two defects the owner found by *running the app* are fixed (D85 handedness card order, D87 «New project») and **the unowned Project screen is recorded (D88)**.
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2–1.8 complete and green; slice 1.9's export MODULES complete** (`renderStage.ts`, `pdf.ts`, `png.ts`, `ExportWizard.tsx`, copy folded). **1.9 is NOT usable yet: `src/export/runExport.ts` does not exist and the wizard is not mounted**, so nothing in the app can reach an export. Next: that wiring, then 1.10 |
-| Application code | **Twelve slices**, **71 files / 1015 tests** (node + jsdom + browser) on the pushed tree `ada456b`. Added this session: `src/export/renderStage.ts`, `src/export/pdf.ts`, `src/export/png.ts`, `src/ui/ExportWizard.tsx` + `exportWizard.css`, 48 folded copy rows, and the review remediation across `SelectTool.ts` / `SheetEditor.tsx` / `presets.ts` / `styleByTool.ts` / `EditorLayout.tsx` / `StylePanel.tsx`. Build 0 (17 precache, 857.62 KiB); playwright 5 passed / 5 skipped |
+| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 + 1.7 + 1.8 complete and green.** The D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed with pre-fix-failing guards; the style system ships (per-tool memory, recents, presets IO, the mounted WYSIWYG panel). Next: **slice 1.9 (export, steps 2–5)** |
+| Application code | **Eleven slices**, **790 machine tests / 62 files** on the committed tree (1.8's closure — node + jsdom + browser). 1.8 adds `src/state/styleByTool.ts`, `src/state/projectMeasure.ts`, `src/fs/presets.ts`, `src/editor/shapes/styleCommand.ts`, `src/ui/StylePanel.tsx` + `StyleEditorSheet.tsx` + `stylePanel.css`, the `MarkupScene` style commands, the `EditorSession` style methods and the `editorStore.selectionStyle` mirror. **All six previously-untracked 1.8 files are now tracked**, and `src/ui/styleCopy.ts` is deleted (folded into `strings.ts`). Also lands the F3/F5/F6/F7/F9 fixes, `tests/editorCanvasPerf.browser.test.ts` (C4), and a **namespace-import fix in `presets.ts`** for the browser-only link defect the full gate caught (D84). |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -21,6 +21,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
 | Next action | **Slice 1.9 — Export** (steps 2–5: `src/export/renderStage.ts`, `pdf.ts`, `png.ts`, `ExportWizard.tsx`; step 1, `export/filenames.ts`, already shipped in 1.3). The **export-invariance rule** (`0.75 × mu` pt at every multiplier M) is the whole slice's acceptance, and `renderStage.ts` must be the **only** place that scales for export — the §4.2 screen and export paths are opposites and both are load-bearing. Also carried: **F1's real-touch proof is still OWED** (B1/D81: the e2e harness is blocked by a renderer death on OPFS-handle reload, and a CDP-touch browser-project attempt failed its assertion), plus the owed §8.6 rotate handle and text-box scaling (D79). |
+| Unbuilt screen | **The Project screen (`/p/:projectId`, the sheets grid) is unbuilt and unowned (D88)** — build spec §20.5(a) assigned it to slice 1.2; the plan carries it under no slice; 1.2 built Home's `ProjectList.tsx` instead. Today «New project» lands in the Editor and **no surface lists a project's sheets**. The owner must choose A / B / C (D88). |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -545,7 +546,10 @@ harness. The spec stays `fixme` with corrected evidence, and — because only OP
 **whether a real on-disk handle does the same is unverified and would make this a *product* defect**, so it
 is logged as a hardware check and the product is **not** declared exonerated. A CDP-touch attempt in the
 browser project reached a real touch but failed its assertion and was deleted; F1's real-touch proof stays
-owed.
+owed. **Positive evidence (D86):** reviewing the *running* built app, a **real** directory handle
+(auto-granted by `showDirectoryPicker`) was persisted under `fm:projects-root` and the page then **reloaded
+into Home normally** — no renderer death. So the crash looks **OPFS-specific**, the hardware check narrows
+to *"does a user-picked folder survive a reload?"*, and the product is no longer presumed defective.
 
 **C4's machine half is measured and recorded provisional** (D80): a 4096-px sheet with 50 annotations,
 panned — median **0.6 ms** (p95 1.3) on the real `min(dpr, 2)` path, 0.7 ms at forced ratio 2 and ratio 1.
@@ -578,6 +582,49 @@ the orchestrator's full gate could see it — the runbook rule earning its keep 
 and 1.8 share four files (`session.ts`, `EditorLayout.tsx`, `SheetEditor.tsx`, `editorShell.test.tsx`) and
 splitting them would need hunk-level surgery inside shared files — the whole-file-loss risk the runbook
 warns about.
+### 2026-09-22 — Session 13 follow-up: two defects the owner found by *running the app*
+
+Session 13's gate was green and two visible defects still shipped. Both were found by the product owner
+**using the built app**, not by any test — worth remembering when the remaining `[Surface]` gates are run.
+
+1. **First-run handedness card order (D85).** The step-1 cards rendered `[Right][Left]`, so the "Right" card
+   sat on the **left**. Fixed by **re-ordering the DOM**, not by a CSS flip — DOM order *is* the focus order,
+   so `row-reverse` would have sent the focus ring against the visual order (WCAG 2.4.3). The card for a hand
+   now sits on that hand's side; `Right` stays pre-selected. `tests/firstRun.test.tsx` gained a **DOM-order
+   assertion** (jsdom has no layout, so DOM order is the honest machine-checkable form of "Left is on the
+   left") and the keyboard test now expects the first `Tab` on the Left card. **UI §4.4:177 was amended** so
+   the arrangement cannot be silently reverted.
+2. **Home «New project» was a dead control (D87).** A real, enabled button with approved copy whose handler
+   was a no-op stub — and **no create-project code existed anywhere in `src/`**, with nothing recording the
+   gap. The owner chose the flow (app-named subfolder), and `createProject()` now creates `New project`,
+   `New project 2`, … under the projects root, writes a schema-valid `project.json` **atomically**, and opens
+   the editor's copy-approved empty state («No sheets yet — take a photo to start.»). It **never adopts** an
+   existing folder, and a double-tap cannot mint two projects. **Owed:** **`«Open existing folder…»` is still
+   a no-op** (the specs do not say whether it re-points the projects root or adopts an outside folder — needs
+   an owner answer or a spec amendment), the create-failure path is **silent** (the toast/autosave layer,
+   slice 1.10, owns error surfacing), and the button has **no busy/disabled visual** while a create is in
+   flight.
+3. **B1's product question is largely answered (D86).** Reviewing the running app, a **real**
+   `FileSystemDirectoryHandle` was persisted under `fm:projects-root` and the page **reloaded into Home
+   normally** — no renderer death. D81's crash was with an **OPFS** handle written by a probe, so it looks
+   **OPFS-specific**; the product is no longer presumed defective, and the hardware check narrows to *"does a
+   user-picked folder survive a reload?"*.
+
+**Lesson (the third of its kind this session).** Every gate was green while both defects were live: the jsdom
+test asserted the *pre-selected hand* but never the *order*; the e2e smoke test asserts only the heading; and
+**nothing tested «New project» because nothing owned it**. **A machine gate can only see what it asserts** —
+and for the second time this session, the person using the product found what the suite could not.
+
+4. **The **Project screen** (`/p/:projectId`, the sheets grid) does not exist — and no slice owns it (D88).**
+   The owner's question *"should «New project» open the camera?"* exposed it. Per UI §4.1/§11.9 the landing
+   after creating or opening a project is the **Project screen**, whose **first two grid tiles are the add
+   affordances** (`📷 «Take photo»` primary + `⬆ «Import»`), and §11.8:667 has capture returning *to the sheets
+   grid*. Build spec **§20.5(a)** reassigned the screen to slice 1.2, but 1.2 built **Home's**
+   `ProjectList.tsx` instead; the plan carries the screen under no slice; and nothing recorded the miss — the
+   same *work no slice owned* class as D87, invisible to every gate. Today `New project` lands in the
+   **Editor**, whose empty state borrows the Project screen's copy («No sheets yet — take a photo to start.»)
+   while offering only an `Import a photo` button, and there is **no UI anywhere that lists a project's
+   sheets**. Awaiting the owner's A/B/C choice (D88). Documentation only — no code changed.
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -768,6 +815,25 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   pass, and a real input that cannot reach it.* When a test drives an input, ask what the real input
   does that the synthetic one does not; when behaviour depends on browser input semantics, only the
   browser project or Playwright/CDP is honest proof.
+
+## Known drift / watch items (session 13)
+
+- **The Project screen (`/p/:projectId`, the sheets grid) is unbuilt and unowned (D88).** Build spec §20.5(a)
+  assigns it to slice 1.2; the plan carries it nowhere; slice 1.2 built **Home's** `ProjectList.tsx` instead and
+  nothing recorded the miss. UI §11.9 defines it — including that its **first two grid tiles must be
+  `📷 Take photo` + `⬆ Import`** ("the 'add' affordance must be the easiest thing on the screen"). Consequence
+  today: `Home → «New project»` lands in the **Editor**, whose empty state shows the Project screen's copy with
+  only an `Import a photo` button; the sole camera route is the editor's `Add sheet` menu item (a stand-in).
+  **Blocks nothing, but schedule it before 1.10's end-to-end a11y audit**, which would otherwise cover neither
+  the screen nor its two add tiles and then have to be repeated. The owner still has to choose A / B / C (D88).
+- **`«Open existing folder…»` (Home) is still a no-op** (D87) — a real, enabled, approved-copy button with a
+  stubbed handler. The specs say it opens `showDirectoryPicker` but never whether that **re-points the projects
+  root** (hiding projects) or **adopts a folder from outside it**. Needs an owner answer or a spec amendment
+  (handoff §9.2 row 18).
+- **A failed project create is silent** — `App.tsx`'s `handleNewProject` swallows and stays on Home, because
+  this slice has no error-surface copy; slice **1.10**'s toast/autosave layer owns it (`createProject()` itself
+  never swallows: no root, name exhaustion and write failure all throw). The `New project` button also has **no
+  busy/disabled visual** while a create is in flight (D87).
 
 ## How to resume
 
