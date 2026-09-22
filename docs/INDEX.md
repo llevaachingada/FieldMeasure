@@ -1,6 +1,6 @@
 # Documentation & File Index
 
-A map of everything in this repository. Last updated **2026-09-21 (session 11 — slices 1.4, 1.4.5, 1.5 shipped; 1.6 markup tools PARTIAL; D67–D73)**.
+A map of everything in this repository. Last updated **2026-09-22 (session 17 — slice 1.9 wired end to end, 1.10 themes, plus the torch/capture investigation record)**.
 
 ## Root
 
@@ -38,6 +38,7 @@ A map of everything in this repository. Last updated **2026-09-21 (session 11 �
 | `docs/appendix-strings-gaps.md` | **Proposed copy for the gaps** — wording for the 26 implied-but-unquoted strings (PROPOSED, approve before shipping). |
 | `docs/gui-ux-readiness-and-design-handoff.md` | **Session-5 senior GUI/UX readiness report + design handoff** — architecture assessment, the Claude Design verdict, the pre-code tooling stack, contradiction register C1–C14, the pre-code decision package, and the touch workstream. |
 | `docs/touch-first-interaction-model.md` | **Session-5 touch-first interaction design** — one `PlacementController`, the 450 ms settle window, the touch loupe, the Offset Nudge Pad, the object-first drag predicate, tap precedence, the gesture budget, latency budgets and the required spec deltas. |
+| `docs/investigation-torch-and-capture.md` | **Investigation (owner request, 2026-09-22)** — is the ⚡ Torch toggle able to fire the camera LED on a Surface, and is photo capture/import complete? Verdict: the toggle is wired to the real `applyConstraints({ torch })` path, but Windows/Chromium does not expose a torch capability, so the LED cannot be driven from the browser (platform limitation, `[Surface]`-verifiable). Capture and import are both complete and atomic. Carries two un-numbered candidate items. |
 
 ## docs/ — superseded (kept for history)
 

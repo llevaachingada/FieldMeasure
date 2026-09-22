@@ -819,3 +819,42 @@ No code was involved.
 
 **Next:** the rest of 1.10 (autosave chip, toasts, `.trash/` prune + restore, arrow nudge, the end-to-end
 a11y audit), then 1.11 (update strategy), then 2.0.
+
+## Investigation — the torch button and the capture/import path (owner request)
+
+Read-only investigation, recorded in `docs/investigation-torch-and-capture.md` and indexed in
+`docs/INDEX.md`. No product behaviour changed by this entry.
+
+**Question asked:** does the ⚡ Torch button actually fire the light on a Surface tablet, and is photo
+saving/import complete?
+
+**Torch — the button is wired to real hardware, but Windows cannot light the LED.** The toggle
+(`src/ui/CameraFlow.tsx:860-870`) calls `toggleTorch` → `applyAdvanced({ torch })`
+(`CameraFlow.tsx:535-539`), which is the standard Chromium hardware call
+`MediaStreamTrack.applyConstraints({ advanced: [{ torch }] })` (`CameraFlow.tsx:458-466`). The
+capability probe is already read (`CameraFlow.tsx:395-396`) but the button ignores it, and only the
+zoom chips are capability-gated (`CameraFlow.tsx:565`). **On Windows/Chromium the camera stack does
+not expose a `torch` capability, so `applyConstraints` rejects and the LED does not light — a platform
+limitation, not a code defect.** Re-running the C3 device-caps probe here confirmed no usable camera in
+the test context (`getUserMedia ladder: NotSupportedError`), matching the provisional C3 record. Whether
+the owner's Surface exposes `torch` at all is a `[Surface]` measurement, never to be assumed.
+
+**Capture/import — complete in code.** Capture (`CameraFlow.tsx:569` → `:605-642`) and import
+(`CameraFlow.tsx:665-671`) both go through the same `commit`: EXIF read before normalize, rotation
+baked, `normalizeImage`, then `addSheetFromPhoto` (the frozen atomic tmp→close→move path under the
+project lock) plus an atomically written 640×480 `thumb.jpg`. A write failure keeps the photo and offers
+Retry + «Save a copy…». The editor-side import entry is `EditorLayout.tsx:647 onImportFile`. What remains
+is on-glass verification, already logged as `[Surface]` rows.
+
+**Two candidate items recorded, deliberately un-numbered** (the parallel-session numbering collision
+was reconciled in `ef4ccfc`, and slice 1.10 is actively editing `DECISIONS.md` — minting a number here
+would re-create the collision): (1) the toggle can show "on" when the hardware rejected the constraint —
+revert-on-rejection and/or disable from `caps.torch === false`; (2) a screen-brighten "work light" is the
+only hardware-independent alternative, but it is a new feature and would need a §2.4 scope check and a
+decision first. The next session to touch `DECISIONS.md` should number item 1 and decide item 2.
+
+**Sub-agent note:** no lane was ever assigned to torch/capture (capture shipped in session 10). The one
+background lane this session dispatched — the independent review of the session-14 export batch —
+completed and delivered its findings; its "running" job-board state was stale bookkeeping.
+
+**Gates:** none run for this entry — it is documentation only.
