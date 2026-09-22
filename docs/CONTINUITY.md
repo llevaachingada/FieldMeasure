@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 22 — **the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **93 files / 1309 tests** · build 0 (26 precache, 1517.95 KiB) · playwright 5/5. **Both reviews of the wave landed and are discharged** — an executed correctness register (no wrong-measurement, no data-loss; one claim-fidelity inversion and one wiring-seam gap, both fixed) and a **measured** UI/UX review (three Highs, all fixed) — full register and owed items in **D118**. Owed here: the **real end-to-end run on hardware**, and four recorded review items (drag autoscroll, the inert scroll container/top bar, the editor's replace dialog, `aria-pressed` on the hold))
+**Last updated:** 2026-09-22 (session 22 — **the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **93 files / 1311 tests** · build 0 (26 precache, 1519.02 KiB) · playwright 5/5 (after the owner-reported capture fix, **D119** — the failure overlay was blank and its «Retry» re-ran a guaranteed failure). **Both reviews of the wave landed and are discharged** — an executed correctness register (no wrong-measurement, no data-loss; one claim-fidelity inversion and one wiring-seam gap, both fixed) and a **measured** UI/UX review (three Highs, all fixed) — full register and owed items in **D118**. Owed here: the **real end-to-end run on hardware**, and four recorded review items (drag autoscroll, the inert scroll container/top bar, the editor's replace dialog, `aria-pressed` on the hold))
 
 ---
 
@@ -12,7 +12,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Field | Value |
 |---|---|
 | Phase | **Slices 0.2–1.9 complete (1.9 reviewed, D109); 1.10 in progress; 1.11 landed (D112); the Project screen is built (D111) and now owns sheet trash (D113).** Shipped in 1.10 so far: themes (D104), the trust layer (D107), sheet trash (D113). Still owed: the History flyout, the end-to-end a11y audit, the arrow nudge, D101's halo fix, PDF captions, and the grid's remaining items are now **built** (session 22, D115–D117) — what still owes is the **independent review of that wave**, the **real end-to-end run on hardware**, the paused 1.10 polish, and PDF captions. Then 2.0 |
-| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **93 files / 1309 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1517.95 KiB); playwright 5 passed / 5 skipped. Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows). **Session 22 built the grid's five remaining D111 items** — `src/fs/sheetOps.ts` (reorder/rename/duplicate/replace-photo storage), `src/ui/sheetReorder.ts` (the pure drag arithmetic), `src/ui/StorageChip.tsx` + `src/fs/projectSize.ts` (§11.4 from real disk facts), the grid's card menu / inline rename / drag / warned replace dialog, and the `App` seam that owns the picker and the dimension decision |
+| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **93 files / 1311 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1519.02 KiB); playwright 5 passed / 5 skipped. Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows). **Session 22 built the grid's five remaining D111 items** — `src/fs/sheetOps.ts` (reorder/rename/duplicate/replace-photo storage), `src/ui/sheetReorder.ts` (the pure drag arithmetic), `src/ui/StorageChip.tsx` + `src/fs/projectSize.ts` (§11.4 from real disk facts), the grid's card menu / inline rename / drag / warned replace dialog, and the `App` seam that owns the picker and the dimension decision |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -857,6 +857,17 @@ the menu's clipping); the **editor's replace dialog** (still 56 px with no progr
 `aria-pressed` on the hold; the paused 1.10 polish; D113's restore-side undo toast (copy); and the
 content-owner items.
 
+7. **Owner-reported from a real run, and fixed the same session (D119).** *"When I take a photo and hit use photo
+   it gets stuck at 'save as a copy…' 'retry' button."* Two defects wore one screen: the failure overlay was a
+   **blank** `role="alert"` (no line said what had failed), and **«Retry» re-ran the identical failing path** —
+   a project folder that never resolved left `projectRef.current === null` forever, so every attempt threw
+   `'project is not open'`, and a lost write grant could not be re-asked for because nothing called
+   `ensureRootAccess({ request: true })` inside the gesture. Now: the overlay names the cause (kind-mapped to the
+   approved `errors.*` lines, plus one marked proposal `capture.saveFailed`), the primary action matches the
+   cause («Re-authorize» for permission), `commit` asks for the grant at the top of the gesture (D103's fix,
+   applied here), and `resolveProject()` is re-run so «Retry» is a genuine second attempt — pinned by a test
+   that cannot pass against the pre-fix code.
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -1197,6 +1208,13 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
 - **The register's F6 is recorded, not fixed:** if a keyboard move is in flight when the next one commits and
   the first then rejects, the revert can lag the disk by one step — self-healing on the next refresh, and each
   move closes the menu, so the window is tiny.
+- **The capture dead end's ROOT CAUSE is still unknown (D119).** The owner hit it; the fix makes the screen
+  name the failure in one line, and the four mapped causes have four different remedies (re-grant the folder,
+  wait out a locked file, free space, or a browser that cannot do the atomic write at all). **Record that line
+  from the next real run** — it is what says whether this fix is complete, or whether a fifth cause needs its
+  own guard (the `unknown` arm covers `FileSystemFileHandle.move()` being absent, which would mean no atomic
+  write is possible in that build).
+- **`⚠ PROPOSED` copy is now twelve rows:** `capture.saveFailed` joined the eleven `sheetMenu.*`/review lines.
 - Carried: D105 (judge appearance from the built app, never `npm run dev`), D106 (the export owed list),
   D107 (chip/toast items), D101 (the on-screen label halo), the **History flyout** (`writeHistorySnapshot`
   still has no caller), the end-to-end **a11y audit**, the **arrow nudge**, and the content-owner items

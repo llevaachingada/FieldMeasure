@@ -326,6 +326,13 @@ export const STRINGS = {
     unavailableFallback: 'Camera unavailable… Open Windows Camera or Import a photo.',
     unavailable: 'Camera unavailable',
     useWindowsCameraPromoted: 'Use the Windows Camera app for detail shots',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices). Owner-reported from a
+    // real run: the capture flow's failure overlay was a BLANK `role="alert"` with two
+    // buttons, so nothing said the photo could not be filed. This is that line, for the
+    // failures that have no more specific approved copy (a decode/canvas failure, or any
+    // unclassified write error); `permission`, `target-locked` and `disk-full` reuse the
+    // approved `errors.*` lines instead.
+    saveFailed: "Couldn't save this photo",
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §14):
     // the viewfinder toggles and zoom chips. `capture.autoCapture` is deliberately
     // absent — auto-capture-on-level is not built in v1 (UI §10.1: off by default).

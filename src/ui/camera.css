@@ -515,6 +515,15 @@
   border: 2px solid var(--err);
   background: rgba(14, 19, 24, 0.96);
 }
+/* The reason, above the actions — the overlay must never be a blank alert. */
+.camera-failure-message {
+  margin: 0 0 12px;
+  max-width: 320px;
+  color: var(--g000);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
 .camera-failure-actions {
   display: flex;
   gap: 16px;

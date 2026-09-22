@@ -2895,3 +2895,43 @@ pinned.
   and the window is tiny — but it is recorded rather than called impossible.
 - **The one-shot click suppression after a normal drop** depends on Chromium synthesising exactly one `click`
   for the release (review L16) — `[Surface]`, logged.
+
+### D119 — the owner-reported capture dead end: the failure overlay said nothing, and «Retry» could never work
+
+**Reported from a real run** — *"when I take a photo and hit use photo it gets stuck at 'save as a copy…'
+'retry' button"* — which is exactly the class `docs/handoff-session-21.md` §2 predicted only a real run would
+find.
+
+**What was wrong.** `CameraFlow`'s failure overlay was a blank `role="alert"` holding two buttons: no line
+said what had failed. Behind it, two different failures landed on the same screen:
+
+1. **The project folder never resolved.** The resolution effect swallowed its error and left
+   `projectRef.current === null`; every later `commit()` therefore threw `'project is not open'`, which the
+   catch turned into the same overlay. Nothing re-ran the resolution, so **every «Retry» repeated a guaranteed
+   failure** — a permanent dead end with no explanation.
+2. **The write itself failed** (a lost write grant, a locked file, a full disk). «Retry» re-ran `commit`, which
+   used the already-resolved handle and **never re-asked for the grant** — and a lost grant can only be
+   recovered inside a user gesture (§5.2), so a permission failure was also unrecoverable in place.
+
+**The fix (three parts, each pinned by a test):**
+
+1. **The overlay says why.** `describeWriteFailure()` maps the `StorageWriteError` kind to the approved copy —
+   `permission` → «Folder permission expired», `target-locked` → «File is open in another app», `disk-full` →
+   «Not enough disk space» — and one new `⚠ PROPOSED (C14)` line, `capture.saveFailed` («Couldn't save this
+   photo»), covers the rest (a decode/canvas failure, or an unclassified write error). Never a blank alert.
+2. **The recovery matches the cause.** On `permission` the primary action is **«Re-authorize»** (not a generic
+   «Retry»), which genuinely re-asks for the grant because `commit` now calls `ensureRootAccess({ request:
+   true })` at the **top** of the gesture — before the EXIF read and the normalization, which are slow enough to
+   outlive the activation window. That is the D103 fix for «New project» applied to the capture path. «Save a
+   copy…» stays beside it as the escape hatch (the photo is never trapped), and the recovery is now the primary
+   button.
+3. **«Retry» is a real second attempt.** The resolution is extracted as `resolveProject()` and re-run on the
+   null-project path, so a folder that reappears (re-picked, reconnected) files the photo.
+   `tests/cameraFlow.test.tsx` pins exactly that: with the folder absent the overlay names the problem and keeps
+   the photo; the folder is then created, «Retry» is clicked, and the sheet lands on disk — a test that cannot
+   pass against the pre-fix code.
+
+**Still unknown, and it is the point of the fix:** *which* failure the owner actually hit. The screen now
+identifies it in one line, and the four kinds map to four different remedies (re-grant, wait for the lock to
+clear, free space, or a browser that cannot do the atomic write at all). Guessing further without that line
+would be the pattern this project keeps paying for.

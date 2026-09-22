@@ -62,10 +62,12 @@ import { readExifInfo } from '@/media/exif';
 import { normalizeImage } from '@/media/normalizeImage';
 import { createThumbnailScheduler, type ThumbnailScheduler } from '@/media/thumbnails';
 import {
+  ensureRootAccess,
   getRootDir,
   readProjectFile,
   resolveOpenProjectDir,
   resolveProjectDir,
+  StorageWriteError,
   writeAtomic,
 } from '@/fs/projectStore';
 import { addSheetFromPhoto, defaultSheetTitle } from '@/fs/sheetIntake';
@@ -284,11 +286,47 @@ async function resolveProjectFolder(
   }
 }
 
+/**
+ * What the capture flow must SAY when a photo cannot be filed (D103's lesson applied to the
+ * capture path): the pre-fix screen showed two buttons and **no message at all**, and its
+ * «Retry» re-ran the identical failing path, so a user could sit in it forever. Owner-reported
+ * from a real run — the exact gap the handoff predicted only a real run would find.
+ */
+export interface CaptureFailure {
+  /** Approved copy, or a marked `⚠ PROPOSED` line — never a blank `role="alert"`. */
+  message: string;
+  /** The recovery must re-ask for the folder write grant inside the click (§5.2). */
+  needsGrant: boolean;
+  /** The project folder never resolved, so the recovery must re-resolve it first. */
+  needsResolve: boolean;
+}
+
+/** The `StorageWriteError` kind, duck-typed so a duplicated class identity cannot defeat it. */
+function writeFailureKind(e: unknown): 'permission' | 'target-locked' | 'disk-full' | 'unknown' {
+  const kind = (e as { kind?: unknown } | null)?.kind;
+  if (kind === 'permission' || kind === 'target-locked' || kind === 'disk-full') return kind;
+  return 'unknown';
+}
+
+/** Map a thrown write failure to the copy and the recovery it actually needs. */
+export function describeWriteFailure(e: unknown): CaptureFailure {
+  const kind = writeFailureKind(e);
+  if (kind === 'permission') {
+    // The one case a bare «Retry» cannot fix: the grant has to be re-asked for (§5.2/§5.3).
+    return { message: STRINGS.errors.folderPermissionExpired, needsGrant: true, needsResolve: false };
+  }
+  if (kind === 'target-locked') {
+    return { message: STRINGS.errors.fileOpenAnotherApp, needsGrant: false, needsResolve: false };
+  }
+  if (kind === 'disk-full') {
+    return { message: STRINGS.errors.notEnoughDiskSpace, needsGrant: false, needsResolve: false };
+  }
+  return { message: STRINGS.capture.saveFailed, needsGrant: false, needsResolve: false };
+}
+
 /* ------------------------------------------------------------------ *
  * Component
- * ------------------------------------------------------------------ */
-
-export default function CameraFlow({
+ * ------------------------------------------------------------------ */export default function CameraFlow({
   projectId,
   onCaptured,
   onCancel,
@@ -306,6 +344,8 @@ export default function CameraFlow({
 
   const [view, setView] = useState<View>('starting');
   const [write, setWrite] = useState<WriteState>('idle');
+  /** Why the last write failed — the overlay must never be a blank `role="alert"`. */
+  const [failure, setFailure] = useState<CaptureFailure | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [high, setHigh] = useState(true);
@@ -325,23 +365,35 @@ export default function CameraFlow({
 
   /* ---- project resolution (once per project) ----------------------------- */
 
+  /**
+   * Resolve the project folder. Extracted from the effect below so «Retry» can genuinely
+   * re-run it: before this, a folder that failed to resolve left `projectRef.current === null`
+   * forever, so every subsequent «Use photo» / «Retry» threw `'project is not open'` and the
+   * user sat in the same failure — owner-reported from a real run.
+   */
+  const resolveProject = useCallback(async (): Promise<ProjectState | null> => {
+    try {
+      const dir = await resolveProjectFolder(projectId, folderName);
+      const file = await readProjectFile(dir);
+      return { dir, file };
+    } catch {
+      // No project folder (moved, renamed, a revoked handle, an unreadable project.json): the
+      // camera still works and the photo is never trapped, but nothing can be filed — which
+      // the UI now says out loud instead of offering a Retry that cannot work.
+      return null;
+    }
+  }, [projectId, folderName]);
+
   useEffect(() => {
     let alive = true;
     void (async () => {
-      try {
-        const dir = await resolveProjectFolder(projectId, folderName);
-        const file = await readProjectFile(dir);
-        if (alive) projectRef.current = { dir, file };
-      } catch {
-        // No project folder: the camera still works, but a commit will land in the
-        // Save-a-copy path rather than trapping the photo. Never silently lost.
-        if (alive) projectRef.current = null;
-      }
+      const state = await resolveProject();
+      if (alive) projectRef.current = state;
     })();
     return () => {
       alive = false;
     };
-  }, [projectId, folderName]);
+  }, [resolveProject]);
 
   /* ---- camera lifecycle -------------------------------------------------- */
 
@@ -621,9 +673,33 @@ export default function CameraFlow({
   const commit = useCallback(
     async (blob: Blob): Promise<void> => {
       setWrite('saving');
+      setFailure(null);
       try {
-        const state = projectRef.current;
-        if (!state) throw new Error('project is not open');
+        // §5.2/§5.3: the write grant does NOT survive a page load, and it can only be asked
+        // for inside a user gesture. Ask at the TOP of the gesture — before the EXIF read and
+        // the normalization, which are slow enough to outlive the activation window — which is
+        // the same fix «New project» needed in D103. Free while the grant is held.
+        if (!(await ensureRootAccess({ request: true }))) {
+          throw new StorageWriteError('permission', new Error('the folder write grant was refused'));
+        }
+
+        let state = projectRef.current;
+        if (!state) {
+          // Re-resolve ONCE, so «Retry» is a real second attempt rather than a guaranteed
+          // repeat — the loop the owner was stuck in.
+          state = await resolveProject();
+          projectRef.current = state;
+          if (!state) {
+            setFailure({
+              message: STRINGS.errors.projectUnavailable,
+              needsGrant: false,
+              needsResolve: true,
+            });
+            setWrite('failed');
+            return;
+          }
+        }
+
         // §7.2: capture time is read BEFORE normalize strips EXIF.
         const exif = await readExifInfo(blob);
         const oriented = rotation % 360 === 0 ? blob : await bakeRotation(blob, rotation);
@@ -649,12 +725,15 @@ export default function CameraFlow({
 
         setWrite('idle');
         onCaptured({ id: sheet.id, index: sheet.sortIndex, title: sheet.title });
-      } catch {
-        // A field photo is never trapped: keep the blob, offer Save a copy….
+      } catch (e) {
+        // A field photo is never trapped: keep the blob and offer Save a copy… — and SAY why
+        // it could not be filed, with the action the cause actually needs (a bare «Retry»
+        // cannot fix a lost folder grant) — §13.4, and the D103 lesson again.
+        setFailure(describeWriteFailure(e));
         setWrite('failed');
       }
     },
-    [onCaptured, projectId, rotation],
+    [onCaptured, projectId, resolveProject, rotation],
   );
 
   const usePhoto = (): void => {
@@ -722,12 +801,18 @@ export default function CameraFlow({
   const failureOverlay =
     write === 'failed' ? (
       <div className="camera-failure" role="alert">
+        {/* The reason FIRST. The pre-fix overlay was a blank `role="alert"` holding two
+            buttons, which is exactly why a real run reported being "stuck": nothing on
+            screen said what had failed, and «Retry» re-ran the same failing path. */}
+        <p className="camera-failure-message">{failure?.message ?? STRINGS.capture.saveFailed}</p>
         <div className="camera-failure-actions">
-          <button type="button" className="btn btn-primary hit-slop" onClick={saveACopy}>
-            {STRINGS.storage.saveACopy}
+          {/* The recovery the cause needs: a lost folder grant must be re-asked for inside
+              this click (§5.2) — a plain «Retry» can never fix it. */}
+          <button type="button" className="btn btn-primary hit-slop" onClick={retryWrite}>
+            {failure?.needsGrant ? STRINGS.errors.reAuthorize : STRINGS.errors.retry}
           </button>
-          <button type="button" className="btn btn-secondary hit-slop" onClick={retryWrite}>
-            {STRINGS.errors.retry}
+          <button type="button" className="btn btn-secondary hit-slop" onClick={saveACopy}>
+            {STRINGS.storage.saveACopy}
           </button>
         </div>
       </div>

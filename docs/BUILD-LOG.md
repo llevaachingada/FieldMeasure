@@ -1291,3 +1291,42 @@ exactly the shape of D40's "a gate can only see what it asserts, in the environm
 the four owed review items above (autoscroll, the scroll container + top bar, the editor's replace dialog,
 `aria-pressed`), and then the run that has never happened: built app, a webcam, a throwaway folder, export a
 PDF and open it.
+
+## Fix (owner-reported) - the capture dead end: a blank failure overlay and a «Retry» that could never work
+**Date:** 2026-09-22 · **Commit:** this commit
+
+**Built:** the capture flow's failure path is honest and recoverable (D119).
+
+**Reported from a real run:** *"when I take a photo and hit use photo it gets stuck at 'save as a copy…'
+'retry' button"* — the class of defect `handoff-session-21` §2 said only a real run would find.
+
+**What it was.** The overlay was a blank `role="alert"` with two buttons and no message, and two different
+failures landed on it: (a) the project folder never resolved — the effect swallowed the error, so every
+`commit()` threw `'project is not open'` and nothing ever re-ran the resolution, making «Retry» a guaranteed
+repeat; and (b) the write failed, where «Retry» reused the resolved handle without ever re-asking for the write
+grant (§5.2 — recoverable only inside a gesture).
+
+**Fixed:** the overlay names the cause (kind-mapped to the approved `errors.*` lines, plus one marked proposal
+`capture.saveFailed`); the primary action matches the cause («Re-authorize» on a permission failure); `commit`
+asks for the grant at the TOP of the gesture (the D103 fix, applied here); and `resolveProject()` is extracted
+and re-run so «Retry» is a genuine second attempt.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **93 files / 1311 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 26 precache entries (1519.02 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+
+**Deferred to hardware:** which failure a real run actually hits — the overlay now names it in one line, and a
+row under slice 1.10 asks for that line to be recorded.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D119**.
+
+**Surprises:** the bug was two defects wearing one screen: a *silent* one (nothing said what failed) and a
+*structural* one (the recovery re-ran the identical failing path). Neither is visible to a suite that only ever
+drives the happy path plus a single mocked write failure — and the honest failure surface is what turns the next
+report from "it's stuck" into a cause.
+
+**Next:** the owner's next run, with the message on screen; then the owed items above.

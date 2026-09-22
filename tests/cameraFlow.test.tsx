@@ -133,11 +133,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderFlow(onCaptured = vi.fn(), onCancel = vi.fn()) {
+function renderFlow(
+  onCaptured = vi.fn(),
+  onCancel = vi.fn(),
+  folderName = 'Riverside',
+) {
   render(
     <CameraFlow
       projectId="proj-1:Riverside"
-      folderName="Riverside"
+      folderName={folderName}
       onCaptured={onCaptured}
       onCancel={onCancel}
     />,
@@ -276,6 +280,12 @@ describe('write failure — a field photo is never trapped', () => {
       await screen.findByRole('button', { name: STRINGS.storage.saveACopy }),
     ).toBeTruthy();
 
+    // …and the overlay SAYS what failed. Before this fix it was a blank `role="alert"` with
+    // two buttons, which is exactly why a real run read as "stuck" (owner-reported).
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain(STRINGS.errors.fileOpenAnotherApp);
+    expect(screen.getByRole('button', { name: STRINGS.errors.retry })).toBeTruthy();
+
     // The photo is still in memory (the review preview survives the failure).
     expect(document.querySelector('.camera-review-image')).not.toBeNull();
 
@@ -283,6 +293,59 @@ describe('write failure — a field photo is never trapped', () => {
     expect(root.filePaths().filter((p) => p.endsWith('/photo.jpg'))).toHaveLength(0);
     const parsed = readProject(root.textAt('Riverside/project.json'));
     expect(parsed.sheets).toHaveLength(1);
+  });
+
+  it('a refused write grant says so and offers Re-authorize — a bare Retry could never fix it', async () => {
+    await setup({
+      beforeWrite: (file) => {
+        if (file.name === 'photo.jpg.tmp') {
+          throw new DOMException('the write grant was refused', 'NotAllowedError');
+        }
+      },
+    });
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    renderFlow();
+    const user = userEvent.setup();
+    await screen.findByTestId('camera-resolution');
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(STRINGS.errors.folderPermissionExpired);
+    // The action matches the cause: a lost grant must be re-asked for inside the click (§5.2),
+    // which is why the label is «Re-authorize» and not the generic «Retry».
+    expect(screen.getByRole('button', { name: STRINGS.errors.reAuthorize })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: STRINGS.errors.retry })).toBeNull();
+  });
+
+  it('a project folder that never resolved says so, and Retry is a real second attempt', async () => {
+    // The owner-reported dead end: the folder failed to resolve, everything after it threw
+    // `'project is not open'`, and the overlay repeated the identical failure forever — with
+    // no message on screen. This pins the honest message AND that the recovery works.
+    await setup();
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    const { onCaptured } = renderFlow(vi.fn(), vi.fn(), 'Nope'); // not in the root, not registered
+    const user = userEvent.setup();
+    await screen.findByTestId('camera-resolution');
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(STRINGS.errors.projectUnavailable);
+    // The photo is kept, not trapped.
+    expect(document.querySelector('.camera-review-image')).not.toBeNull();
+    expect(onCaptured).not.toHaveBeenCalled();
+
+    // The folder is there now (the user reconnected/re-picked it): «Retry» must re-resolve it
+    // and file the photo rather than repeating the failure.
+    root.putFile('Nope/project.json', JSON.stringify(validProjectFile({ sheetCount: 0 })));
+    await user.click(screen.getByRole('button', { name: STRINGS.errors.retry }));
+
+    await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+    expect(readProject(root.textAt('Nope/project.json')).sheets).toHaveLength(1);
+    expect(root.filePaths().filter((p) => p.endsWith('/photo.jpg'))).toHaveLength(1);
   });
 });
 
