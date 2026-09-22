@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 13 — **the D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed**, **B1's blocker is root-caused** (D81), **C4's machine half is measured** (D80, provisional), and **slice 1.8 (style system) is complete and green** (D82–D84))
+**Last updated:** 2026-09-22 (session 14 — **slice 1.9's export modules ship and the §4.2 invariant is proven in real pixels**; the independent review session 13 deferred was RUN and **7 of its 9 findings are fixed**, including two data-integrity bugs in shipped code; D84's recorded root cause is **disproved** (D90). **Work is on branch `claude/amazing-carson-ocp8q7`, PR #2 — `main` is still at `4a12168`.** Next: `src/export/runExport.ts` + mounting the wizard — see `docs/handoff-session-14.md` §3)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 + 1.7 + 1.8 complete and green.** The D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed with pre-fix-failing guards; the style system ships (per-tool memory, recents, presets IO, the mounted WYSIWYG panel). Next: **slice 1.9 (export, steps 2–5)** |
-| Application code | **Eleven slices**, **790 machine tests / 62 files** on the committed tree (1.8's closure — node + jsdom + browser). 1.8 adds `src/state/styleByTool.ts`, `src/state/projectMeasure.ts`, `src/fs/presets.ts`, `src/editor/shapes/styleCommand.ts`, `src/ui/StylePanel.tsx` + `StyleEditorSheet.tsx` + `stylePanel.css`, the `MarkupScene` style commands, the `EditorSession` style methods and the `editorStore.selectionStyle` mirror. **All six previously-untracked 1.8 files are now tracked**, and `src/ui/styleCopy.ts` is deleted (folded into `strings.ts`). Also lands the F3/F5/F6/F7/F9 fixes, `tests/editorCanvasPerf.browser.test.ts` (C4), and a **namespace-import fix in `presets.ts`** for the browser-only link defect the full gate caught (D84). |
+| Phase | **Slices 0.2–1.8 complete and green; slice 1.9's export MODULES complete** (`renderStage.ts`, `pdf.ts`, `png.ts`, `ExportWizard.tsx`, copy folded). **1.9 is NOT usable yet: `src/export/runExport.ts` does not exist and the wizard is not mounted**, so nothing in the app can reach an export. Next: that wiring, then 1.10 |
+| Application code | **Twelve slices**, **71 files / 1015 tests** (node + jsdom + browser) on the pushed tree `ada456b`. Added this session: `src/export/renderStage.ts`, `src/export/pdf.ts`, `src/export/png.ts`, `src/ui/ExportWizard.tsx` + `exportWizard.css`, 48 folded copy rows, and the review remediation across `SelectTool.ts` / `SheetEditor.tsx` / `presets.ts` / `styleByTool.ts` / `EditorLayout.tsx` / `StylePanel.tsx`. Build 0 (17 precache, 857.62 KiB); playwright 5 passed / 5 skipped |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |

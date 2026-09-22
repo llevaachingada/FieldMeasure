@@ -1873,3 +1873,122 @@ remains **OWED** alongside D81's harness blocker. That failing run is evidence t
 a real touch; it just has not been made to pass.
 
 ---
+
+### D85
+
+**Slice 1.9 export — the memory and PDF-part boundaries are INCLUSIVE.** `bitmapBytes > 512 MB` refuses
+and `== 512 MB` passes; the same for the 250 MB PDF part limit. This matches the plan's literal wording
+("if `bitmapBytes > 512 MB`, refuse that M"). Executed at the boundary rather than near it:
+`bitmapBytes(16384, 8192, 1)` = 536,870,912 → allowed; `(16384, 8193, 1)` = 536,936,448 → refused;
+`(8192, 4096, 2)` = 536,870,912 → allowed. Pinned in `tests/exportInvariance.test.ts`.
+
+### D86
+
+**`EXPORT_JPEG_QUALITY = 0.92`.** The spec fixes no export quality. The working image is already JPEG at
+0.88 (`normalizeImage`), so the composite is re-encoded slightly higher to keep second-generation loss
+under the first. Provisional — a `[Surface]` visual check can move it.
+
+### D87
+
+**The dimension label's halo and hairline are markup-unit sizes (`strokeWidthMu`), not constants.**
+Found by running `tests/renderStage.browser.test.ts`, which its lane could not run. The halo
+(`strokeWidth: 8`) and the `--sel` hairline (`strokeWidth: 1`) in `src/editor/shapes/renderDimension.ts`
+carried no `strokeWidthMu` tag, so `applyExportRules` left them at 8 px and 1 px in the bitmap at EVERY
+multiplier while the glyphs scaled `mu × M` — the label's outline was physically THINNER at 2× and 3×,
+i.e. the §4.2 invariant failing for the label itself. Both are now tagged. **Screen behaviour is
+unchanged**: `applyScreenRules` re-applies `strokeWidth = strokeWidthMu`, which is the same 8 and 1 it
+already used, so this is export-only in effect.
+
+### D88
+
+**The export browser guard measures the label's HALO, not its white glyph fill — and the reason is
+executed, not reasoned.** Same node, `fill:#FFFFFF` + `stroke:#2FD4E0 1px`, on a black page:
+
+```
+fontSize 18 -> 0 px over threshold 200, 15 px over 150, 43 px over 100
+fontSize 54 -> 599 px over threshold 200
+```
+
+At 18 px the glyph stems are ~1 px wide and the 1-px hairline blends with essentially every fill pixel,
+so none reaches `r,g,b > 200`. A white-fill detector therefore reports "no label rendered" at M=1 and a
+real label at M=3 — failing the ratio for a reason unrelated to the export rules. **The product was never
+broken here; the first detector was.** Recorded because the same wrong conclusion was reached once during
+this session and corrected by measurement.
+
+### D89
+
+**`buildPdf([])` produces a one-page blank A4 PDF.** Executed, not assumed: `@cantoo/pdf-lib` substitutes
+a 595.28 × 841.89 pt page when a page-less document is saved (`getPageCount()` is 0 before `save()`, 1
+after `load()`). Callers must never pass an empty scope; `buildPdfParts([])` returns `[]` and is the safe
+path. Pinned in `tests/pdf.test.ts`.
+
+### D90 — D84's recorded root cause is DISPROVED
+
+D84 recorded the cause as "Vite discovers a new bare import (`zod`, imported directly by `presets.ts`)
+mid-run because `EditorLayout` is lazy-loaded and absent from the dep scan". All three premises fail:
+
+1. **`zod` was already transitively in the graph.** `src/fs/projectStore.ts` imports `../domain/schema`
+   and `src/domain/schema.ts:32` is `import { z } from 'zod'` — so the very module reported as "does not
+   provide an export" already pulled it. The chain existed at the parent commit `e104c94`.
+2. **`EditorLayout` is not lazy in the failing context.** `lazy()` appears only at `src/App.tsx:29`; all
+   three failing suites import it **statically**, so the dep scan sees the whole graph.
+3. **`presets.ts`'s direct `zod` import was DEAD CODE** — `z` was never used in the file (only
+   `AnnotationStyleZ` from `@/domain/schema`). It has been deleted.
+
+**Therefore D84's recorded remedy, `optimizeDeps.include: ['zod']`, is a no-op.** The root cause remains
+unisolated. D84 stands as the record of the failure; this entry supersedes its explanation.
+
+**Import policy, decided:** do NOT spread the namespace import — it is a mute button, not a fix, and it
+trades a loud link-time error for a silent `undefined`. `src/export/**` and the Export wizard use ordinary
+named imports. If the failure recurs, treat it as a build/tooling defect: the lever aimed at the mechanism
+is `optimizeDeps.entries` covering the browser suites, not another source change. **Owed experiment:**
+revert `presets.ts` to a named import and run the browser project. If it links cleanly the namespace
+import should go; if not, the guard below is load-bearing. Nobody has run this.
+
+### D91
+
+**`loadPresets`'s contract is narrowed: a programming error now propagates.** The namespace import yields
+`undefined` for a missing binding rather than throwing at link time, so the resulting `TypeError` fell
+into a broad catch and surfaced to the user as **"presets file is corrupt"** (and `loadPresets`'s bare
+`catch {}` did the same for `folder-unavailable`). `presets.ts` now has `PresetsBindingError` +
+`isProgrammingError`, rethrown before any classification; `EditorLayout`'s save path rethrows it instead
+of raising the §7.5 warn strip. Storage failures behave exactly as before. Laundering our own bug into
+`{ok:false,error:'corrupt'}` hands the user a Retry button that can never succeed.
+
+### D92
+
+**§9 / §7.2 / §2.4 vs `AnnotationStyle`: the inset Border control is specified, in v1 scope, and has no
+data channel.** UI §9 (line 624) and §7.2 (line 431), and build spec §11 (lines 1805, 1976), all specify
+`Border (on/off + width + colour)`, Opacity, Corner radius and Shadow for a selected inset. Build spec
+§2.4 line 233 puts image insets **IN** v1 with no carve-out. But `AnnotationStyle` has eight keys and none
+is a border, `Geometry.image` has no border, and `renderInset.ts` consumes none of the eight — so
+`styleByTool.ts`'s `inset: only({})` is faithful to the renderer.
+
+**Visible consequence, now pinned by `tests/typeToolMap.test.ts`:** any selection containing an inset
+disables EVERY style control, so Rect + inset shows a truthful scope chip over a completely dead panel.
+**Decision: do not change the intersection.** Falling back to "controls the non-inset members share" would
+leave an enabled Width scrubber that silently applies to the Rect and silently does nothing to the inset,
+while the chip says the inset is in scope — a control that lies about its reach is worse than a disabled
+one, and §7.4 #4's premise is that the panel narrows to what is *universally* applicable. The real defect
+is the missing **explanation** (§7.4 #4 / §11.6 #5 say "disabled, never hidden", but an entirely disabled
+panel gives no summary reason). That needs a copy row in `docs/appendix-strings.md` — owed to the content
+owner — and the real fix is an inset-style slice that adds the channel.
+
+### D93
+
+**`PRESETS_DIR` deleted rather than consumed.** It had zero references; the alternative (a test asserting
+`projectStore`'s two hardcoded literals agree with it) would need either a `projectStore → presets` cycle
+or source-scraping. The drift is already pinned by execution: `tests/presets.test.ts:82-92` writes through
+`savePresets` → `writePresetsFile` (which hardcodes `.fieldmeasure` and `presets.json`) and reads it back
+through `readPresetsFromDir`, which uses `PRESETS_FILE` — if either literal drifted, the round-trip fails.
+
+### D94
+
+**`StylePanel`'s "never imports `styleByTool.ts`" seam is narrowed, deliberately.** The duplicated
+type→tool map (`EditorLayout.TOOL_FOR_TYPE` / `StylePanel.TYPE_TOOL`) is now exported once from
+`src/state/styleByTool.ts`. They were byte-identical so they could not disagree yet, but nothing enforced
+it: changing `TYPE_TOOL.highlight` to `'freehand'` mislabels the scope chip while the applicability
+intersection still uses the `highlight` row, and `tsc`, node, jsdom and browser all stay green (verified
+by re-introducing exactly that divergence). `StylePanel` imports one pure data constant — no hook, no
+store read, no runtime cycle — and its header records the narrowing. If the seam must stay byte-pure, a
+third module both files import is a five-minute change.
