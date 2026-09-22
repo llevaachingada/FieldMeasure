@@ -190,6 +190,9 @@ export const STRINGS = {
     duplicateIdBadge: 'Copy',
     makeSeparateProject: 'Make this a separate project',
     noSheetsEmpty: 'No sheets yet — take a photo to start.',
+    // APPROVED (appendix-strings.md `project.addTakePhoto`, line 59) — the editor
+    // empty-state primary, paired with `capture.importButton` (UI §11.2:684; D88).
+    addTakePhoto: 'Take photo',
     readOnlyChip: "Read-only — changes can't be saved",
     // APPROVED inventory (appendix-strings.md `project.selectionCount`) — slice 1.8:
     // the Style Chip / panel header when objects are selected. The appendix `String`

@@ -565,6 +565,7 @@ export default function EditorLayout({
             activeTool={sheetEditorToolFor(activeTool)}
             placementPending={pendingOp !== 'none'}
             onImportReady={onImportReady}
+            onTakePhoto={onAddSheet}
             onSheetTitleChange={onSheetTitleChange}
             sheetId={sheetId}
           />

@@ -79,7 +79,13 @@ describe('Home states (§11.1)', () => {
 
     expect(await screen.findByText(STRINGS.home.emptyHeadline)).toBeTruthy();
     expect(screen.getByRole('button', { name: STRINGS.home.createProject })).toBeTruthy();
-    expect(screen.getByRole('button', { name: STRINGS.home.openExistingFolderEmpty })).toBeTruthy();
+    // Beta: adoption is unbuilt, so the empty-state variant is visible but honestly disabled —
+    // the first screen a tester sees must never carry a dead affordance.
+    const openFolder = screen.getByRole('button', {
+      name: STRINGS.home.openExistingFolderEmpty,
+    }) as HTMLButtonElement;
+    expect(openFolder.disabled).toBe(true);
+    expect(openFolder.getAttribute('aria-disabled')).toBe('true');
   });
 
   it('still accepts the slice-0.3 projects/state overrides', () => {
@@ -164,6 +170,27 @@ describe('project cards (§5.6 identity, §5.8c duplicates)', () => {
     expect(screen.queryByRole('button', { name: /Make this a separate project/ })).toBeNull();
   });
 
+  it('renders the «Open existing folder…» card disabled and inert (beta: adoption unbuilt)', async () => {
+    // D88/§2.4: adopting an existing folder is NOT built; `App.onOpenFolder` is a
+    // no-op. The card must read as honestly unavailable, not as a live affordance.
+    const user = userEvent.setup();
+    const onOpenFolder = vi.fn();
+    render(<ProjectList scan={async () => [solo]} onOpenFolder={onOpenFolder} />);
+
+    const card = (await screen.findByRole('button', {
+      name: STRINGS.home.openExistingFolder,
+    })) as HTMLButtonElement;
+
+    expect(card.disabled).toBe(true);
+    expect(card.getAttribute('aria-disabled')).toBe('true');
+    // Still visible (not hidden) and still carries its approved copy.
+    expect(card.textContent).toBe(STRINGS.home.openExistingFolder);
+
+    // Not actionable: even asking userEvent for a real click fires nothing.
+    await user.click(card);
+    expect(onOpenFolder).not.toHaveBeenCalled();
+  });
+
   it('shows the missing-folder affordance for an unreadable folder', async () => {
     render(
       <ProjectList
@@ -174,7 +201,11 @@ describe('project cards (§5.6 identity, §5.8c duplicates)', () => {
     );
 
     expect(await screen.findByText(STRINGS.home.folderNotFound)).toBeTruthy();
-    expect(screen.getByRole('button', { name: STRINGS.home.locate })).toBeTruthy();
+    // «Locate…» is the same unbuilt adoption path: the state is shown, the affordance is not
+    // faked (a moved folder is recovered in Explorer until adoption ships).
+    const locate = screen.getByRole('button', { name: STRINGS.home.locate }) as HTMLButtonElement;
+    expect(locate.disabled).toBe(true);
+    expect(locate.getAttribute('aria-disabled')).toBe('true');
   });
 
   it('every control has an accessible name (a11y §19.6)', async () => {

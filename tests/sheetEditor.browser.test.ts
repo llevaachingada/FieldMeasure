@@ -13,7 +13,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import Konva from 'konva';
 import SheetEditor from '../src/ui/SheetEditor';
 import { EditorCanvas } from '../src/editor/EditorCanvas';
@@ -141,6 +141,32 @@ describe('F1 — one-finger drag on empty canvas consumes decideDragTarget', () 
     pointer('pointerup', host, origin.x + 120, origin.y + 40);
 
     expect(stage.position()).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe('D88 — the editor empty state offers the add pair', () => {
+  it('renders primary «Take photo» FIRST, then «Import», and Take photo fires onTakePhoto', async () => {
+    const onTakePhoto = vi.fn();
+    render(
+      createElement(SheetEditor, {
+        projectId: 'p:f',
+        folderName: 'f',
+        onExit: () => {},
+        onTakePhoto,
+      }),
+    );
+
+    const emptyText = await screen.findByText(STRINGS.project.noSheetsEmpty);
+    const panel = emptyText.closest('.editor-panel') as HTMLElement;
+    const actions = [...panel.querySelectorAll('button')];
+
+    // UI §11.2:684 / D88 option B-C: exactly the pair, primary first.
+    expect(actions).toHaveLength(2);
+    expect(actions[0].textContent).toBe(STRINGS.project.addTakePhoto);
+    expect(actions[1].textContent).toBe(STRINGS.capture.importButton);
+
+    fireEvent.click(actions[0]);
+    expect(onTakePhoto).toHaveBeenCalledTimes(1);
   });
 });
 

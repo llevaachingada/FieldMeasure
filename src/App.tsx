@@ -58,8 +58,11 @@ export default function App() {
 
   /**
    * Home «New project»: create an app-named subfolder of the projects root, then open
-   * its (empty) editor. The editor's empty state is copy-approved («No sheets yet —
-   * take a photo to start.»), so there is no new UI here.
+   * its editor **with the capture overlay (the camera) already open**. The site flow is
+   * «New project» → shutter → photo on canvas, so the create lands on the camera, not a
+   * nearly-empty editor. Cancelling the capture leaves the user on the editor's
+   * copy-approved empty state («No sheets yet — take a photo to start.», with the
+   * «Take photo» + «Import» pair) through the existing `onCancel` path.
    *
    * A failure (root not open, quota, a locked target) is swallowed and the user STAYS
    * on Home: there is no error-surface copy in this slice — the toast/autosave layer
@@ -75,7 +78,7 @@ export default function App() {
         folderName: created.folderName,
       });
       setEditorSheetId(undefined);
-      setCaptureOpen(false);
+      setCaptureOpen(true);
       setRoute('editor');
     } catch {
       // Slice 1.10 owns error surfacing; stay on Home.

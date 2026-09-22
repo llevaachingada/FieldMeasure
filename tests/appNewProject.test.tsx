@@ -91,6 +91,12 @@ describe('Home «New project» wiring', () => {
     const editor = await screen.findByTestId('editor-layout-stub');
     expect(editor.getAttribute('data-folder-name')).toBe(BASE);
 
+    // «New project» lands on the CAMERA, not a nearly-empty editor: the capture
+    // overlay mounts over the editor. jsdom has no `getUserMedia`, so `CameraFlow`
+    // renders its camera-unavailable panel — that surface's presence is the proof
+    // the capture flow was launched (it is the only source of this copy here).
+    expect(await screen.findByText(STRINGS.capture.embeddedFallback)).toBeTruthy();
+
     const written = JSON.parse(root.textAt(`${BASE}/project.json`)) as {
       project: { id: string; title: string };
       sheets: unknown[];
@@ -132,6 +138,8 @@ describe('Home «New project» wiring', () => {
     // The atomic write failed, so the tmp survives and the editor was never entered.
     await waitFor(() => expect(root.childDir(BASE).has('project.json.tmp')).toBe(true));
     expect(screen.queryByTestId('editor-layout-stub')).toBeNull();
+    // Nothing was created, so the capture overlay was never launched either.
+    expect(screen.queryByText(STRINGS.capture.embeddedFallback)).toBeNull();
     expect(screen.getByRole('button', { name: BASE })).toBeTruthy();
   });
 });

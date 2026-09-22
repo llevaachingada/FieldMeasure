@@ -141,6 +141,13 @@ export interface SheetEditorProps {
   activeTool?: EditorTool;
   placementPending?: boolean;
   onImportReady?: (trigger: () => void) => void;
+  /**
+   * The empty-state primary «Take photo» action (UI §11.2:684, the D88 pair). The shell
+   * owns the camera overlay — `EditorLayout` hands its `onAddSheet` down here, which is
+   * the exact path the top bar's «Add sheet» already uses. Absent (e.g. a bare mount),
+   * the empty state simply renders the secondary «Import» affordance.
+   */
+  onTakePhoto?: () => void;
   onSheetTitleChange?: (title: string) => void;
   sheetId?: string;
   /**
@@ -233,6 +240,7 @@ export default function SheetEditor({
   activeTool = 'select',
   placementPending = false,
   onImportReady,
+  onTakePhoto,
   onSheetTitleChange,
   sheetId,
   onSceneReady,
@@ -2081,13 +2089,27 @@ export default function SheetEditor({
           <div className="editor-panel" role="status">
             <p>{STRINGS.project.noSheetsEmpty}</p>
             {!readOnly ? (
-              <button
-                type="button"
-                className="btn btn-primary hit-slop"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {STRINGS.capture.importAPhoto}
-              </button>
+              // The UI §11.2:684 add pair: primary «Take photo» (opens the camera
+              // overlay through the shell seam) then secondary «Import» (the same
+              // `addSheetFromPhoto` file input as before). D88's recorded option B/C.
+              // Both are direct `.editor-panel` children: its column flex + 16 px gap
+              // already stacks and spaces them, so no new stylesheet rule is needed.
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary hit-slop"
+                  onClick={onTakePhoto}
+                >
+                  {STRINGS.project.addTakePhoto}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary hit-slop"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {STRINGS.capture.importButton}
+                </button>
+              </>
             ) : null}
           </div>
         ) : null}

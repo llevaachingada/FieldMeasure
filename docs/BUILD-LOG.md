@@ -632,3 +632,127 @@ more of this when the `[Surface]` gates are run.
   create).
 
 **Next:** slice 1.9 — export (unchanged).
+
+---
+
+## Slice 1.9 — Export (MODULES ONLY — the wiring is not built) + the session-13 review remediation
+**Date:** 2026-09-22 · **Commits:** `cc35e4c`, `192585f`, `907af0b`, `33cee24`, `ada456b`, `250668c`
+· **Branch:** `claude/amazing-carson-ocp8q7` (PR #2, draft) — **not `main`**
+
+**⚠ This entry deviates from the one-commit-per-slice rule, and says so rather than hiding it.** Six
+lanes ran in parallel and landed at different times, and the session's environment required a clean tree
+at each stop, so each lane was committed as it was verified. Each commit message states that the wave was
+still in flight. The usual discipline resumes when `runExport.ts` lands.
+
+**Built:** slice 1.9's export **modules**. `renderStage.ts` is the §4.2 export stage — `applyExportRules`
+is a node-for-node **mirror** of `applyScreenRules`, reading the same attrs; the export path never calls
+`applyScreenRules` and never calls `scene.setScale()`, so the two paths stay opposites. `pdf.ts` gives
+`buildPdf` / `buildPdfParts` (splitting at 250 MB, the remedy designed in advance for the 50-sheet gate) /
+the pure `planPdfParts`. `png.ts` gives 1×/2×/3× sizing, `zipPngs` (fflate, level 0 — PNG is already
+DEFLATE'd) and an IHDR parser that validates the signature **and** the chunk type. `ExportWizard.tsx` is
+the §11.10 four-step wizard built against an injected-props interface, so it never imported a sibling
+lane's in-flight file. 48 copy rows folded into `strings.ts` and machine-checked.
+
+**NOT built — the slice is not usable:** `src/export/runExport.ts` does not exist and the wizard is not
+mounted, so **nothing in the app can reach an export**. See `docs/handoff-session-14.md` §3.
+
+**Machine gates:**
+- [x] **export invariance, measured in REAL PIXELS** at M = 1/2/3 (`tests/renderStage.browser.test.ts`
+      scans `getImageData`; not attribute arithmetic — the review brief's prior catch #6).
+      `0.75 × mu` pt at every M; page pt = imagePx × 0.75, independent of M
+- [x] PNG pixel dimensions; zip round-trip through `unzipSync` on the decompressed bytes
+- [x] the 29-row filename table (unchanged, re-run) and the conflict rows
+- [x] the 512 MB guard at its **exact** inclusive boundary (D96), and the 3× refusal as a **refusal** —
+      `tests/exportWizard.test.tsx` asserts `runExport` was never called, not merely that a message showed
+- [x] the damaged-photo white page at module level
+- [x] a11y: keyboard-operable wizard, announced steps, selectable result path, no inline `style=""`
+- [~] **`[Surface]`** H12 (Acrobat across M), H8 (50-sheet at 2×), **H19–H22** (damaged photo end to end,
+      NTFS case-insensitive conflict, C6's real ceiling, the touch + a11y walk)
+
+**Also landed — the independent review session 13 deferred.** 7 of 9 findings fixed, two of them
+data-integrity bugs in already-shipped code that every prior gate had passed: a **cancelled drag persisted
+geometry to `markup.json` with no undo step** (the palm-rejection case), and **resize teleported a vertex
+on 7 of 11 annotation kinds** (all 11 resize tests used a `rect`). Also §8.3's 600 ms style coalescing,
+which had **zero** production callers while two suites asserted it worked; a test that could not fail and
+the growth-past-pivot bug it hid; a link failure being reported to the user as "presets file is corrupt";
+and the duplicated type→tool map. **A bug the full gate caught that no per-lane check could:** the
+dimension label's halo and hairline carried no `strokeWidthMu` tag, so they stayed 8 px / 1 px at every M
+while the glyphs scaled — the §4.2 invariant failing for the label itself (D98).
+
+**Deferred to hardware:** 6 → H8, H12, H19, H20, H21, H22.
+
+**Checkpoints fired:** none. **C6 is NOT fired** — its number is a dev-machine figure (D96) and H21 is
+what sets it.
+
+**Gate on the pushed tree (`250668c`):** `tsc` 0 · `vitest` **71 files / 1015 tests** (node + jsdom +
+browser) · `build` 0 (17 precache, 857.62 KiB) · `playwright` 5 passed / 5 skipped.
+
+> **Restored in session 16.** The merge commit `2e7a43a` took `docs/BUILD-LOG.md` wholesale from `main`,
+> which silently dropped this entry (it exists in history at `b2d6dea`). The text above is that record with
+> its decision numbers re-mapped to the reconciled scheme (`D85`–`D88` → `D96`–`D99`; see DECISIONS `D100`).
+
+---
+
+## Session 16 — the union: merge published, numbering reconciled, and the beta flow
+**Date:** 2026-09-22 · **Commits:** see `git log` · **Branch:** `main` (the cloud branch is merged into it)
+
+**Done:**
+
+- **The parallel-branch collision is closed.** `main` fast-forwarded to the merge commit `2e7a43a` and was
+  **pushed** — `origin/main` is now the union and PR #2 closes as merged. The merge is structurally sound
+  (no conflict markers; both sides' code present) and its gate was **re-run on Windows before anything
+  landed on it**: tsc 0 · **73 files / 1027 tests** · build 0 (17 precache, 858.51 KiB) · playwright 5 / 5.
+- **Decision numbering reconciled (D100).** The merge shipped two `D85`–`D88` sequences. `main`'s four keep
+  their numbers; the four conflicting **export-side** entries moved to `D96`–`D99`. Docs-only — no source or
+  test comment changed. The one external reference updated is HARDWARE-TEST-CHECKLIST H21 (the C6 row).
+- **The merge's silent doc loss is repaired.** `2e7a43a` had taken `CONTINUITY.md` and `BUILD-LOG.md`
+  wholesale from `main`, dropping the branch's session-14/15 snapshot **and its 1.9 entry**, while the code
+  kept 1.9. The 1.9 entry is restored above (from `b2d6dea`, numbers re-mapped); CONTINUITY was rebuilt from
+  the branch's session-15 state with `main`'s session-13 follow-up and watch items spliced back in. The
+  untracked `docs/CONTINUITY_new.md` was a **mojibake duplicate** of `main`'s CONTINUITY (byte-compared: same
+  854 lines, same references, no unique content) and was deleted.
+- **The session-14 independent review is discharged (D101).** **F1 — recorded as a §4.2 export defect — is a
+  FALSE POSITIVE, proven by execution.** `node_modules/konva/lib/shapes/Text.js:639-643` forces
+  `getStrokeScaleEnabled()` to `true` ("for text we can't disable stroke scaling"), so the
+  `strokeScaleEnabled() === false` guard in `applyExportRules` **and** `applyScreenRules` is unreachable for a
+  `Konva.Text`: the prescribed `strokeWidthMu` tag is inert. The export stage scales the layer itself
+  (`renderStage.ts:395`), so the angle halo already rendered `4 × M` — measured run thickness at M=1/2/3 =
+  **5 / 8 / 13 px**, and **byte-identical with and without** the prescribed tag. A **pixel regression guard**
+  was kept instead of a fix (`tests/renderStage.browser.test.ts`, its own fixture). **F2** (the stale halo
+  rationale) was re-worded. **D98's** (branch D87) tags are inert for the same reason — its *outcome* stands
+  (the export was always correct), its *explanation* does not. New and real: on-screen label outlines scale
+  with canvas zoom instead of a constant mu px — cosmetic, owed to 1.10 (D101).
+- **Beta flow landed (D102 = the owner's D88 answer, option B).** «New project» creates the folder and opens
+  the **camera** over the editor; cancelling falls back to the editor's empty state, which now carries the
+  spec'd add pair — primary «Take photo» (`project.addTakePhoto`, appendix line 59) + «Import»
+  (`capture.importButton`) — wired through a single `onTakePhoto` seam (`App → EditorLayout → SheetEditor`) so
+  exactly one capture dialog exists. All three stubbed folder controls (the secondary «Open existing
+  folder…» card, its empty-state variant, and «Locate…» on a moved folder) are now **honestly disabled**
+  (`disabled` + `aria-disabled`, keyboard-skipped, copy kept) instead of looking live.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `CI=true npx vitest run` → **73 files / 1031 tests** (node + jsdom + browser; +4 this wave), exit 0
+- [x] `npm run build` → 0 errors, 17 precache entries (858.82 KiB)
+- [x] `npx playwright test` → 5 passed / 5 skipped
+
+**Deferred to hardware:** none added. H19–H22 (1.9) and H8/H12 remain pending.
+
+**Checkpoints fired:** none — **C6 is not fired**; H21 is what sets the real ceiling.
+
+**Decisions recorded:** D100 (the numbering map), D101 (F1 false positive + the D98 correction + the
+on-screen stroke finding), D102 (the owner's D88 answer + the beta-honesty rule).
+
+**Surprises:**
+1. **The merge silently reverted the live docs while keeping both sides' code.** File-level conflict
+   resolution took `main`'s `CONTINUITY.md` and `BUILD-LOG.md`, so the project's own state file described a
+   tree that no longer existed. Nothing flagged it; it was found by diffing the merge against *each* parent.
+   **A merge is not integration.**
+2. **A stop-class review finding was wrong.** F1's final step was attribute arithmetic, not a pixel
+   measurement — exactly the class the review brief's question 6 warns about (second occurrence, after
+   D88). Had it been "fixed", the codebase would carry an inert line with a false rationale.
+3. **The prescribed fix was inert but harmless-looking**, which is the worse failure mode: it would have
+   passed every gate and documented the wrong mechanism.
+
+**Next:** slice 1.9's wiring (`src/export/runExport.ts` + mounting the wizard + enabling the entry points,
+per `docs/handoff-session-14.md` §3), then 1.10.

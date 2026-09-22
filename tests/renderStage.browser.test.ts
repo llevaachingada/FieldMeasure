@@ -18,12 +18,14 @@
  *
  * HOW THE LABEL IS MEASURED — and why not "all non-background pixels". The dimension
  * label is three overlapping nodes: a dark halo `Konva.Text` (`strokeWidth: 8`), the
- * white glyph fill, and a 1 px `--sel` hairline. The halo's and hairline's widths are
- * NOT tagged `strokeWidthMu`, so — exactly as on screen — they are not multiplied by M;
- * a bounding box over every non-background pixel would therefore measure
- * `glyph + a constant halo` (≈ 18M + 8) and could not be 1 : 2 : 3 by construction.
- * The invariant is about the GLYPH, so the measurement is the bounding box of the
- * near-WHITE pixels (the `#FFFFFF` fill) over a black photo. See the report's "seams".
+ * white glyph fill, and a 1 px `--sel` hairline. Konva's `Text` cannot disable stroke
+ * scaling (see the F1 note at the bottom of this file), so the halo's and hairline's
+ * widths scale with the layer exactly like the glyphs: the whole readout grows 1 : 2 : 3.
+ * The invariant is about the GLYPH, and the near-WHITE fill is not a usable detector — at
+ * M = 1 the main Text's 1-px `--sel` stroke blends with essentially every fill pixel and
+ * NONE reaches r,g,b > 200 (measured; see "The label's HALO ink" below). The measurement
+ * is therefore the bounding box of the HALO pixels — the same glyph outline, grown by
+ * 8 × M px — over a black photo. See the report's "seams".
  */
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_STYLE, type Annotation } from '../src/domain/types';
@@ -341,5 +343,163 @@ describe('§19.4a damaged photo', () => {
       rendered.canvas.width = 0;
       rendered.canvas.height = 0;
     }
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * §4.2 ANGLE-LABEL halo scaling — its own fixture, so the dimension
+ * measurements in the suite above are untouched.
+ *
+ * Raised as F1: "the angle label's halo has no `strokeWidthMu`, so `applyExportRules`
+ * leaves it at 4 bitmap px while the glyphs scale, shrinking the outline 3× from M=1
+ * to 3." Executed, that defect does NOT reproduce — see the describe block below. The
+ * test is kept as the guard for the real invariant.
+ * ------------------------------------------------------------------ */
+
+/**
+ * The angle fixture. `vertex → a` is straight up and `vertex → c` straight right, so the
+ * derived readout is `90.0°` and `buildAngle` centres it near (236, 184) image px —
+ * inside the arc (radius 64), clear of both rays.
+ */
+const ANGLE_VERTEX = { x: 200, y: 220 };
+/**
+ * 72, not the suite's 18. The angle label's halo is 4 mu either side of the glyph outline;
+ * at 18 mu a JetBrains Mono stem is ≈1–2 px, so the 2 px inner stroke consumes the fill
+ * and the readout rasterises as a solid dark blob — there is no halo BAND to measure. At
+ * 72 mu the stems are ≈7 px, the white fill survives, and each side of a stem is an
+ * isolated dark run of exactly `strokeWidth` px between two fill pixels.
+ */
+const ANGLE_FONT_MU = 72;
+
+function angleAnnotations(): Annotation[] {
+  return [
+    {
+      id: 'angle-1',
+      type: 'angle',
+      geometry: {
+        kind: 'angle',
+        a: { x: ANGLE_VERTEX.x, y: 60 },
+        vertex: { ...ANGLE_VERTEX },
+        c: { x: 360, y: ANGLE_VERTEX.y },
+      },
+      valueMm: null,
+      valueDeg: 90,
+      enteredText: null,
+      style: { ...style(), fontSizeMu: ANGLE_FONT_MU },
+      zIndex: 1000,
+      source: 'manual',
+      assetId: null,
+      groupId: null,
+      locked: false,
+    },
+  ];
+}
+
+function angleSheetInput(photo: CanvasImageSource | null): ExportSheetInput {
+  return {
+    sheetId: 'sheet-1',
+    imageWidthPx: SHEET_W,
+    imageHeightPx: SHEET_H,
+    annotations: angleAnnotations(),
+    ctx: CTX,
+    ghostText: 'tap to enter value',
+    photo,
+  };
+}
+
+const isWhiteFill = (p: [number, number, number, number]): boolean =>
+  p[0] > 200 && p[1] > 200 && p[2] > 200;
+
+/**
+ * Every contiguous run of halo pixels on ONE row, across the label's halo bounding box.
+ * A horizontal scan across a glyph stem meets: dark halo band (outer half + inner half,
+ * total = the layer-scaled `strokeWidth`) → white fill → dark halo band. The white fill
+ * breaks the run, so the run length IS the halo band width. (Vertically, a column through
+ * a stem runs the glyph's whole height inside the halo band, so the measurement is
+ * horizontal.)
+ */
+function rowRuns(img: ImageData, y: number): number[] {
+  const bb = boundingBox(img, isLabelInk);
+  const runs: number[] = [];
+  let run = 0;
+  for (let x = Math.max(0, bb.left - 2); x <= Math.min(img.width - 1, bb.right + 2); x += 1) {
+    if (isLabelInk(at(img, x, y))) run += 1;
+    else {
+      if (run > 0) runs.push(run);
+      run = 0;
+    }
+  }
+  if (run > 0) runs.push(run);
+  return runs;
+}
+
+/** Median of a numeric list; even length → mean of the middle two. */
+function medianOf(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
+/**
+ * The halo band width, measured as the median run of a band of rows through the label's
+ * vertical centre. The centre row crosses the vertical strokes of `9`, `0`, `0` — stems —
+ * not the baseline `.` or the superscript `°`. The median rejects the few long runs where
+ * a row grazes a curve, and the few 1–2 px antialiasing slivers at glyph corners.
+ */
+function haloRunThickness(img: ImageData): number {
+  const bb = boundingBox(img, isLabelInk);
+  const yc = Math.floor((bb.top + bb.bottom) / 2);
+  const pooled: number[] = [];
+  for (let y = yc - 3; y <= yc + 3; y += 1) pooled.push(...rowRuns(img, y));
+  return medianOf(pooled);
+}
+
+/**
+ * F1, measured rather than read. Konva's `Text` overrides `getStrokeScaleEnabled()` to
+ * return `true` unconditionally (`node_modules/konva/lib/shapes/Text.js`: "for text we
+ * can't disable stroke scaling"), so a Text node's stroke is ALWAYS scaled by the
+ * enclosing transform — here the export layer's `scale = M`. The angle label's halo
+ * therefore rasterises at 4 × M bitmap px with or without a `strokeWidthMu` tag, and
+ * `applyExportRules`'s `strokeScaleEnabled() === false` guard can never fire for a Text.
+ *
+ * Verified by execution: adding `strokeWidthMu: 4` to the label left its `strokeWidth()`
+ * at 4 after `applyExportRules(group, 3)` and produced identical pixel runs (5 / 8 / 13).
+ * Physical size is constant either way: 4M px @ 96M dpi = 4/96 in = 3 pt at every M.
+ *
+ * So the assertions below pass before AND after the proposed F1 tag: this is a regression
+ * guard, not a defect-reproducer. It fails if the halo ever stops tracking the glyphs
+ * (e.g. a future Konva that honours `strokeScaleEnabled:false` while the label is untagged).
+ */
+describe('§4.2 angle-label halo scales with M', () => {
+  it('the 4-mu halo run is 4 × M bitmap px (1 : 2 : 3)', async () => {
+    const thickness: number[] = [];
+    let fillPixelsAtM1 = 0;
+    for (const m of [1, 2, 3] as ExportMultiplier[]) {
+      const rendered = await renderSheet(angleSheetInput(blackPhoto()), m);
+      try {
+        const img = readPixels(rendered.canvas);
+        if (m === 1) {
+          // Guards the measurement's premise: if the fill did not survive, every stem
+          // would be one merged run and the number below would measure the glyph.
+          fillPixelsAtM1 = boundingBox(img, isWhiteFill).count;
+        }
+        thickness.push(haloRunThickness(img));
+      } finally {
+        rendered.canvas.width = 0;
+        rendered.canvas.height = 0;
+      }
+    }
+    const [t1, t2, t3] = thickness as [number, number, number];
+    expect(fillPixelsAtM1).toBeGreaterThan(0); // the white fill really renders at M = 1
+
+    // 4 × M = 4 / 8 / 12, ±1 for the antialiased outer edge of the halo (measured
+    // 5 / 8 / 13: one partial pixel at each dark/photo boundary).
+    expect(Math.abs(t1 - 4 * 1)).toBeLessThanOrEqual(1);
+    expect(Math.abs(t2 - 4 * 2)).toBeLessThanOrEqual(1);
+    expect(Math.abs(t3 - 4 * 3)).toBeLessThanOrEqual(1);
+
+    // The scaling itself, not just the absolute sizes: the halo tracks the glyphs.
+    expect(t2).toBeGreaterThan(t1);
+    expect(t3).toBeGreaterThan(t2);
   });
 });

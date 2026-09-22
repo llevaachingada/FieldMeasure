@@ -26,12 +26,21 @@ import { createElement } from 'react';
 vi.mock('@/ui/SheetEditor', async () => {
   const React = await import('react');
   return {
-    default: (props: { onImportReady?: (trigger: () => void) => void }) => {
+    default: (props: {
+      onImportReady?: (trigger: () => void) => void;
+      onTakePhoto?: () => void;
+    }) => {
       React.useEffect(() => {
         props.onImportReady?.(() => {
           (globalThis as { __fmImportTriggered?: boolean }).__fmImportTriggered = true;
         });
       }, [props.onImportReady]);
+      // Record the empty-state «Take photo» seam so the shell → editor wiring (D88)
+      // can be proved without mounting a real Konva canvas.
+      React.useEffect(() => {
+        (globalThis as { __fmTakePhotoTrigger?: () => void }).__fmTakePhotoTrigger =
+          props.onTakePhoto;
+      }, [props.onTakePhoto]);
       return React.createElement('div', { className: 'editor-canvas', 'data-testid': 'sheet-editor' });
     },
   };
@@ -73,6 +82,7 @@ beforeEach(() => {
   useAppStore.setState(createInitialAppState());
   setViewport(1240, 908);
   delete (globalThis as { __fmImportTriggered?: boolean }).__fmImportTriggered;
+  delete (globalThis as { __fmTakePhotoTrigger?: () => void }).__fmTakePhotoTrigger;
 });
 
 afterEach(() => {
@@ -461,6 +471,26 @@ describe('EditorLayout — composition, docking, rotation, keys', () => {
       screen.getByRole('menuitem', { name: STRINGS.editor.menuImportFile }).click();
     });
     expect((globalThis as { __fmImportTriggered?: boolean }).__fmImportTriggered).toBe(true);
+  });
+
+  it('hands the shell «Add sheet» down as the SheetEditor «Take photo» seam (D88)', () => {
+    const onAddSheet = vi.fn();
+    renderLayout({ onAddSheet });
+
+    act(() => {
+      screen.getByRole('button', { name: STRINGS.a11y.moreActions }).click();
+    });
+    act(() => {
+      screen.getByRole('menuitem', { name: STRINGS.editor.menuAddSheet }).click();
+    });
+    expect(onAddSheet).toHaveBeenCalledTimes(1);
+
+    // EditorLayout passes its `onAddSheet` straight through, so the empty state's
+    // primary «Take photo» is the SAME handler — no second dialog, no duplicate
+    // capture path (D88 add pair).
+    expect(
+      (globalThis as { __fmTakePhotoTrigger?: () => void }).__fmTakePhotoTrigger,
+    ).toBe(onAddSheet);
   });
 
   it('wires the rail undo/redo to the editor session and names the action in a toast', () => {

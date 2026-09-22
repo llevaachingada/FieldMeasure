@@ -212,7 +212,17 @@ export default function ProjectList({
               <button type="button" className="btn btn-primary hit-slop" onClick={onNewProject}>
                 {STRINGS.home.createProject}
               </button>
-              <button type="button" className="btn btn-secondary hit-slop" onClick={onOpenFolder}>
+              {/* Beta: folder adoption is not built (`App.onOpenFolder` is a no-op), so this
+                  control is honestly disabled rather than a dead affordance — the same treatment
+                  as the secondary card below. The copy and the prop are kept for the slice that
+                  builds adoption; see the watch items in CONTINUITY. */}
+              <button
+                type="button"
+                className="btn btn-secondary hit-slop"
+                disabled
+                aria-disabled="true"
+                onClick={onOpenFolder}
+              >
                 {STRINGS.home.openExistingFolderEmpty}
               </button>
             </div>
@@ -259,16 +269,31 @@ export default function ProjectList({
                   {card.status !== 'ok' ? (
                     <p className="project-card-status">
                       {STRINGS.home.folderNotFound}{' '}
-                      <button type="button" className="link-button hit-slop" onClick={onOpenFolder}>
+                      {/* Same honesty rule as the secondary card: locating a moved folder is
+                          the unbuilt adoption path, so the link is disabled, not dead. */}
+                      <button
+                        type="button"
+                        className="link-button hit-slop"
+                        disabled
+                        aria-disabled="true"
+                        onClick={onOpenFolder}
+                      >
                         {STRINGS.home.locate}
                       </button>
                     </p>
                   ) : null}
                 </article>
               ))}
+              {/* Beta: folder adoption is not built — `App` stubs `onOpenFolder` as a
+                  no-op. The card stays visible and keeps its copy, but is honestly
+                  disabled (`disabled` + `aria-disabled`, keyboard-skipped) so it never
+                  reads as a live affordance. `btn` reuses the `.btn:disabled` visual
+                  language (opacity + `not-allowed`); the dashed card look is unchanged. */}
               <button
                 type="button"
-                className="project-card project-card-secondary hit-slop"
+                className="btn project-card project-card-secondary hit-slop"
+                disabled
+                aria-disabled="true"
                 onClick={onOpenFolder}
               >
                 {STRINGS.home.openExistingFolder}

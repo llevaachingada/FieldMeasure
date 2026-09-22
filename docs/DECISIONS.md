@@ -2018,47 +2018,6 @@ Nothing is implemented under this entry — it records the gap, the evidence, an
 
 ---
 
-### D85
-
-**Slice 1.9 export — the memory and PDF-part boundaries are INCLUSIVE.** `bitmapBytes > 512 MB` refuses
-and `== 512 MB` passes; the same for the 250 MB PDF part limit. This matches the plan's literal wording
-("if `bitmapBytes > 512 MB`, refuse that M"). Executed at the boundary rather than near it:
-`bitmapBytes(16384, 8192, 1)` = 536,870,912 → allowed; `(16384, 8193, 1)` = 536,936,448 → refused;
-`(8192, 4096, 2)` = 536,870,912 → allowed. Pinned in `tests/exportInvariance.test.ts`.
-
-### D86
-
-**`EXPORT_JPEG_QUALITY = 0.92`.** The spec fixes no export quality. The working image is already JPEG at
-0.88 (`normalizeImage`), so the composite is re-encoded slightly higher to keep second-generation loss
-under the first. Provisional — a `[Surface]` visual check can move it.
-
-### D87
-
-**The dimension label's halo and hairline are markup-unit sizes (`strokeWidthMu`), not constants.**
-Found by running `tests/renderStage.browser.test.ts`, which its lane could not run. The halo
-(`strokeWidth: 8`) and the `--sel` hairline (`strokeWidth: 1`) in `src/editor/shapes/renderDimension.ts`
-carried no `strokeWidthMu` tag, so `applyExportRules` left them at 8 px and 1 px in the bitmap at EVERY
-multiplier while the glyphs scaled `mu × M` — the label's outline was physically THINNER at 2× and 3×,
-i.e. the §4.2 invariant failing for the label itself. Both are now tagged. **Screen behaviour is
-unchanged**: `applyScreenRules` re-applies `strokeWidth = strokeWidthMu`, which is the same 8 and 1 it
-already used, so this is export-only in effect.
-
-### D88
-
-**The export browser guard measures the label's HALO, not its white glyph fill — and the reason is
-executed, not reasoned.** Same node, `fill:#FFFFFF` + `stroke:#2FD4E0 1px`, on a black page:
-
-```
-fontSize 18 -> 0 px over threshold 200, 15 px over 150, 43 px over 100
-fontSize 54 -> 599 px over threshold 200
-```
-
-At 18 px the glyph stems are ~1 px wide and the 1-px hairline blends with essentially every fill pixel,
-so none reaches `r,g,b > 200`. A white-fill detector therefore reports "no label rendered" at M=1 and a
-real label at M=3 — failing the ratio for a reason unrelated to the export rules. **The product was never
-broken here; the first detector was.** Recorded because the same wrong conclusion was reached once during
-this session and corrected by measurement.
-
 ### D89
 
 **`buildPdf([])` produces a one-page blank A4 PDF.** Executed, not assumed: `@cantoo/pdf-lib` substitutes
@@ -2166,3 +2125,129 @@ machine silently rewrote working-tree files to CRLF (33 src/test files); the tre
 with `git config core.autocrlf false` + `git read-tree HEAD` + `git checkout-index -f -a`. Node on this
 box is 24.19.0 (package.json's >=24 satisfied — the handoff's node-22 note does not apply). The CRLF
 hypothesis for the link error was tested and DISPROVED: LF made no difference; the mocks were the cause.
+
+### D96
+
+**Slice 1.9 export — the memory and PDF-part boundaries are INCLUSIVE.** `bitmapBytes > 512 MB` refuses
+and `== 512 MB` passes; the same for the 250 MB PDF part limit. This matches the plan's literal wording
+("if `bitmapBytes > 512 MB`, refuse that M"). Executed at the boundary rather than near it:
+`bitmapBytes(16384, 8192, 1)` = 536,870,912 → allowed; `(16384, 8193, 1)` = 536,936,448 → refused;
+`(8192, 4096, 2)` = 536,870,912 → allowed. Pinned in `tests/exportInvariance.test.ts`.
+
+### D97
+
+**`EXPORT_JPEG_QUALITY = 0.92`.** The spec fixes no export quality. The working image is already JPEG at
+0.88 (`normalizeImage`), so the composite is re-encoded slightly higher to keep second-generation loss
+under the first. Provisional — a `[Surface]` visual check can move it.
+
+### D98
+
+**The dimension label's halo and hairline are markup-unit sizes (`strokeWidthMu`), not constants.**
+Found by running `tests/renderStage.browser.test.ts`, which its lane could not run. The halo
+(`strokeWidth: 8`) and the `--sel` hairline (`strokeWidth: 1`) in `src/editor/shapes/renderDimension.ts`
+carried no `strokeWidthMu` tag, so `applyExportRules` left them at 8 px and 1 px in the bitmap at EVERY
+multiplier while the glyphs scaled `mu × M` — the label's outline was physically THINNER at 2× and 3×,
+i.e. the §4.2 invariant failing for the label itself. Both are now tagged. **Screen behaviour is
+unchanged**: `applyScreenRules` re-applies `strokeWidth = strokeWidthMu`, which is the same 8 and 1 it
+already used, so this is export-only in effect.
+
+### D99
+
+**The export browser guard measures the label's HALO, not its white glyph fill — and the reason is
+executed, not reasoned.** Same node, `fill:#FFFFFF` + `stroke:#2FD4E0 1px`, on a black page:
+
+```
+fontSize 18 -> 0 px over threshold 200, 15 px over 150, 43 px over 100
+fontSize 54 -> 599 px over threshold 200
+```
+
+At 18 px the glyph stems are ~1 px wide and the 1-px hairline blends with essentially every fill pixel,
+so none reaches `r,g,b > 200`. A white-fill detector therefore reports "no label rendered" at M=1 and a
+real label at M=3 — failing the ratio for a reason unrelated to the export rules. **The product was never
+broken here; the first detector was.** Recorded because the same wrong conclusion was reached once during
+this session and corrected by measurement.
+
+### D100 — decision numbering reconciled after the parallel-branch merge
+
+`main` and `claude/amazing-carson-ocp8q7` diverged at `4a12168` and each allocated `D85`–`D88`
+independently, so the merge commit `2e7a43a` shipped **two different `D85`s, `D86`s, `D87`s and `D88`s**.
+The numbering is reconciled by keeping `main`'s four entries where they were recorded and moving the four
+conflicting **export-side** entries to the next free numbers:
+
+| As recorded on the branch | Now | Subject |
+|---|---|---|
+| D85 | **D96** | the 512 MB / 250 MB export boundaries are inclusive |
+| D86 | **D97** | `EXPORT_JPEG_QUALITY = 0.92` |
+| D87 | **D98** | the dimension label's halo/hairline were untagged (`strokeWidthMu`) |
+| D88 | **D99** | the export browser guard measures the halo, not the white glyph fill |
+
+Everything else on the export side keeps its number (`D89`–`D95`; `D90`'s owed experiment is answered by
+`D95`). Why this direction: it is the smallest blast radius — four headings move and **no source or test
+comment is touched**. The alternative (shifting all eleven export entries to `D89`–`D99`) rewrites ~16
+comment lines across `src/fs/presets.ts` and six browser suites for the same result. The only external
+reference updated is `docs/HARDWARE-TEST-CHECKLIST.md` H21 (the C6 ceiling row, which cites the 512 MB
+figure). Historical commits that used the old branch numbers are left exactly as written; this entry is
+the map.
+
+### D101 — review finding F1 is a FALSE POSITIVE: a `Konva.Text` cannot disable stroke scaling, so the `strokeWidthMu` tag is inert (corrects D98)
+
+The independent review of the session-14 export batch recorded **F1** as a §4.2 defect: `renderShape.ts`'s
+angle readout is a `Konva.Text` with `stroke: LABEL_HALO, strokeWidth: 4` and no `strokeWidthMu` tag, and the
+reviewer's execution walk of `applyExportRules` concluded the halo therefore stays 4 bitmap px at every M
+while its glyphs scale `18 × M` — "the outline's physical size shrinks 3× from M=1→3". The finding was
+treated as stop-class and dispatched as a fix.
+
+**Executed counter-evidence (browser project, real Konva + real rasteriser):**
+
+1. `node_modules/konva/lib/shapes/Text.js:639-643` — `getStrokeScaleEnabled()` **returns `true`
+   unconditionally**, with Konva's own comment "*for text we can't disable stroke scaling; if we do, the
+   result will be unexpected*". Setting `strokeScaleEnabled: false` at build time is ignored, and so is the
+   setter afterwards.
+2. Both seams guard the tag on that getter — `renderStage.ts:252` (`applyExportRules`) and
+   `EditorCanvas.ts:226-232` (`applyScreenRules`) apply `strokeWidth = strokeWidthMu` only when
+   `strokeScaleEnabled() === false`. **For a `Konva.Text` that branch is unreachable**, so the tag is inert
+   on both paths: the prescribed one-line fix provably changes nothing.
+3. The export stage scales the layer itself (`renderStage.ts:395`, `layer.scale({ x: m, y: m })`), so a Text
+   stroke is multiplied by the layer transform. Measured halo run thickness through a glyph stem, angle
+   label, over a black photo: **M=1 → 5 px, M=2 → 8 px, M=3 → 13 px** — `4 × M` within one AA pixel, and
+   **byte-identical with and without** the prescribed tag. The exported artifact was never wrong.
+
+**Decision: F1 is recorded as a false positive; no source change.** The reviewer's chain was attribute
+arithmetic at its final step — the exact class the review brief's own question 6 warns about, and the
+second time this project has caught it (D88). Instead of a "fix", a regression guard is kept:
+`tests/renderStage.browser.test.ts` now measures the angle label's halo at M = 1/2/3 **in pixels**, so a
+future change that really breaks the invariant fails loudly. F2 (the stale rationale comment) was re-worded.
+
+**Correction to D98** (branch `D87`): the dimension halo/hairline tags are inert **for the same reason**.
+The physical result D98 wanted — halo at `8 × M`, hairline at `1 × M` in the exported bitmap — was already
+happening through the layer transform. D98's *outcome* stands (the export is correct); its *explanation*
+("without this tag `applyExportRules` leaves it at 8 bitmap px") is disproved by execution. The tags stay in
+place as documentation of intent, not as the mechanism.
+
+**New, real, and cosmetic (owed):** because the tag cannot be honoured for `Text`, the on-screen label halo
+and hairline scale with **canvas zoom** (`EditorCanvas.ts:453`, `stage.scale({ x: next })`) instead of being a
+constant `mu` CSS px — at fit zoom (≈0.25) the dimension label's 8-mu halo renders ≈2 CSS px, and at 8× it
+renders ≈64 px. That violates §4.2's *screen* intent for label outlines. It is **not** a wrong measurement
+(the glyph fill is correctly counter-scaled by `fontSize = mu / s`, and the export path is correct), so it is
+scheduled with the 1.10 polish/a11y pass rather than blocking the beta. The fix mirrors the existing
+text/ink handling in `applyScreenRules`: for a `Konva.Text` carrying `strokeWidthMu`, set
+`strokeWidth = mu / scale` (the layer multiplies it back), leaving the export path untouched.
+
+### D102 — the owner's D88 answer (option B), and the beta-honesty rule for unbuilt controls
+
+The owner answered D88's open question by choosing **option B**: **«New project» opens the camera
+immediately**, and the editor's empty state gains the spec'd add pair («Take photo» + «Import»,
+UI §11.2:684). Landed: `App.handleNewProject` sets `captureOpen` on a successful create, so a new project
+lands on the viewfinder; cancelling falls back to the editor's empty state. The pair is wired through one
+`onTakePhoto` seam (`App → EditorLayout → SheetEditor`) so exactly one capture dialog exists, and both
+buttons use approved copy (`project.addTakePhoto`, `capture.importButton`). **The Project screen stays
+unbuilt** (D88's gap is unchanged): for v1's field flow the editor is a sufficient landing, but the screen is
+still the spec'd home of a project's sheet grid and its two add tiles.
+
+**Beta-honesty rule (recorded because it changes shipped behaviour, temporarily).** A control whose handler
+is a stub must never be left looking live. All three folder-affordances — the Home secondary card, the
+Home *empty-state* button, and a card's «Locate…» on a moved folder — are therefore **disabled with
+`aria-disabled="true"`, keyboard-skipped, copy and prop retained**; they are not hidden and not deleted.
+Folder adoption is unbuilt (`App.onOpenFolder` is a no-op) and handoff-13 §9.2 row 18's question — does the
+picker re-point the projects root, or adopt a folder from outside it? — is still open. The disabled state is
+the interim; the slice that answers the question re-enables them.

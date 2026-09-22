@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 13 — **the D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed**, **B1's blocker is root-caused** (D81), **C4's machine half is measured** (D80, provisional), and **slice 1.8 (style system) is complete and green** (D82–D84)) **Follow-up (later the same day):** two defects the owner found by *running the app* are fixed (D85 handedness card order, D87 «New project») and **the unowned Project screen is recorded (D88)**.
+**Last updated:** 2026-09-22 (session 16 — **the cloud branch is merged into `main` and pushed**: `main` == `origin/main` at the union and PR #2 closes as merged. The merge commit `2e7a43a` was gated green on Windows before anything landed on it (tsc 0 · 73 files / 1027 tests · build 0, 17 precache, 858.51 KiB · playwright 5/5), and its two document losses are repaired: the decision numbering is reconciled (D100 — `main`'s `D85`–`D88` kept, the four conflicting export entries now `D96`–`D99`) and the branch's session-14/15 snapshot plus its 1.9 BUILD-LOG entry are restored. **The session-14 review is discharged:** F1 is a **false positive proven by execution** (D101 — a `Konva.Text` cannot disable stroke scaling, so the `strokeWidthMu` tag is inert and the export was already correct; D98's rationale is corrected) and F2 is fixed. **Beta flow landed (D102):** «New project» opens the camera and the editor's empty state carries the spec'd «Take photo» + «Import» pair. Next: `runExport.ts`)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 + 1.7 + 1.8 complete and green.** The D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed with pre-fix-failing guards; the style system ships (per-tool memory, recents, presets IO, the mounted WYSIWYG panel). Next: **slice 1.9 (export, steps 2–5)** |
-| Application code | **Eleven slices**, **790 machine tests / 62 files** on the committed tree (1.8's closure — node + jsdom + browser). 1.8 adds `src/state/styleByTool.ts`, `src/state/projectMeasure.ts`, `src/fs/presets.ts`, `src/editor/shapes/styleCommand.ts`, `src/ui/StylePanel.tsx` + `StyleEditorSheet.tsx` + `stylePanel.css`, the `MarkupScene` style commands, the `EditorSession` style methods and the `editorStore.selectionStyle` mirror. **All six previously-untracked 1.8 files are now tracked**, and `src/ui/styleCopy.ts` is deleted (folded into `strings.ts`). Also lands the F3/F5/F6/F7/F9 fixes, `tests/editorCanvasPerf.browser.test.ts` (C4), and a **namespace-import fix in `presets.ts`** for the browser-only link defect the full gate caught (D84). |
+| Phase | **Slices 0.2–1.8 complete and green; 1.9's export MODULES complete and the BETA FLOW landed** («New project» → camera → shutter → photo on canvas → dimensions/text). **1.9 is still not usable end to end: `src/export/runExport.ts` does not exist and the wizard is not mounted**, so nothing in the app can reach an export. Next: that wiring, then 1.10 |
+| Application code | **Twelve slices**, **73 files / 1031 tests** (node + jsdom + browser) on the unified tree; build 0 (17 precache, 858.82 KiB); playwright 5 passed / 5 skipped. This session: the merge into `main` (both sides' code present), the beta-flow changes (`App.tsx`, `SheetEditor.tsx`, `EditorLayout.tsx`, `ProjectList.tsx`, `strings.ts`), an angle-label halo pixel regression guard, and the honest-disable of the unbuilt folder controls |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,8 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Slice 1.9 — Export** (steps 2–5: `src/export/renderStage.ts`, `pdf.ts`, `png.ts`, `ExportWizard.tsx`; step 1, `export/filenames.ts`, already shipped in 1.3). The **export-invariance rule** (`0.75 × mu` pt at every multiplier M) is the whole slice's acceptance, and `renderStage.ts` must be the **only** place that scales for export — the §4.2 screen and export paths are opposites and both are load-bearing. Also carried: **F1's real-touch proof is still OWED** (B1/D81: the e2e harness is blocked by a renderer death on OPFS-handle reload, and a CDP-touch browser-project attempt failed its assertion), plus the owed §8.6 rotate handle and text-box scaling (D79). |
-| Unbuilt screen | **The Project screen (`/p/:projectId`, the sheets grid) is unbuilt and unowned (D88)** — build spec §20.5(a) assigned it to slice 1.2; the plan carries it under no slice; 1.2 built Home's `ProjectList.tsx` instead. Today «New project» lands in the Editor and **no surface lists a project's sheets**. The owner must choose A / B / C (D88). |
+| Next action | **Slice 1.9's wiring — `src/export/runExport.ts` + mounting the wizard + enabling the entry points** (`docs/handoff-session-14.md` §3: one sheet at a time through `renderSheetJpeg`; `buildPdfParts` / `zipPngs`; `conflictName`; **every write through `projectStore.writeAtomic`**; pass `assetProvider` or every inset exports as a grey placeholder; lazy-load the engine, not the wizard). Then **1.10**: the read-only/failed-save paths, `.trash/` prune, Sunlight/Dim, the Offset Nudge Pad, the a11y audit — plus the owed label-halo screen fix (D101). Carried owed: **F1's real-touch e2e stays `fixme`** (B1/D81), the §8.6 rotate handle and text-box scaling (D79), and the `[Surface]` rows H8/H12/H19–H22 |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -625,6 +624,35 @@ and for the second time this session, the person using the product found what th
    **Editor**, whose empty state borrows the Project screen's copy («No sheets yet — take a photo to start.»)
    while offering only an `Import a photo` button, and there is **no UI anywhere that lists a project's
    sheets**. Awaiting the owner's A/B/C choice (D88). Documentation only — no code changed.
+### 2026-09-22 — Session 16: the union, the reconciliation, and the beta flow
+
+The cloud branch and `main` had collided (two sessions, one working tree; two independent `D85`–`D88`
+sequences, and a merge that dropped the branch's newest docs). This session closed it **forward-only** —
+no rebase, no force-push:
+
+1. **Published the union.** The cloud branch was already a real 2-parent merge of `main` (`2e7a43a`), so
+   `main` fast-forwarded to it and was pushed. Its gate was reproduced on Windows first (the standing
+   rule) and was green. `main` == `origin/main`; PR #2 closes as merged; the remote branch is left as-is.
+2. **Reconciled the decision numbering (D100)** — docs-only: four headings moved, one external reference
+   updated, and **no source or test comment touched**.
+3. **Repaired the merge's silent doc loss.** `2e7a43a` had taken `CONTINUITY.md` and `BUILD-LOG.md`
+   wholesale from `main`, so the branch's session-14/15 snapshot and the 1.9 entry vanished from the live
+   docs while the code kept 1.9. Both are restored; `CONTINUITY_new.md` was a mojibake duplicate of
+   `main`'s file (same 854 lines, same references) and was deleted.
+4. **Discharged the session-14 review (D101).** F1 is a **false positive**: a `Konva.Text` cannot disable
+   stroke scaling (`Text.js:639-643`), so the `strokeWidthMu` guard is unreachable for a Text and the tag
+   is inert — the angle halo already rendered `4 × M` (measured 5/8/13 px at M=1/2/3, byte-identical with
+   and without the prescribed tag). A pixel regression guard was kept instead of a fix; F2 was re-worded;
+   a genuinely new cosmetic finding (on-screen label outlines scale with zoom) is owed to 1.10.
+5. **Landed the beta flow (D102)** — the owner's D88 answer (option B): «New project» opens the camera,
+   the empty state carries the spec'd «Take photo» + «Import» pair through one `onTakePhoto` seam, and
+   every stubbed folder control is honestly disabled rather than dead-looking-live.
+
+**Lesson (the third of its kind).** The merge was structurally clean and every gate was green — yet the
+*live project state* had been reverted by file-level conflict resolution, and a stop-class review finding
+turned out to be attribute arithmetic. **A merge is not integration, and a finding is not a defect until
+it is measured.**
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -834,6 +862,23 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   this slice has no error-surface copy; slice **1.10**'s toast/autosave layer owns it (`createProject()` itself
   never swallows: no root, name exhaustion and write failure all throw). The `New project` button also has **no
   busy/disabled visual** while a create is in flight (D87).
+
+## Known drift / watch items (session 16)
+
+- **The unbuilt folder controls are disabled, not built (D102).** «Open existing folder…» (the Home card
+  *and* its empty-state variant) and a moved card's «Locate…» are inert by decision. handoff-13 §9.2 row
+  18's question — does the picker **re-point the projects root**, or **adopt a folder from outside it**? —
+  still needs an owner answer before they can be built honestly.
+- **On-screen label outlines scale with canvas zoom (D101, cosmetic).** The dimension/angle label halo and
+  the `--sel` hairline are multiplied by the canvas zoom instead of staying a constant `mu` CSS px, because
+  a `Konva.Text` cannot disable stroke scaling. **Not** a wrong measurement (the glyph fill is correctly
+  counter-scaled, and the export path is correct). The fix — `strokeWidth = mu / scale` for a tagged `Text`
+  in `applyScreenRules` — belongs with the 1.10 polish/a11y pass.
+- **`runExport.ts` is the only thing between the app and a usable export.** Every export claim is still
+  module-level: no PDF or PNG has ever been written by the app.
+- **C6 is not fired.** `EXPORT_BITMAP_LIMIT_BYTES` is a dev-machine figure (D96); H21 on a Surface Go is
+  what sets it.
+- **`[Surface]` gates pending, never faked:** H8, H12, H19–H22 (1.9) plus the earlier rows.
 
 ## How to resume
 
