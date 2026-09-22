@@ -31,6 +31,13 @@ export interface EditorSession {
   /** Delete the current selection; returns the action label, or `null`. */
   deleteSelection(): { label: string } | null;
   /**
+   * Arrow-key nudge (UI §8.2 #9): move the selection by `dx`/`dy` IMAGE pixels — 1 px per press,
+   * 10 px with Shift. The keyboard escape hatch for the finger's systematic contact offset; a
+   * no-op (not an error) with nothing selected. One undo step per press burst (a held key
+   * autorepeats and coalesces inside the history's window).
+   */
+  nudgeSelection(dx: number, dy: number): { label: string } | null;
+  /**
    * `Esc` rung 1: cancel the in-progress placement. Discards an uncommitted anchor A,
    * keeps a committed B (the `Valueless` ghost), and clears any pending markup op — the
    * rung must reach the canvas, not only the store flag (D77/F3).

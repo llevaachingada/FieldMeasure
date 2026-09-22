@@ -3253,7 +3253,45 @@ focus on Escape); and the visible focus ring asserted on **every** stop of the w
 **Deliberately left, as a spec question rather than a guess:** UI §14.9 mandates *rail → canvas → panel*
 regardless of handedness, so for a right-handed user (rail on the **right**) the walk crosses the row
 right→left. A handedness-consistent order would be a **spec change** (and would argue with the first-run note's
-"element order, never a CSS flip" principle), so it is recorded for the owner. — the rail ignored the handedness setting (found by LOOKING at the clickthru's screenshots)
+"element order, never a CSS flip" principle), so it is recorded for the owner.
+
+### D130 — the sheets grid's a11y audit found nothing; the arrow nudge was built
+
+**The grid audit (by execution, real Chromium, mirroring the editor's template).** The Project screen is the
+screen the owner uses most and the one that changed most this wave (a **portaled** card menu, a real scroll
+container, drag-autoscroll, the trash panel), so it was audited the same way: 48 px targets at 1920×1120,
+1440×960 and 960×1440; the UI §14.5 hit-slop overlap between the card `⋯` and the select toggle; a `Tab` walk;
+accessible names; and specifically the **portal's** keyboard contract.
+
+**It found no defects** — every measurement held. The portal is the part worth recording, because it is the
+change most likely to have broken something: focus **enters** the menu (the first enabled item), ArrowDown
+roves, **Escape closes and returns focus to the `⋯` trigger**, and `Tab` closes rather than trapping. The two
+things that would have been invisible in jsdom and are now pinned in real layout: the `⋯`/select **hit-slop
+rings do not overlap** (an earlier review measured 4 px; `bottom: 76px` fixed it and this locks it), and every
+control meets the 48 px floor at all three sizes. `tests/gridA11y.browser.test.ts`, 8 tests.
+
+**The arrow nudge (UI §8.2 #9 / touch model §2.6) — the owed item since slice 1.5.** *"Arrow keys nudge a
+selection 1 px (10 px with Shift)"*, and §2.6 calls it **the accessibility escape hatch** for the finger's
+systematic contact offset — the same job the Offset Nudge Pad does on glass, which is why §8.2#9 requires the
+canvas container to be focusable (it already is: `role="application"`, `tabIndex={0}`).
+
+Built on the **existing** seam, not a parallel transform path: `SelectTool.nudgeSelection` captures each
+selected object's geometry with `geometryCopy`, writes the translated pair through `history.execCoalesced`, and
+refreshes — the same capture → `exec` shape as `rotateBy`/`deleteSelection`, so history stays honest and one
+nudge is one step. It coalesces on `nudge:<dx>,<dy>`, which is the honest reading of a **held** arrow key: the
+autorepeat is one edit, not forty, and a *different* direction starts a new step. A nudge with an empty
+selection is a **no-op, not an error** (the keyboard is not a mode). Exposed on the session seam
+(`nudgeSelection`) and handled on the canvas host's own `keydown`, so it cannot steal arrows from the chrome.
+
+Pinned in the browser project (`tests/arrowNudge.browser.test.ts`, 4 tests) against a real Konva scene: the
+exact step (1 px, and 10 px with Shift), one undo returning the pre-nudge geometry, a 12-repeat burst undoing
+in **one** step, and the empty-selection no-op. The Offset Nudge Pad itself (120 px pad, 96 px from the anchor,
+0.35× core / 1.0× outer band) stays owed — it is the glass half of the same pair, and the nudge gives the
+keyboard path the spec wants first.
+
+**Process note:** this round ran with **no specialist lanes** — the provider account was out of credit
+(`Insufficient Balance` on two dispatches), so the audit, the fix and the tests were done in-session. The
+browser-project and clickthru runs stayed with the orchestrator as the lane protocol requires. — the rail ignored the handedness setting (found by LOOKING at the clickthru's screenshots)
 
 **How it survived every gate.** `EditorLayout` sets `data-rail={railSideFor(handedness)}` — and the default is
 **`right`** (a right-handed user) — while the rotation gate asserts that `data-rail` **does not move** across

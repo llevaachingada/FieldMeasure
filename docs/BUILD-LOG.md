@@ -1536,6 +1536,50 @@ been invisible because `order` was doing the painting. Both are now pinned by te
 **Next:** the arrow nudge pad and the History flyout are the two biggest owed items left; then the owner's
 hardware pass.
 
+## Round - the grid's a11y audit (no defects) and the arrow-key nudge (the owed escape hatch)
+**Date:** 2026-09-22 · **Commit:** this commit
+
+**Built:** two owed items, done in-session because the provider account was out of credit (`Insufficient
+Balance` on two lane dispatches) — the browser project, build, e2e and clickthru stayed orchestrator-owned.
+
+1. **The sheets grid's a11y audit, by execution (D130) — it found nothing.** The screen the owner uses most,
+   and the one that changed most this wave (a **portaled** card menu, a real scroll container, drag-autoscroll,
+   the trash panel), audited in real Chromium at three viewports: 48 px targets, the §14.5 hit-slop overlap, a
+   `Tab` walk, accessible names, and the portal's keyboard contract. The portal — the change most likely to
+   have broken something, and invisible to jsdom — holds: focus enters the menu, ArrowDown roves, **Escape
+   closes and returns focus to the `⋯`**, and `Tab` closes rather than trapping. `tests/gridA11y.browser.test.ts`
+   (8 tests).
+2. **The arrow-key nudge (D130)** — owed since slice 1.5, and the spec calls it *the* accessibility escape
+   hatch for the finger's systematic contact offset. `SelectTool.nudgeSelection` follows the existing
+   capture → `execCoalesced` shape, so **one nudge is one undo step**, a **held** key coalesces into one edit
+   rather than forty, a different direction starts a new step, and an empty selection is a no-op. 1 px, 10 px
+   with Shift, on the canvas host's own `keydown` so it cannot steal arrows from the chrome. Pinned against a
+   real Konva scene (`tests/arrowNudge.browser.test.ts`, 4 tests). The **Offset Nudge Pad** (the glass half)
+   stays owed.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **100 files / 1409 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 26 precache entries (1525.57 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+- [x] `npm run clickthru` → **20 PASS / 0 FAIL / 0 UNREACHED**, with step 17 still reporting *"no object was
+      created"* (D128's fix holding on the built app)
+
+**Deferred to hardware:** unchanged — and the nudge's *feel* (1 px per press on glass, with a Type Cover) is a
+device check.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D130**.
+
+**Surprises:** the grid audit found nothing — after a wave that portaled a menu out of its subtree and turned
+the page into a scroller, that is the result worth recording, and the portal's focus contract is now pinned
+where it can break. Second: two lanes could not run at all (provider balance), and the work still landed with
+the same verification discipline — a reminder that the *discipline* is the portable part, not the lanes.
+
+**Next:** the History flyout (its writer still has no caller) and the Offset Nudge Pad; then the owner's
+hardware pass.
+
 ---
 
 ## Clickthru harness — drive the whole app with real touch/pen, then look at the pixels

@@ -802,6 +802,11 @@ export default function SheetEditor({
         if (keys.length === 0) return null;
         return selectRef.current?.deleteSelection() ?? null;
       },
+      nudgeSelection: (dx: number, dy: number) => {
+        const keys = [...useEditorStore.getState().selection];
+        if (keys.length === 0) return null;
+        return selectRef.current?.nudgeSelection(dx, dy) ?? null;
+      },
       cancelPending: () => {
         // F3: the shell's Esc rung 1 must actually cancel the pending DIMENSION.
         // `tool.cancelPending()` discards an uncommitted A (or keeps a committed B as the
@@ -1515,6 +1520,25 @@ export default function SheetEditor({
       session.deleteSelection();
     };
 
+    // Arrow-key nudge (UI §8.2 #9, touch model §2.6): 1 px per press, 10 px with Shift. This is
+    // the keyboard escape hatch for the finger's systematic contact offset — the Nudge Pad's job
+    // on glass — and the reason UI §8.2#9 wants the canvas focusable after a TOUCH selection.
+    // Scoped to the canvas host, so it cannot steal arrows from the chrome's own controls.
+    const onCanvasArrow = (event: KeyboardEvent): void => {
+      const step = event.shiftKey ? 10 : 1;
+      const delta: Record<string, { dx: number; dy: number }> = {
+        ArrowLeft: { dx: -step, dy: 0 },
+        ArrowRight: { dx: step, dy: 0 },
+        ArrowUp: { dx: 0, dy: -step },
+        ArrowDown: { dx: 0, dy: step },
+      };
+      const move = delta[event.key];
+      if (!move) return;
+      if (useEditorStore.getState().selection.length === 0) return;
+      event.preventDefault();
+      session.nudgeSelection(move.dx, move.dy);
+    };
+    host.addEventListener('keydown', onCanvasArrow);
     host.addEventListener('pointerdown', onPointerDown);
     host.addEventListener('pointermove', onPointerMove);
     host.addEventListener('pointerup', endContact);
@@ -1582,6 +1606,7 @@ export default function SheetEditor({
       host.removeEventListener('pointerup', endContact);
       host.removeEventListener('pointercancel', cancelContact);
       window.removeEventListener('keydown', onKeyDown);
+      host.removeEventListener('keydown', onCanvasArrow);
       unsubscribeCtx();
       unsubscribeTool();
       unsubscribeSelection();

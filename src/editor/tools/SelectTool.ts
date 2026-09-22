@@ -462,6 +462,41 @@ export class SelectTool implements MarkupTool {
     this.refresh();
   }
 
+  /**
+   * Arrow-key nudge (UI §8.2 #9, touch model §2.6): move the selection by `stepPx` image pixels.
+   *
+   * The keyboard escape hatch for the finger's systematic contact offset — the same job the Nudge
+   * Pad does on glass, and the reason UI §8.2#9 requires the canvas container to be focusable.
+   *
+   * ONE undo step per press, using the `rotateBy`/`deleteSelection` pattern (capture → `exec`):
+   * a held arrow key autorepeats, so the alternative (one step per repeat) would bury the user's
+   * previous edit under hundreds of 1 px entries. `merge` is the history's own affordance for that
+   * — the same key within 800 ms coalesces — which is exactly the semantics "move the selection"
+   * wants. A nudge with nothing selected is a no-op, not an error.
+   */
+  nudgeSelection(dx: number, dy: number): { label: string } | null {
+    const keys = this.deps.getSelection();
+    if (keys.length === 0) return null;
+    const before = keys
+      .map((k) => ({ k, g: this.deps.scene.geometryCopy(k) }))
+      .filter((entry): entry is { k: string; g: Geometry } => entry.g !== null);
+    if (before.length === 0) return null;
+    const after = before.map(({ k, g }) => ({ k, g: translateGeometryLocal(g, dx, dy) }));
+    this.deps.history.execCoalesced(
+      {
+        label: this.deps.labels.move,
+        do: () => after.forEach(({ k, g }) => this.deps.scene.setGeometry(k, g)),
+        undo: () => before.forEach(({ k, g }) => this.deps.scene.setGeometry(k, g)),
+      } as Command,
+      // One step per press BURST, not per repeat: a held arrow key autorepeats, so the same key
+      // inside the window coalesces exactly as a held style slider does. A different arrow key
+      // starts a new step (the key is part of the coalesce key).
+      `nudge:${dx},${dy}`,
+    );
+    this.refresh();
+    return { label: this.deps.labels.move };
+  }
+
   /** Delete the selection (one undo step; re-insert restores the captured objects). */
   deleteSelection(): { label: string } | null {
     const keys = this.deps.getSelection();

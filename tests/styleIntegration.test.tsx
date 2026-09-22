@@ -99,6 +99,7 @@ function stubSession(): {
     undo: () => null,
     redo: () => null,
     deleteSelection: () => null,
+    nudgeSelection: () => null,
     cancelPending: () => {},
     requestValue: () => {},
     adjustEndpoints: () => {},
