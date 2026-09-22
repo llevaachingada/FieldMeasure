@@ -559,3 +559,55 @@ split). **D84** records the integration defect the full gate caught.
 step 1, `export/filenames.ts`, shipped in 1.3). The export-invariance rule (`0.75 × mu` pt at every
 multiplier M) is the whole slice, and `src/editor/../export/renderStage.ts` must be the **only** place that
 scales for export — the §4.2 screen and export paths are opposites and both are load-bearing.
+
+## Slice 1.9 — Export (MODULES ONLY — the wiring is not built) + the session-13 review remediation
+**Date:** 2026-09-22 · **Commits:** `cc35e4c`, `192585f`, `907af0b`, `33cee24`, `ada456b`, `250668c`
+· **Branch:** `claude/amazing-carson-ocp8q7` (PR #2, draft) — **not `main`**
+
+**⚠ This entry deviates from the one-commit-per-slice rule, and says so rather than hiding it.** Six
+lanes ran in parallel and landed at different times, and the session's environment required a clean tree
+at each stop, so each lane was committed as it was verified. Each commit message states that the wave was
+still in flight. The usual discipline resumes when `runExport.ts` lands.
+
+**Built:** slice 1.9's export **modules**. `renderStage.ts` is the §4.2 export stage — `applyExportRules`
+is a node-for-node **mirror** of `applyScreenRules`, reading the same attrs; the export path never calls
+`applyScreenRules` and never calls `scene.setScale()`, so the two paths stay opposites. `pdf.ts` gives
+`buildPdf` / `buildPdfParts` (splitting at 250 MB, the remedy designed in advance for the 50-sheet gate) /
+the pure `planPdfParts`. `png.ts` gives 1×/2×/3× sizing, `zipPngs` (fflate, level 0 — PNG is already
+DEFLATE'd) and an IHDR parser that validates the signature **and** the chunk type. `ExportWizard.tsx` is
+the §11.10 four-step wizard built against an injected-props interface, so it never imported a sibling
+lane's in-flight file. 48 copy rows folded into `strings.ts` and machine-checked.
+
+**NOT built — the slice is not usable:** `src/export/runExport.ts` does not exist and the wizard is not
+mounted, so **nothing in the app can reach an export**. See `docs/handoff-session-14.md` §3.
+
+**Machine gates:**
+- [x] **export invariance, measured in REAL PIXELS** at M = 1/2/3 (`tests/renderStage.browser.test.ts`
+      scans `getImageData`; not attribute arithmetic — the review brief's prior catch #6).
+      `0.75 × mu` pt at every M; page pt = imagePx × 0.75, independent of M
+- [x] PNG pixel dimensions; zip round-trip through `unzipSync` on the decompressed bytes
+- [x] the 29-row filename table (unchanged, re-run) and the conflict rows
+- [x] the 512 MB guard at its **exact** inclusive boundary (D85), and the 3× refusal as a **refusal** —
+      `tests/exportWizard.test.tsx` asserts `runExport` was never called, not merely that a message showed
+- [x] the damaged-photo white page at module level
+- [x] a11y: keyboard-operable wizard, announced steps, selectable result path, no inline `style=""`
+- [~] **`[Surface]`** H12 (Acrobat across M), H8 (50-sheet at 2×), **H19–H22** (damaged photo end to end,
+      NTFS case-insensitive conflict, C6's real ceiling, the touch + a11y walk)
+
+**Also landed — the independent review session 13 deferred.** 7 of 9 findings fixed, two of them
+data-integrity bugs in already-shipped code that every prior gate had passed: a **cancelled drag persisted
+geometry to `markup.json` with no undo step** (the palm-rejection case), and **resize teleported a vertex
+on 7 of 11 annotation kinds** (all 11 resize tests used a `rect`). Also §8.3's 600 ms style coalescing,
+which had **zero** production callers while two suites asserted it worked; a test that could not fail and
+the growth-past-pivot bug it hid; a link failure being reported to the user as "presets file is corrupt";
+and the duplicated type→tool map. **A bug the full gate caught that no per-lane check could:** the
+dimension label's halo and hairline carried no `strokeWidthMu` tag, so they stayed 8 px / 1 px at every M
+while the glyphs scaled — the §4.2 invariant failing for the label itself (D87).
+
+**Deferred to hardware:** 6 → H8, H12, H19, H20, H21, H22.
+
+**Checkpoints fired:** none. **C6 is NOT fired** — its number is a dev-machine figure (D85) and H21 is
+what sets it.
+
+**Gate on the pushed tree (`250668c`):** `tsc` 0 · `vitest` **71 files / 1015 tests** (node + jsdom +
+browser) · `build` 0 (17 precache, 857.62 KiB) · `playwright` 5 passed / 5 skipped.
