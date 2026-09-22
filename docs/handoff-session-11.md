@@ -40,6 +40,100 @@ Where they disagree with this file, **they win**.
 
 ---
 
+## 0.1 Orienting documents — read these, in this order
+
+**Authority chain (when they disagree):** build spec **§2.4 (v1 scope)** > build spec > UI spec >
+implementation plan (the plan is authoritative on **order and done-ness** only). If you find a genuine
+conflict, fix the subordinate document and add a line to `docs/DECISIONS.md`.
+
+| Document | What it is | Read it |
+|---|---|---|
+| `AGENTS.md` | The **contract**: non-negotiables, the four highest-stakes modules, working rules, the lane-protocol pointer, environment quirks. **It never carries state.** | First, always |
+| `docs/CONTINUITY.md` | The **live snapshot** — phase, shipped slices, session timeline, open questions, watch items. | First, for state |
+| `docs/BUILD-LOG.md` | The **per-slice record** — what was built, gate numbers, checkpoints fired, surprises, what is owed. Read the last 3 entries. | Before your slice |
+| `docs/BUILD-RUNBOOK.md` | **How to work:** §2 slice loop · §3 gate policy · §4 `[Surface]` deferral · §5 commit discipline · §6 three-strike · §8 checkpoint recording (three places) · §9 copy · **§11 parallel-lane protocol** · §12 review brief. | Before dispatching anything |
+| `docs/implementation-plan.md` | **Authority on order and done-ness.** Dependency graph, and per-slice packets: files, numbered build order, signatures, inline tests, checkable gates, rollback. | Your slice's packet **in full** |
+| `docs/preflight-handoff-v0.3-hardened.md` | **The build spec — authority on WHAT.** §2.4 is the v1 scope table and overrides everything. | §2.4 always, then your slice's refs |
+| `docs/ui-spec-field-measure-v2-hardened.md` | The UI spec: editor layout §5, tool rail §6, style panel §7, tool flows §8, layers §9, capture §10, a11y/field ergonomics §14, component map §15. | Any UI work |
+| `docs/touch-first-interaction-model.md` | The touch-primary interaction design: tap-tap placement, the 450 ms settle, the loupe, the Offset Nudge Pad, keypad-open state, object-first drag. | Any placement/gesture work |
+| `docs/DECISIONS.md` | The ADR log — why things are the way they are. Most relevant now: **D31** (fraction chip is entry-scoped), **D40** (canvas tests never in jsdom), **D51** (the runtime project key), **D54** (§4.2 screen seam), **D63** (second-finger restore), **D64** (unproven dpr-2 path), **D65** (loupe arithmetic), **D67–D73** (this session). | Before any technical choice |
+| `docs/CHECKPOINTS.md` | C1–C10 — things measurable only once code exists, each with an action for **every** outcome. Check at step 2 of every slice. | Every slice |
+| `docs/HARDWARE-TEST-CHECKLIST.md` | The `[Surface]` ledger. Every deferred gate, **PENDING** with its machine-verifiable half stated. | Before claiming any gate |
+| `docs/review-brief.md` | The **eight questions** every review must answer, each carrying the real defect that put it there. Hand it to every review lane. | Before any review |
+| `docs/appendix-strings.md` | The **approved copy inventory** — the only legitimate source of user-visible text. | Before writing any copy |
+| `docs/appendix-strings-gaps.md` | **Proposed** copy for the unquoted gaps; any key taken from here needs a `// ⚠ PROPOSED (C14)` marker. | Same |
+| `docs/UNITS.md` | ft-in input formats, rounding, the keypad model, the four highest-stakes modules. | Any measurement work |
+| `docs/INDEX.md` | A map of every file in the repo. | Orientation |
+| `docs/review-session-4-hardening.md` | The session-4 finding register **and its method note** (execute, don't read). | Before reviewing |
+| `docs/gui-ux-readiness-and-design-handoff.md` | The GUI/UX readiness review, the pre-code tooling verdict, the C1–C14 contradiction register. | Design questions |
+| `docs/install-runbook.md` | One page, non-developer: how a Surface gets the app. | Slice 1.11 |
+| `docs/appendix-scaffold-files.md` | The pinned scaffold files slice 0.1 produced (TS 5.x). | Reference |
+| `THIRD-PARTY-NOTICES.md` | Dependency licence notices + font OFL texts. | Slice 1.11 |
+| `CLAUDE.md` | A deliberate one-line pointer to `AGENTS.md` (it used to be a stale second copy). | — |
+| `docs/preflight-handoff.md` · `docs/ui-spec-field-measure.md` · `docs/review-handoff.md` · `docs/handoff-plan-verification.md` | **Superseded or historical** (v0.2 build spec, v1 UI spec, the review brief that produced them, the session-3 contract). | **Never build from these** |
+
+## 0.2 Repository map (current, generated from the tree)
+
+**Root config**
+
+| Path | Notes |
+|---|---|
+| `package.json` | Scripts: `dev`, `build`, `test` (vitest), plus Playwright. **Runtime dependency list is closed (spec §2.2)** — adding one needs a spec change. |
+| `tsconfig.json` | `strict: true`; **`types: ["vite/client"]` only** and `@types/node` is **not installed** — so `src/` and `tests/` must not import `node:*`. Use Vite `?raw` imports when a test needs file bytes (`tests/strings.test.ts` does this). |
+| `vitest.config.ts` | **Three projects, by filename convention:** `*.test.ts` → **node**; `*.test.tsx` → **jsdom** (`tests/setup.ts`); `*.browser.test.ts` → **browser** (real Chromium via `@vitest/browser-playwright`). A `Konva.Stage` test **must** be in the browser project (D40). |
+| `vite.config.ts` / `playwright.config.ts` | PWA + CSP; e2e includes the **CSP-as-a-test** that fails on any inline `style=""`. |
+| `public/` | `fonts/` (self-hosted Archivo + JetBrains Mono), `icons/` (**placeholder app icons**). |
+
+**`src/` — 67 files, by area**
+
+| Area | Files |
+|---|---|
+| `src/domain/` **(FROZEN — do not edit; report instead)** | `types.ts` · `schema.ts` (zod 4, jitless; **`AnnotationZ` at :78 — `zIndex` :86, `locked` :90, and no `visible` field**) · `units.ts` (the ft-in parser/formatter/keypad slot model) · `geometry.ts` · `snapping.ts` · `ids.ts` · `migrate.ts` |
+| `src/fs/` | `projectStore.ts` (**all** atomic writes; `writeAtomic` takes the per-project Web Lock itself) · `backend.ts` (FSA + OPFS) · `sheetIntake.ts` (the single "photo → sheet" write) |
+| `src/media/` | `normalizeImage.ts` (`normalizeImage`, `sha256Hex`) · `exif.ts` (APP1 scan ≤ 64 KB, `stripExif`) · `thumbnails.ts` · `decodeWorker.ts` (real decode, provenance-marked) |
+| `src/state/` | `appStore.ts` (handedness/theme/density/units/toggles) · `editorStore.ts` (`activeTool`, `pendingOp`, `selection`, `viewTransform`, `focusInsetId`, `keypadOpen`) · `persistQueue.ts` (**the sole markup writer**) |
+| `src/editor/` | `EditorCanvas.ts` (5 layers, per-layer `pixelRatio`, pinch, **the §4.2 seam — the single zoom chokepoint**) · `inputRouter.ts` (touch-first; never re-derive) · `history.ts` · `Loupe.ts` · `session.ts` (command registry + toast bus) |
+| `src/editor/shapes/` | `scene.ts` (**the in-memory document**: `Annotation[]`, Konva sync, `AnnotationPath`, §20.2 z-bands, `markupFile`/`load`, `onChange`) · `svgPath.ts` (local `getSvgPathFromStroke` + **`strokeInputPoints` = the one place indexing the parallel `pressure[]`**) · `renderDimension/renderShape/renderInk/renderText/dimensionLabel.ts` |
+| `src/editor/tools/` | `toolTypes.ts` (**the `MarkupTool` contract** + touch constants) · `DimensionTool.ts` (the placement machine: tap-tap, 450 ms settle, acquire 32 → lock 20, chain, refine) · `ShapeTool` · `AngleTool` · `FreehandTool` · `TextTool` · `EraseTool` (`isErasePreview` :35, `beginPreview` :169) · `SelectTool` (`SelectToolDeps` :188, class :209) |
+| `src/ui/` | `SheetEditor.tsx` (**54 KB — the canvas screen: scene, tool dispatch, keypad mount, object drag**) · `EditorLayout.tsx` (dock/rail/top bar; `panelDockFor`, `railSideFor`, `sheetEditorToolFor`) · `ToolRail.tsx` (14 tools, `TOOL_DEFS`) · `TopBar.tsx` · `LayersPanel.tsx` (**built + tested, NOT mounted**) · `DimensionKeypadSheet.tsx` · `CameraFlow.tsx` · `ProjectList.tsx` · `Settings.tsx` · `FirstRun.tsx` · `strings.ts` (**the only home for copy**) · `icons/tools/*.tsx` (14 **placeholder** glyphs) |
+| Styles | `src/styles.css` (global) · `src/ui/camera.css` · `src/ui/dimensionKeypad.css` · `src/ui/layersPanel.css` |
+| Other | `App.tsx` (routing; lazy-loads `EditorLayout` + `CameraFlow`) · `main.tsx` · `data/` · `settings/` · `export/filenames.ts` (1.9 step 1) |
+
+**`tests/` — 40 files**
+
+| Group | Files / notes |
+|---|---|
+| Conventions | `.test.ts` → node · `.test.tsx` → jsdom · `.browser.test.ts` → **real Chromium** · `e2e/*.spec.ts` → Playwright |
+| Most relevant to the next three waves | `layersPanel.test.tsx` (45 tests — the panel's contract) · `editorShell.test.tsx` (rail/table/hotkeys) · `sheetEditor.browser.test.ts` + `sheetEditor.dimension.browser.test.ts` (**mount the real editor against a real stage** — the recipe to copy) · `markupScene.browser.test.ts` (ink zoom constancy, z-band) · `markupTools.browser.test.ts` · `dimensionTool.browser.test.ts` · `dimensionKeypadSheet.test.tsx` (48) · `strings.test.ts` (**the copy contract**) · `keypad.test.ts` · `units.test.ts` · `history.test.ts` · `projectStore.test.ts` · `persistQueue.test.ts` |
+| Infrastructure | `tests/fakes/fsa.ts` (in-memory File System Access + locks) · `tests/setup.ts` · `tests/fixtures/` (12 MP EXIF-6 JPEG, `tiny-2x2.jpg`, `truncated.jpg`, `corrupt-markup.json`, `v02-*.json`, `make-fixtures.mjs`) |
+
+## 0.3 Commands you will actually run
+
+```
+# setup (already installed)
+npm ci
+
+# per-lane verification (the SUBSET — never build or playwright in a lane)
+npx tsc --noEmit
+npx vitest run --project node --project jsdom
+npx vitest run --project browser          # ONLY the designated canvas lane
+
+# orchestrator, on the reconciled tree (ALL of these, every wave)
+npx tsc --noEmit
+npx vitest run
+npm run build
+npx playwright test
+
+# commit (no heredocs on PowerShell)
+git add -A && git commit -F <message-file> && git push origin main
+```
+
+**Expected baseline before you start:** `tsc` 0 · vitest **526 / 40 files** · build 0 (17 precache) ·
+Playwright 5 passed / 4 skipped. If your numbers differ *before* you change anything, stop and find out
+why.
+
+---
+
 # Part A — close slice 1.6's three wiring items (do this first)
 
 All three live in the **same files**, so this is **one lane, one wave**. Do not split it.
