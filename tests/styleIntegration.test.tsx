@@ -106,6 +106,7 @@ function stubSession(): {
     applyStyle,
     applyProjectPrecision,
     applyProjectUnitFormat,
+    retrySave: () => {},
   };
   setEditorSession(session);
   return { applyStylePatch, applyStyle, applyProjectPrecision, applyProjectUnitFormat };

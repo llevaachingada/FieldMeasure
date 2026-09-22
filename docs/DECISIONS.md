@@ -2396,3 +2396,45 @@ that is the trap that silently breaks the slice.
 pixels) — a review-lane follow-up. `[Surface]`: real `showDirectoryPicker`, real on-disk `move()` and NTFS
 conflict behaviour, and H19–H22 generally. Also owed from the visual review of this pass: the Sunlight
 **64 px target floor** and **2.5 px icon strokes** are component-level, not token-level (§14.2).
+
+### D107 — slice 1.10 trust layer: the autosave chip, single-instance toasts, and the silence that was closed
+
+**Built:** the §13.1 **autosave chip** (`src/ui/AutosaveChip.tsx`) and the §13.4 **toast system**
+(`src/ui/Toast.tsx`), plus the bus they run on (`src/editor/session.ts`), mounted from `EditorLayout`.
+
+- **The chip renders state, it never owns it.** `persistQueue`'s `storageStatus` remains the sole writer;
+  the chip is presentational and renders every union member — `saved` · `saving` · `pending` · `readonly` ·
+  `error (+ Retry)` · `full` · `offline`. **Read-only is not an error**: an absent writer lease now maps to
+  `storageStatus: 'readonly'` and the queue's `onStatus` is gated so it cannot overwrite that state.
+  **Nothing optimistic:** the chip renders *nothing* until a real `… → saved` transition resolves after
+  mount, then stamps that resolution's clock. Consequence, accepted: a project opened with no edits shows no
+  chip until the first write lands (the queue exposes no last-saved time, so the timestamp is chip-local and
+  resets on remount).
+- **Toasts are single-instance by construction.** One message and one timer live in the component, so
+  stacking is structurally impossible; a new toast **replaces** the current one and closes the replaced
+  toast's action window (that is the point — a second toast must not leave a stale undo armed). 8 s normally,
+  10 s when the toast carries an action; the timer is cleared on replacement and on unmount; the action is a
+  real 48 px `hit-slop` button; focus is never moved, so a toast cannot fight the keypad sheet.
+- **The silence is closed (D103's owed half).** `App.handleNewProject`'s catch — which swallowed everything
+  and made a failed create look like a dead button — now raises an urgent toast using the already-existing
+  `⚠ PROPOSED` `errors.projectUnavailable`, and Home mounts a `ToastHost`. The editor's project-load catch
+  says the same thing while keeping its inline error panel.
+- **Recoverable-delete policy actually enforced.** Erase-delete and select-delete now raise a toast with a
+  **real Undo** that calls `history.undo()`. This also corrected a pre-existing lie: the erase toast showed
+  `toasts.undoAction` ("Undid: …") **on deletion**, i.e. it claimed an undo had happened when the object was
+  simply gone. Recoverable-vs-irreversible is a do-not-simplify item; this is the recoverable half working.
+- **Best-effort pause fix included:** the session gained `retrySave()` (chip Retry → `persistQueue.flush()`).
+
+**Spec divergence resolved (§13.3 vs §13.4):** §13.3 lists an object-delete toast at 8 s while §13.4 makes
+*any* action-carrying toast 10 s. **§13.4 wins** — an undo window is exactly the case the longer timing
+exists for. Recorded here so the choice is deliberate rather than accidental.
+
+**Owed, explicitly (do not assume built):**
+1. **The History flyout is NOT built.** The plan's item 1 includes "tap → History flyout" with whole-sheet
+   snapshot restore; no such UI exists and `writeHistorySnapshot` still has **no caller**. The chip ships
+   without its flyout.
+2. **The browser-only undo round-trip is unproven by execution.** The jsdom tests prove the wiring and the
+   callback dispatch; the path where a toast's Undo reaches a real `history.undo()` through a Konva-backed
+   tool was reasoned, not executed (the lane added no browser assertion).
+3. **`retrySave`'s error path** (a flush that fails again) renders the chip back to `error` — asserted in
+   jsdom only.

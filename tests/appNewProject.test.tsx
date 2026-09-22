@@ -123,7 +123,7 @@ describe('Home «New project» wiring', () => {
     expect(await screen.findByTestId('editor-layout-stub')).toBeTruthy();
   });
 
-  it('stays on Home and surfaces nothing when creation fails (slice 1.10 owns errors)', async () => {
+  it('stays on Home and surfaces the failure in a toast (slice 1.10 closes D103)', async () => {
     await setup({
       beforeWrite: () => {
         throw new DOMException('quota', 'QuotaExceededError');
@@ -141,5 +141,8 @@ describe('Home «New project» wiring', () => {
     // Nothing was created, so the capture overlay was never launched either.
     expect(screen.queryByText(STRINGS.capture.embeddedFallback)).toBeNull();
     expect(screen.getByRole('button', { name: BASE })).toBeTruthy();
+    // The failure is now visible — an honest, urgent toast (never silent again).
+    expect(await screen.findByText(STRINGS.errors.projectUnavailable)).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toBe(STRINGS.errors.projectUnavailable);
   });
 });

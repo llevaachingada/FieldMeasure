@@ -242,9 +242,17 @@ export const STRINGS = {
     cameraPrivacyNote: 'Settings → Privacy → Camera → allow desktop apps',
   },
 
-  // APPROVED inventory (appendix-strings.md `## storage/autosave`) — slice 1.4 uses
-  // only the write-failure action; slice 1.10 fills the autosave chip states.
+  // APPROVED inventory (appendix-strings.md `## storage/autosave`) — slice 1.4 added the
+  // write-failure action; slice 1.10 fills the autosave chip states from the same section.
   storage: {
+    // `{time}` is the appendix row's declared interpolation (`Saved 2:14 PM`).
+    saved: 'Saved {time}',
+    saving: 'Saving…',
+    pending: 'Pending — folder offline',
+    readOnly: 'Read-only',
+    couldntSave: "Couldn't save",
+    diskFull: 'Disk full — free space to save',
+    offline: 'Offline · no network needed',
     saveACopy: 'Save a copy…',
   },
 

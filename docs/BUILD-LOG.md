@@ -858,3 +858,55 @@ background lane this session dispatched — the independent review of the sessio
 completed and delivered its findings; its "running" job-board state was stale bookkeeping.
 
 **Gates:** none run for this entry — it is documentation only.
+
+---
+
+## Session 18 — slice 1.10 trust layer: the autosave chip and single-instance toasts
+**Date:** 2026-09-22 · **Commits:** see `git log` · **Branch:** `main`
+
+**Built:**
+
+- **Autosave chip (§13.1)** — `src/ui/AutosaveChip.tsx`, purely presentational: it renders
+  `persistQueue`'s `storageStatus` and never writes it. All union members: `saved` (✓, with the resolution's
+  clock) · `saving` · `pending` (folder offline) · `readonly` (**not** an error) · `error (+ actionable
+  Retry)` · `full` · `offline`. **No optimistic Saved** — it renders *nothing* until a real `… → saved`
+  transition resolves after mount. An absent writer lease now maps to `storageStatus: 'readonly'`, with the
+  queue's `onStatus` gated so it cannot overwrite that state.
+- **Single-instance toasts (§13.4)** — `src/ui/Toast.tsx`: one message and one timer in the component, so
+  stacking is **structurally impossible**; a new toast replaces the current one and **closes the replaced
+  toast's action window**; 8 s normally, **10 s when it carries an action**; timers cleared on replacement
+  and unmount; `role="alert"` for errors and `role="status"` otherwise; the action is a real 48 px
+  `hit-slop` button; **focus is never moved**, so it cannot fight the keypad sheet.
+- **The silence is closed (D103's owed half).** `App.handleNewProject`'s catch — the swallow that made a
+  failed create look like a dead button — now raises an urgent toast (`errors.projectUnavailable`), and Home
+  mounts a `ToastHost`. The editor's project-load catch says the same thing while keeping its inline panel.
+- **The recoverable-delete policy now holds.** Erase-delete and select-delete raise a toast with a **real
+  Undo** (`history.undo()`). This also fixed a pre-existing lie: the erase toast showed «Undid: …» **on
+  deletion**, claiming an undo that never happened.
+- **`retrySave()`** added to the session, wired to the chip's Retry (`persistQueue.flush()`).
+- **Spec divergence resolved:** §13.3 (object-delete toast 8 s) vs §13.4 (any action-carrying toast 10 s) —
+  **§13.4 wins**; an undo window is exactly the case the longer timing exists for.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `CI=true npx vitest run` → **80 files / 1110 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 25 precache entries (1458.91 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0** — with `CI` unset so it reuses the running
+      preview on 4173 (the deliberate fix for session 17's port collision)
+
+**Deferred to hardware:** none added. H19–H22 and H8/H12 remain pending.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D107** (the trust layer, the delete-toast undo, the read-only mapping, the
+§13.3/§13.4 resolution, and the owed list).
+
+**Surprises:**
+1. **The erase toast had been lying since it shipped** — it announced an undo on a delete that recorded no
+   undo step. Nothing asserted the *presence of the undo step*, only the text.
+2. **The fix for session 17's gate collision was itself a one-line change** (`CI` unset for the e2e step):
+   the collision was never a code problem, and the gate is now green in the same shell that hosts the
+   preview server.
+
+**Next:** the rest of 1.10 — the **History flyout** (owed; `writeHistorySnapshot` has no caller),
+`.trash/` + prune + restore, the arrow nudge, and the end-to-end a11y audit — then 1.11.

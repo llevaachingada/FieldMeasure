@@ -283,6 +283,12 @@ export default function SheetEditor({
   const projectDirRef = useRef<{ dir: FileSystemDirectoryHandle; file: ProjectFile } | null>(null);
   const leaseRef = useRef<WriterLease | null>(null);
   const channelRef = useRef<ProjectChannel | null>(null);
+  /**
+   * Slice 1.10: once the writer lease resolves absent the project is READ-ONLY
+   * (§5.8d, second tab). That is the chip's `Read-only` case, not a write failure, so
+   * the queue must not overwrite it with a transient `saving`/`pending`.
+   */
+  const readOnlyRef = useRef(false);
   const schedulerRef = useRef<ThumbnailScheduler | null>(null);
   const historyRef = useRef<History | null>(null);
   const sceneRef = useRef<MarkupScene | null>(null);
@@ -477,8 +483,18 @@ export default function SheetEditor({
     // The document is in memory only; this is the writer. Writes are coalesced 400 ms
     // and atomic (tmp → move) inside `persistQueue` / `writeJsonAtomic`, under the
     // per-project Web Lock, addressed by the D51 runtime key `projectId`.
+    //
+    // Slice 1.10: the queue OWNS the autosave chip's status and the app store is its
+    // mirror. A fresh editor starts `saved` (nothing pending — the chip still renders
+    // nothing until a write resolves), so a previous project's status cannot leak in.
+    useAppStore.getState().setStorageStatus('saved');
     const persist = createPersistQueue({
-      onStatus: (status) => useAppStore.getState().setStorageStatus(status),
+      onStatus: (status) => {
+        // A read-only project is not a write failure: keep the chip's `Read-only` state
+        // instead of letting a queue transition speak for the app (§11.2:688).
+        if (readOnlyRef.current) return;
+        useAppStore.getState().setStorageStatus(status);
+      },
     });
     persistRef.current = persist;
     scene.onChange = () => {
@@ -660,7 +676,12 @@ export default function SheetEditor({
       scene: toolScene,
       history,
       objectName: (ann) => eraseObjectName(ann),
-      onDeleteToast: (name) => emitToast(t(STRINGS.toasts.undoAction, { actionName: `${STRINGS.select.delete} ${name}` })),
+      onDeleteToast: (name, undo) =>
+        emitToast({
+          // §13.3 recoverable delete: name the object and offer the real undo.
+          text: `${STRINGS.select.delete} ${name}`,
+          action: { label: STRINGS.editor.undo, run: undo },
+        }),
       onSnapshot: markupPending,
       labels: { delete: STRINGS.select.delete, split: STRINGS.toasts.actionSplitStroke },
     });
@@ -683,6 +704,12 @@ export default function SheetEditor({
         locked: STRINGS.editor.lockedToast,
       },
       onLockedToast: () => emitToast(STRINGS.editor.lockedToast),
+      onDeleteToast: (label, undo) =>
+        emitToast({
+          // §13.3 recoverable delete: immediate, with a real undo (§13.4 10 s window).
+          text: label,
+          action: { label: STRINGS.editor.undo, run: undo },
+        }),
     });
 
     // ---- slice 1.7: the image-inset tool (insert flow + §8.5 manipulation + Focus) ----
@@ -775,6 +802,12 @@ export default function SheetEditor({
       },
       requestValue: () => tool.requestKeypad(),
       adjustEndpoints: () => tool.adjustEndpoints(),
+      // Slice 1.10: the autosave chip's Error-state Retry. `flush()` clears the parked
+      // flag and re-attempts at once (§5.4). It does not touch `storageStatus` — the
+      // queue reports the outcome, and only the queue ever sets that value.
+      retrySave: () => {
+        void persistRef.current?.flush();
+      },
       // ---- slice 1.8: the style-system commands --------------------------------
       applyStylePatch: (patch, label) => {
         const keys = [...useEditorStore.getState().selection];
@@ -1449,6 +1482,10 @@ export default function SheetEditor({
         }
         leaseRef.current = lease;
         setReadOnly(!lease);
+        readOnlyRef.current = !lease;
+        // Slice 1.10: the read-only project case is the chip's `Read-only` state, not a
+        // failure — and no later queue transition may overwrite it (see `onStatus`).
+        if (!lease) useAppStore.getState().setStorageStatus('readonly');
         channelRef.current = openProjectChannel(projectId);
 
         const projectDir = await resolveOpenProjectDir(projectId);
@@ -1479,7 +1516,12 @@ export default function SheetEditor({
         if (!alive) return;
         setStatus(loaded);
       } catch {
-        if (alive) setStatus('error');
+        if (alive) {
+          setStatus('error');
+          // Slice 1.10: the chip/toast layer makes the failure visible beyond the
+          // inline panel. The same approved wording the panel already shows.
+          emitToast({ text: STRINGS.errors.projectUnavailable, urgent: true });
+        }
       }
     })();
 

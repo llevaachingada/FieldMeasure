@@ -264,11 +264,18 @@ describe('ToolRail', () => {
 });
 
 describe('TopBar', () => {
-  it('renders nothing in the autosave slot until 1.10 (never an optimistic "Saved")', () => {
+  it('renders nothing in the autosave slot when no chip is supplied (never an optimistic "Saved")', () => {
     const { container } = render(createElement(TopBar, { projectName: 'Riverside', sheetName: 'Sheet 04' }));
     const slot = container.querySelector('[data-testid="autosave-slot"]');
     expect(slot?.textContent).toBe('');
     expect(container.textContent).not.toMatch(/saved/i);
+  });
+
+  it('renders the supplied autosave chip in the slot', () => {
+    const { container } = render(
+      createElement(TopBar, { autosaveChip: createElement('span', null, 'chip-here') }),
+    );
+    expect(container.querySelector('[data-testid="autosave-slot"]')?.textContent).toBe('chip-here');
   });
 
   it('shows the breadcrumb names, falling back to the appendix placeholders', () => {
@@ -495,6 +502,39 @@ describe('EditorLayout — composition, docking, rotation, keys', () => {
     ).toBe(onAddSheet);
   });
 
+  it('mounts the autosave chip from storageStatus and wires its Retry to the session', () => {
+    renderLayout();
+    // Fresh project, no write resolved → the chip renders nothing (never optimistic).
+    expect(document.querySelector('[data-testid="autosave-chip"]')).toBeNull();
+
+    act(() => {
+      useAppStore.setState({ storageStatus: 'saving' });
+    });
+    expect(screen.getByText(STRINGS.storage.saving)).toBeTruthy();
+
+    const retrySave = vi.fn();
+    setEditorSession({
+      undo: () => null,
+      redo: () => null,
+      deleteSelection: () => null,
+      cancelPending: () => {},
+      requestValue: () => {},
+      adjustEndpoints: () => {},
+      applyStylePatch: () => {},
+      applyStyle: () => {},
+      applyProjectPrecision: () => {},
+      applyProjectUnitFormat: () => {},
+      retrySave,
+    });
+    act(() => {
+      useAppStore.setState({ storageStatus: 'error' });
+    });
+    act(() => {
+      screen.getByRole('button', { name: STRINGS.errors.retry }).click();
+    });
+    expect(retrySave).toHaveBeenCalledTimes(1);
+  });
+
   it('wires the rail undo/redo to the editor session and names the action in a toast', () => {
     const { container } = renderLayout();
     const undo = vi.fn(() => ({ label: 'Delete dimension' }));
@@ -510,6 +550,7 @@ describe('EditorLayout — composition, docking, rotation, keys', () => {
       applyStyle: () => {},
       applyProjectPrecision: () => {},
       applyProjectUnitFormat: () => {},
+      retrySave: () => {},
     });
     act(() => {
       (container.querySelector(`[aria-label="${STRINGS.a11y.undo}"]`) as HTMLButtonElement).click();

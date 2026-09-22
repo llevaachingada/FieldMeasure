@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 17 — **slice 1.9 is complete: export is reachable and gated end to end** (`src/export/runExport.ts` + the wizard mounted + the top-bar/`Ctrl+E`/`⋯` entry points; a 400×300 sheet at M=2 exports a **300 × 225 pt** page, the trap that fails silently if the page is derived from the bitmap). **1.10 has begun:** Sunlight/Dim themes landed (D104). Two real bugs were root-caused and fixed: the owner-reported **dead «New project» button** — the §5.2 gesture re-grant had **no caller** and the caller swallowed the throw (D103) — and the discovery that **`npm run dev` can never render styled** because the shipped CSP blocks Vite's inline styles, invisible to every gate because they all use the built app (D105). Next: the rest of 1.10 — autosave chip, toasts, `.trash/` prune, arrow nudge, the a11y audit — then 1.11)
+**Last updated:** 2026-09-22 (session 18 — **the 1.10 trust layer landed**: the §13.1 autosave chip (five states plus `full`/`offline`, never optimistic, read-only is not an error) and the §13.4 single-instance toast system (one at a time by construction, 8 s / 10 s-with-action, focus never moved). **The silent-failure path is closed** — a failed «New project» or a failed project load now says so instead of doing nothing (D103's owed half), and delete-toasts carry a **real Undo** that also fixed a pre-existing lie (the erase toast claimed an undo on deletion). **The History flyout is NOT built** and `writeHistorySnapshot` still has no caller. Next: the rest of 1.10 — the flyout, `.trash/` prune + restore, the arrow nudge, the a11y audit — then 1.11)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2–1.8 complete; slice 1.9 COMPLETE (export is reachable and working end to end); 1.10 begun** (Sunlight/Dim themes). Export runs one sheet at a time through the real `writeAtomic`, PNG/PDF + zip, conflict policy against the destination listing, and a **disk-backed `assetProvider`** so insets export their photo (review F3 closed). Next: the rest of 1.10, then 1.11 (update strategy), then 2.0 |
-| Application code | **Twelve slices + 1.9's wiring**, **78 files / 1095 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1454.51 KiB); playwright 5 passed / 5 skipped. This session: `src/export/runExport.ts` (+ its three test files), the wizard mount and the three entry points, `SheetEditor.onExportSource`, `TopBar.onExport`; the 1.10 theme runtime (`src/ui/themeRuntime.ts`, token blocks, tests); and the `ensureRootAccess` permission fix with its five tests |
+| Phase | **Slices 0.2–1.9 complete; 1.10 in progress.** Export works end to end (D106); the trust layer landed (D107: autosave chip + toasts + honest failure surfaces). **Not yet in 1.10:** the History flyout, `.trash/` prune + restore, the arrow nudge, the end-to-end a11y audit. Then 1.11 (update strategy) and 2.0 |
+| Application code | **Twelve slices + 1.9 wiring + the 1.10 trust layer**, **80 files / 1110 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1458.91 KiB); playwright 5 passed / 5 skipped. This session: `src/ui/AutosaveChip.tsx`, `src/ui/Toast.tsx`, the extended toast bus and `retrySave()` in `src/editor/session.ts`, the delete-toast Undo wiring in the erase/select tools, the read-only lease mapping, and `storage.*` copy rows |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **The rest of slice 1.10** — build order 1: the autosave chip (all five states, never optimistic) + the History flyout; 3: single-instance toasts (8 s / 10 s-with-undo, never stack); 2: `.trash/` + 14-day prune + restore; 4: the arrow nudge (1 px / 10 px) and the end-to-end a11y audit (canvas accessible object tree, keyboard-only core loop, 48 px / 16 px touch checks). Then **1.11** (`registerType: 'prompt'`, the update toast with the flush-then-reload rule, build id in Settings). Owed alongside: D101's on-screen label-halo fix, D104's component-level Sunlight items, D106's export owed list, and the `[Surface]` rows |
+| Next action | **Rest of slice 1.10:** the **History flyout** (plan item 1 — `writeHistorySnapshot` currently has no caller), `.trash/` + 14-day prune + restore (note: the restore UI wants the unbuilt Project screen), the arrow nudge (1 px / 10 px) and the end-to-end a11y audit (canvas accessible object tree, keyboard-only core loop, 48 px / 16 px touch checks). Then **1.11** (`registerType: 'prompt'`, the update toast with the flush-then-reload rule, build id in Settings), then 2.0. Owed alongside: D101's on-screen label-halo fix, D104's component-level Sunlight items, D106's export list, D107's flyout/undo-round-trip items, and the `[Surface]` rows |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -685,6 +685,35 @@ permission path and a swallowing caller) hid each other, so either alone would h
 And a third variant of the standing rule appeared — *the gate can see only what it asserts, in the
 environment it asserts it* — this time at the level of the **server**, not the assertion.
 
+### 2026-09-22 — Session 18: the 1.10 trust layer (autosave chip, toasts, honest failures)
+
+The app autosaves every edit but said nothing about it, and every shell failure was silent — the same
+silence that produced the owner-reported dead «New project» button. This session made the app honest
+about state:
+
+1. **The autosave chip** renders `persistQueue`'s `storageStatus` (the queue remains the only writer):
+   `saved` · `saving` · `pending` · `readonly` · `error (+ Retry)` · `full` · `offline`. **Nothing
+   optimistic** — it renders nothing until a real `… → saved` transition resolves after mount. An absent
+   writer lease now maps to `readonly` (not an error) with the queue's `onStatus` gated against
+   overwriting it.
+2. **Single-instance toasts** — one message and one timer live in the component, so stacking is
+   structurally impossible; a new toast replaces the current one **and closes its action window** (a stale
+   armed undo is the thing that matters). 8 s normally, 10 s with an action; timers cleared on replacement
+   and unmount; focus is never moved, so a toast cannot fight the keypad sheet.
+3. **The silence is closed (D103's owed half)** — a failed create and a failed project load now raise an
+   urgent toast using the already-existing `errors.projectUnavailable`. The create path is the one the
+   owner hit: it used to swallow everything and look like a dead button.
+4. **The recoverable-delete policy now actually holds:** erase-delete and select-delete raise a toast with
+   a **real Undo** (`history.undo()`). This also corrected a pre-existing lie — the erase toast showed
+   «Undid: …» **on deletion**, claiming an undo that never happened.
+
+**Spec divergence resolved:** §13.3 lists an object-delete toast at 8 s while §13.4 makes any
+action-carrying toast 10 s. §13.4 wins — the undo window is exactly why the longer timing exists.
+
+**Lesson.** The chip and the toasts are not decoration: they are the only reason a *failure* can be seen.
+Two of this project's worst bugs (a dead control, a swallowed throw) were invisible precisely because the
+app had nowhere to say anything.
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -926,6 +955,19 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   and 2.5 px icon strokes are component-level work, and the canvas HUDs still use hardcoded `rgba()`
   surfaces that do not re-theme.
 - **`[Surface]` gates pending, never faked:** H8, H12, H19–H22 (1.9) plus the earlier rows.
+
+## Known drift / watch items (session 18)
+
+- **The History flyout is NOT built (D107).** Plan item 1 includes "tap → History flyout" with whole-sheet
+  snapshot restore; `writeHistorySnapshot` still has **no caller**. The chip ships without its flyout.
+- **The browser-only undo round-trip is unproven.** jsdom proves the wiring and the callback dispatch; a
+  toast's Undo reaching a real `history.undo()` through a Konva-backed tool was reasoned, not executed.
+- **The chip's timestamp is chip-local** (the queue exposes no last-saved time), so a project opened with
+  no edits shows no chip until the first write resolves — deliberate, but worth knowing when judging UI.
+- **`.trash/` + prune + restore is unstarted**, and its **restore UI wants the unbuilt Project screen**
+  (D88/D102) — the prune half is buildable on its own; the restore half may not be.
+- Carried: D101 (on-screen label halo scales with zoom), D104 (Sunlight component-level items), D105
+  (dev-mode is unstyled by CSP design), D106 (export owed list), and the `[Surface]` rows H8/H12/H19–H22.
 
 ## How to resume
 

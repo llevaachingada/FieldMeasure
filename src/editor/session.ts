@@ -59,6 +59,12 @@ export interface EditorSession {
   applyProjectPrecision(denominator: number): void;
   /** §7.2 / D31: edit the PROJECT-level unit format (same path as precision). */
   applyProjectUnitFormat(format: UnitFormat): void;
+  /**
+   * Slice 1.10: the autosave chip's `Retry` (UI §13.1). Re-attempts parked writes —
+   * `persistQueue.flush()` clears the parked flag and retries at once (§5.4). The chip
+   * never sets `storageStatus` itself; this command is the only thing its Retry does.
+   */
+  retrySave(): void;
 }
 
 let current: EditorSession | null = null;
@@ -75,16 +81,47 @@ export function editorSession(): EditorSession | null {
  * Toast bus
  * ------------------------------------------------------------------ */
 
-type ToastListener = (text: string) => void;
-const toastListeners = new Set<ToastListener>();
-
-export function emitToast(text: string): void {
-  for (const listener of toastListeners) listener(text);
+/**
+ * One toast. A toast that carries an `action` lives 10 s; a plain one 8 s (UI §13.4:
+ * "8s default (10s when they carry an Undo)"). The `urgent` flag picks the live-region
+ * role at the render site — `role="alert"` for errors, `role="status"` otherwise.
+ */
+export interface ToastAction {
+  label: string;
+  run: () => void;
 }
 
-export function subscribeToast(listener: ToastListener): () => void {
+export interface ToastMessage {
+  text: string;
+  action?: ToastAction;
+  urgent?: boolean;
+}
+
+type ToastListener = (toast: ToastMessage) => void;
+const toastListeners = new Set<ToastListener>();
+
+/**
+ * Raise a toast. A bare string is the original text-only form; the object form carries
+ * an optional action (recoverable actions toast with Undo — §13.3). A single emission is
+ * the whole contract: the consumer is single-instance and each new toast replaces the
+ * last, closing the replaced toast's undo window (§13.4).
+ */
+export function emitToast(input: string | ToastMessage): void {
+  const toast: ToastMessage = typeof input === 'string' ? { text: input } : input;
+  for (const listener of toastListeners) listener(toast);
+}
+
+/** Subscribe to the FULL toast (text + action). The shell's `ToastHost` uses this. */
+export function subscribeToastMessage(listener: ToastListener): () => void {
   toastListeners.add(listener);
   return () => toastListeners.delete(listener);
+}
+
+/** Text-only subscription, kept for callers/tests that only care about the wording. */
+export function subscribeToast(listener: (text: string) => void): () => void {
+  const wrapped: ToastListener = (toast) => listener(toast.text);
+  toastListeners.add(wrapped);
+  return () => toastListeners.delete(wrapped);
 }
 
 /** Test helper: drop every listener (module-global, so specs must not leak). */

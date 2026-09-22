@@ -4,8 +4,9 @@
  *
  * Zones (UI §5.2, non-negotiable):
  *   - Left   — breadcrumb `‹ Projects › «Project» › «Sheet»` (48 px targets).
- *   - Centre — the **autosave chip slot**. `1.10` fills it. Until then it renders
- *     **nothing at all** — never an optimistic "Saved" (do-not-simplify #14).
+ *   - Centre — the **autosave chip slot**. Slice 1.10 fills it with `AutosaveChip`; if
+ *     no chip is supplied the slot renders **nothing at all** — never an optimistic
+ *     "Saved" (do-not-simplify #14).
  *   - Right  — `⌗ Layers · ⇧ Export · ⋯ Overflow` (UI §5.2). Layers/Export are
  *     present-but-disabled until the shell supplies their handler (slice 1.6 / 1.9); the
  *     Overflow holds the wired `Export` row plus the nine items keyed in
@@ -35,8 +36,8 @@ export interface TopBarProps {
   /** Overflow → Import file. Optional. */
   onImportFile?: () => void;
   /**
-   * The autosave chip, supplied by slice 1.10. Default is `undefined` → the slot
-   * renders nothing (a placeholder that never lies).
+   * The autosave chip, supplied by `EditorLayout` (slice 1.10 mounts `AutosaveChip`).
+   * Default `undefined` → the slot renders nothing (a placeholder that never lies).
    */
   autosaveChip?: ReactNode;
   /** Portrait: Export collapses to icon-only, the breadcrumb to a single chip. */
@@ -159,7 +160,8 @@ export default function TopBar({
         </span>
       </nav>
 
-      {/* Autosave slot: empty until 1.10 (do-not-simplify #14). */}
+      {/* Autosave slot: filled by `EditorLayout` (slice 1.10); empty when none is
+          supplied (do-not-simplify #14 — never an optimistic "Saved"). */}
       <div className="topbar-autosave" data-testid="autosave-slot">
         {autosaveChip ?? null}
       </div>

@@ -1091,13 +1091,73 @@ button.crumb:hover {
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%);
-  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 18px;
   border-radius: 999px;
   background: rgba(14, 19, 24, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: var(--g100);
   font-size: 14px;
   z-index: 30;
+}
+
+.toast-text {
+  white-space: nowrap;
+}
+
+.toast-action {
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--hi);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* §13.1 Autosave chip: 48 px pill, mono 13, never icon-only, never in overflow. */
+.autosave-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g100);
+}
+.autosave-glyph {
+  font-size: 15px;
+  line-height: 1;
+}
+.autosave-chip[data-state='saved'] {
+  color: var(--ok);
+}
+.autosave-chip[data-state='saving'],
+.autosave-chip[data-state='pending'],
+.autosave-chip[data-state='offline'] {
+  color: var(--warn);
+}
+.autosave-chip[data-state='readonly'],
+.autosave-chip[data-state='error'],
+.autosave-chip[data-state='full'] {
+  color: var(--err);
+}
+.autosave-chip-retry {
+  min-height: 48px;
+  padding: 0 12px;
+  border: 2px solid var(--hi);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--hi);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 

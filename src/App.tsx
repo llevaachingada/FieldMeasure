@@ -18,7 +18,10 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import FirstRun from '@/ui/FirstRun';
 import ProjectList from '@/ui/ProjectList';
 import Settings from '@/ui/Settings';
+import ToastHost from '@/ui/Toast';
 import { useThemeRuntime } from '@/ui/themeRuntime';
+import { emitToast } from '@/editor/session';
+import { STRINGS } from '@/ui/strings';
 import { createProject } from '@/fs/projectStore';
 import { getProjectsRoot } from '@/settings/projectsRoot';
 
@@ -86,7 +89,11 @@ export default function App() {
       setCaptureOpen(true);
       setRoute('editor');
     } catch {
-      // Slice 1.10 owns error surfacing; stay on Home.
+      // Slice 1.10: the failure is no longer invisible (D103's owed half). The toast
+      // lives at the home route (the editor has its own `ToastHost`). The wording is the
+      // already-staged `errors.projectUnavailable` copy — the project folder could not be
+      // created, and nothing is invented for a cause we cannot name.
+      emitToast({ text: STRINGS.errors.projectUnavailable, urgent: true });
     } finally {
       creatingProject.current = false;
     }
@@ -159,23 +166,28 @@ export default function App() {
   }
 
   return (
-    <ProjectList
-      onOpenSettings={() => setRoute('settings')}
-      onOpenProject={(id, folderName) => {
-        // D51: key on id + folderName. A scan entry with no valid id (unreadable
-        // folder) is not openable; ProjectList still renders it with a Locate action.
-        if (!folderName || !id) return;
-        setEditorTarget({ projectId: `${id}:${folderName}`, folderName });
-        setEditorSheetId(undefined);
-        setCaptureOpen(false);
-        setRoute('editor');
-      }}
-      onNewProject={() => {
-        void handleNewProject();
-      }}
-      onOpenFolder={() => {
-        /* slice 1.2 — reveals/opens an existing project folder */
-      }}
-    />
+    <>
+      <ProjectList
+        onOpenSettings={() => setRoute('settings')}
+        onOpenProject={(id, folderName) => {
+          // D51: key on id + folderName. A scan entry with no valid id (unreadable
+          // folder) is not openable; ProjectList still renders it with a Locate action.
+          if (!folderName || !id) return;
+          setEditorTarget({ projectId: `${id}:${folderName}`, folderName });
+          setEditorSheetId(undefined);
+          setCaptureOpen(false);
+          setRoute('editor');
+        }}
+        onNewProject={() => {
+          void handleNewProject();
+        }}
+        onOpenFolder={() => {
+          /* slice 1.2 — reveals/opens an existing project folder */
+        }}
+      />
+      {/* §13.4: the Home route gets the same single-instance toast surface (the editor
+          mounts its own inside `EditorLayout`; only one route is mounted at a time). */}
+      <ToastHost />
+    </>
   );
 }

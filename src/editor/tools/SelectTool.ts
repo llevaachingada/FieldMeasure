@@ -203,6 +203,11 @@ export interface SelectToolDeps {
   onPinnedToolbar: (pinned: boolean) => void;
   labels: { move: string; rotate: string; delete: string; locked: string };
   onLockedToast?: () => void;
+  /**
+   * Slice 1.10: the recoverable-delete toast (§13.3). `undo` re-runs the real history
+   * step, so the toast's `Undo` actually restores the selection.
+   */
+  onDeleteToast?: (label: string, undo: () => void) => void;
 }
 
 interface TransformDrag {
@@ -473,6 +478,7 @@ export class SelectTool implements MarkupTool {
     this.deps.setSelection([]);
     this.deps.onSelectionChange([]);
     this.refresh();
+    this.deps.onDeleteToast?.(this.deps.labels.delete, () => this.deps.history.undo());
     return { label: this.deps.labels.delete };
   }
 

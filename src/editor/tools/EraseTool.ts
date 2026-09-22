@@ -106,7 +106,12 @@ export interface EraseToolDeps {
   history: History;
   /** Name copy for the undo toast, keyed by `eraseNameKey`. */
   objectName: (annotation: Annotation) => string;
-  onDeleteToast: (name: string) => void;
+  /**
+   * Slice 1.10: the recoverable-delete toast (§13.3). `undo` re-runs the real history
+   * step that removed the object — the toast's `Undo` must actually undo it, not just
+   * say so.
+   */
+  onDeleteToast: (name: string, undo: () => void) => void;
   onSnapshot: (pending: boolean) => void;
   labels: { delete: string; split: string };
 }
@@ -194,7 +199,7 @@ export class EraseTool implements MarkupTool {
       do: () => this.deps.scene.removeObject(key),
       undo: () => this.deps.scene.addAnnotation(snapshot),
     });
-    this.deps.onDeleteToast(name);
+    this.deps.onDeleteToast(name, () => this.deps.history.undo());
   }
 
   /** Pen stroke-scope: split the nearest stroke under the contact. */

@@ -50,13 +50,15 @@ import {
   upsertPreset,
   type PresetsFile,
 } from '@/fs/presets';
-import { editorSession, subscribeToast } from '@/editor/session';
+import { editorSession, emitToast } from '@/editor/session';
 import { createExportSession, type ExportDocumentSource, type ExportSession } from '@/export/runExport';
 import type { LabelContext } from '@/editor/shapes/dimensionLabel';
+import AutosaveChip from './AutosaveChip';
 import SheetEditor, { type EditorExportSource } from './SheetEditor';
 import ExportWizard, { type ExportSheetRef } from './ExportWizard';
 import StyleEditorSheet, { type StyleEditorSheetProps } from './StyleEditorSheet';
 import StylePanel, { type StylePanelProps, type StyleScope } from './StylePanel';
+import ToastHost from './Toast';
 import TopBar from './TopBar';
 import ToolRail, { TOOL_HOTKEYS, toolDefById, type ToolId } from './ToolRail';
 import { STRINGS, t } from './strings';
@@ -211,13 +213,8 @@ export default function EditorLayout({
   const layersOpen = useEditorStore((s) => s.layersOpen);
   const focusInsetId = useEditorStore((s) => s.focusInsetId);
 
-  const [toast, setToast] = useState<string | null>(null);
-  useEffect(() => subscribeToast(setToast), []);
-  useEffect(() => {
-    if (!toast) return;
-    const id = setTimeout(() => setToast(null), 4000);
-    return () => clearTimeout(id);
-  }, [toast]);
+  const storageStatus = useAppStore((s) => s.storageStatus);
+  const retrySave = useCallback(() => editorSession()?.retrySave(), []);
 
   // ---- slice 1.9: the export wizard's shell half ---------------------------------
   // The wizard owns no engine work: `createExportSession` is the production implementation
@@ -524,9 +521,10 @@ export default function EditorLayout({
   } satisfies StyleEditorSheetProps;
 
   // Undo/redo name the action in a toast (UI §13.2). The commands live on the canvas
-  // session; the label is interpolated by the strings owner here.
+  // session; the label is interpolated by the strings owner here. `ToastHost` renders it
+  // (single-instance, 8 s — it carries no action).
   const showUndoToast = useCallback((label: string) => {
-    setToast(t(STRINGS.toasts.undoAction, { actionName: label }));
+    emitToast(t(STRINGS.toasts.undoAction, { actionName: label }));
   }, []);
   const undo = useCallback(() => {
     const cmd = editorSession()?.undo();
@@ -645,7 +643,7 @@ export default function EditorLayout({
         onExit={onExit}
         onAddSheet={onAddSheet}
         onImportFile={onImportFile ?? (() => importTriggerRef.current?.())}
-        autosaveChip={autosaveChip}
+        autosaveChip={autosaveChip ?? <AutosaveChip status={storageStatus} onRetry={retrySave} />}
         compact={compact}
         onToggleLayers={() => useEditorStore.getState().setLayersOpen(!layersOpen)}
         layersOpen={layersOpen}
@@ -673,11 +671,9 @@ export default function EditorLayout({
           copyPath={exportSession.copyPath}
         />
       ) : null}
-      {toast ? (
-        <output className="editor-toast" role="status">
-          {toast}
-        </output>
-      ) : null}
+      {/* §13.4: the single-instance toast surface (bottom-centre, 8 s / 10 s with an
+          action, never stacked). */}
+      <ToastHost />
     </div>
   );
 }
