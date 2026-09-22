@@ -8,9 +8,20 @@ import { VitePWA } from 'vite-plugin-pwa';
  * `FM_BASE` is the only thing that changes when the app moves hosts: the deployed
  * base path is `process.env.FM_BASE ?? '/'`. The default production value is
  * `/FieldMeasure/` (GitHub Pages); dev/preview use `/`.
+ *
+ * §19.2 build id: stamped at build time and rendered in Settings, so a field bug
+ * report can name the exact build it came from. `FM_BUILD_ID` is the CI override
+ * (the publish runbook can pass `<version>+<sha>`); the default is the package
+ * version plus a build timestamp, which is unique per build and needs no extra
+ * dependency or Node typings.
  */
+const BUILD_ID =
+  process.env.FM_BUILD_ID ??
+  `${process.env.npm_package_version ?? '0.1.0'}+${new Date().toISOString()}`;
+
 export default defineConfig({
   base: process.env.FM_BASE ?? '/',
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

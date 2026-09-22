@@ -976,3 +976,64 @@ its resolutions, and the discharged pixel proof), **D110** (the card-meta exampl
 
 **Next:** the rest of 1.10 — the **History flyout** (owed), `.trash/` + prune + restore, the arrow nudge, and
 the end-to-end a11y audit — plus the PDF-caption placement decision and the `Skip`-row copy sign-off. Then 1.11.
+
+---
+
+## Session 20 — the Project screen (the sheets grid) and slice 1.11 (update strategy)
+**Date:** 2026-09-22 · **Commits:** see `git log` · **Branch:** `main`
+
+**Built:**
+
+- **The Project screen (D111 — the owner's D88 option A).** `src/ui/ProjectScreen.tsx` + `projectScreen.css`
+  and the read-only loader `src/fs/projectSheets.ts`: the two add tiles **first in every state**
+  («Take photo» primary, «Import»), per-sheet cards (real `thumb.jpg`, index badge, `+N` inset badge, mono
+  `«2:14 PM · 3 dimensions»`), per-card selection driving a selection bar, and honest *loading / empty /
+  error* states. Routing wired in `App`: **Home → grid → editor**; the editor's `‹ Projects` returns to the
+  grid. The loader is tolerant exactly where tolerance is honest — a missing/zero-byte thumbnail is a
+  placeholder, an orphan `project.json` entry reads as empty markup, and genuine corruption surfaces as the
+  honest `error` state (reporting «0 dimensions» for an unreadable sheet would be a lie).
+- **A capture returns to the grid (UI §11.8).** The capture overlay moved to the shell root, driven by where
+  it was launched: from the grid it returns **to the grid** with the approved «Added {sheetName}» toast; from
+  the editor it opens the sheet it wrote. «New project» keeps the owner's D102 camera-first flow and now lands
+  its result on the grid. `CameraFlow`'s `onCaptured` payload gained the written sheet's `title` so the toast
+  names the sheet instead of re-deriving a name (its test was updated for the extended payload).
+- **Slice 1.11 (D112).** `registerType: 'prompt'` was **already set** (`vite.config.ts:35`) — verified, not
+  changed. Around it: `src/ui/UpdateToast.tsx` (the plan's pinned signature), `src/ui/PWAUpdate.tsx`
+  (`useRegisterSW` glue), `src/ui/updateReload.ts` (the pure ordering), and the `__BUILD_ID__` injection shown
+  in Settings → About. The prompt **suppresses itself** while `persistQueue.inFlight`, while a placement op is
+  pending, or while the keypad is open, and **reload is flush-first** (`flush → waitSettled → activate`) with a
+  **parked** autosave failure treated as a rejection — a reload can never discard an edit that did not reach
+  disk. A second toast surface is deliberate: `ToastHost` is single-instance and auto-dismissing, and cannot be
+  gated on queue state.
+- **Copy folded per runbook §11:** the Project screen's staging module (`src/ui/projectScreenCopy.ts`) was
+  folded into `strings.ts` (the appendix rows verbatim, the rest marked `⚠ PROPOSED (C14)`, with the `projectMenu`
+  rows traced to gaps §10) and **deleted**; `tests/strings.test.ts` stays green, which also confirms the
+  lane's provenance claims were accurate.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `CI=true npx vitest run` → **84 files / 1161 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 25 precache entries (1483.93 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0** (CI unset so it reuses the preview on 4173)
+
+**Deferred to hardware:** the real service-worker update lifecycle (D112) and the `[Surface]` rows.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D111** (the Project screen, its four forced choices, and its owed list), **D112**
+(the update strategy, the suppression rules and the flush-first reload).
+
+**Surprises:**
+1. **A D51 regression only the App-level test could see.** The open-project registry is keyed by the full
+   `${id}:${folderName}` runtime key; registering the bare id left every resolver throwing *"project … is not
+   open in this tab"* — the grid reported **every** project as an error while its own 29 tests stayed green.
+   Found by the integration test, fixed by composing the key first, and now pinned by that test's `empty`
+   assertion.
+2. **Three App-level expectations had to move with the product** (`«New project»` now lands on the grid, not
+   the editor) — updated to assert the *new* intended behaviour rather than deleted, and the old editor-stub
+   assertion became the grid-stub plus the registry proof.
+3. **`registerType: 'prompt'` was already correct** — the plan's item 1 was a no-op to build and a real
+   verification to make. Recorded so nobody "fixes" it twice.
+
+**Next:** the Project screen's owed items (reorder, rename, duplicate, replace photo, delete → `.trash/`,
+grid-scoped export) and the paused 1.10 polish (History flyout, a11y audit, halo fix, PDF captions), then 2.0.

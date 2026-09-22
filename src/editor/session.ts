@@ -65,6 +65,13 @@ export interface EditorSession {
    * never sets `storageStatus` itself; this command is the only thing its Retry does.
    */
   retrySave(): void;
+  /**
+   * Slice 1.11: flush the autosave queue and resolve once every queued write has
+   * settled. **Rejects when a write could not land** (the queue parks instead of
+   * throwing, so this classifies the parked state) — the update prompt must never
+   * reload over unsaved edits. Optional: the chrome's test doubles predate 1.11.
+   */
+  flush?(): Promise<void>;
 }
 
 let current: EditorSession | null = null;
@@ -128,4 +135,42 @@ export function subscribeToast(listener: (text: string) => void): () => void {
 export function resetToastBus(): void {
   toastListeners.clear();
   current = null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Persistence-busy signal (slice 1.11)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Mirrors `persistQueue.inFlight` (the queue comment names 1.11's update toast as its
+ * consumer) so the prompt — mounted at the app-shell root, outside the editor subtree —
+ * can suppress itself while a write is queued or in flight without importing the canvas
+ * module.
+ *
+ * `SheetEditor` is the only writer: it bridges the live queue's status subscription and
+ * its enqueue points onto this signal, and clears it on unmount. This is a one-value
+ * signal, not a store — it holds no state that could leak into persisted data.
+ */
+let persistenceBusyFlag = false;
+const persistenceBusyListeners = new Set<(busy: boolean) => void>();
+
+export function setPersistenceBusy(busy: boolean): void {
+  if (persistenceBusyFlag === busy) return;
+  persistenceBusyFlag = busy;
+  for (const listener of persistenceBusyListeners) listener(busy);
+}
+
+export function subscribePersistenceBusy(listener: (busy: boolean) => void): () => void {
+  persistenceBusyListeners.add(listener);
+  return () => persistenceBusyListeners.delete(listener);
+}
+
+export function persistenceBusy(): boolean {
+  return persistenceBusyFlag;
+}
+
+/** Test helper: reset the busy signal and drop its listeners. */
+export function resetPersistenceBusy(): void {
+  persistenceBusyFlag = false;
+  persistenceBusyListeners.clear();
 }

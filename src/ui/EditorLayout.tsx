@@ -187,6 +187,11 @@ export interface EditorLayoutProps {
   onAddSheet?: () => void;
   /** Overflow → Import file. Defaults to the canvas's own import affordance. */
   onImportFile?: () => void;
+  /**
+   * Slice 1.10: the Project screen's «Import» tile hands off here, so the editor arms its own
+   * file picker on mount and the write path stays single. Consumed once.
+   */
+  autoImport?: boolean;
   /** The autosave chip slot content; slice 1.10 supplies it. Default: nothing. */
   autosaveChip?: ReactNode;
   /**
@@ -203,6 +208,7 @@ export default function EditorLayout({
   projectName,
   onAddSheet,
   onImportFile,
+  autoImport,
   autosaveChip,
   sheetId,
 }: EditorLayoutProps) {
@@ -282,9 +288,21 @@ export default function EditorLayout({
   // sheet name in the breadcrumb and press the canvas's own hidden file input from
   // the top bar — without duplicating a second import path.
   const importTriggerRef = useRef<(() => void) | null>(null);
+  /**
+   * Slice 1.10: armed by the grid's «Import» hand-off. Seeded during render (not in an
+   * effect) because `SheetEditor`'s mount effect — which hands the trigger over — runs
+   * BEFORE this component's effects, so an effect-seeded flag would always be too late.
+   */
+  const pendingAutoImport = useRef(autoImport ?? false);
   const [sheetTitle, setSheetTitle] = useState('');
   const onImportReady = useCallback((trigger: () => void) => {
     importTriggerRef.current = trigger;
+    // Slice 1.10: a grid-launched «Import» arms the picker exactly once, as soon as the
+    // canvas hands the trigger over. A programmatic `input.click()` needs no user gesture.
+    if (pendingAutoImport.current) {
+      pendingAutoImport.current = false;
+      trigger();
+    }
   }, []);
   const onSheetTitleChange = useCallback((title: string) => {
     setSheetTitle(title);

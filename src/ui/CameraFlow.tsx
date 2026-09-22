@@ -80,7 +80,7 @@ export interface CameraFlowProps {
   /** D51 runtime key `${id}:${folderName}` — the Web Lock / queue / registry key. */
   projectId: string;
   /** Called AFTER the atomic write, with the new sheet's id and sort index. */
-  onCaptured: (sheet: { id: string; index: number }) => void;
+  onCaptured: (sheet: { id: string; index: number; title: string }) => void;
   onCancel: () => void;
   /**
    * Optional: resolves the project directory when no editor session has registered
@@ -648,7 +648,7 @@ export default function CameraFlow({
         schedulerRef.current.schedule(normalized.blob);
 
         setWrite('idle');
-        onCaptured({ id: sheet.id, index: sheet.sortIndex });
+        onCaptured({ id: sheet.id, index: sheet.sortIndex, title: sheet.title });
       } catch {
         // A field photo is never trapped: keep the blob, offer Save a copy….
         setWrite('failed');

@@ -51,7 +51,12 @@ import { FreehandTool, isFingerInkAllowed } from '@/editor/tools/FreehandTool';
 import { TextTool } from '@/editor/tools/TextTool';
 import { EraseTool, effectiveEraseMode, eraseNameKey, isErasePreview, strokeModeAvailable, type EraseMode } from '@/editor/tools/EraseTool';
 import { ROTATE_STOPS, SelectTool } from '@/editor/tools/SelectTool';
-import { setEditorSession, emitToast, type EditorSession } from '@/editor/session';
+import {
+  setEditorSession,
+  emitToast,
+  setPersistenceBusy,
+  type EditorSession,
+} from '@/editor/session';
 import { createPersistQueue, type PersistQueue } from '@/state/persistQueue';
 import { selectionScope, selectionStyleState } from '@/state/styleByTool';
 import {
@@ -497,6 +502,12 @@ export default function SheetEditor({
       },
     });
     persistRef.current = persist;
+    // Slice 1.11: bridge the queue's busy flag onto the session signal that suppresses
+    // the update toast. `subscribe` fires on every status transition; the explicit
+    // `setPersistenceBusy` calls after each enqueue also catch a re-arm from a parked
+    // state, where the status — and so the subscription — does not fire.
+    const unsubscribeBusy = persist.subscribe(() => setPersistenceBusy(persist.inFlight));
+    setPersistenceBusy(persist.inFlight);
     scene.onChange = () => {
       // A style edit, an undo/redo or any other mutation may change the selection's
       // shared style — refresh the mirror BEFORE the early return (the shell's panel must
@@ -505,6 +516,7 @@ export default function SheetEditor({
       const sid = sheetIdRef.current;
       if (!sid) return;
       persist.queueSheet(projectId, sid, scene.markupFile(sid, 1));
+      setPersistenceBusy(persist.inFlight);
       // Re-derive the Layers rows only while the flyout is open (avoids a full
       // SheetEditor re-render on every drag/property tick otherwise).
       if (useEditorStore.getState().layersOpen) setSceneTick((n) => n + 1);
@@ -808,6 +820,31 @@ export default function SheetEditor({
       retrySave: () => {
         void persistRef.current?.flush();
       },
+      // Slice 1.11: the update prompt's flush-first reload. `persistQueue.flush()`
+      // resolves even when a write failed (the queue parks instead of throwing), so wait
+      // for it to stop being busy and classify a parked failure as a rejection — a
+      // reload must never run over an edit that did not reach disk.
+      flush: async () => {
+        const queue = persistRef.current;
+        if (!queue) return;
+        await queue.flush();
+        await new Promise<void>((resolve) => {
+          if (!queue.inFlight) {
+            resolve();
+            return;
+          }
+          const off = queue.subscribe(() => {
+            if (!queue.inFlight) {
+              off();
+              resolve();
+            }
+          });
+        });
+        const settled = queue.status;
+        if (settled === 'full' || settled === 'pending' || settled === 'error') {
+          throw new Error(`autosave did not settle cleanly (${settled})`);
+        }
+      },
       // ---- slice 1.8: the style-system commands --------------------------------
       applyStylePatch: (patch, label) => {
         const keys = [...useEditorStore.getState().selection];
@@ -840,7 +877,10 @@ export default function SheetEditor({
           denominator,
           scene,
           // The atomic, lock-guarded `project.json` write stays owned by `persistQueue`.
-          queueProject: (file) => persist.queueProject(projectId, file),
+          queueProject: (file) => {
+            persist.queueProject(projectId, file);
+            setPersistenceBusy(persist.inFlight);
+          },
         });
         // Keep the in-memory project file fresh so a second change never re-applies from a
         // stale snapshot (the helper returns the next context, not the next file).
@@ -867,7 +907,10 @@ export default function SheetEditor({
           ctx: currentMeasureContext(),
           format,
           scene,
-          queueProject: (file) => persist.queueProject(projectId, file),
+          queueProject: (file) => {
+            persist.queueProject(projectId, file);
+            setPersistenceBusy(persist.inFlight);
+          },
         });
         state.file = {
           ...state.file,
@@ -1537,6 +1580,8 @@ export default function SheetEditor({
       unsubscribeTool();
       unsubscribeSelection();
       unsubscribeFocus();
+      unsubscribeBusy();
+      setPersistenceBusy(false);
       setEditorSession(null);
       // Land any coalesced markup write before the scene is torn down.
       void persist.flush();

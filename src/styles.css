@@ -1119,6 +1119,63 @@ button.crumb:hover {
   cursor: pointer;
 }
 
+/* Slice 1.11 — the service-worker update prompt. Deliberately a separate surface from
+   `.editor-toast`: it is persistent (no auto-dismiss) and carries two actions. It sits
+   above the transient toast (bottom 24 + 56) and the 72 px bottom style dock so the two
+   can never cover each other. Both actions are >= 48 px with 16 px hit slop. */
+.update-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: rgba(14, 19, 24, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--g100);
+  font-size: 14px;
+  z-index: 40;
+}
+
+.update-toast-text {
+  white-space: nowrap;
+}
+
+.update-toast-failed {
+  color: var(--err);
+  font-weight: 600;
+}
+
+.update-toast-action,
+.update-toast-later {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.update-toast-action {
+  border: 2px solid var(--hi);
+  background: var(--hi);
+  color: #101418;
+}
+.update-toast-action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.update-toast-later {
+  border: 2px solid transparent;
+  background: transparent;
+  color: var(--g100);
+}
+
 /* §13.1 Autosave chip: 48 px pill, mono 13, never icon-only, never in overflow. */
 .autosave-chip {
   display: inline-flex;

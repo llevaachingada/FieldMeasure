@@ -169,7 +169,17 @@ export const STRINGS = {
 
   // APPROVED inventory (appendix-strings.md `## toasts`): `undoAction` is the template.
   toasts: {
+    // APPROVED inventory (appendix-strings.md `toasts.addedSheet`, line 289) — slice 1.10:
+    // the toast after «Use photo» when the capture was launched from Home/Project, naming
+    // the sheet that was just written. Its «↶ Undo» half is owed (no delete path yet).
+    addedSheet: 'Added {sheetName}',
     undoAction: 'Undid: {actionName}',
+    // APPROVED inventory (appendix-strings.md `toasts.updateReady`, line 288).
+    updateReady: "Update ready — reload when you're done",
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §18): the prompt's
+    // two button labels — the spec names them (`Reload`, `Later`) but quotes neither.
+    updateReload: 'Reload',
+    updateLater: 'Later',
     // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix): the action names
     // interpolated into `toasts.undoAction`; the appendix supplies only the example
     // "Undid: Delete dimension 12' 6"".
@@ -199,6 +209,27 @@ export const STRINGS = {
     // empty-state primary, paired with `capture.importButton` (UI §11.2:684; D88).
     addTakePhoto: 'Take photo',
     readOnlyChip: "Read-only — changes can't be saved",
+    // APPROVED inventory (appendix-strings.md `## project`) — slice 1.10, the sheets grid:
+    // the count in the top bar, the inset badge, the per-card meta line, and the
+    // blocked-mutation toast. Values are the appendix's TEMPLATE forms (its `String` column
+    // is the rendered example; its `Interpolation` column declares the tokens).
+    sheetCount: '{sheetCount} sheets',
+    insetBadge: '+{insetCount}',
+    sheetMeta: '{time} · {dimensionCount} dimensions',
+    notSavedToast: 'Not saved to disk',
+
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §26):
+    // the grid's loading line.
+    loading: 'Loading sheets…',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): the grid's accessible
+    // region name, the per-card selection toggle's name, the selection bar's clear action,
+    // and the honest line shown when the project folder cannot be read (UI §11.2).
+    sheetsRegion: 'Sheets',
+    selectToggle: 'Select {title}',
+    clearSelection: 'Clear',
+    loadError: "Couldn't read this project folder",
+
     // APPROVED inventory (appendix-strings.md `project.selectionCount`) — slice 1.8:
     // the Style Chip / panel header when objects are selected. The appendix `String`
     // column shows the rendered `3 selected`; `{count}` is its declared interpolation.
@@ -373,6 +404,9 @@ export const STRINGS = {
     // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
     // the canvas container's accessible name (§19.6).
     canvas: 'Photo canvas',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): the Project screen's
+    // back control. Its visible label is the shipped `editor.breadcrumbProjects` («Projects»).
+    backToProjects: 'Back to Projects',
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §25):
     // accessible names for the icon-only top-bar and rail controls.
     layers: 'Layers',
@@ -472,6 +506,15 @@ export const STRINGS = {
     // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix):
     // implementation plan §1.9 step 3b says the 250 MB split must be stated in the result view; no string is keyed.
     splitParts: 'Split into {parts} parts',
+  },
+
+  // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §10 `projectMenu.*`;
+  // `copyPath`/`deleteProject` are beyond both appendices). UI §11.2's ⋯ menu names these;
+  // v1 does not build them, so the Project screen renders them disabled + `aria-disabled`.
+  projectMenu: {
+    rename: 'Rename',
+    copyPath: 'Copy path',
+    deleteProject: 'Delete project',
   },
 
   erase: {

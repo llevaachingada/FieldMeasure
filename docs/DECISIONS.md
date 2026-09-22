@@ -2530,3 +2530,73 @@ compiles to the anchored regex; a value without one must match the appendix byte
 **Not a defect, but worth knowing:** the owner's own Home was pointed at the **source repository** (hence the
 `.git`/`dist` cards). The control to change it exists — **Settings → Storage → «Change folder»**. No code
 change; recorded so the next person sees a clean Home after one click.
+
+### D111 — the Project screen (the sheets grid) is built: the owner chose D88's option A
+
+D88 recorded that the Project screen (`/p/:projectId`, the sheets grid) was **unbuilt and owned by no slice**,
+while UI §11.2 and build spec §20.5(a) both define it. The owner has now chosen **option A — build it** — and
+it ships in this wave.
+
+**Built:** `src/ui/ProjectScreen.tsx` + `projectScreen.css` (the grid, the two add tiles first, per-card
+selection, honest empty/loading/error states), `src/fs/projectSheets.ts` (a **read-only** loader: `project.json`
+→ live sheets in `sortIndex` order → per-sheet `markup.json` counts + `thumb.jpg`), and 29 tests
+(20 jsdom + 9 node). Routing is wired in `App`: **Home → grid → editor**; «New project» still lands on the
+camera (the owner's D102 flow) but now returns to the **grid**; a capture launched from the grid returns to the
+grid (UI §11.8) with the approved «Added {sheetName}» toast; the editor's `‹ Projects` goes back to the grid.
+
+**Decisions this screen forced (each is a choice, not an accident):**
+1. **The selection checkmark replaces the index badge** on a selected card. §11.2 puts both top-left and they
+   cannot coexist; the index is the less important of the two.
+2. **Both add tiles keep the spec's dashed `--g700` border.** "Primary" for «Take photo» is carried by the
+   `--hi` fill and icon, which is what §11.2 itself says ("Both are … dashed `--g700` tiles").
+3. **The select toggle sits bottom-right (48 px)** so it can never collide with the top-right inset badge.
+   Its `.hit-slop` ring overlaps the card's open hit area, which §14.5's no-overlap rule reads strictly —
+   trivially removed if the owner prefers a tighter card.
+4. **The loader is tolerant exactly where tolerance is honest:** a missing/zero-byte `thumb.jpg` is `null` (the
+   card's placeholder), an orphan `project.json` entry reads as empty markup, but a genuinely corrupt
+   `markup.json` propagates to the screen's `error` state — reporting «0 dimensions» for an unreadable sheet
+   would be a lie.
+5. **A regression caught at integration, worth remembering:** the open-project registry is keyed by the
+   **full `${id}:${folderName}` runtime key** (D51), so registering the bare id left every resolver throwing
+   *"project … is not open in this tab"*. `App` now composes the key before registering, in both the create
+   and the open paths — and the App-level test pins it (the grid's `empty` state is only reachable when the
+   registry lookup succeeds).
+
+**Owed, explicitly (rendered honestly, not silently):** **grid-scoped export** (the wizard lives in the editor
+and owns the destination, so the grid's Export hands off to the editor rather than opening a scoped run);
+**returning to the grid after an import** (Import hands off to the editor's picker so the write path stays
+single); the **«↶ Undo»** half of §11.8's added-sheet toast (there is no sheet-delete path yet); **reorder**
+(long-press drag + `sortIndex`), **rename**, **duplicate**, **replace photo**, and **delete → `.trash/`** — all
+of which the spec gives this screen and none of which exist yet; and the §11.4 **storage chip** in the grid's
+top bar. The `⋯` menu's items render **disabled** per the D102 honesty rule.
+
+### D112 — slice 1.11: an update prompt that cannot outrun the autosave
+
+**`registerType: 'prompt'` was already set** (`vite.config.ts:35`) — the plan's first item needed no change;
+it was **verified, not assumed**. What was missing was everything around it.
+
+**Built:** `src/ui/UpdateToast.tsx` (the plan's pinned signature), `src/ui/PWAUpdate.tsx` (the
+`useRegisterSW` glue + the reload sequence), `src/ui/updateReload.ts` (the pure ordering), plus tests and the
+build-id injection.
+
+- **The prompt is suppressed during work, always.** No update prompt while `persistQueue.inFlight`, while a
+  placement op is pending (`pendingOp !== 'none'`), or while the keypad sheet is open — re-evaluated when they
+  clear. A prompt that interrupts a measurement is the exact failure this design exists to prevent.
+- **Reload is flush-first, and a failure never reloads.** `flush → waitSettled → activate(skipWaiting)`; the
+  ordering is pinned by a pure test, and a rejected flush never reaches `activate`. A *parked* autosave
+  failure (`full` / `pending` / `error`) is deliberately treated as a rejection — `persistQueue.flush()`
+  resolves when it parks, so without that classification a reload could discard an edit that never reached
+  disk. On failure the prompt stays and says so.
+- **A second toast surface is deliberate, not duplication.** `ToastHost` is single-instance and
+  auto-dismissing (8 s / 10 s) with at most one action, and cannot be gated on queue state; the update prompt
+  must **persist until chosen**, carry **two** actions, and disappear mid-measurement. It reuses the toast's
+  visual language and is positioned above it so the two can never overlap.
+- **The build id is injected at build time** (`__BUILD_ID__` via Vite `define`, `<version>+<ISO timestamp>`)
+  and rendered in Settings → About as `Build {version} · {date}`. The plan's illustrative `+sha` shape is
+  available by passing `FM_BUILD_ID` in CI. A field bug report that cannot name the build cannot be acted on.
+
+**Deferred, and never faked:** the real service-worker lifecycle (`SKIP_WAITING`, `controllerchange`, "the
+prompt appears on the next online launch", "the app changes after the update") is a `[Surface]` gate — it is
+not machine-testable here. Also recorded as a **coverage gap, not a pass**: the queue→busy bridge in
+`SheetEditor` runs only in the browser project (jsdom has no canvas), so it is verified by reading plus the
+pure ordering test.

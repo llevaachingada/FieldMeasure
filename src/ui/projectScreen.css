@@ -1,0 +1,457 @@
+/**
+ * `src/ui/projectScreen.css` — the Project screen (the sheets grid), UI §11.2.
+ *
+ * EXTERNAL STYLESHEET, NO INLINE STYLES. The CSP is `style-src 'self'` and the e2e suite
+ * asserts `[style]` count === 0, so every bit of state rides on a class or a data attribute.
+ *
+ * TOKENS are the "Site Slate" globals from `styles.css` (`--g900`…`--g100`, `--hi`, `--sel`,
+ * `--err`, `--warn`). `.btn` / `.hit-slop` / `.mono` / `.crumb` are global too and are
+ * reused rather than redefined.
+ *
+ * TARGETS (§19.6, touch-primary): every control is ≥48 px, with `.hit-slop` (+16 px) where
+ * the visual box is smaller. Cards/tiles are 320 px wide as specced (a card is 320 × 300,
+ * a thumbnail 320 × 240, an add tile 320 × 240).
+ *
+ * RESPONSIVE COLUMNS (UI §11.2) — this is the layout jsdom cannot see (D40), so it is a
+ * manual check: 4 columns at ≥1440, 3 at ≥1200, 2 at portrait ≥960, 1 below.
+ */
+
+.project-screen {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--g900);
+}
+
+/* ---- top bar (56 px, Home/Project variant) ------------------------------ */
+
+.project-bar {
+  flex: 0 0 auto;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 16px;
+  background: var(--g850);
+  border-bottom: 2px solid var(--g700);
+}
+
+.project-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 700;
+  min-width: 0;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-count {
+  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--g300);
+  white-space: nowrap;
+}
+
+.project-readonly-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 2px solid var(--err);
+  color: var(--err);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.project-bar-spacer {
+  flex: 1;
+}
+
+.project-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-export svg {
+  width: 20px;
+  height: 20px;
+}
+
+.project-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  cursor: pointer;
+}
+
+.project-icon-button:hover {
+  background: var(--g750);
+}
+
+.project-icon-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.project-overflow {
+  position: relative;
+}
+
+/* The ⋯ menu: same shape as the editor top bar's, kept local so this lane never edits
+   `styles.css` (a contended file). */
+.project-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--g800);
+  border: 2px solid var(--g600);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+.project-menu-item {
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-menu-item:hover:not(:disabled) {
+  background: var(--g750);
+}
+
+/* D102 beta-honesty: an unbuilt ⋯ item stays visible and labelled, but reads as
+   unavailable — never a live-looking no-op. */
+.project-menu-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- body + grid -------------------------------------------------------- */
+
+.project-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 16px 40px;
+}
+
+.project-body-inner {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.sheet-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(1, 320px);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .sheet-grid {
+    grid-template-columns: repeat(2, 320px);
+  }
+}
+
+@media (min-width: 1200px) {
+  .sheet-grid {
+    grid-template-columns: repeat(3, 320px);
+  }
+}
+
+@media (min-width: 1440px) {
+  .sheet-grid {
+    grid-template-columns: repeat(4, 320px);
+  }
+}
+
+.sheet-grid-item {
+  list-style: none;
+}
+
+/* ---- the two add tiles (always first, never skeletonised) --------------- */
+
+.sheet-tile {
+  width: 320px;
+  height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0;
+  border: 2px dashed var(--g700);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sheet-tile:hover {
+  background: var(--g800);
+}
+
+.sheet-tile svg {
+  width: 56px;
+  height: 56px;
+}
+
+/* «Take photo» — the primary add affordance: `--hi` tinted. UI §11.2 keeps BOTH tiles a
+   dashed `--g700` tile, so the tint is the fill + icon, not a different border. `--hi` is
+   never theme-remapped (styles.css), so the literal rgba fallback is the same colour in
+   every theme. */
+.sheet-tile-photo {
+  background: rgba(255, 122, 24, 0.16);
+  background: color-mix(in srgb, var(--hi) 16%, var(--g800));
+  color: var(--g000);
+}
+
+.sheet-tile-photo svg {
+  color: var(--hi);
+}
+
+.sheet-tile-photo:hover {
+  background: rgba(255, 122, 24, 0.26);
+  background: color-mix(in srgb, var(--hi) 26%, var(--g800));
+}
+
+/* ---- sheet cards (320 × 300) ------------------------------------------- */
+
+.sheet-card {
+  position: relative;
+  list-style: none;
+  width: 320px;
+  height: 300px;
+  border: 2px solid var(--g700);
+  border-radius: 10px;
+  background: var(--g800);
+  overflow: hidden;
+}
+
+.sheet-card[data-selected='true'] {
+  border-color: var(--sel);
+}
+
+.sheet-card-open {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet-card-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 240px;
+  background: var(--g750);
+  border-bottom: 2px solid var(--g700);
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+}
+
+.sheet-card-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* `thumb.jpg` is generated on save (§11.2); before that a flat `--g750` well is the
+   card's honest placeholder. */
+.sheet-card-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--g750);
+}
+
+.sheet-card-index,
+.sheet-card-check,
+.sheet-card-insets {
+  position: absolute;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Index badge «04», and the inset badge «+2» — `--g900` at 70% (UI §11.2). */
+.sheet-card-index,
+.sheet-card-insets {
+  background: rgba(14, 19, 24, 0.7);
+  background: color-mix(in srgb, var(--g900) 70%, transparent);
+  color: var(--g000);
+}
+
+.sheet-card-index {
+  left: 8px;
+}
+
+.sheet-card-insets {
+  right: 8px;
+}
+
+/* Selected: the checkmark takes the index badge's slot (both are specified top-left). */
+.sheet-card-check {
+  left: 8px;
+  background: var(--sel);
+  color: var(--g900);
+}
+
+.sheet-card-check svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sheet-card-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Right padding clears the 48 px selection toggle. */
+  padding: 10px 56px 10px 12px;
+}
+
+.sheet-card-name {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-card-meta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--g300);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-card-select {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g750);
+  color: var(--g100);
+  cursor: pointer;
+}
+
+.sheet-card-select[aria-pressed='true'] {
+  border-color: var(--sel);
+  background: rgba(47, 212, 224, 0.18);
+  background: color-mix(in srgb, var(--sel) 22%, var(--g750));
+  color: var(--sel);
+}
+
+.sheet-card-select svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Loading: 8 skeletons (reuses the global `fm-shimmer` keyframes from styles.css). */
+.sheet-card-skeleton {
+  border-radius: 10px;
+  background: var(--g800);
+  animation: fm-shimmer 1.4s ease-in-out infinite;
+}
+
+/* ---- states ------------------------------------------------------------- */
+
+.sheet-empty-line {
+  margin: 24px 0 0;
+  text-align: center;
+  color: var(--g300);
+  font-size: 15px;
+}
+
+.project-error-line {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 2px solid var(--err);
+  border-radius: 12px;
+  color: var(--err);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---- selection bar (replaces the grid's bottom area, UI §11.2) ---------- */
+
+.project-selection-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--g850);
+  border-top: 2px solid var(--g700);
+}
+
+.project-selection-count {
+  margin-right: auto;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-card-skeleton {
+    animation: none;
+  }
+}

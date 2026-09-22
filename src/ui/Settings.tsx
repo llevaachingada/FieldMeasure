@@ -32,14 +32,24 @@ export interface SettingsProps {
   onBack?: () => void;
 }
 
-// §19.2 build version + date. The Vite build-time define is a later slice; the
-// version matches package.json and the date is the app shell's last-modified.
-const APP_VERSION = '0.1.0';
+// §19.2 build version + date, injected at build time by Vite `define` (`__BUILD_ID__`,
+// vite.config.ts) as `<version>+<ISO timestamp>`. Outside Vite (a bare unit test) the
+// identifier is absent, so the row degrades to `dev`/`unknown` rather than throwing.
+const BUILD_ID: string = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev+';
 
-function buildDate(): string {
-  const parsed = typeof document !== 'undefined' ? Date.parse(document.lastModified) : NaN;
-  const d = Number.isFinite(parsed) ? new Date(parsed) : new Date();
-  return d.toISOString().slice(0, 10);
+/** `'0.1.0+2026-09-22T14:03:00.000Z'` → `{ version: '0.1.0', date: '2026-09-22 14:03Z' }`. */
+export function buildParts(id: string = BUILD_ID): { version: string; date: string } {
+  const [version, stamp] = id.split('+');
+  return { version: version || 'dev', date: formatBuildDate(stamp) };
+}
+
+function formatBuildDate(stamp: string | undefined): string {
+  if (!stamp) return 'unknown';
+  const parsed = Date.parse(stamp);
+  if (!Number.isFinite(parsed)) return stamp;
+  // UTC, minute precision — the value changes on every build, so "it changed after
+  // the update" is answerable from a screenshot of Settings.
+  return `${new Date(parsed).toISOString().slice(0, 16).replace('T', ' ')}Z`;
 }
 
 type StorageState = 'unknown' | 'protected' | 'not-protected';
@@ -393,8 +403,8 @@ export default function Settings({ onBack }: SettingsProps) {
           </h2>
           <div className="settings-rows">
             <div className="settings-row">
-              <span className="settings-row-value mono">
-                {t(STRINGS.settings.buildVersion, { version: APP_VERSION, date: buildDate() })}
+              <span className="settings-row-value mono" data-testid="build-version">
+                {t(STRINGS.settings.buildVersion, buildParts())}
               </span>
             </div>
             <button

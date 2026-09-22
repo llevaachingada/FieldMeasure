@@ -19,10 +19,13 @@ import FirstRun from '@/ui/FirstRun';
 import ProjectList from '@/ui/ProjectList';
 import Settings from '@/ui/Settings';
 import ToastHost from '@/ui/Toast';
+import PWAUpdate from '@/ui/PWAUpdate';
 import { useThemeRuntime } from '@/ui/themeRuntime';
 import { emitToast } from '@/editor/session';
-import { STRINGS } from '@/ui/strings';
-import { createProject } from '@/fs/projectStore';
+import ProjectScreen from '@/ui/ProjectScreen';
+import { listProjectSheets, type ProjectSheetCard } from '@/fs/projectSheets';
+import { createProject, readProjectFile, registerOpenProject, resolveOpenProjectDir } from '@/fs/projectStore';
+import { STRINGS, t } from '@/ui/strings';
 import { getProjectsRoot } from '@/settings/projectsRoot';
 
 /**
@@ -38,7 +41,7 @@ const EditorLayout = lazy(() => import('@/ui/EditorLayout'));
  */
 const CameraFlow = lazy(() => import('@/ui/CameraFlow'));
 
-type Route = 'loading' | 'first-run' | 'home' | 'settings' | 'editor';
+type Route = 'loading' | 'first-run' | 'home' | 'settings' | 'project' | 'editor';
 
 interface EditorTarget {
   /** D51 runtime key: `${id}:${folderName}`. */
@@ -58,6 +61,23 @@ export default function App() {
   /** The sheet the editor should open — set to the sheet a capture just wrote. */
   const [editorSheetId, setEditorSheetId] = useState<string | undefined>(undefined);
   /**
+   * Slice 1.10: the Project screen (the sheets grid, UI §11.2) — its loaded model, its
+   * state, and a refresh counter bumped after a capture/import writes a new sheet.
+   */
+  const [projectSheets, setProjectSheets] = useState<readonly ProjectSheetCard[]>([]);
+  const [projectTitle, setProjectTitle] = useState('');
+  const [projectLoad, setProjectLoad] = useState<'loading' | 'ready' | 'empty' | 'error'>('loading');
+  const [projectRefresh, setProjectRefresh] = useState(0);
+  /**
+   * Which surface opened the capture overlay. §11.8: a capture launched from the grid
+   * returns **to the grid**; one launched from the editor opens the sheet it wrote.
+   */
+  const [captureOrigin, setCaptureOrigin] = useState<'grid' | 'editor'>('editor');
+  /** The grid's batch-export selection (empty = every sheet). */
+  const [selectedSheetIds, setSelectedSheetIds] = useState<readonly string[]>([]);
+  /** «Import» from the grid opens the editor with its file picker already armed. */
+  const [importOnOpen, setImportOnOpen] = useState(false);
+  /**
    * «New project» runs an async folder create. The flag makes a double-tap a no-op
    * (two clicks before the first create resolves must not mint two projects); the
    * button itself stays enabled and no spinner/copy is added.
@@ -65,29 +85,78 @@ export default function App() {
   const creatingProject = useRef(false);
 
   /**
-   * Home «New project»: create an app-named subfolder of the projects root, then open
-   * its editor **with the capture overlay (the camera) already open**. The site flow is
-   * «New project» → shutter → photo on canvas, so the create lands on the camera, not a
-   * nearly-empty editor. Cancelling the capture leaves the user on the editor's
-   * copy-approved empty state («No sheets yet — take a photo to start.», with the
-   * «Take photo» + «Import» pair) through the existing `onCancel` path.
+   * Slice 1.10: open a project on the **Project screen** (the sheets grid, UI §11.2; build
+   * spec §20.5(a)) rather than straight into the editor. The grid is where a project's
+   * sheets, its two add affordances and its export live.
    *
-   * A failure (root not open, quota, a locked target) is swallowed and the user STAYS
-   * on Home: there is no error-surface copy in this slice — the toast/autosave layer
-   * (slice 1.10) owns error surfacing (recorded as owed).
+   * `registerOpenProject` is what makes the folder resolvable at all: the store's
+   * open-project registry is keyed `${id}:${folderName}` (D51) and the grid's loader
+   * resolves through it.
+   */
+  function openProject(id: string, folderName: string): void {
+    if (!id || !folderName) return;
+    // D51: the registry — and therefore every resolver — is keyed by the FULL runtime key.
+    // Registering the bare id leaves `resolveOpenProjectDir` unable to find the folder.
+    const projectId = `${id}:${folderName}`;
+    registerOpenProject(projectId, folderName);
+    setEditorTarget({ projectId, folderName });
+    setEditorSheetId(undefined);
+    setSelectedSheetIds([]);
+    setImportOnOpen(false);
+    setCaptureOpen(false);
+    setProjectLoad('loading');
+    setRoute('project');
+  }
+
+  /**
+   * Load the grid's model whenever the screen is shown, or after a capture/import wrote a
+   * sheet. A read failure is an honest `error` state — never a silently empty grid.
+   */
+  useEffect(() => {
+    if (route !== 'project' || !editorTarget) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const dir = await resolveOpenProjectDir(editorTarget.projectId);
+        const file = await readProjectFile(dir);
+        const cards = await listProjectSheets(editorTarget.projectId);
+        if (!alive) return;
+        setProjectTitle(file.project.title);
+        setProjectSheets(cards);
+        setProjectLoad(cards.length === 0 ? 'empty' : 'ready');
+      } catch {
+        if (alive) setProjectLoad('error');
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [route, editorTarget, projectRefresh]);
+
+  /**
+   * Home «New project»: create an app-named subfolder of the projects root, then land on
+   * the **Project screen** with the capture overlay (the camera) already open — the owner's
+   * D102 flow, «New project» → shutter → photo. Cancelling the capture leaves the grid's
+   * copy-approved empty state («No sheets yet — take a photo to start.») with its two add
+   * tiles, which is where a capture launched from the grid returns to as well (UI §11.8).
+   *
+   * A failure (root not open, quota, a locked target) surfaces as a toast — never silence.
    */
   async function handleNewProject(): Promise<void> {
     if (creatingProject.current) return;
     creatingProject.current = true;
     try {
       const created = await createProject();
-      setEditorTarget({
-        projectId: `${created.id}:${created.folderName}`,
-        folderName: created.folderName,
-      });
+      // D51: register under the full runtime key, exactly as the editor's load path does.
+      const projectId = `${created.id}:${created.folderName}`;
+      registerOpenProject(projectId, created.folderName);
+      setEditorTarget({ projectId, folderName: created.folderName });
       setEditorSheetId(undefined);
+      setSelectedSheetIds([]);
+      setProjectLoad('loading');
+      setCaptureOrigin('grid');
       setCaptureOpen(true);
-      setRoute('editor');
+      setRoute('project');
     } catch {
       // Slice 1.10: the failure is no longer invisible (D103's owed half). The toast
       // lives at the home route (the editor has its own `ToastHost`). The wording is the
@@ -116,78 +185,144 @@ export default function App() {
     };
   }, []);
 
-  if (route === 'loading') {
-    return <main className="app-boot" aria-busy="true" />;
-  }
+  const renderRoute = () => {
+    if (route === 'loading') {
+      return <main className="app-boot" aria-busy="true" />;
+    }
 
-  if (route === 'first-run') {
-    return <FirstRun onDone={() => setRoute('home')} />;
-  }
+    if (route === 'first-run') {
+      return <FirstRun onDone={() => setRoute('home')} />;
+    }
 
-  if (route === 'settings') {
-    return <Settings onBack={() => setRoute('home')} />;
-  }
+    if (route === 'settings') {
+      return <Settings onBack={() => setRoute('home')} />;
+    }
 
-  if (route === 'editor' && editorTarget) {
-    return (
-      <>
+    if (route === 'project' && editorTarget) {
+      return (
+        <ProjectScreen
+          projectTitle={projectTitle || editorTarget.folderName}
+          sheetCount={projectSheets.length}
+          state={projectLoad}
+          sheets={projectSheets}
+          selectedIds={selectedSheetIds}
+          onToggleSelected={(id) =>
+            setSelectedSheetIds((ids) =>
+              ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
+            )
+          }
+          onClearSelection={() => setSelectedSheetIds([])}
+          onOpenSheet={(id) => {
+            setCaptureOpen(false);
+            setEditorSheetId(id);
+            setRoute('editor');
+          }}
+          onTakePhoto={() => {
+            setCaptureOrigin('grid');
+            setCaptureOpen(true);
+          }}
+          onImport={() => {
+            // Import is the editor's path — one write path, already covered there. The grid
+            // hands off and the editor arms its picker; returning to the grid afterwards is
+            // owed (recorded in D111).
+            setImportOnOpen(true);
+            setRoute('editor');
+          }}
+          onExport={(ids) => {
+            // Export lives in the editor's wizard, which owns the destination and every
+            // write. Grid-scoped export (the wizard opened with this selection) is owed.
+            setSelectedSheetIds(ids);
+            setRoute('editor');
+          }}
+          onBack={() => {
+            setSelectedSheetIds([]);
+            setRoute('home');
+          }}
+        />
+      );
+    }
+
+    if (route === 'editor' && editorTarget) {
+      return (
         <Suspense fallback={<main className="app-boot" aria-busy="true" />}>
           <EditorLayout
             projectId={editorTarget.projectId}
             folderName={editorTarget.folderName}
             sheetId={editorSheetId}
-            onAddSheet={() => setCaptureOpen(true)}
+            autoImport={importOnOpen}
+            onAddSheet={() => {
+              setCaptureOrigin('editor');
+              setCaptureOpen(true);
+            }}
             onExit={() => {
+              // The editor's `‹ Projects` returns to the sheet grid it belongs to.
               setCaptureOpen(false);
               setEditorSheetId(undefined);
-              setEditorTarget(null);
-              setRoute('home');
+              setImportOnOpen(false);
+              setProjectRefresh((n) => n + 1);
+              setRoute('project');
             }}
           />
         </Suspense>
-        {/* Slice 1.4: the capture flow is a full-bleed overlay over the editor. It
-            writes through the same `addSheetFromPhoto` path as the editor's import, and
-            on accept the editor re-opens on the sheet that was just written. */}
-        {captureOpen ? (
-          <Suspense fallback={null}>
-            <CameraFlow
-              projectId={editorTarget.projectId}
-              folderName={editorTarget.folderName}
-              onCaptured={(sheet) => {
-                setCaptureOpen(false);
-                setEditorSheetId(sheet.id);
-              }}
-              onCancel={() => setCaptureOpen(false)}
-            />
-          </Suspense>
-        ) : null}
+      );
+    }
+
+    return (
+      <>
+        <ProjectList
+          onOpenSettings={() => setRoute('settings')}
+          onOpenProject={(id, folderName) => {
+            // D51: key on id + folderName. A scan entry with no valid id (unreadable
+            // folder) is not openable; ProjectList still renders it with a Locate action.
+            if (!id || !folderName) return;
+            openProject(id, folderName);
+          }}
+          onNewProject={() => {
+            void handleNewProject();
+          }}
+          onOpenFolder={() => {
+            /* slice 1.2 — reveals/opens an existing project folder */
+          }}
+        />
+        {/* §13.4: the Home route gets the same single-instance toast surface (the editor
+            mounts its own inside `EditorLayout`; only one route is mounted at a time). */}
+        <ToastHost />
       </>
     );
-  }
+  };
 
   return (
     <>
-      <ProjectList
-        onOpenSettings={() => setRoute('settings')}
-        onOpenProject={(id, folderName) => {
-          // D51: key on id + folderName. A scan entry with no valid id (unreadable
-          // folder) is not openable; ProjectList still renders it with a Locate action.
-          if (!folderName || !id) return;
-          setEditorTarget({ projectId: `${id}:${folderName}`, folderName });
-          setEditorSheetId(undefined);
-          setCaptureOpen(false);
-          setRoute('editor');
-        }}
-        onNewProject={() => {
-          void handleNewProject();
-        }}
-        onOpenFolder={() => {
-          /* slice 1.2 — reveals/opens an existing project folder */
-        }}
-      />
-      {/* §13.4: the Home route gets the same single-instance toast surface (the editor
-          mounts its own inside `EditorLayout`; only one route is mounted at a time). */}
-      <ToastHost />
+      {renderRoute()}
+      {/* Slice 1.11: the update prompt is mounted once at the shell root, so it survives
+          route changes and is reachable from Home, the editor and first run alike. It
+          renders nothing until a worker is waiting, and suppresses itself mid-measurement. */}
+      <PWAUpdate />
+      {/* Slice 1.4/1.10: the capture flow is a full-bleed overlay, mounted at the shell root
+          so it works over the grid as well as the editor. It writes through the same
+          `addSheetFromPhoto` path either way; `captureOrigin` decides where «Use photo»
+          returns — §11.8 sends a grid-launched capture back to the grid, with the new sheet
+          announced. */}
+      {captureOpen && editorTarget ? (
+        <Suspense fallback={null}>
+          <CameraFlow
+            projectId={editorTarget.projectId}
+            folderName={editorTarget.folderName}
+            onCaptured={(sheet) => {
+              setCaptureOpen(false);
+              if (captureOrigin === 'editor') {
+                setEditorSheetId(sheet.id);
+              } else {
+                setProjectRefresh((n) => n + 1);
+                // The «↶ Undo» half of §11.8's toast is owed: deleting a sheet has no path
+                // yet (it is its own slice, with `.trash/`).
+                emitToast(t(STRINGS.toasts.addedSheet, { sheetName: sheet.title }));
+              }
+            }}
+            onCancel={() => setCaptureOpen(false)}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }

@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 19 — **the export wave's independent review is discharged**: an executed register (pinned worktree at `6c3bc1d`) confirmed the load-bearing invariants — the PDF page is **300 × 225 pt at M = 1/2/3**, the §4.2 pixel ratios are real, `assetProvider` lifetime is sound, conflict handling folds NTFS case, the lazy-chunk failure is honest — and **discharged D106's owed pixel proof**: an inset exports its **photo** (`[254,0,0,255]` for a red asset vs `[58,63,70,255]` = `#3A3F46` when missing), now a permanent browser test. Four real gaps found and fixed (a dead «Include sheet names» control → **disabled + owed**; a revoked grant misreported as `unknown`; an emptied scope writing an **empty archive as a success row**; a skipped conflict reporting nothing), plus a theme-comment correction and an `estimate` note (D109). Two further honesty bugs closed: the **torch toggle** no longer claims a light the hardware refused (D108) and the **Home card meta** no longer states fiction — it shipped the appendix's example as the template (D110). Next: the rest of 1.10 (History flyout, `.trash/`, nudge, a11y audit), the PDF-caption decision, then 1.11)
+**Last updated:** 2026-09-22 (session 20 — **the Project screen exists** (D111): `Home → sheets grid → editor`, with the two add tiles first, per-sheet selection and the capture returning **to the grid** with the approved «Added {sheetName}» toast — the D88 gap the plan had carried since session 4, and build spec §20.5(a)'s "screen that makes storage visible". **Slice 1.11 landed** (D112): a prompt-mode update that **suppresses itself during any measurement** and reloads only after the autosave queue has genuinely settled (a parked failure is a rejection — a reload never runs over an unwritten edit). Gate: tsc 0 · **84 files / 1161 tests** · build 0 (25 precache, 1483.93 KiB) · playwright 5/5. One integration regression caught and fixed: the open-project registry is keyed by the full `${id}:${folderName}` runtime key (D51), so the grid briefly reported every project as an error. Next: the paused 1.10 polish (History flyout, a11y audit, halo fix, PDF captions), the grid's owed items (reorder/rename/duplicate/replace/delete→`.trash/`, grid-scoped export), then 2.0)
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2–1.9 complete; 1.10 in progress — export (1.9) and the trust layer are reviewed and green.** Slice 1.9 works end to end and survived an independent review (D109); the autosave chip + toasts ship (D107); Sunlight/Dim themes ship (D104). **Not yet in 1.10:** the History flyout, `.trash/` prune + restore, the arrow nudge, the end-to-end a11y audit, and the PDF «Include sheet names» captions (disabled, needs a placement decision). Then 1.11 and 2.0 |
-| Application code | **Twelve slices + 1.9 wiring + the 1.10 trust layer**, **80 files / 1119 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1459.47 KiB); playwright 5 passed / 5 skipped. This session: the review fixes (tmp-handle classification, empty-archive guard, honest skip rows, the disabled caption control, the Dim comment), the torch-honesty fix, the Home card-meta template fix, and the `Skip` row folded into `strings.ts` as `⚠ PROPOSED` |
+| Phase | **Slices 0.2–1.9 complete (1.9 reviewed, D109); 1.10 partially shipped — themes (D104) and the trust layer (D107) are in, its polish items are paused by the owner; 1.11 landed (D112); the Project screen is BUILT (D111).** Not built yet: the History flyout, the end-to-end a11y audit, the arrow nudge, the on-screen label-halo fix (D101), PDF captions, `.trash/` + restore, sheet reorder/rename/duplicate/replace, grid-scoped export, and 2.0 |
+| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer + 1.11 + the Project screen**, **84 files / 1161 tests** (node + jsdom + browser) on the unified tree; build 0 (25 precache entries, 1483.93 KiB); playwright 5 passed / 5 skipped. This session: `src/ui/ProjectScreen.tsx` + `projectScreen.css` + `src/fs/projectSheets.ts` (the read-only grid loader), `src/ui/UpdateToast.tsx` + `PWAUpdate.tsx` + `updateReload.ts`, the build-id injection, and the routing that ties them together |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Rest of slice 1.10:** the **History flyout** (plan item 1 — `writeHistorySnapshot` still has no caller), `.trash/` + 14-day prune + restore (the restore half wants the unbuilt Project screen), the arrow nudge (1 px / 10 px) and the end-to-end a11y audit (canvas accessible object tree, keyboard-only core loop, 48 px / 16 px touch checks). Two content-owner items block small polish: the **PDF caption placement** (F1) and sign-off on the two ⚠ PROPOSED `Skip` rows (F4). Then **1.11** (`registerType: 'prompt'`, update toast with flush-then-reload, build id in Settings), then 2.0 |
+| Next action | **The Project screen's owed items** (D111): sheet **reorder** (long-press drag + `sortIndex`), **rename**, **duplicate**, **replace photo**, **delete → `.trash/`** (+ the 14-day prune and its restore UI), **grid-scoped export** (the wizard opened on the selection), returning to the grid after a grid-launched **import**, and the §11.4 storage chip. Then the **paused 1.10 polish**: the History flyout (`writeHistorySnapshot` still has no caller), the end-to-end a11y audit, the arrow nudge, and D101's label-halo fix. Then 2.0. Content-owner items still open: the PDF caption placement (F1) and sign-off on the `Skip` rows (F4) |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -741,6 +741,35 @@ two commits on — isolation, not inspection) and executed every claim. This ses
 control, the comment or the card said something the system did not do*. The gates were green throughout —
 because a gate can only see what it asserts, in the environment it asserts it, about the code it imports.
 
+### 2026-09-22 — Session 20: the Project screen (the sheets grid), and the update strategy
+
+Two slices in one wave — the screen that makes storage visible, and the release layer that keeps a
+field device current:
+
+1. **The Project screen is built (D111).** `Home → sheets grid → editor`: the two add tiles first in
+   every state («Take photo» primary, «Import»), per-sheet cards with real thumbnails, index, inset badge
+   and mono meta, and per-card selection driving a selection bar. The grid's loader is **read-only**
+   (`src/fs/projectSheets.ts`): `project.json` → live sheets in `sortIndex` order → markup counts +
+   `thumb.jpg`, tolerant exactly where tolerance is honest (a missing thumbnail is a placeholder, an orphan
+   entry reads as empty, genuine corruption surfaces as the honest `error` state).
+2. **A capture returns to the grid (UI §11.8).** The capture overlay moved to the shell root and is now
+   driven by where it was launched: from the grid it returns to the grid with the approved
+   «Added {sheetName}» toast; from the editor it opens the sheet it wrote. «New project» keeps the owner's
+   D102 camera-first flow and now lands its result on the grid.
+3. **Slice 1.11 (D112).** `registerType: 'prompt'` was already set — verified, not changed. What was
+   missing was around it: a prompt that **suppresses itself while the queue is in flight, while a placement
+   op is pending, or while the keypad is open**, and a reload that is **flush-first** — `flush → waitSettled
+   → activate` — where a **parked** autosave failure counts as a rejection, so a reload can never discard an
+   edit that did not reach disk. The build id is injected at build time and shown in Settings → About.
+4. **The D51 registry regression, caught at integration.** The open-project registry is keyed by the full
+   `${id}:${folderName}` runtime key; registering the bare id left every resolver throwing *"project … is not
+   open in this tab"*, so the grid reported **every** project as an error. The App-level test (updated for the
+   new landing) is what caught it, and its `empty` assertion now pins the registry contract.
+
+**Lesson.** The grid's whole purpose is to show what is on disk, and it took the *wiring* test — not the
+screen's own 29 tests — to prove the screen could read the disk at all. Again: a unit can be right while the
+system is wrong, and only the integration path sees it.
+
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).
@@ -1011,6 +1040,22 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   defect, but a clean Home needs that one click.
 - Carried: D101 (label halo scales with zoom), D104 (Sunlight component-level items), D105 (dev-mode unstyled
   by CSP design), and the `[Surface]` rows H8/H12/H19–H22.
+
+## Known drift / watch items (session 20)
+
+- **The Project screen's owed items (D111)** — all spec'd, all absent, all rendered honestly: sheet
+  reorder (drag + `sortIndex`), rename, duplicate, replace photo, delete → `.trash/`, grid-scoped export,
+  returning to the grid after a grid-launched import, and the §11.4 storage chip in the grid top bar.
+- **The paused 1.10 polish** — the History flyout (`writeHistorySnapshot` has no caller), the end-to-end
+  a11y audit, the arrow nudge, and D101's label-halo screen fix.
+- **Content-owner items:** the PDF «Include sheet names» caption placement (F1, control currently disabled)
+  and sign-off on the two `Skip`-row strings (F4).
+- **`[Surface]` and never faked:** the real service-worker update lifecycle (D112), H8/H12/H19–H22, the
+  Sunlight porch check, the real touch reorder.
+- **Coverage note (D112):** the `SheetEditor` queue→busy bridge runs only in the browser project, so it is
+  verified by read plus the pure ordering test, not by execution.
+- Carried: D105 (dev-mode is unstyled by CSP design — judge appearance from the built app), D106 (export
+  owed list), D107 (chip/toast items).
 
 ## How to resume
 

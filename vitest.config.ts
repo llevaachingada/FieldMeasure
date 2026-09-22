@@ -4,6 +4,12 @@ import { playwright } from '@vitest/browser-playwright';
 
 const alias = {
   '@': fileURLToPath(new URL('./src', import.meta.url)),
+  // `vite-plugin-pwa`'s virtual React entry is resolved by the plugin at build time;
+  // vitest has no plugin, so alias it to a no-worker stub (slice 1.11). Without this,
+  // every component test that renders `App` (which mounts `PWAUpdate`) fails to resolve.
+  'virtual:pwa-register/react': fileURLToPath(
+    new URL('./tests/fakes/pwaRegisterReact.ts', import.meta.url),
+  ),
 };
 
 /**
@@ -16,8 +22,16 @@ const alias = {
  * `.browser.test.ts` = real browser. jsdom has no canvas, so anything touching
  * a `Konva.Stage` must live in the browser project (design handoff §7.1).
  */
+/**
+ * Mirrors the production Vite `define` (`vite.config.ts`) so the Settings build-id row
+ * can be asserted against a real injected value rather than the `dev` fallback.
+ * `<version>+<ISO timestamp>` is the same shape the real build emits.
+ */
+const TEST_BUILD_ID = '0.1.0+2026-09-22T14:03:00.000Z';
+
 export default defineConfig({
   resolve: { alias },
+  define: { __BUILD_ID__: JSON.stringify(TEST_BUILD_ID) },
   test: {
     projects: [
       {

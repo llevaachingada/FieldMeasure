@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import Settings from '../src/ui/Settings';
+import Settings, { buildParts } from '../src/ui/Settings';
 import { STRINGS } from '../src/ui/strings';
 import { createInitialAppState, useAppStore } from '../src/state/appStore';
 
@@ -136,5 +136,25 @@ describe('Settings', () => {
     expect(themeChecked(STRINGS.settings.themeSunlight)).toBe('true');
     expect(themeChecked(STRINGS.settings.themeStandard)).toBe('false');
     expect(themeChecked(STRINGS.settings.themeDim)).toBe('false');
+  });
+
+  // ── Slice 1.11 — the About build id (§19.2) ────────────────────────────────
+
+  it('renders the build id and date injected at build time', async () => {
+    await renderSettings();
+
+    // `vitest.config.ts` defines `__BUILD_ID__` as `0.1.0+2026-09-22T14:03:00.000Z` —
+    // the production shape. Settings must show both halves, so a field bug report can
+    // name the running build.
+    const row = screen.getByTestId('build-version');
+    expect(row.textContent).toContain('0.1.0');
+    expect(row.textContent).toContain('2026-09-22 14:03Z');
+    expect(row.textContent).not.toContain('dev');
+  });
+
+  it('degrades safely when no build id was injected', () => {
+    // A bare `vite`/unit context has no `define`; the row must not blank or throw.
+    expect(buildParts('dev+')).toEqual({ version: 'dev', date: 'unknown' });
+    expect(buildParts('')).toEqual({ version: 'dev', date: 'unknown' });
   });
 });

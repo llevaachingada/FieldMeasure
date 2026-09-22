@@ -195,7 +195,10 @@ describe('capture → review → Use photo', () => {
       sortIndex: 1,
       createdAt: '2026-09-21T14:12:00.000Z',
     });
-    expect(onCaptured).toHaveBeenCalledWith({ id: added.id, index: 1 });
+    // The payload carries the written sheet's title as well as its id/index: the Project
+    // screen's «Added …» toast (UI §11.8) names the sheet, and re-deriving the name from the
+    // index would be a second source of truth.
+    expect(onCaptured).toHaveBeenCalledWith({ id: added.id, index: 1, title: added.title });
 
     // The thumbnail was scheduled, and its write targets sheets/<id>/thumb.jpg.
     expect(hoisted.schedule).toHaveBeenCalledTimes(1);
