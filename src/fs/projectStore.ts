@@ -114,6 +114,17 @@ export async function resolveAssetsDir(
   return projectDir.getDirectoryHandle('assets', options);
 }
 
+/**
+ * `.fieldmeasure/` — user data that is NOT markup: style presets live in
+ * `.fieldmeasure/presets.json` so they travel with the folder (§7.3). Slice 1.8, lane C1.
+ */
+export async function resolveFieldMeasureDir(
+  projectDir: FileSystemDirectoryHandle,
+  options?: { create?: boolean },
+): Promise<FileSystemDirectoryHandle> {
+  return projectDir.getDirectoryHandle('.fieldmeasure', options);
+}
+
 /** `.history/<scope>/` — scope is `_project` or a sheetId (§3.1/§5.5). */
 export async function resolveHistoryDir(
   projectDir: FileSystemDirectoryHandle,
@@ -202,6 +213,21 @@ export const writeJsonAtomic = (
   data: unknown,
   projectId: string,
 ): Promise<void> => writeAtomic(dir, name, JSON.stringify(data, null, 2), projectId);
+
+/**
+ * Slice 1.8 (lane C1) — atomic write of `.fieldmeasure/presets.json` (§7.3). This stays
+ * the ONE module that calls `createWritable()`: presets go through `writeJsonAtomic`
+ * (tmp → close → `move()`), under the same per-project Web Lock as every other write.
+ * The `.fieldmeasure/` directory is created on demand.
+ */
+export async function writePresetsFile(
+  projectDir: FileSystemDirectoryHandle,
+  data: unknown,
+  projectId: string,
+): Promise<void> {
+  const dir = await resolveFieldMeasureDir(projectDir, { create: true });
+  await writeJsonAtomic(dir, 'presets.json', data, projectId);
+}
 
 /* ------------------------------------------------------------------ *
  * §5.3 read + validate + recover

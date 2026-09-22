@@ -46,12 +46,24 @@ interface LabelNodes {
   main: Konva.Text;
 }
 
+/**
+ * Centre the glyph box on the anchor. `width()/height()` are measured from the CURRENT
+ * `fontSize`, so this MUST be re-run whenever the counter-scaled font changes (F7): a
+ * one-time offset keeps its old half-width while the glyphs shrink/grow, drifting the
+ * label off its midpoint on every zoom change. `EditorCanvas.applyScreenRules` re-centres
+ * every node tagged `centerAnchor` after it re-applies `fontSize = fontSizeMu / s`.
+ */
+function centerOnAnchor(node: Konva.Text): void {
+  node.offsetX(node.width() / 2);
+  node.offsetY(node.height() / 2);
+}
+
 function placeText(node: Konva.Text, at: Px, rotationDeg: number): void {
   node.position({ x: at.x, y: at.y });
   node.rotation(rotationDeg);
-  // Centre the glyph box on the anchor (width/height are measured after text is set).
-  node.offsetX(node.width() / 2);
-  node.offsetY(node.height() / 2);
+  // Tagged so the §4.2 chokepoint re-centres this node after every zoom change.
+  node.setAttr('centerAnchor', true);
+  centerOnAnchor(node);
 }
 
 function tickPoints(a: Px, b: Px, len: number, at: 'a' | 'b'): number[] {
@@ -174,6 +186,7 @@ export function applyDimensionLabel(
   for (const node of [nodes.halo, nodes.main]) {
     node.text(text);
     node.fontSize(fontSize);
+    centerOnAnchor(node);
   }
   group.setAttr('ctxSnapshot', input.ctx);
 }

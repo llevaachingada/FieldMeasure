@@ -470,8 +470,14 @@ describe('EditorLayout — composition, docking, rotation, keys', () => {
       undo,
       redo: () => null,
       deleteSelection: () => null,
+      cancelPending: () => {},
       requestValue: () => {},
       adjustEndpoints: () => {},
+      // Slice 1.8 style seam: the shell may call these, but this test only drives undo.
+      applyStylePatch: () => {},
+      applyStyle: () => {},
+      applyProjectPrecision: () => {},
+      applyProjectUnitFormat: () => {},
     });
     act(() => {
       (container.querySelector(`[aria-label="${STRINGS.a11y.undo}"]`) as HTMLButtonElement).click();

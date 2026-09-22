@@ -63,7 +63,7 @@ numbers and the labels are re-checked on hardware.
 
 ---
 
-## C4 — Konva pixel ratio on a Surface Go · slice 1.3 · ⬜ (fired; **still awaiting hardware — its obstacle is now gone**)
+## C4 — Konva pixel ratio on a Surface Go · slice 1.3 · ⬜ (machine half MEASURED — provisional; the §21.8 ladder decision remains hardware's, D80)
 
 **Status — D66, updated in session 11.** Slice 1.3 shipped no annotation model, so "markup-layer
 redraw while panning a 4096-px sheet carrying ~50 annotations" could not be run. **It is runnable

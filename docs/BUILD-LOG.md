@@ -435,3 +435,127 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 **Surprises:** **the two tests that "covered" F1 were themselves driving the broken mechanism** — a synthetic `pointerover` that real touch never delivers. That is the fourth instance this session of *wiring that exists, tests that pass, and a real input that cannot reach it*; it is now the reason `review-brief.md` question 8 exists. Also: `fix-5` observed a transient failure in another lane's in-flight `insetWire.browser.test.ts` that passed on re-run — mid-wave cross-lane test noise, resolved by re-running on the settled tree.
 
 **Next:** the remaining D77 findings (F3, F5, F6, F7, F9), then slice 1.8.
+
+## Defect remediation — D77 F3/F5/F6/F7/F9 (the remaining five findings) + the two deferred gates
+**Date:** 2026-09-22 · **Commit:** session 13, one commit (see `git log`; the sha cannot be embedded in
+the commit that creates it)
+
+**Built:** the five findings D77 left owed are fixed, each **reproduced by execution before the fix** and
+each with a guard that fails pre-fix. Three lanes on disjoint file sets:
+- **F3** — `Esc`'s first rung now actually cancels a pending dimension: `EditorSession` gained
+  `cancelPending()`, `SheetEditor` implements it (`tool.cancelPending()` + any pending markup op), and
+  `EditorLayout`'s rung calls it. One rung per press; §4.2's ladder order untouched.
+- **F5** — a real tool switch cancels the dimension's 450 ms settle (`dimRef` joined
+  `cancelActiveMarkup()`), so the keypad can no longer open over the rectangle tool.
+- **F6** — sub-slop moves are history-visible on **both** drag paths: one step iff the geometry actually
+  changed, so undo restores instead of deleting.
+- **F7** — the existing `applyScreenRules` chokepoint re-centres tagged labels and re-fits text-note boxes
+  after re-applying the counter-scaled `fontSize`; measured drift **58.8 px → 0.5 px** at 4×.
+- **F9** — handles scale/stretch per UI §8.6 (aspect-locked corners, single-axis edges, opposite corner
+  fixed, one undo step), via a local `scaleGeometryLocal` (`src/domain/**` untouched).
+
+Plus **B2** — C4's machine half measured (provisional) — and **B1**, whose real blocker was root-caused by
+execution (D81) rather than fixed.
+
+**Machine gates:** 4/4 passing — measured on a tree that also contains the slice-1.8 work (see the note
+below; both waves share one commit, so this gate is the gate for both).
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **62 files / 790 tests passed** (node + jsdom + browser)
+- [x] `npm run build` → 0 errors, 2125 modules, **17 precache entries (855.24 KiB)**
+- [x] `npx playwright test` → **5 passed / 5 skipped** (the F1 real-touch spec stays `fixme` — D81)
+
+**Deferred to hardware:** 2 added → `docs/HARDWARE-TEST-CHECKLIST.md`
+- **C4** re-measured on a Surface Go (the §21.8 ladder; the dev-machine number decides nothing).
+- ⚠ **The B1 handle-persistence check** — *pick a real folder in first-run, then reload: does Home come
+  back?* This decides whether the renderer death is an OPFS-only harness problem or a **product** defect in
+  `src/settings/projectsRoot.ts`.
+
+**Checkpoints fired:** **C4** — machine half **measured** (median **0.6 ms**, p95 1.3, on the real
+`min(dpr, 2)` path; 0.7 ms forced at ratio 2 and ratio 1; the ≤16 ms ladder bar is **not tripped** here).
+Recorded **provisional, never a pass**. Side finding: the browser project runs at `devicePixelRatio === 2`
+(200 % scaling), so the DPR-2 ratio is genuinely exercised — partially closing D64's "DPR-2 inferred, not
+measured" watch item.
+
+**Decisions recorded:** **D79** (the five fixes, the two spec-expectation corrections with arithmetic, and
+the owed items), **D80** (C4 measured, provisional), **D81** (B1's real root cause).
+
+**Surprises:**
+1. **The session-12 diagnosis of B1 was wrong.** Not "`disabled={busy}` never clears": a page that LOADS
+   with an OPFS directory handle stored under `fm:projects-root` **kills the renderer**. Proven with three
+   probes (write OK, page alive, *next load* dies); the "seed the handle instead" alternative fails for the
+   same reason. The spec's header carries the corrected evidence and stays `fixme`.
+2. **Two tests encoded a defect** and were corrected as spec-expectation corrections with the arithmetic
+   shown — not weakened: `markupTools.test.ts`'s `axisLockDelta` rows (`n/s` is the **y** axis once a
+   handle resizes) and `layersWire.browser.test.ts`'s "a handle drag translates the selection" (wrong by
+   1.5757 px; now asserts the §8.6 property).
+3. **A new drift found and recorded owed:** the dimension label's collision-push offset/leader and the
+   angle's arc radius are computed at build scale and still drift on zoom; `applyScreenRules` cannot fix
+   them (they need the tip/geometry).
+4. `editorCanvas.browser.test.ts`'s §4.2 gate was **extended** (label midpoint + box containment at
+   1×/4×/0.5×) — the old gate measured glyph *size* on an un-offset node, which is exactly why F7 survived
+   it for a whole slice.
+
+**Next:** slice 1.8 (same commit).
+
+---
+
+## Slice 1.8 — Style system
+**Date:** 2026-09-22 · **Commit:** session 13 (shared with the D77 remediation above)
+
+**Built:** the per-tool style system. `styleByTool` (zustand+immer) gives every tool its own
+`AnnotationStyle` — a swap is a **return, never a reset** — plus the last 8 **recents** (deduped,
+tool-filtered). Applying a style to a selection is **exactly one** undo step, and undo restores each
+object's **own** previous style. Named per-tool **presets** persist to
+`<project>/.fieldmeasure/presets.json` **atomically** through `projectStore`, with a `folder-unavailable` /
+`corrupt` state and a Retry. The props-driven **StylePanel** (WYSIWYG 96×40 Style Chip, palette, width
+ladder, fill/alpha, line style, arrowheads, Recents, the §7.4 selection bar with count / Deselect / apply
+toggle / scope chip, the §7.3 applied-to hint) and the **StyleEditorSheet** are mounted and wired in
+`EditorLayout`. The panel is the **only** place the project's precision and unit format are edited —
+**D31 held** (the keypad's fraction chip verifiably stays entry-scoped) — and every label re-derives.
+
+**Machine gates:** the 4/4 gate above is this slice's gate too.
+- [x] mixed selection renders indeterminate; a change applies to all and clears it — **routing** proven in
+      `tests/styleIntegration.test.tsx`, **effect** in `tests/sceneStyle.test.ts` (node) +
+      `tests/sceneStyleCommand.browser.test.ts` (real Konva)
+- [x] the precision control edits the **project** value; labels re-derive; the chip confirms
+- [x] presets round-trip `presets.json` and survive a reload (real `projectStore` + the in-memory FSA fake)
+- [x] style memory returns on a tool swap
+- [x] a11y: mixed/indeterminate **announced**; disabled controls keep a reason; 48 px + 16 px slop; the
+      swatch grid keeps its sanctioned sub-48 exception; Recents are 44 px
+- [~] **`[Surface]`** swap tools + restyle in < 2 s without losing flow → HARDWARE-TEST-CHECKLIST (§1.8)
+
+**Deferred to hardware:** 1 → the §1.8 `[Surface]` flow gate.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D82** (what shipped; the **extend-vs-owe** interface decision; the §7.2
+applicability table with its two reported ambiguities; the owed tool-specific controls) and **D83** (the
+byte-checked copy fold, the selection-style mirror, the wiring, and the gate's explicit routing/effect
+split). **D84** records the integration defect the full gate caught.
+
+**Surprises:**
+1. **The full gate caught a defect no lane could see (D84).** Three previously-green **browser** suites
+   began failing to import — `SyntaxError: … '/src/fs/projectStore.ts' does not provide an export named
+   'resolveFieldMeasureDir'` — once `EditorLayout` first pulled the new `presets.ts` into the browser graph.
+   `tsc`, the rolldown build, node+jsdom **and a namespace probe inside the same browser context** all saw
+   the export; clearing Vite's caches changed nothing. Fixed behaviour-identically with a **namespace
+   import** in `presets.ts` (3 files / 38 tests green). Root cause not fully isolated — the leading
+   hypothesis (mid-run dep re-optimization because `EditorLayout` is lazy-loaded) is recorded as a **watch
+   item**. The lane protocol reserves the browser project, so this was structurally invisible until the
+   orchestrator ran the full gate — the runbook rule earning its keep.
+2. **The copy fold caught a staged bug:** `project.selectionCount` was staged as the rendered literal
+   `'3 selected'`; the appendix declares the template `{count} selected`. Folded as the template — the
+   literal would have shipped a wrong count.
+3. **Six of six "known interface gaps" were closed rather than owed** — §7.3 names the Recents row and
+   §7.4 says its details "must be honored", so leaving them owed would have flattened §11.6 #5.
+4. **Reported, not fixed:** `EditorLayout` duplicates the panel's private type→tool map (drift risk), and
+   the horizontal dock now auto-sizes because the real panel lays its sections in a row.
+5. **One commit, not two.** Part A/B and 1.8 share `session.ts`, `EditorLayout.tsx`, `SheetEditor.tsx` and
+   `editorShell.test.tsx`; splitting them would have required hunk-level surgery inside shared files, which
+   is exactly the whole-file-loss risk the runbook warns about. The gate above is therefore measured on the
+   single committed file set — rule 7 satisfied by construction.
+
+**Next:** slice **1.9 — Export** (steps 2–5: `renderStage.ts`, `pdf.ts`, `png.ts`, `ExportWizard.tsx`;
+step 1, `export/filenames.ts`, shipped in 1.3). The export-invariance rule (`0.75 × mu` pt at every
+multiplier M) is the whole slice, and `src/editor/../export/renderStage.ts` must be the **only** place that
+scales for export — the §4.2 screen and export paths are opposites and both are load-bearing.

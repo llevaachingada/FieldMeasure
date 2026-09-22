@@ -17,19 +17,35 @@
  *   opens the sheet, opens Layers, then holds the grip and drags it over the OTHER row with
  *   CDP touch, asserting the two rows swap order.
  *
- * ⚠ OBSERVED FAILURE — `fixme`, NOT a pass (session 12, orchestrator run).
- *   `npx playwright test` reaches the app and advances first-run to **step 2**, then stalls:
- *   «Where should your projects live?» renders with BOTH buttons `[disabled]`, because
- *   `FirstRun`'s `disabled={busy}` never clears — the stubbed `showDirectoryPicker`
- *   (`() => navigator.storage.getDirectory()`, an OPFS handle) does not satisfy the
- *   step-2 persistence path in headless Chromium, so the editor is never mounted and the
- *   drag is never exercised. **The product is not implicated**: the failure is in the e2e
- *   bootstrap, before any of F1's code runs.
+ * ⚠ OBSERVED BLOCKER — `fixme`, NOT a pass. Root cause EXECUTED in session 13 (three probes,
+ *   deleted once the finding was recorded); this CORRECTS the session-12 diagnosis.
+ *   The blocker is NOT "`disabled={busy}` never clears". **A page that LOADS with an OPFS
+ *   `FileSystemDirectoryHandle` stored under the app's root key (`fm:projects-root`,
+ *   idb-keyval) kills the renderer** in this Chromium build (Playwright 1.63 / Chrome 153,
+ *   headless) — Playwright reports `Target page, context or browser has been closed` and
+ *   cannot even snapshot the page.
+ *   Measured, in order:
+ *     A (control) `navigator.storage.getDirectory()` + a plain-object IndexedDB write → fine,
+ *       page alive; `structuredClone(opfsHandle)` also succeeds.
+ *     B (control) a bare `page.reload()` → fine (a service worker is registered, not
+ *       controlling).
+ *     C  `structuredClone(opfsHandle)` OK → `put(handle, 'fm:projects-root')` OK → page STILL
+ *       ALIVE → the NEXT page load dies. So the crash is on deserialising the stored handle at
+ *       boot, not on the write and not on reload itself.
+ *   `FirstRun`'s only completion path persists the picked handle, so this harness cannot reach
+ *   the editor at all. (The original report's "both buttons `[disabled]`" was a misreading of
+ *   an ambiguous failure and is withdrawn.)
+ *   ⚠ UNVERIFIED, AND IT MATTERS: whether a REAL on-disk directory handle — what a user
+ *   actually picks — behaves the same is NOT established; only OPFS handles were testable
+ *   headlessly. If real handles also kill the next load, this is a **product** defect in
+ *   `src/settings/projectsRoot.ts`, not a harness limitation. Logged as a hardware check
+ *   (`docs/HARDWARE-TEST-CHECKLIST.md`) — do not claim the product is exonerated.
  *   The real-touch proof therefore remains **OWED** (D78). F1's *mechanism* is covered by
  *   `tests/layersPanel.test.tsx` (pure `dropKeyAtPoint`/`rowKeyFromElement`) and
  *   `tests/layersReorder.browser.test.ts` (real `elementFromPoint` against laid-out rows) —
  *   but neither is a real touch, which is precisely what made F1 invisible before.
- *   Do not delete this spec: fixing the first-run bootstrap is the shortest path to the gate.
+ *   Do not delete this spec: seeding the root handle is the shortest path to the gate once
+ *   the handle-storage behaviour is understood.
  */
 import { expect, test, type Page } from '@playwright/test';
 

@@ -925,9 +925,8 @@ button.crumb:hover {
 .tool-rail[data-side='left'] .tool-button.is-active::after {
   right: -4px;
 }
-/* The doomed-to-be-replaced placeholder glyphs read a touch larger than 24 px. */
-.tool-button svg,
-.style-chip svg {
+/* The tool rail's glyphs read a touch larger than 24 px. */
+.tool-button svg {
   width: 26px;
   height: 26px;
 }
@@ -977,18 +976,18 @@ button.crumb:hover {
   letter-spacing: 0.02em;
 }
 
-/* ---- style dock (container + chip slot only; panel is slice 1.8) -------- */
+/* ---- style dock (slice 1.8: hosts the real 280 px style panel) ---------- */
 
 .style-dock {
   background: var(--g850);
   display: flex;
 }
+/* UI §7.2: the expanded LANDSCAPE panel is 280 px wide; the panel fills the dock
+   (`.style-panel` is width/height 100%). The old 72 px chip slot is gone. */
 .style-dock[data-orientation='vertical'] {
-  flex: 0 0 72px;
+  flex: 0 0 280px;
+  min-width: 0;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 0;
 }
 .editor-layout[data-rail='right'] .style-dock[data-orientation='vertical'] {
   border-right: 2px solid var(--g700);
@@ -996,37 +995,15 @@ button.crumb:hover {
 .editor-layout[data-rail='left'] .style-dock[data-orientation='vertical'] {
   border-left: 2px solid var(--g700);
 }
+/* The bottom bar sizes to the real panel: its sections lay out in a row, so a fixed
+   72 px slot would clip them. `panelDockFor` still chooses side vs. bottom (UI §5.3). */
 .style-dock[data-orientation='horizontal'] {
   order: 2;
-  flex: 0 0 72px;
+  flex: 0 0 auto;
   align-items: center;
   gap: 12px;
   padding: 0 12px;
   border-top: 2px solid var(--g700);
-}
-.style-chip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.style-dock[data-orientation='vertical'] .style-chip {
-  flex-direction: column;
-  gap: 6px;
-}
-.style-chip-icon {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--hi);
-  color: var(--g900);
-}
-.style-chip-name {
-  font-size: 14px;
-  line-height: 18px;
-  font-weight: 600;
-  color: var(--g100);
 }
 
 /* Read-only warning floats over the mat (top-bar centre stays empty until 1.10). */

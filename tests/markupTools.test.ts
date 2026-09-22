@@ -346,12 +346,20 @@ describe('SelectTool pure decisions', () => {
   });
 
   it('axis lock engages after 8 px within 20° of the handle axis', () => {
-    expect(axisLockDelta('n', 20, 3, 20, 1)).toEqual({ dx: 20, dy: 0, locked: true });
-    expect(axisLockDelta('e', 3, 20, 20, 1)).toEqual({ dx: 0, dy: 20, locked: true });
-    // Before the 8 px threshold nothing locks.
+    // `n` is a vertical resize handle: its natural axis is now **y** (it was `x` in the
+    // translate era). Moving (3, 20): atan2(20, 3) = 81.47°, |81.47 − 90| = 8.53° ≤ 20°
+    // → locks to y.
+    expect(axisLockDelta('n', 3, 20, 20, 1)).toEqual({ dx: 0, dy: 20, locked: true });
+    // `e` is a horizontal resize handle: natural axis **x**. Moving (20, 3):
+    // atan2(3, 20) = 8.53° ≤ 20° → locks to x.
+    expect(axisLockDelta('e', 20, 3, 20, 1)).toEqual({ dx: 20, dy: 0, locked: true });
+    // Before the 8 px threshold nothing locks (3 × 1 < 8).
     expect(axisLockDelta('n', 3, 1, 3, 1).locked).toBe(false);
-    // 30° off-axis is free.
+    // Off the `n` (y) axis by 60°: atan2(23, 40) = 29.9°, |29.9 − 90| = 60.1° > 20° → free.
     expect(axisLockDelta('n', 40, 23, 46, 1).locked).toBe(false);
+    // Corners are `'both'` and never lock, even a near-vertical drag that would have
+    // matched an edge axis.
+    expect(axisLockDelta('nw', 5, 40, 40, 1)).toEqual({ dx: 5, dy: 40, locked: false });
   });
 
   it('marquee rect normalises any drag direction', () => {

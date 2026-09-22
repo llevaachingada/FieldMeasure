@@ -25,10 +25,33 @@
  * tests.
  */
 import { create } from 'zustand';
+import { DEFAULT_STYLE, type AnnotationStyle, type AnnotationType } from '@/domain/types';
 import type { ToolId } from '@/ui/ToolRail';
 
 /** Build spec §10. `'none'` = idle; the rest are the ops the update toast waits on. */
 export type PendingOp = 'none' | 'dimension' | 'angle' | 'polygon' | 'inset' | 'text' | 'erase';
+
+/** §7.4 #3: one annotation type and how many of it are selected (mirrors `StyleScope`). */
+export interface SelectionScope {
+  type: AnnotationType;
+  count: number;
+}
+
+/**
+ * Slice 1.8 — the live mirror of the canvas selection's style, following the established
+ * shell pattern (`keypadOpen`/`layersOpen`). `SheetEditor` owns the `MarkupScene` and
+ * publishes this (computed with `selectionStyleState` + `selectionScope`); `EditorLayout`
+ * reads it to drive the panel's `selection` / `selectionCount` / `selectionScope` props.
+ *
+ * `style` is authoritative ONLY when `mode === 'single'`. In `mixed` mode it is the
+ * `DEFAULT_STYLE` placeholder — never a merged guess (§7.4 #2).
+ */
+export interface SelectionStyleMirror {
+  mode: 'none' | 'single' | 'mixed';
+  style: AnnotationStyle;
+  count: number;
+  scope: SelectionScope[];
+}
 
 /** Canvas view transform: `scale` is the zoom factor, `x`/`y` the stage translation. */
 export interface ViewTransform {
@@ -58,6 +81,12 @@ export interface EditorState {
    * mounted by `SheetEditor`, which owns the scene.
    */
   layersOpen: boolean;
+  /**
+   * Slice 1.8: the selection's shared style, published by `SheetEditor` (the scene owner)
+   * and read by `EditorLayout` to drive the style panel. Reset on editor unmount so a
+   * stale selection style can never outlive the canvas it described.
+   */
+  selectionStyle: SelectionStyleMirror;
 }
 
 export interface EditorActions {
@@ -69,11 +98,18 @@ export interface EditorActions {
   setFocusInsetId: (insetId: string | null) => void;
   setKeypadOpen: (open: boolean) => void;
   setLayersOpen: (open: boolean) => void;
+  /** Publish the canvas selection's shared style (the scene owner is the only writer). */
+  setSelectionStyle: (mirror: SelectionStyleMirror) => void;
   /** Back to fresh defaults (test helper + "new sheet" reset). */
   resetEditorState: () => void;
 }
 
 export type EditorStore = EditorState & EditorActions;
+
+/** The empty selection mirror — `mode:'none'`, `DEFAULT_STYLE`, count 0, no scope. */
+export function createInitialSelectionStyle(): SelectionStyleMirror {
+  return { mode: 'none', style: { ...DEFAULT_STYLE }, count: 0, scope: [] };
+}
 
 /** Fresh defaults — exported so tests can reset the module-global store. */
 export function createInitialEditorState(): EditorState {
@@ -85,6 +121,7 @@ export function createInitialEditorState(): EditorState {
     focusInsetId: null,
     keypadOpen: false,
     layersOpen: false,
+    selectionStyle: createInitialSelectionStyle(),
   };
 }
 
@@ -99,5 +136,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setFocusInsetId: (focusInsetId) => set({ focusInsetId }),
   setKeypadOpen: (keypadOpen) => set({ keypadOpen }),
   setLayersOpen: (layersOpen) => set({ layersOpen }),
+  setSelectionStyle: (selectionStyle) => set({ selectionStyle }),
   resetEditorState: () => set(createInitialEditorState()),
 }));

@@ -9,8 +9,9 @@
  *              no-op.
  * A1 (mount):  the panel mounts from `layersOpen`, renders one row per annotation, the
  *              eye toggle hides the Konva node and is ONE undo step.
- * A2:          marquee selects the enclosed annotations; a handle drag translates and is
- *              ONE undo step; a rotate commit lands the snapped angle; a long-press pins
+ * A2:          marquee selects the enclosed annotations; a handle drag RESIZES (§8.6:
+ *              corner = aspect-locked scale about the opposite corner, edge = stretch) and
+ *              is ONE undo step; a rotate commit lands the snapped angle; a long-press pins
  *              the mini-toolbar; a drag that STARTS on a hit object does not marquee.
  * A3:          a 600 ms press shows the `--err` preview and deletes nothing; a short tap
  *              deletes and toasts; moving cancels.
@@ -367,7 +368,7 @@ describe('A2 — marquee, handle drag, rotate, long-press pin', () => {
     expect(useEditorStore.getState().selection).toHaveLength(0);
   });
 
-  it('a handle drag translates the selection and is one undo step', async () => {
+  it('a handle drag RESIZES (nw scales about the fixed SE corner) and is one undo step', async () => {
     useEditorStore.getState().setActiveTool('rect');
     const { view, host, stage, at } = await mountEditor('place');
     tap(host, at);
@@ -383,22 +384,49 @@ describe('A2 — marquee, handle drag, rotate, long-press pin', () => {
 
     const rectBefore = stage.getLayers()[MARKUP_LAYER].findOne<Konva.Rect>('Rect')!;
     const x0 = rectBefore.x();
+    const y0 = rectBefore.y();
 
-    // The nw handle sits at the selection's top-left corner in image space; with no photo
-    // (scale 1, stage at 0) that is the same as the client-relative point `at`.
+    // UI §8.6: a corner handle scales with the aspect locked, about the OPPOSITE corner.
+    // The `nw` handle sits at the selection's top-left (image (x0, y0)); with no photo
+    // (scale 1, stage at 0) that is the client point `at`. Drag it by (+50, +30), so in
+    // rect-relative image px the target is (50, 30) and the fixed pivot is the SE corner
+    // (120, 80):
+    //   s = |target − pivot| / |origHandle − pivot|
+    //     = hypot(120 − 50, 80 − 30) / hypot(120 − 0, 80 − 0)
+    //     = hypot(70, 50) / hypot(120, 80)
+    //     = 86.02325 / 144.22204 = 0.596469
+    //   new width  = 120 × s = 71.5763
+    //   new height =  80 × s = 47.7175
+    //   new nw x (rect-relative) = pivot.x − width  = 120 − 71.5763 = 48.4237
+    //   new nw y (rect-relative) = pivot.y − height =  80 − 47.7175 = 32.2825
+    const S = Math.hypot(120 - 50, 80 - 30) / Math.hypot(120, 80);
+
     pointer('pointerdown', host, at.x, at.y);
     pointer('pointermove', host, at.x + 50, at.y + 30);
     pointer('pointerup', host, at.x + 50, at.y + 30);
     await sleep(10);
 
     const rectAfter = stage.getLayers()[MARKUP_LAYER].findOne<Konva.Rect>('Rect')!;
-    expect(rectAfter.x()).toBeCloseTo(x0 + 50, 1);
+    // (a) the dragged corner landed where the aspect-locked scale puts it ...
+    expect(rectAfter.x() - x0).toBeCloseTo(120 * (1 - S), 1);
+    expect(rectAfter.y() - y0).toBeCloseTo(80 * (1 - S), 1);
+    expect(rectAfter.width()).toBeCloseTo(120 * S, 1);
+    expect(rectAfter.height()).toBeCloseTo(80 * S, 1);
+    // (b) ... and the opposite (SE) corner did NOT move — the property the translate-era
+    // expectation got wrong (it asserted x0 + 50, a pure move of the whole object).
+    expect(rectAfter.x() + rectAfter.width()).toBeCloseTo(x0 + 120, 1);
+    expect(rectAfter.y() + rectAfter.height()).toBeCloseTo(y0 + 80, 1);
 
+    // One undo step restores the pre-drag geometry exactly and keeps the object.
     const undone = editorSession()?.undo() ?? null;
     expect(undone).not.toBeNull();
     await sleep(10);
-    const rectRestored = stage.getLayers()[MARKUP_LAYER].findOne<Konva.Rect>('Rect')!;
-    expect(rectRestored.x()).toBeCloseTo(x0, 1);
+    const rectRestored = stage.getLayers()[MARKUP_LAYER].findOne<Konva.Rect>('Rect');
+    expect(rectRestored).toBeTruthy();
+    expect(rectRestored!.x()).toBeCloseTo(x0, 1);
+    expect(rectRestored!.y()).toBeCloseTo(y0, 1);
+    expect(rectRestored!.width()).toBeCloseTo(120, 1);
+    expect(rectRestored!.height()).toBeCloseTo(80, 1);
   });
 
   it('a rotate commit lands the snapped angle', async () => {

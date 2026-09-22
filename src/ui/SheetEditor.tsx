@@ -25,7 +25,7 @@ import { Maximize, Minus, Plus } from 'lucide-react';
 import type { ProjectFile } from '@/domain/schema';
 import type { Px } from '@/domain/types';
 import { DEFAULT_STYLE } from '@/domain/types';
-import type { Annotation, Geometry } from '@/domain/types';
+import type { Annotation, Geometry, UnitFormat } from '@/domain/types';
 import {
   EditorCanvas,
   LONG_PRESS_MS,
@@ -53,11 +53,16 @@ import { EraseTool, effectiveEraseMode, eraseNameKey, isErasePreview, strokeMode
 import { ROTATE_STOPS, SelectTool } from '@/editor/tools/SelectTool';
 import { setEditorSession, emitToast, type EditorSession } from '@/editor/session';
 import { createPersistQueue, type PersistQueue } from '@/state/persistQueue';
+import { selectionScope, selectionStyleState } from '@/state/styleByTool';
+import {
+  applyProjectPrecision as applyProjectPrecisionFn,
+  applyProjectUnitFormat as applyProjectUnitFormatFn,
+} from '@/state/projectMeasure';
 import { HIGHLIGHT_CHISEL_TOUCH_MU } from '@/editor/tools/toolTypes';
 import DimensionKeypadSheet from '@/ui/DimensionKeypadSheet';
 import LayersPanel, { blockFor } from '@/ui/LayersPanel';
 import { annotationName, buildLayerRows, PHOTO_ROW_KEY } from '@/ui/layersRows';
-import { useEditorStore } from '@/state/editorStore';
+import { createInitialSelectionStyle, useEditorStore } from '@/state/editorStore';
 import { readExifInfo } from '@/media/exif';
 import { normalizeImage } from '@/media/normalizeImage';
 import {
@@ -195,7 +200,6 @@ interface ObjectDrag {
   /** Geometry captured at drag start (any kind). */
   geometry: Geometry;
   startImage: Px;
-  moved: boolean;
 }
 
 function isAtEdge(point: ScreenPoint, host: HTMLElement): boolean {
@@ -361,6 +365,28 @@ export default function SheetEditor({
     });
     onSceneReady?.({ scene, canvas });
 
+    // ---- slice 1.8: publish the selection's shared style to the shell -------------
+    // The shell (`EditorLayout`) mounts the props-driven `StylePanel`, but the live
+    // document lives here, so this file is the only writer of the mirror
+    // (`editorStore.selectionStyle`). It recomputes on every selection change, on ANY
+    // scene mutation (a style edit / undo / redo fires `onChange`), after a style apply,
+    // and on unmount — that is what makes the panel's indeterminate state react to a
+    // real edit, not only to a prop the shell guessed.
+    const publishSelectionStyle = (): void => {
+      const keys = useEditorStore.getState().selection;
+      const anns = keys
+        .map((key) => scene.get(key))
+        .filter((ann): ann is Annotation => ann !== undefined);
+      const shared = selectionStyleState(anns.map((ann) => ann.style));
+      useEditorStore.getState().setSelectionStyle({
+        mode: shared.mode,
+        style: shared.style,
+        count: anns.length,
+        scope: selectionScope(anns),
+      });
+    };
+    publishSelectionStyle();
+
     // ---- slice 1.6 step 9: markup.json persistence (the D70 carry-in) ----
     // The document is in memory only; this is the writer. Writes are coalesced 400 ms
     // and atomic (tmp → move) inside `persistQueue` / `writeJsonAtomic`, under the
@@ -370,6 +396,10 @@ export default function SheetEditor({
     });
     persistRef.current = persist;
     scene.onChange = () => {
+      // A style edit, an undo/redo or any other mutation may change the selection's
+      // shared style — refresh the mirror BEFORE the early return (the shell's panel must
+      // react even before the sheet id is known, e.g. during a restore).
+      publishSelectionStyle();
       const sid = sheetIdRef.current;
       if (!sid) return;
       persist.queueSheet(projectId, sid, scene.markupFile(sid, 1));
@@ -459,6 +489,11 @@ export default function SheetEditor({
       eraseRef.current?.onToolChange();
       selectRef.current?.onToolChange();
       insetRef.current?.onToolChange();
+      // F5: the dimension machine shares the coarse `'place'` prop with every markup
+      // tool, so a dimension→rect switch never changed the prop and its 450 ms settle
+      // survived — the keypad then opened over the rectangle tool. `onToolChange` clears
+      // the settle timer while keeping a committed B and discarding an uncommitted A.
+      dimRef.current?.onToolChange();
     }
 
     for (const kind of ['line', 'arrow', 'rect', 'ellipse', 'polygon'] as ShapeKind[]) {
@@ -609,6 +644,7 @@ export default function SheetEditor({
     });
     const unsubscribeSelection = useEditorStore.subscribe((state, prev) => {
       if (state.selection === prev.selection) return;
+      publishSelectionStyle();
       if (state.selection.length === 0) setPinnedToolbar(false);
       selectRef.current?.refresh();
       if (useEditorStore.getState().activeTool === 'inset') insetRef.current?.refresh();
@@ -641,10 +677,101 @@ export default function SheetEditor({
         if (keys.length === 0) return null;
         return selectRef.current?.deleteSelection() ?? null;
       },
+      cancelPending: () => {
+        // F3: the shell's Esc rung 1 must actually cancel the pending DIMENSION.
+        // `tool.cancelPending()` discards an uncommitted A (or keeps a committed B as the
+        // Valueless ghost); clearing the store flag alone left the machine in `anchorA`
+        // so the next tap committed the dimension the user escaped away from. The markup
+        // tools that share the rung are cancelled too (their own Escape path normally
+        // wins first, but the rung must be complete on its own).
+        tool.cancelPending();
+        if (markupToolPending()) cancelActiveMarkup();
+      },
       requestValue: () => tool.requestKeypad(),
       adjustEndpoints: () => tool.adjustEndpoints(),
+      // ---- slice 1.8: the style-system commands --------------------------------
+      applyStylePatch: (patch, label) => {
+        const keys = [...useEditorStore.getState().selection];
+        // No selection: the patch belongs to the TOOL style only; the caller owns that.
+        if (keys.length === 0) return;
+        history.exec(scene.patchStyleCommand(keys, patch, label));
+        publishSelectionStyle();
+      },
+      applyStyle: (style, label) => {
+        const keys = [...useEditorStore.getState().selection];
+        if (keys.length === 0) return;
+        history.exec(scene.styleCommand(keys, style, label));
+        publishSelectionStyle();
+      },
+      applyProjectPrecision: (denominator) => {
+        // The project file is the source of truth for the project-level value; the loaded
+        // one is in `projectDirRef`. No project open → nothing to edit.
+        const state = projectDirRef.current;
+        if (!state) return;
+        const ctx = applyProjectPrecisionFn({
+          projectFile: state.file,
+          ctx: currentMeasureContext(),
+          denominator,
+          scene,
+          // The atomic, lock-guarded `project.json` write stays owned by `persistQueue`.
+          queueProject: (file) => persist.queueProject(projectId, file),
+        });
+        // Keep the in-memory project file fresh so a second change never re-applies from a
+        // stale snapshot (the helper returns the next context, not the next file).
+        state.file = {
+          ...state.file,
+          project: {
+            ...state.file.project,
+            // `applyProject*` validated the denominator against `VALID_DENOMINATORS`, so
+            // this narrows a value that is already legal (the domain union has no alias).
+            precisionDenominator:
+              ctx.precisionDenominator as ProjectFile['project']['precisionDenominator'],
+            unitFormat: ctx.unitFormat,
+          },
+        };
+        // Mirror into the app store so every label re-derives (`unsubscribeCtx` below
+        // subscribes appStore → `scene.setContext`, and the panel confirms the new value).
+        useAppStore.getState().setPrecisionDenominator(ctx.precisionDenominator);
+      },
+      applyProjectUnitFormat: (format) => {
+        const state = projectDirRef.current;
+        if (!state) return;
+        const ctx = applyProjectUnitFormatFn({
+          projectFile: state.file,
+          ctx: currentMeasureContext(),
+          format,
+          scene,
+          queueProject: (file) => persist.queueProject(projectId, file),
+        });
+        state.file = {
+          ...state.file,
+          project: {
+            ...state.file.project,
+            // `applyProject*` validated the denominator against `VALID_DENOMINATORS`, so
+            // this narrows a value that is already legal (the domain union has no alias).
+            precisionDenominator:
+              ctx.precisionDenominator as ProjectFile['project']['precisionDenominator'],
+            unitFormat: ctx.unitFormat,
+          },
+        };
+        useAppStore.getState().setUnitFormat(ctx.unitFormat);
+      },
     };
     setEditorSession(session);
+
+    /** The project measurement context as the app currently renders it. */
+    function currentMeasureContext(): {
+      unitSystem: 'imperial' | 'metric';
+      unitFormat: UnitFormat;
+      precisionDenominator: number;
+    } {
+      const s = useAppStore.getState();
+      return {
+        unitSystem: s.unitSystem,
+        unitFormat: s.unitFormat,
+        precisionDenominator: s.precisionDenominator,
+      };
+    }
 
     // Precision / unit-format changes re-derive every label (no stored labels).
     const unsubscribeCtx = useAppStore.subscribe((state) => {
@@ -869,7 +996,6 @@ export default function SheetEditor({
             key,
             geometry,
             startImage: imagePoint,
-            moved: false,
           });
           // D63: record the pre-drag position for the second-finger restore.
           contact.session.preDragPosition = canvas.imageToScreen({ x: bounds.x, y: bounds.y });
@@ -984,7 +1110,6 @@ export default function SheetEditor({
           if (drag) {
             const dx = imagePoint.x - drag.startImage.x;
             const dy = imagePoint.y - drag.startImage.y;
-            drag.moved = drag.moved || moved;
             scene.setGeometry(drag.key, translateGeometry(drag.geometry, dx, dy));
           }
         }
@@ -1046,10 +1171,19 @@ export default function SheetEditor({
         const drag = objectDrags.get(e.pointerId);
         objectDrags.delete(e.pointerId);
         if (drag) {
-          if (drag.moved && !tapped) {
-            const dx = imagePoint.x - drag.startImage.x;
-            const dy = imagePoint.y - drag.startImage.y;
-            const to = translateGeometry(drag.geometry, dx, dy);
+          const dx = imagePoint.x - drag.startImage.x;
+          const dy = imagePoint.y - drag.startImage.y;
+          const to = translateGeometry(drag.geometry, dx, dy);
+          // F6: the pointermove path already mutated the geometry on EVERY move,
+          // including moves below the 8 px tap slop. Record a step whenever the geometry
+          // ACTUALLY changed (pre-drag vs. current), not only once `drag.moved` cleared
+          // the slop — otherwise the mutation is persisted but unreachable by history,
+          // and the first undo deletes the object instead of restoring it. A contact
+          // that never moved keeps the tap/selection behaviour and creates no step.
+          const current = scene.geometryCopy(drag.key);
+          const changed =
+            current !== null && JSON.stringify(current) !== JSON.stringify(drag.geometry);
+          if (changed) {
             history.exec({
               label: STRINGS.toasts.actionMoveDimension,
               do: () => scene.setGeometry(drag.key, to),
@@ -1276,6 +1410,8 @@ export default function SheetEditor({
       useEditorStore.getState().setKeypadOpen(false);
       useEditorStore.getState().setLayersOpen(false);
       useEditorStore.getState().setFocusInsetId(null);
+      // The scene is being torn down; the shell must not keep reading its selection style.
+      useEditorStore.getState().setSelectionStyle(createInitialSelectionStyle());
       setPinnedToolbar(false);
       setInsetPickerOpen(false);
       setReplacePrompt(null);

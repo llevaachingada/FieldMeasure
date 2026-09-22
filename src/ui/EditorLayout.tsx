@@ -27,12 +27,31 @@
  *   - tool hotkeys per UI §6.6 (unimplemented tools are a no-op, like the rail).
  *   - arrow-key nudge is 1.10's; it is deliberately not built here.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { AnnotationStyle, AnnotationType, UnitFormat } from '@/domain/types';
 import type { Handedness } from '@/settings/handedness';
 import { useAppStore } from '@/state/appStore';
 import { useEditorStore, type PendingOp } from '@/state/editorStore';
+import {
+  applicableFor,
+  recentsForTool,
+  styleForTool,
+  useStyleByTool,
+  STYLE_KEYS,
+} from '@/state/styleByTool';
+import {
+  emptyPresets,
+  findPreset,
+  loadPresets,
+  presetsForTool,
+  savePresets,
+  upsertPreset,
+  type PresetsFile,
+} from '@/fs/presets';
 import { editorSession, subscribeToast } from '@/editor/session';
 import SheetEditor from './SheetEditor';
+import StyleEditorSheet, { type StyleEditorSheetProps } from './StyleEditorSheet';
+import StylePanel, { type StylePanelProps, type StyleScope } from './StylePanel';
 import TopBar from './TopBar';
 import ToolRail, { TOOL_HOTKEYS, toolDefById, type ToolId } from './ToolRail';
 import { STRINGS, t } from './strings';
@@ -110,26 +129,44 @@ function viewportSize(): { w: number; h: number } {
   return { w: window.innerWidth, h: window.innerHeight };
 }
 
-/** The Style Chip slot (UI §7.1). Slice 1.8 fills the panel; the chip is the slot. */
-function StyleDock({ activeTool, horizontal = false }: { activeTool: ToolId; horizontal?: boolean }) {
-  const def = toolDefById(activeTool);
-  const Icon = def?.Icon;
-  return (
-    <aside
-      className="style-dock"
-      data-orientation={horizontal ? 'horizontal' : 'vertical'}
-      aria-label={STRINGS.editor.styleChip}
-    >
-      <div className="style-chip">
-        <span className="style-chip-icon" aria-hidden="true">
-          {Icon ? <Icon /> : null}
-        </span>
-        <span className={horizontal ? 'style-chip-name' : 'style-chip-name visually-hidden'}>
-          {def?.label ?? ''}
-        </span>
-      </div>
-    </aside>
-  );
+/**
+ * `AnnotationType` → the tool that creates it, for the §7.4 #4 applicability intersection.
+ * Mirrors `StylePanel`'s private `TYPE_TOOL` map (which is not exported) — the appendices
+ * key no `annotationType.*` copy, and this is the same one-to-one the scope chip uses.
+ */
+const TOOL_FOR_TYPE: Readonly<Record<AnnotationType, ToolId>> = {
+  dimension: 'dimension',
+  angle: 'angle',
+  line: 'line',
+  arrow: 'arrow',
+  rect: 'rect',
+  ellipse: 'ellipse',
+  polygon: 'polygon',
+  freehand: 'freehand',
+  highlight: 'highlight',
+  text: 'text',
+  image: 'inset',
+};
+
+/**
+ * The panel's `applicable` map (§7.2 per-tool control table, §7.4 #4). With no selection
+ * it is the ACTIVE tool's table. With a selection it is derived from the SELECTED types:
+ * a single type's table, or — for a heterogeneous selection — the intersection across
+ * every selected type's tool, so "Text size is disabled because Dimensions aren't text
+ * objects" holds. The Select tool's own table is all-false (it creates nothing), so
+ * deriving from the selection is also what lets Select edit a selected object's style.
+ */
+export function applicabilityForSelection(
+  activeTool: ToolId,
+  scope: readonly StyleScope[],
+): Partial<Record<keyof AnnotationStyle, boolean>> {
+  if (scope.length === 0) return applicableFor(activeTool);
+  const tools = scope.map((entry) => TOOL_FOR_TYPE[entry.type]);
+  const out: Partial<Record<keyof AnnotationStyle, boolean>> = {};
+  for (const key of STYLE_KEYS) {
+    out[key] = tools.every((tool) => applicableFor(tool)[key] === true);
+  }
+  return out;
 }
 
 export interface EditorLayoutProps {
@@ -213,6 +250,218 @@ export default function EditorLayout({
     useEditorStore.getState().setActiveTool(id);
   }, []);
 
+  // ---- slice 1.8: the style panel wiring -----------------------------------------
+  // The panel is props-driven; every value below is read from a store or derived, and
+  // every write is a store action or an `editorSession()` command. Nothing here touches
+  // the canvas directly.
+  const precisionDenominator = useAppStore((s) => s.precisionDenominator);
+  const appUnitFormat = useAppStore((s) => s.unitFormat);
+  const selectionStyle = useEditorStore((s) => s.selectionStyle);
+  const toolStyle = useStyleByTool((s) => styleForTool(s, activeTool));
+  const recents = useStyleByTool((s) => s.recents);
+
+  const toolRecents = useMemo(() => recentsForTool(recents, activeTool), [recents, activeTool]);
+  const applicable = useMemo(
+    () => applicabilityForSelection(activeTool, selectionStyle.scope),
+    [activeTool, selectionStyle.scope],
+  );
+  /**
+   * §7.4: with a single selection the panel shows the selection's shared style; otherwise
+   * the per-tool memory. `mixed` never reads a value as truth (the panel hatches it).
+   */
+  const panelStyle: AnnotationStyle =
+    selectionStyle.mode === 'single' ? selectionStyle.style : toolStyle;
+
+  // Presets (§7.3): loaded once for the open project (the D51 runtime key), retried on demand.
+  const [presetsFile, setPresetsFile] = useState<PresetsFile>(() => emptyPresets());
+  const [presetsUnavailable, setPresetsUnavailable] = useState(false);
+  const presetLoadToken = useRef(0);
+  const reloadPresets = useCallback(() => {
+    const token = presetLoadToken.current + 1;
+    presetLoadToken.current = token;
+    void loadPresets(projectId).then((result) => {
+      if (presetLoadToken.current !== token) return;
+      if (result.ok) {
+        setPresetsFile(result.presets);
+        setPresetsUnavailable(false);
+      } else {
+        setPresetsFile(emptyPresets());
+        setPresetsUnavailable(true);
+      }
+    });
+  }, [projectId]);
+  useEffect(() => {
+    reloadPresets();
+    return () => {
+      // Discard any in-flight load when the project changes or the shell unmounts.
+      presetLoadToken.current += 1;
+    };
+  }, [reloadPresets]);
+  const toolPresets = useMemo(
+    () => presetsForTool(presetsFile, activeTool),
+    [presetsFile, activeTool],
+  );
+
+  // §7.4 #3: synchronous mode, default ON. §7.3: the applied-to hint clears after 4 s.
+  const [applyToSelection, setApplyToSelection] = useState(true);
+  const [appliedToCount, setAppliedToCount] = useState<number | null>(null);
+  const appliedTimerRef = useRef<number | null>(null);
+  const [styleEditorOpen, setStyleEditorOpen] = useState(false);
+  const showApplied = useCallback((count: number) => {
+    setAppliedToCount(count);
+    if (appliedTimerRef.current !== null) window.clearTimeout(appliedTimerRef.current);
+    appliedTimerRef.current = window.setTimeout(() => {
+      appliedTimerRef.current = null;
+      setAppliedToCount(null);
+    }, 4000);
+  }, []);
+  useEffect(
+    () => () => {
+      if (appliedTimerRef.current !== null) window.clearTimeout(appliedTimerRef.current);
+    },
+    [],
+  );
+
+  /**
+   * §7.4: a control change ALWAYS updates the current tool's style, and — when objects are
+   * selected and synchronous mode is on — applies to the selection as ONE undo step, then
+   * shows the §7.3 applied-to hint.
+   */
+  const onChange = useCallback(
+    (patch: Partial<AnnotationStyle>) => {
+      const styleStore = useStyleByTool.getState();
+      const tool = useEditorStore.getState().activeTool;
+      styleStore.setToolStyle(tool, patch);
+      // `setToolStyle` already records the merged style; this explicit call is the
+      // brief's requirement and is deduped by value inside `pushRecent`.
+      styleStore.recordRecent({ ...styleForTool(styleStore, tool), ...patch });
+      const mirror = useEditorStore.getState().selectionStyle;
+      if (mirror.count > 0 && applyToSelection) {
+        editorSession()?.applyStylePatch(patch, STRINGS.toasts.actionChangeStyle);
+        showApplied(mirror.count);
+      }
+    },
+    [applyToSelection, showApplied],
+  );
+
+  /** §7.4: apply a FULL style (preset / recent) to the tool and the selection, one step. */
+  const applyFullStyle = useCallback(
+    (style: AnnotationStyle) => {
+      const styleStore = useStyleByTool.getState();
+      const tool = useEditorStore.getState().activeTool;
+      styleStore.replaceToolStyle(tool, style);
+      styleStore.recordRecent(style);
+      const mirror = useEditorStore.getState().selectionStyle;
+      if (mirror.count > 0 && applyToSelection) {
+        editorSession()?.applyStyle(style, STRINGS.toasts.actionChangeStyle);
+        showApplied(mirror.count);
+      }
+    },
+    [applyToSelection, showApplied],
+  );
+
+  const onApplyRecent = useCallback(
+    (style: AnnotationStyle) => applyFullStyle(style),
+    [applyFullStyle],
+  );
+  const onApplyPreset = useCallback(
+    (name: string) => {
+      const tool = useEditorStore.getState().activeTool;
+      const preset = findPreset(presetsFile, tool, name);
+      if (preset) applyFullStyle(preset.style);
+    },
+    [presetsFile, applyFullStyle],
+  );
+  const onAlsoSetDefault = useCallback(() => {
+    const styleStore = useStyleByTool.getState();
+    const tool = useEditorStore.getState().activeTool;
+    const mirror = useEditorStore.getState().selectionStyle;
+    // Pin the shared selection style when there is exactly one; otherwise the tool style.
+    const style = mirror.mode === 'single' ? mirror.style : styleForTool(styleStore, tool);
+    styleStore.replaceToolStyle(tool, style);
+  }, []);
+  const onDeselect = useCallback(() => {
+    useEditorStore.getState().clearSelection();
+  }, []);
+  const onToggleApplyToSelection = useCallback((next: boolean) => setApplyToSelection(next), []);
+  const onPrecisionChange = useCallback((denominator: number) => {
+    editorSession()?.applyProjectPrecision(denominator);
+  }, []);
+  const onUnitFormatChange = useCallback((format: UnitFormat) => {
+    editorSession()?.applyProjectUnitFormat(format);
+  }, []);
+  const onOpenEditorSheet = useCallback(() => setStyleEditorOpen(true), []);
+  const onSavePreset = useCallback(
+    (name: string) => {
+      const tool = useEditorStore.getState().activeTool;
+      const next = upsertPreset(presetsFile, tool, { name, style: { ...panelStyle } });
+      setPresetsFile(next);
+      // A failed write still keeps the session preset; surface the §7.5 warn strip.
+      void savePresets(projectId, next).catch(() => setPresetsUnavailable(true));
+    },
+    [presetsFile, projectId, panelStyle],
+  );
+  const onRetryPresets = useCallback(() => reloadPresets(), [reloadPresets]);
+
+  /**
+   * The one prop set both mounts share (the side panel and the deep editor sheet). The
+   * sheet's props are the panel's minus `tool`/`applicable`, plus `onClose`.
+   */
+  const stylePanelProps = {
+    tool: activeTool,
+    style: panelStyle,
+    selection: selectionStyle.mode,
+    applicable,
+    projectPrecision: precisionDenominator,
+    unitFormat: appUnitFormat,
+    onChange,
+    onPrecisionChange,
+    onUnitFormatChange,
+    onOpenEditorSheet,
+    presets: toolPresets,
+    onSavePreset,
+    onApplyPreset,
+    selectionCount: selectionStyle.count,
+    selectionScope: selectionStyle.scope,
+    applyToSelection,
+    recents: toolRecents,
+    presetsUnavailable,
+    appliedToCount,
+    onApplyRecent,
+    onToggleApplyToSelection,
+    onAlsoSetDefault,
+    onDeselect,
+    onRetryPresets,
+  } satisfies StylePanelProps;
+
+  const styleEditorProps = {
+    style: panelStyle,
+    selection: selectionStyle.mode,
+    projectPrecision: precisionDenominator,
+    unitFormat: appUnitFormat,
+    onChange,
+    onPrecisionChange,
+    onUnitFormatChange,
+    // The sheet's type is `Omit<StylePanelProps,'tool'|'applicable'> & {onClose}`; it
+    // renders its own `More styles…` affordance, so the seam keeps the prop present.
+    onOpenEditorSheet,
+    presets: toolPresets,
+    onSavePreset,
+    onApplyPreset,
+    selectionCount: selectionStyle.count,
+    selectionScope: selectionStyle.scope,
+    applyToSelection,
+    recents: toolRecents,
+    presetsUnavailable,
+    appliedToCount,
+    onApplyRecent,
+    onToggleApplyToSelection,
+    onAlsoSetDefault,
+    onDeselect,
+    onRetryPresets,
+    onClose: () => setStyleEditorOpen(false),
+  } satisfies StyleEditorSheetProps;
+
   // Undo/redo name the action in a toast (UI §13.2). The commands live on the canvas
   // session; the label is interpolated by the strings owner here.
   const showUndoToast = useCallback((label: string) => {
@@ -261,8 +510,12 @@ export default function EditorLayout({
           hasSelection: store.selection.length > 0,
           focusInsetId: store.focusInsetId,
         });
-        if (step === 'cancelPending') store.setPendingOp('none');
-        else if (step === 'deselect') store.clearSelection();
+        if (step === 'cancelPending') {
+          store.setPendingOp('none');
+          // The rung must cancel the tool, not only the store flag (D77/F3): the shell
+          // owns the session, the canvas owns the placement machine.
+          editorSession()?.cancelPending();
+        } else if (step === 'deselect') store.clearSelection();
         else if (step === 'exitFocus') store.setFocusInsetId(null);
         else onExit();
         return;
@@ -304,9 +557,17 @@ export default function EditorLayout({
             onSheetTitleChange={onSheetTitleChange}
             sheetId={sheetId}
           />
-          {dock === 'bottom' ? <StyleDock activeTool={activeTool} horizontal /> : null}
+          {dock === 'bottom' ? (
+            <div className="style-dock" data-orientation="horizontal">
+              <StylePanel {...stylePanelProps} />
+            </div>
+          ) : null}
         </div>
-        {dock === 'side' ? <StyleDock activeTool={activeTool} /> : null}
+        {dock === 'side' ? (
+          <div className="style-dock" data-orientation="vertical">
+            <StylePanel {...stylePanelProps} />
+          </div>
+        ) : null}
       </div>
       <TopBar
         projectName={projectName ?? folderName}
@@ -319,6 +580,9 @@ export default function EditorLayout({
         onToggleLayers={() => useEditorStore.getState().setLayersOpen(!layersOpen)}
         layersOpen={layersOpen}
       />
+      {/* §7.5: the deep editor sheet, toggled by `More styles…`/`Custom…` and closed by
+          `Esc`/`✕`/`Done` (the sheet owns its own focus trap and focus return). */}
+      {styleEditorOpen ? <StyleEditorSheet {...styleEditorProps} /> : null}
       {toast ? (
         <output className="editor-toast" role="status">
           {toast}

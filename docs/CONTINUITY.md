@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 12 — slice **1.7 image insets is COMPLETE**; the **independent adversarial review of the 1.4→1.6 batch has now run** (D77) and its first four defects are fixed (D78))
+**Last updated:** 2026-09-22 (session 13 — **the D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed**, **B1's blocker is root-caused** (D81), **C4's machine half is measured** (D80, provisional), and **slice 1.8 (style system) is complete and green** (D82–D84))
 
 ---
 
@@ -11,8 +11,8 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 + 1.7 complete and green.** Image insets ship with the §8.5 coordinate model, content-addressed assets, one-level Focus and the Layers panel fully wired. Next: the **remaining independent-review findings** (D77 F3/F5/F6/F7/F9), then **1.8 (style system)** |
-| Application code | **Ten slices**, **636 machine tests / 52 files** on the committed tree (1.7's closure). 1.7 adds `src/editor/inset/**` (`insetGeometry`, `renderInset`, `InsetFocus`, `insetAssets`), `tools/InsetTool.ts`, **child addressing** in `scene.ts`, `ui/ImageInsetPickerSheet.tsx` + `ui/insetWiring.ts` + `insetWire.css`, and the D77 F1/F2/F4/F8 fixes. Plus 1.9 **step 1 only**. ⚠ Wave C's style-panel files are on disk **untracked** for their own wave; with them present the tree runs 54 files / 698 tests — **that larger number is not any commit's gate** (D77/F10). |
+| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 + 1.7 + 1.8 complete and green.** The D77 review's remaining findings (F3/F5/F6/F7/F9) are fixed with pre-fix-failing guards; the style system ships (per-tool memory, recents, presets IO, the mounted WYSIWYG panel). Next: **slice 1.9 (export, steps 2–5)** |
+| Application code | **Eleven slices**, **790 machine tests / 62 files** on the committed tree (1.8's closure — node + jsdom + browser). 1.8 adds `src/state/styleByTool.ts`, `src/state/projectMeasure.ts`, `src/fs/presets.ts`, `src/editor/shapes/styleCommand.ts`, `src/ui/StylePanel.tsx` + `StyleEditorSheet.tsx` + `stylePanel.css`, the `MarkupScene` style commands, the `EditorSession` style methods and the `editorStore.selectionStyle` mirror. **All six previously-untracked 1.8 files are now tracked**, and `src/ui/styleCopy.ts` is deleted (folded into `strings.ts`). Also lands the F3/F5/F6/F7/F9 fixes, `tests/editorCanvasPerf.browser.test.ts` (C4), and a **namespace-import fix in `presets.ts`** for the browser-only link defect the full gate caught (D84). |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -20,7 +20,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Clear the remaining independent-review findings (D77 F3/F5/F6/F7/F9)** — F3 (Esc never cancels a pending dimension), F5 (settle survives a tool switch), F6 (sub-slop moves mutate outside history) are wiring gaps in `EditorLayout`/`SheetEditor`/`SelectTool`; F7 is a **measured** §4.2 label/text layout drift; F9 is the §8.6 handle semantics gap. Then **slice 1.8 (style system)**, whose `StylePanel`/`StyleEditorSheet` UI half is already built and green. |
+| Next action | **Slice 1.9 — Export** (steps 2–5: `src/export/renderStage.ts`, `pdf.ts`, `png.ts`, `ExportWizard.tsx`; step 1, `export/filenames.ts`, already shipped in 1.3). The **export-invariance rule** (`0.75 × mu` pt at every multiplier M) is the whole slice's acceptance, and `renderStage.ts` must be the **only** place that scales for export — the §4.2 screen and export paths are opposites and both are load-bearing. Also carried: **F1's real-touch proof is still OWED** (B1/D81: the e2e harness is blocked by a renderer death on OPFS-handle reload, and a CDP-touch browser-project attempt failed its assertion), plus the owed §8.6 rotate handle and text-box scaling (D79). |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -523,6 +523,61 @@ the step-2 persistence path, so `disabled={busy}` never clears and the editor is
 failure is in the harness, **before F1's code runs**; the product is not implicated, and it is never
 reported as a pass.
 
+### 2026-09-22 — Session 13: the D77 remediation, two deferred gates, and slice 1.8 (style system)
+
+**Five lanes for Part A + Part B, three for Part C, then integration.** Part A ran as three disjoint-file
+lanes (shell / select-tool / render), so no two writers could touch one file; Part B added the C4
+measurement lane; Part C added the two 1.8 lanes plus an integration lane and a bounded re-try of B1.
+
+**The five owed findings are fixed, each reproduced by execution first** (D79): **F3** (the `Esc` ladder's
+first rung now reaches the canvas through a new `EditorSession.cancelPending()`), **F5** (a real tool switch
+cancels the dimension's 450 ms settle — the asymmetry with Angle *was* the bug), **F6** (sub-slop moves are
+history-visible on both drag paths), **F7** (the §4.2 chokepoint re-centres anchored labels and re-fits
+text boxes; **58.8 px → 0.5 px** drift at 4×), **F9** (handles scale/stretch per UI §8.6). **Two tests that
+encoded a defect were corrected as spec-expectation corrections, with the arithmetic shown** — the
+translate-era `axisLockDelta` rows and `layersWire`'s "a handle drag translates" (wrong by 1.5757 px).
+
+**B1's blocker was root-caused by execution, and the session-12 story was wrong** (D81). It is not
+"`disabled={busy}` never clears": a page that **loads** with an OPFS directory handle stored under
+`fm:projects-root` **kills the renderer** (three probes: the write succeeds and the page survives; the
+*next* load dies). So neither of the handoff's prescribed routes to the real-touch gate exists in this
+harness. The spec stays `fixme` with corrected evidence, and — because only OPFS handles were testable —
+**whether a real on-disk handle does the same is unverified and would make this a *product* defect**, so it
+is logged as a hardware check and the product is **not** declared exonerated. A CDP-touch attempt in the
+browser project reached a real touch but failed its assertion and was deleted; F1's real-touch proof stays
+owed.
+
+**C4's machine half is measured and recorded provisional** (D80): a 4096-px sheet with 50 annotations,
+panned — median **0.6 ms** (p95 1.3) on the real `min(dpr, 2)` path, 0.7 ms at forced ratio 2 and ratio 1.
+The §21.8 ≤16 ms bar is not tripped, but the **ladder decision is still the Surface Go's**. Side finding:
+the browser project runs at `devicePixelRatio === 2`, so D64's "DPR-2 path inferred, not measured" is
+**partially closed**.
+
+**Slice 1.8 shipped** (D82–D83): per-tool style memory (a swap is a return, never a reset) with recents; a
+style change on a selection as **exactly one** undo step restoring each object's own style; atomic
+per-tool presets at `<project>/.fieldmeasure/presets.json` with a folder-unavailable state; the WYSIWYG
+Style Chip and the §7.4 selection bar mounted and wired; and the project-level precision/unit-format path —
+**D31 held** (the keypad's fraction chip verifiably stays entry-scoped). The copy was folded into
+`strings.ts` byte-verified and the staging module deleted; the fold caught a staged bug (`project.selectionCount`
+was the rendered literal `'3 selected'`, not the appendices' `{count} selected` template). Six of the six
+"known interface gaps" were **closed by extending the pinned interface**, not owed — §7.3 names the Recents
+row and §7.4's details "must be honored".
+
+**The full gate caught what no lane could** (D84). Once `EditorLayout` first pulled `presets.ts` into the
+browser graph, three previously-green browser suites failed to import —
+`…'/src/fs/projectStore.ts' does not provide an export named 'resolveFieldMeasureDir'` — while `tsc`, the
+rolldown build, node+jsdom **and a namespace probe in the same browser context** all saw the export, and
+clearing Vite's caches changed nothing. Fixed behaviour-identically with a **namespace import** in
+`presets.ts`. Root cause not fully isolated; the leading hypothesis (mid-run dep re-optimization because
+`EditorLayout` is lazy-loaded) is a **watch item**. The lane protocol reserves the browser project, so only
+the orchestrator's full gate could see it — the runbook rule earning its keep for the third time.
+
+**Machine gates (one commit; the gate is measured on that exact file set):** `tsc` 0 · `vitest` **62 files /
+790 tests** (node + jsdom + browser) · `build` 0 (17 precache, 855.24 KiB) · `playwright` **5 passed /
+5 skipped**. **Checkpoints:** C4 fired (measured, provisional). One commit rather than two, because Part A/B
+and 1.8 share four files (`session.ts`, `EditorLayout.tsx`, `SheetEditor.tsx`, `editorShell.test.tsx`) and
+splitting them would need hunk-level surgery inside shared files — the whole-file-loss risk the runbook
+warns about.
 ## Done
 
 - ✅ Product scope locked (Surface-only, local-only; no server / DB / cloud / Bluetooth / multi-user).

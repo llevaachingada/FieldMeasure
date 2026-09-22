@@ -109,16 +109,23 @@ export function rotateSnapDeg(deg: number, toleranceDeg = 7.5): number {
 /** The allowed rotate stops, exposed for the HUD chips. */
 export const ROTATE_STOPS = ROTATE_SNAPS;
 
-/** The handle's natural axis: edge handles lock one axis, corners free. */
+/**
+ * The handle's natural RESIZE axis (UI §8.6): an `n`/`s` handle moves vertically
+ * (stretch along **y**), an `e`/`w` handle moves horizontally (stretch along **x**),
+ * corners are free. (`n`/`s` were previously mapped to `x`, the translate-era
+ * reading; a handle now resizes, so the natural movement axis is its own.)
+ */
 export function handleAxis(handle: HandleId): 'x' | 'y' | 'both' {
-  if (handle === 'n' || handle === 's') return 'x';
-  if (handle === 'e' || handle === 'w') return 'y';
+  if (handle === 'n' || handle === 's') return 'y';
+  if (handle === 'e' || handle === 'w') return 'x';
   return 'both';
 }
 
 /**
  * Axis lock after 8 px of movement within 20° of the handle's natural axis. Returns the
  * possibly-constrained delta. Pure; `movedPx` is the screen-space travel so far.
+ * Corners are `'both'` and never lock (`handleAxis` doc), so a corner drag always
+ * reaches the aspect-locked scale with both components intact.
  */
 export function axisLockDelta(
   handle: HandleId,
@@ -129,6 +136,7 @@ export function axisLockDelta(
 ): { dx: number; dy: number; locked: boolean } {
   if (movedPx * scale < AXIS_LOCK_PX) return { dx, dy, locked: false };
   const axis = handleAxis(handle);
+  if (axis === 'both') return { dx, dy, locked: false };
   const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
   const offAxis = axis === 'x' ? Math.abs(angle) : Math.abs(Math.abs(angle) - 90);
   if (offAxis <= AXIS_LOCK_DEG) {
@@ -199,11 +207,14 @@ export interface SelectToolDeps {
 
 interface TransformDrag {
   handle: HandleId;
+  /** The contact's image-space position at pointer-down. */
   start: Px;
+  /** The dragged handle's original image-space position (resize target base). */
+  handlePos: Px;
+  /** The captured pre-drag geometry (the single history step's `undo` snapshot). */
   geometry: Geometry;
-  pivot: Px;
-  rotating: boolean;
-  moved: boolean;
+  /** The pre-drag selection bounds — the fixed pivot is the opposite corner/edge. */
+  bounds: Bounds;
 }
 
 export class SelectTool implements MarkupTool {
@@ -344,13 +355,14 @@ export class SelectTool implements MarkupTool {
     const geometry = this.deps.scene.geometryCopy(keys[0]);
     const bounds = this.selectionBounds(keys);
     if (!geometry || !bounds) return;
+    const handlePos = handlePositions(bounds).find((h) => h.id === handle)?.p;
+    if (!handlePos) return;
     this.transform = {
       handle,
       start: { ...point },
+      handlePos: { ...handlePos },
       geometry,
-      pivot: { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 },
-      rotating: false,
-      moved: false,
+      bounds,
     };
   }
 
@@ -361,22 +373,29 @@ export class SelectTool implements MarkupTool {
     if (keys.length !== 1) return;
     const dx = point.x - drag.start.x;
     const dy = point.y - drag.start.y;
-    if (Math.hypot(dx, dy) * this.deps.canvas.scale > AXIS_LOCK_PX) drag.moved = true;
     const locked = axisLockDelta(drag.handle, dx, dy, Math.hypot(dx, dy), this.deps.canvas.scale);
-    const moved = translateGeometryLocal(drag.geometry, locked.dx, locked.dy);
-    this.deps.scene.setGeometry(keys[0], moved);
+    // Move the dragged handle by the (possibly axis-locked) delta; the opposite
+    // corner/edge is the fixed pivot and never moves (F9).
+    const target = { x: drag.handlePos.x + locked.dx, y: drag.handlePos.y + locked.dy };
+    const next = scaleGeometryLocal(drag.geometry, drag.bounds, drag.handle, target);
+    this.deps.scene.setGeometry(keys[0], next);
     this.refresh();
   }
 
   private endTransform(): void {
     const drag = this.transform;
     this.transform = null;
-    if (!drag || !drag.moved) return;
+    if (!drag) return;
     const keys = this.deps.getSelection();
     if (keys.length !== 1) return;
     const from = drag.geometry;
     const to = this.deps.scene.geometryCopy(keys[0]);
     if (!to) return;
+    // The invariant (D77/F6): geometry never changes without exactly one matching
+    // history step, and no step without a change. Compare against the captured
+    // pre-drag geometry — not a movement threshold — so a sub-slop drag is undoable
+    // and a press that never moved records nothing.
+    if (JSON.stringify(to) === JSON.stringify(from)) return;
     this.deps.history.exec({
       label: this.deps.labels.move,
       do: () => this.deps.scene.setGeometry(keys[0], to),
@@ -516,5 +535,138 @@ function translateGeometryLocal(geometry: Geometry, dx: number, dy: number): Geo
       return { ...geometry, at: t(geometry.at) };
     case 'image':
       return { ...geometry, x: geometry.x + dx, y: geometry.y + dy };
+  }
+}
+
+/** The smallest image-space box edge a resize may produce (no zero/negative box). */
+const MIN_RESIZE_PX = 1;
+
+/** The image-space point of one handle of `bounds` (all 8, even suppressed edges). */
+function handlePosition(bounds: Bounds, handle: HandleId): Px {
+  const found = handlePositions(bounds).find((h) => h.id === handle);
+  return found ? { ...found.p } : { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+}
+
+/** Index of the vertex nearest a handle, or `-1` for an empty set. */
+function nearestVertexIndex(points: readonly Px[], at: Px): number {
+  let best = -1;
+  let bestDist = Number.POSITIVE_INFINITY;
+  points.forEach((p, i) => {
+    const d = Math.hypot(p.x - at.x, p.y - at.y);
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
+  });
+  return best;
+}
+
+/**
+ * Resize by dragging `handle` to `target` (image space) — UI §8.6:
+ * **corner handle = scale with aspect locked; edge handle = free stretch**, the handle
+ * opposite the dragged one being the fixed pivot (so the opposite corner never moves).
+ *
+ * Local to this tool: `src/domain/**` is the frozen geometry layer (AGENTS non-negotiable
+ * #3), and a new module is not warranted for one caller.
+ *
+ * - Box kinds (`rect`/`ellipse`/`image`) own `x,y,width,height`.
+ * - Linear/point kinds (`dimension`/`line`/`arrow`/`angle`/`polygon`/`freehand`/
+ *   `highlight`) have no box channel: the handle nearest a vertex moves that vertex and
+ *   every other vertex stays fixed.
+ * - `text` carries only `at`; a box scale has no data channel, so it degrades to a
+ *   translate (text box scaling is recorded owed, not silently dropped).
+ */
+function scaleGeometryLocal(
+  geometry: Geometry,
+  bounds: Bounds,
+  handle: HandleId,
+  target: Px,
+): Geometry {
+  if (geometry.kind === 'rect' || geometry.kind === 'ellipse' || geometry.kind === 'image') {
+    const { x, y, width, height } = bounds;
+    if (handle.length === 2) {
+      // Corner: pivot is the OPPOSITE corner. For `nw` the pivot is SE (right, bottom).
+      const pivotX = handle.includes('w') ? x + width : x;
+      const pivotY = handle.includes('n') ? y + height : y;
+      const hx = handle.includes('w') ? x : x + width;
+      const hy = handle.includes('n') ? y : y + height;
+      // One documented uniform factor = distance(pivot → pointer) / distance(pivot →
+      // original handle). Arithmetic example, 120×80 `nw` dragged (100,100)→(70,70),
+      // pivot (220,180): base = hypot(120,80) = 144.222; target = hypot(150,110) =
+      // 186.010; factor = 1.2897; new size = 154.76×103.17 (120×80 × 1.2897). A distance
+      // ratio is never negative, so a corner can never flip through the pivot.
+      const baseDist = Math.hypot(hx - pivotX, hy - pivotY) || 1;
+      // Keep both edges ≥ MIN_RESIZE_PX while locked; never a zero/negative box.
+      const minScale = Math.max(
+        width > 0 ? MIN_RESIZE_PX / width : 1,
+        height > 0 ? MIN_RESIZE_PX / height : 1,
+      );
+      const factor = Math.max(
+        minScale,
+        Math.hypot(target.x - pivotX, target.y - pivotY) / baseDist,
+      );
+      const nextWidth = Math.abs(hx - pivotX) * factor;
+      const nextHeight = Math.abs(hy - pivotY) * factor;
+      // An already-degenerate box cannot be scaled into a positive one; leave it as is
+      // rather than emitting a zero/negative edge.
+      if (nextWidth < MIN_RESIZE_PX || nextHeight < MIN_RESIZE_PX) return geometry;
+      return {
+        ...geometry,
+        x: Math.min(pivotX, pivotX + (hx - pivotX) * factor),
+        y: Math.min(pivotY, pivotY + (hy - pivotY) * factor),
+        width: nextWidth,
+        height: nextHeight,
+      };
+    }
+    // Edge: single-axis stretch. The opposite edge is the pivot; the cross axis is
+    // copied through untouched.
+    if (handle === 'n' || handle === 's') {
+      const pivotY = handle === 'n' ? y + height : y;
+      const nextHeight = Math.max(MIN_RESIZE_PX, Math.abs(target.y - pivotY));
+      return { ...geometry, x, y: Math.min(pivotY, target.y), width, height: nextHeight };
+    }
+    const pivotX = handle === 'w' ? x + width : x;
+    const nextWidth = Math.max(MIN_RESIZE_PX, Math.abs(target.x - pivotX));
+    return { ...geometry, x: Math.min(pivotX, target.x), y, width: nextWidth, height };
+  }
+
+  const at = handlePosition(bounds, handle);
+  switch (geometry.kind) {
+    case 'dimension':
+    case 'line':
+    case 'arrow': {
+      const points = [geometry.a, geometry.b];
+      const i = nearestVertexIndex(points, at);
+      return {
+        ...geometry,
+        a: i === 0 ? { ...target } : points[0],
+        b: i === 1 ? { ...target } : points[1],
+      };
+    }
+    case 'angle': {
+      const points = [geometry.a, geometry.vertex, geometry.c];
+      const i = nearestVertexIndex(points, at);
+      return {
+        ...geometry,
+        a: i === 0 ? { ...target } : points[0],
+        vertex: i === 1 ? { ...target } : points[1],
+        c: i === 2 ? { ...target } : points[2],
+      };
+    }
+    case 'polygon':
+    case 'freehand':
+    case 'highlight': {
+      if (geometry.points.length === 0) return geometry;
+      const i = nearestVertexIndex(geometry.points, at);
+      return {
+        ...geometry,
+        points: geometry.points.map((p, j) => (j === i ? { ...target } : p)),
+      };
+    }
+    case 'text':
+      // No size channel: degrade to the handle delta (box scaling owed).
+      return translateGeometryLocal(geometry, target.x - at.x, target.y - at.y);
+    default:
+      return geometry;
   }
 }

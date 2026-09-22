@@ -223,6 +223,9 @@ function buildAngle(
     listening: false,
   });
   label.setAttr('fontSizeMu', style.fontSizeMu);
+  // F7: tagged for re-centring in `applyScreenRules` — the offset must track the
+  // counter-scaled glyph box, not the build-time size.
+  label.setAttr('centerAnchor', true);
   label.position(at);
   label.offsetX(label.width() / 2);
   label.offsetY(label.height() / 2);

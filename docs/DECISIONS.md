@@ -1572,3 +1572,304 @@ was dead used synthetic events for a gesture whose semantics depend on **implici
 When a test drives an input, ask what real input does that the synthetic one does not — and where a
 gate depends on browser input semantics, the browser project or Playwright/CDP is the only honest
 place to prove it.
+### D79 — D77 remediation: F3, F5, F6, F7 and F9 (the remaining five findings)
+
+Three lanes on disjoint file sets, each finding **reproduced by execution before the fix** and each
+guard **verified failing pre-fix**. No test was edited to match the code; two tests that *encoded a
+defect* were corrected as spec-expectation corrections, with their arithmetic shown below.
+
+**F3 — `Esc`'s first rung never cancelled a pending dimension.** `EditorLayout`'s rung cleared only the
+store flag (`pendingOp`), and `SheetEditor`'s own Escape handler deliberately excludes the dimension
+(`id !== 'dimension' && markupToolPending()`), so `DimensionTool.cancelPending()` was unreachable: the
+machine stayed in `anchorA` and **the next tap committed the dimension the user had escaped away from**.
+Fix: `EditorSession` gained `cancelPending()`; `SheetEditor` implements it as `tool.cancelPending()`
+(discard an uncommitted A / keep a committed B as the Valueless ghost) plus `cancelActiveMarkup()` when a
+markup op is pending; the rung calls `editorSession()?.cancelPending()`. The ladder still advances
+**one rung per press** and `escapeStep`'s §4.2 order (`pending → deselect → exit Focus → navigate`) is
+untouched. Guard: after Escape the provisional is gone **and** a following tap starts a fresh placement.
+
+**F5 — the 450 ms settle survived a switch to another placement tool.** `cancelActiveMarkup()` covered
+every markup tool but **not `dimRef`**, and the dimension's `onToolChange` fired only when the coarse
+`activeTool` prop left `'place'` — so `dimension → rect` never cancelled it and **the dimension keypad
+opened over the rectangle tool**. Angle was already cancelled; the asymmetry was the bug. Fix: the
+dimension machine joined `cancelActiveMarkup()`. `onToolChange`'s documented semantics are preserved and
+asserted (a committed B is kept, an uncommitted A is discarded).
+
+**F6 — sub-slop moves mutated the document outside history.** Both writers (`SelectTool.updateTransform`
+and `SheetEditor`'s object-first drag) applied geometry on **every** move while recording a history step
+only past a threshold, so a ~5 px drag persisted a mutation **unreachable by history** — the first undo
+deleted the object instead of restoring it. Fix: both paths now compare the live geometry against the
+captured pre-drag geometry and record **exactly one** step iff it actually changed. The invariant is
+pinned in both files: *geometry never changes without one matching step, and no step without a change.*
+Guards: a sub-slop drag then `undo()` restores the original position and the object still exists.
+
+**F7 — one-time label layout drifted on zoom (the only *measured* rendering defect).** Centred labels
+computed `offset = width()/2` **once** at build time, and `applyScreenRules` re-applied
+`fontSize = fontSizeMu / s` without re-running layout, so the anchor kept the old half-width: **65.4 CSS
+px of centre drift at 4×** on a dimension label, 58 px on the angle readout, and **167 px of glyph
+overflow** past a text note's box at 0.5×. Fix: the render modules tag centred labels (`centerAnchor`)
+and text-note boxes (`textBoxFit`/`textPill`/`textPadPx`), and the **existing** `applyScreenRules`
+chokepoint re-centres and re-fits **after** it re-applies the font — no second chokepoint, and
+deliberately **not** coupled to `regenerateInk` (a pinch defers the ink but must keep labels anchored).
+Verified: drift 58.8 px → **0.50 px** at 4×; the note's box now contains its glyphs at 1×/4×/0.5×;
+the box re-fit reproduces the build-time geometry exactly (`cornerRadius: pill ? h/2 + pad : 4`, the
+same `padPx / scale`), so nothing visual changes at any scale. Guard: the §4.2 pixel test gained
+midpoint/containment assertions at 1×/4×/0.5× (3 failing pre-fix, 12 passing after); the existing
+size-constancy assertions are untouched.
+
+**F9 — selection handles translated; UI §8.6 requires scale/stretch.** `updateTransform` called
+`translateGeometryLocal` for **every** handle, so an `nw` corner drag moved the whole object including
+the opposite corner; `handleAxis` also mapped `n/s → 'x'`/`e/w → 'y'`, the **translate-era** reading.
+Fix: corner = **aspect-locked scale**, edge = **single-axis stretch**, the opposite corner/edge as the
+fixed pivot, one undo step; a local `scaleGeometryLocal` sits beside `translateGeometryLocal` (the
+frozen `src/domain/**` was not touched and no new module was added). Uniform factor is the **distance
+ratio** `s = |target − pivot| / |origHandle − pivot|`, clamped so both edges stay ≥ 1 px; a distance
+ratio can never go negative, so a corner cannot flip through the pivot.
+*Spec-expectation correction (arithmetic shown):* `tests/markupTools.test.ts` encoded the translate-era
+axis semantics, e.g. `axisLockDelta('n', 20, 3, 20, 1) → {dx:20, dy:0, locked:true}`. With a handle now
+**resizing**, the natural movement axis of `n/s` is **y** and of `e/w` is **x**, so the corrected rows are
+`axisLockDelta('n', 3, 20, 20, 1) → {dx:0, dy:20, locked:true}` (`atan2(20,3) = 81.47°`,
+`|81.47 − 90| = 8.53° ≤ 20°`) and `axisLockDelta('e', 20, 3, 20, 1) → {dx:20, dy:0, locked:true}`
+(`atan2(3,20) = 8.53°`); `('n', 40, 23, 46, 1).locked === false` (60.1° off-axis), and corners
+(`'both'`) never lock. `tests/layersWire.browser.test.ts` likewise asserted *"'a handle drag translates
+the selection'"*; it now asserts the §8.6 property, deriving the expectation in-test
+(`s = hypot(70,50)/hypot(120,80) = 86.02325/144.22204 = 0.596469`; new nw `x = 120 − 120·s = 48.4237`,
+i.e. `x0 + 48.42`, versus the old translate expectation of `x0 + 50` — the pre-correction run failed by
+1.5757 px, so the new assertion cannot pass by accident) and that the **opposite corner did not move**.
+Guards: all 8 handles dragged (expected corner moved, opposite fixed), aspect-lock, single-axis stretch,
+no-flip past the pivot, sub-slop undoability, and a no-op press recording nothing.
+
+**Recorded owed (not silently dropped):**
+- **The §8.6 rotate handle** (40 px above the top edge, `°` readout, 0/15/30/45/90 snaps) is still
+  absent for the Select tool — rotate exists only as HUD chips. Now recorded explicitly for the first
+  time; the Inset tool does have its own rotate arm.
+- **Text-box scaling** — `Geometry`'s `text` carries only `at`, so a box resize has no data channel and
+  degrades to a translate; it needs a size/rotation field in a later slice.
+- **New finding, F7-adjacent (OWED):** the dimension label's **collision-push offset and leader**
+  (`labelLayout(a, b, b, scale)`) and the angle's **arc radius** (`12 / ctx.scale`) are computed at build
+  scale and are *not* recomputed on zoom, so their screen-space size still drifts. `applyScreenRules`
+  cannot fix them (they need the tip and the geometry, not just the font); they need their own pass on
+  the same `zoomend` hook.
+
+---
+
+### D80 — C4's machine half measured (provisional; the §21.8 ladder decision stays hardware's)
+
+**Measured** on the dev machine — Intel Core Ultra 5 335 (8 cores), Windows 11 Pro x64, Playwright
+1.63.0 / Chromium 153 headless, viewport 1024×768, `npx vitest run --project browser` — on a **4096-px**
+sheet carrying **50** annotations (10 dimensions, 5 rect, 5 ellipse, 5 line, 5 arrow, 5 text, 5 angle,
+5 freehand ink, 5 highlighter ink). Method: a pan loop (`panBy(2, 0)` + `markupLayer.draw()` per frame),
+20 warm-up frames discarded, median/p95 over 100 measured frames.
+
+| path (as labelled in the harness) | median | p95 |
+|---|---|---|
+| `min(dpr, 2)` — the **real**, unmodified path | 0.6 ms | 1.3 ms |
+| ratio 2 — forced via `markupPixelRatio: () => 2` | 0.7 ms | 1.5 ms |
+| ratio 1 — forced via `markupPixelRatio: () => 1` | 0.7 ms | 1.4 ms |
+
+The §21.8 bar (**≤ 16 ms**) is **not tripped** at either ratio on this machine (~10–20× margin).
+**This is a dev-machine number, recorded provisional, never a pass**: the ladder (drop overlay → 1, then
+markup → 1.5, then 1) is a *Surface Go* decision and no Surface Go is available. C4 stays pending
+hardware; the number and the harness are logged for that run.
+
+**A correction that closes part of D64.** Headless Chromium **in this repo** reports
+`window.devicePixelRatio === 2` (this build machine runs at 200 % display scaling). So the real,
+unmodified browser-project path **is** the DPR-2 path, and it is asserted as
+`getPixelRatio() === min(devicePixelRatio, 2)`. The long-standing watch item "the §8.1.1
+`devicePixelRatio = 2` path is inferred, not measured" is therefore **partially closed**: the DPR-2
+*ratio* is genuinely exercised; only hardware's *frame time* for it remains unmeasured (C4). Because no
+DPR-1 real path exists here, the ratio-1 row is reachable only by forcing the option, and the harness
+labels it as such.
+
+Harness: `tests/editorCanvasPerf.browser.test.ts`. It asserts structural facts (50 markup children, the
+expected pixel ratio, painted pixels, ≥ 60 frames) plus one deliberately generous **catastrophic**
+ceiling (400 ms ≈ 25× the ladder bar) whose only job is to catch a hang or an accidental per-frame
+blow-up. **The 16 ms threshold is never asserted**, so the suite cannot fake the ladder in either
+direction.
+
+---
+
+### D81 — B1: the e2e blocker is a browser-level handle-persistence failure, not the harness's step-2 path
+
+The session-12 record said the e2e stalled in first-run step 2 because the stubbed
+`showDirectoryPicker` (`() => navigator.storage.getDirectory()`) "does not satisfy the step-2
+persistence path", leaving `disabled={busy}` set. **That diagnosis is wrong**, and it was settled by
+execution here with three probes (deleted once the finding was recorded):
+
+| Probe | What it did | Result |
+|---|---|---|
+| **A** (control) | `navigator.storage.getDirectory()` + a plain-object IndexedDB write | fine, page alive; `structuredClone(opfsHandle)` also succeeds |
+| **B** (control) | a bare `page.reload()` | fine (a service worker is registered, but not controlling) |
+| **C** | `structuredClone(opfsHandle)` OK → `put(handle, 'fm:projects-root')` OK → page **still alive** → the **next page load dies** | Playwright: `Target page, context or browser has been closed`; it cannot even capture a page snapshot |
+
+So: **a page that LOADS with an OPFS `FileSystemDirectoryHandle` stored under the app's root key
+(`fm:projects-root`) kills the renderer** in this Chromium build (Playwright 1.63 / Chrome 153,
+headless). The crash is on **deserialising the stored handle at boot** — not on the write, and not on
+reload itself (probe B). `FirstRun`'s only completion path persists the picked handle, so *no* harness
+reaches the editor by completing first-run; and the handoff's alternative, "seed the persisted root
+handle directly", fails for exactly the same reason — seeding it is what causes the next load to die.
+
+**⚠ Unverified, and it decides whether this is a product bug.** Whether a **real on-disk** directory
+handle — what a user actually picks — behaves the same was **not** established; only OPFS handles are
+testable headlessly. If real handles also kill the next load, this is a **product** defect in
+`src/settings/projectsRoot.ts` (the app would be unusable after a reload), not a harness limitation.
+Recorded as a hardware check in `docs/HARDWARE-TEST-CHECKLIST.md`. `tests/e2e/layersReorderTouch.spec.ts`
+stays **`fixme`** with a corrected header, and **the product is not declared exonerated** — the
+session-12 sentence "the product is not implicated" is withdrawn as unsupported.
+
+---
+
+### D82 — slice 1.8 (style system): per-tool memory, recents, presets IO, and the one place precision is edited
+
+**Shipped** (packet `docs/implementation-plan.md` 1205-1258; build spec §11.5; UI spec §7):
+- `src/state/styleByTool.ts` — `Record<ToolId, AnnotationStyle>` per-tool memory where a tool swap is
+  a **return, never a reset** (§7.4 #6), plus **recents** (last 8, deduped, newest-first, filtered to
+  those valid for the current tool — §7.3) and the pure derivations the shell needs:
+  `selectionStyleState` (none/single/mixed), `applicableFor`, `selectionScope`.
+- `src/editor/shapes/styleCommand.ts` + two additive `MarkupScene` methods (`styleCommand`,
+  `patchStyleCommand`) — a multi-object style change is **exactly one** undo step, and undo restores
+  each object's **own** previous style (not a uniform default). The factories are Konva-free so the
+  command semantics are node-testable; the scene delegation is proven in the browser project.
+- `src/fs/presets.ts` (+ additive `projectStore` helpers) — named per-tool presets at
+  `<project>/.fieldmeasure/presets.json`, written **atomically** (tmp → close → `move()`) under the
+  per-project Web Lock, with `folder-unavailable` / `corrupt` error states and a Retry. `createWritable()`
+  still exists in exactly one module.
+- `src/state/projectMeasure.ts` — the project-level precision / unit-format write path, through the
+  existing `persistQueue.queueProject` plus the `useAppStore` mirror.
+
+**The D31 trap held** (the pinned hazard). Verified by reading `DimensionKeypadSheet`: the fraction chip
+edits only the **entry's** local slot (`editSlots(... denominator)`); it never calls
+`setPrecisionDenominator`, and `precisionDenominator` is a read-only prop used as the parse seed. The
+**project** value is written only by the panel's Precision control. Labels re-derive through the existing
+`useAppStore → scene.setContext` subscription (idempotent with the helper's direct `setContext`).
+
+**The pinned interface was EXTENDED, not left owed** — recorded decision. `StylePanelProps` gained
+`selectionCount`, `selectionScope`, `applyToSelection`, `recents`, `presetsUnavailable`, `appliedToCount`
+and their handlers, and `StyleEditorSheetProps` gained a real `onClose` (replacing the
+`onOpenEditorSheet`-as-dismiss hack). Rationale: §7.3 **names** the Recents row (and the packet's a11y
+gate names its 44 px target), §7.4 states details "the builder must honor" for the count / Deselect /
+scope chip / apply toggle, and §7.5 defines the folder-unavailable warn strip. Leaving them owed would
+have flattened §11.6 #5.
+
+**Recorded owed instead — no `AnnotationStyle` channel exists in this slice's seam.** The tool-specific
+controls the specs list (corner radius, sides, arc radius, chisel width, highlighter straight-line lock,
+erase mode/scope, inset border/opacity/crop/shadow, text align/background/leader, elbow) are owed to the
+slices that add those fields. **Size + Bold are the only tool-specific keys that exist.**
+
+**§7.2 applicability answers, and two ambiguities reported rather than guessed.** Dimension:
+colour/width/arrowheads. Angle: colour/width. Line & Arrow: colour/width/lineStyle/arrowheads.
+Rect/Ellipse/Polygon: colour/width/lineStyle/fill/alpha. Freehand: colour/width. Highlighter:
+colour/width/**fillAlpha**. Text: colour/fontSize/bold. Inset/Erase/Select/Pan: none.
+*Ambiguity 1:* `renderDimension` consumes `lineStyle`/`fontSizeMu`/`bold` and the angle readout consumes
+`fontSizeMu`/`bold`, but §7.2 lists **no** such control for those tools → returned the **table-faithful
+`false`** (a record, not a silent guess). *Ambiguity 2:* the table lists Highlighter *Transparency* while
+`renderInk` consumes only colour/width → `fillAlpha` stays `true` (the table wins).
+
+**Also reported, not invented:** the scope chip labels annotation types with the creating tool's `tool.*`
+name (`Text note`, `Image inset`) rather than §7.4's example words (`Text`), because the appendices key
+no `annotationType.*` copy.
+
+---
+
+### D83 — slice 1.8 integration: the copy fold, the selection-style mirror, and the gate's split
+
+**The copy fold (orchestrator, byte-checked).** `src/ui/styleCopy.ts` → `STRINGS.style` / `STRINGS.project`,
+and the staging module is **deleted** (BUILD-RUNBOOK §11 rule 5). Fourteen keys landed; every value was
+compared to the appendix **bytes** with a `node:fs` read (never the console — U+2014 is the trap):
+- APPROVED `## style` rows — `widthReadout` (`{widthPt} pt`), `transparencyReadout` (`{percent}%`),
+  `mixedValue`, `moreStyles`, `saveAsPreset`, `resetDefaults`, `appliedToSelection`
+  (`Applied to {objectCount} objects`), `alsoSetDefault`, `selectionHeader`
+  (`{objectCount} objects selected`), `deselect`, `applyToSelection`, `applyToScope`
+  (`Apply to: {typeCounts}`), `presetsError` (with its U+2014). The `{token}` forms are the rows'
+  **declared interpolation** (the appendix `String` column shows the rendered example), which the copy
+  gate compiles to an anchored wildcard.
+- APPROVED `## project` — `selectionCount`. **Corrected** from the staged rendered literal `'3 selected'`
+  to the declared template `'{count} selected'` (the literal would have rendered «3 selected» for any
+  count — the staged lane caught it, the fold preserves the fix).
+- gaps §6 — `recentHeader: 'Recent'`, marked `⚠ PROPOSED (C14)`.
+- One new **beyond-the-gaps** action name, `toasts.actionChangeStyle: 'Change style'`, under the existing
+  `⚠ PROPOSED` marker block, because a style edit on a selection is one history step and the undo toast
+  needs a name (the appendix keys none).
+`tests/strings.test.ts` passes 3/3 — the contract is machine-checked, not read.
+
+**The selection-style mirror.** `useEditorStore.selectionStyle` (`mode`/`style`/`count`/`scope`), published
+by `SheetEditor` — the scene owner — using `selectionStyleState` + `selectionScope`. This follows the
+established shell pattern (`keypadOpen`/`layersOpen` are mirrored the same way) and is reset on unmount so
+a stale selection style cannot outlive the canvas it described. In `mixed` mode `style` is the
+`DEFAULT_STYLE` placeholder and is documented as **non-authoritative** — callers render indeterminate and
+ignore it, so no colour is ever invented (§7.4 #2).
+
+**The wiring.** `EditorSession` gained `applyStylePatch` / `applyStyle` / `applyProjectPrecision` /
+`applyProjectUnitFormat`; `EditorLayout` mounts the real `StylePanel` (side and bottom docks, `panelDockFor`
+geometry and the `data-keypad-open` dim preserved) and the `StyleEditorSheet`; `src/styles.css`'s dead
+`.style-chip*` placeholder rules were deleted and the vertical dock sized to UI §7.2's **280 px** (the old
+72 px slot was the chip). `onChange` always updates the tool style + recents, and additionally applies to
+the selection (one step, `toasts.actionChangeStyle`) when a selection exists and `Apply to selection` is on,
+then shows the 4 s applied-to hint — §7.4's rule exactly.
+
+**Deliberate deviation reported:** `SheetEditor` refreshes `projectDirRef.current.file` after a measure
+change, because `projectMeasure`'s helpers return only the next context; without it a second change would
+re-apply from a stale snapshot.
+
+**Gate: the routing/effect split is explicit.** `tests/styleIntegration.test.tsx` (10 jsdom tests, the real
+panel + real stores + a stubbed canvas session) proves the **routing** — mixed reaches the panel and is
+**announced** (not merely styled), a swatch calls `applyStylePatch` with the right patch *and* updates the
+tool style *and* raises the hint, Deselect clears, Apply-to-selection OFF suppresses the canvas call,
+precision routes, the sheet opens/closes, presets load/save, and a heterogeneous selection disables the
+wrong control with a reason. The **effect** — every selected object changes, in **one** undo step, and the
+indeterminate state clears — is proven by `tests/sceneStyle.test.ts` (node) and
+`tests/sceneStyleCommand.browser.test.ts` (real Konva, node rebuild). Neither half alone is the gate; the
+pair is.
+
+**Two follow-ups reported, not fixed (neither blocks the slice):** `EditorLayout.applicabilityForSelection`
+duplicates `StylePanel`'s private (unexported) `TYPE_TOOL` map — a candidate for exporting that map so the
+two cannot drift; and the horizontal dock now auto-sizes (a CSS geometry change, not a panel change)
+because the real panel lays its sections out in a row.
+
+### D84 — the full gate caught a browser-only module-linking defect that no per-lane check could see
+
+**What happened.** After lane C3 wired `EditorLayout` → `@/fs/presets`, three previously-green
+**browser**-project suites (`insetWire`, `layersWire`, `sheetEditor.dimension`) failed to import:
+
+```
+SyntaxError: The requested module '/src/fs/projectStore.ts' does not provide an export named
+'resolveFieldMeasureDir'
+```
+
+**It was not a source defect, and that was proven rather than assumed.** `tsc --noEmit` was 0; the
+rolldown `npm run build` was 0; the node+jsdom run (669 tests, including `tests/presets.test.ts` and
+`tests/styleIntegration.test.tsx`, which import and mount the same chain) was green; and an
+`import * as projectStore` **namespace probe inside the same browser context** listed
+`resolveFieldMeasureDir` among the module's exports. Deleting Vite's optimizer cache
+(`node_modules/.vite`, `.vite-temp`) and re-running changed nothing; a second re-run changed nothing.
+
+**Trigger.** The error appeared only once a browser-loaded module first imported `src/fs/presets.ts` —
+nothing in the browser graph reached it before C3's change. So the new **edge** in the graph, not the
+module's contents, is what broke the link.
+
+**Fix (behaviour-identical).** `src/fs/presets.ts` now takes a **namespace** import and resolves the three
+bindings at use time (`projectStore.resolveFieldMeasureDir(...)`, `projectStore.resolveOpenProjectDir(...)`,
+`projectStore.writePresetsFile(...)`). A namespace import is not link-time name-checked, so it sidesteps
+the failure; the emitted behaviour is the same. Verified: those three suites pass (3 files / 38 tests) and
+`tsc` stays 0.
+
+**The root cause was NOT fully isolated — recorded as a watch item, not as a solved mystery.** The leading
+hypothesis: Vite's dependency optimizer discovers a new bare import (`zod`, imported directly by
+`presets.ts`) mid-run, because `EditorLayout` is **lazy-loaded** and therefore absent from the initial dep
+scan, and re-optimizing while modules are already linked produces exactly this class of error. If it
+recurs, the candidate fixes are `optimizeDeps.include: ['zod']` (or an `optimizeDeps.entries` scan of the
+source graph) in the browser project's config — **not** another source change.
+
+**Why every per-lane check missed it — and why that is the point.** The lane protocol reserves the browser
+Vitest project (one canvas lane at a time), and C3, the integration lane, was instructed to verify with
+`tsc` + node + jsdom. Both rules are correct, and together they made this failure structurally invisible
+until the orchestrator ran the **full** gate on the reconciled tree — the exact step the runbook exists to
+enforce. Third time this project has learned that a green subset is not a green gate.
+
+**Carried in the same commit.** The CDP-touch route to F1's real-touch half (dispatched as the B1
+alternative once D81 closed off the e2e) was interrupted; the partial browser spec it left behind **ran and
+failed** its reorder assertion, so it was **deleted**, not committed. F1's real-touch proof therefore
+remains **OWED** alongside D81's harness blocker. That failing run is evidence the CDP route *can* produce
+a real touch; it just has not been made to pass.
+
+---

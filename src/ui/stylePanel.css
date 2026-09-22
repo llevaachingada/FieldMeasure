@@ -1,0 +1,912 @@
+/**
+ * `src/ui/stylePanel.css` — slice 1.8, the style panel + the WYSIWYG Style Chip
+ * (UI spec §7; build spec §11.5–§11.7; touch-primary accessibility §19.6).
+ *
+ * EXTERNAL STYLESHEET, NO INLINE STYLES. The CSP is `style-src 'self'` and the e2e suite
+ * asserts `[style]` count === 0, so every per-state visual is carried by a `data-`
+ * attribute here — never by a `style=""` attribute. That is also why the width scrubber
+ * cannot paint its own live-preview gradient (an SVG preview strip does that job instead).
+ *
+ * TOKENS are the "Site Slate" globals from `styles.css` (`--g750`, `--hi`, `--sel`,
+ * `--warn`, `--g000`…). `.mono` / `.hit-slop` / `.visually-hidden` are global too.
+ *
+ * ACCENT DISCIPLINE (§11.7, hard rule): orange `--hi` = action/measurement, cyan `--sel`
+ * = selection/manipulation. The chip's icon circle is `--hi` with no selection and `--sel`
+ * with one; the panel's top border follows the same rule.
+ *
+ * TARGETS (§19.6, touch-primary): the floor is 48 px with 16 px hit slop. The ONE sanctioned
+ * exception is the swatch grid — 44 px visual targets separated by 6 px of dead space (§7.3:
+ * "44px is the single sub-48px target size the app uses"). They deliberately carry NO
+ * `.hit-slop`: 16 px of slop on a 6 px gap would overlap the neighbour, and §14.5 forbids
+ * overlapping hit areas by more than 0 px.
+ *
+ * The Recents row (§7.3, 44 px chips) is NOT styled here: the pinned `StylePanelProps`
+ * carries no `recents` channel, so the row is not rendered at all. See the lane report.
+ */
+
+.style-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  background: var(--g850);
+  border-top: 2px solid transparent; /* becomes --sel with a selection (§7.4 #1) */
+  color: var(--g100);
+}
+
+.style-panel[data-selection='single'],
+.style-panel[data-selection='mixed'] {
+  border-top-color: var(--sel);
+}
+
+/* ---- header: the Style Chip (56 px, never optional) ---------------------- */
+
+.style-panel-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 4px 8px;
+  border-bottom: 2px solid var(--g700);
+}
+
+.style-panel-chip {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 4px 8px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--g100);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.style-panel-chip:hover {
+  background: var(--g800);
+}
+
+.style-panel-chip-icon {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--hi); /* accent discipline: orange = action */
+  color: var(--g900);
+}
+
+.style-panel[data-selection='single'] .style-panel-chip-icon,
+.style-panel[data-selection='mixed'] .style-panel-chip-icon {
+  background: var(--sel); /* cyan = selection/manipulation */
+}
+
+.style-panel-chip-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* The live 96 × 40 WYSIWYG render. Never shrink it: it IS the chip (§11.6 #4). */
+.style-panel-chip-svg {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--g900);
+  border: 2px solid var(--g700);
+}
+
+.style-panel-chip-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.style-panel-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.style-panel-chip-unit {
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.04em;
+  color: var(--g400);
+}
+
+.style-panel-more {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.style-panel-more:hover {
+  background: var(--g750);
+}
+
+/* ---- body ---------------------------------------------------------------- */
+
+.style-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.style-panel-section {
+  padding: 8px 10px 10px;
+  border-bottom: 2px solid var(--g700);
+}
+
+.style-panel-section-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--g400);
+}
+
+.style-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.style-panel-row--wrap {
+  flex-wrap: wrap;
+}
+
+.style-panel-readout {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 20px;
+}
+
+.style-panel-readout-value {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 700;
+  color: var(--g000);
+}
+
+.style-panel-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--g400);
+}
+
+.style-panel-preview {
+  display: block;
+  width: 100%;
+  max-width: 120px;
+  height: auto;
+  margin: 2px 0 8px;
+}
+
+/* ---- selection bar (§7.4 #1/#3): count, Deselect, synchronous mode, scope ---- */
+
+.style-panel-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--g700);
+  background: var(--g800);
+}
+
+.style-panel-selection-header {
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 700;
+  color: var(--sel);
+}
+
+.style-panel-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 48 px visual floor; `.hit-slop` (global) adds the 16 px of slop, so the
+   combined target is 64 px while the visual box stays the panel's 48 px. */
+.style-panel-deselect,
+.style-panel-toggle {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 2px solid var(--sel);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.style-panel-deselect svg {
+  width: 18px;
+  height: 18px;
+}
+
+.style-panel-toggle[aria-pressed='true'] {
+  border-color: var(--hi);
+  background: var(--g700);
+  color: var(--g000);
+}
+
+.style-panel-scope {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--g300);
+}
+
+/* ---- transient apply hint (§7.3) ---- */
+
+.style-panel-applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 2px solid var(--g700);
+  background: var(--g800);
+}
+
+.style-panel-applied-text {
+  font-size: 13px;
+  line-height: 17px;
+  color: var(--g100);
+}
+
+.style-panel-link {
+  min-height: 48px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--sel);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.style-panel-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- folder-unavailable warn strip (§7.5) ---- */
+
+.style-panel-warn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--g700);
+  border-left: 4px solid var(--warn);
+  background: rgba(255, 194, 75, 0.14);
+}
+
+.style-panel-warn-text {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--warn);
+}
+
+.style-panel-warn-retry {
+  min-height: 48px;
+  min-width: 56px;
+  padding: 0 12px;
+  border: 2px solid var(--warn);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--warn);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ---- Recents (§7.3): 44 px chips — the sanctioned shared sub-48 target ---- */
+/* 44 px is §7.3's single sub-48 size, shared with the swatch grid; these chips
+   deliberately carry NO `.hit-slop`, because 16 px on a 6 px gap would overlap
+   the neighbour and §14.5 forbids overlapping hit areas. */
+
+.style-panel-recents {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.style-panel-recent {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid var(--g600);
+  border-radius: 8px;
+  background: var(--g900);
+  cursor: pointer;
+}
+
+.style-panel-recent:hover {
+  border-color: var(--g300);
+}
+
+.style-panel-recent svg {
+  width: 34px;
+  height: auto;
+}
+
+/* ---- swatches: 44 px, 6 px gaps (the ONE sanctioned sub-48 exception) ---- */
+
+.style-panel-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 44px);
+  gap: 6px;
+}
+
+.style-panel-swatch {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid var(--g600);
+  border-radius: 8px;
+  background: var(--g700);
+  cursor: pointer;
+}
+
+.style-panel-swatch[data-selected='true'] {
+  border-color: var(--sel);
+  box-shadow: 0 0 0 2px var(--g850), 0 0 0 4px var(--sel);
+}
+
+/* Selection is never colour-only: a ✓, dual-outlined so it reads on any swatch. */
+.style-panel-swatch[data-selected='true']::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--g000);
+  text-shadow: 0 0 3px rgba(11, 14, 18, 0.95), 0 0 3px rgba(11, 14, 18, 0.95);
+}
+
+.style-panel-swatch:hover:not(:disabled) {
+  border-color: var(--g300);
+}
+
+.style-panel-swatch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* The indeterminate placeholder: a hatch, because a guessed colour would be a lie. */
+.style-panel-swatch--mixed {
+  border-color: var(--g400);
+  background: repeating-linear-gradient(
+    45deg,
+    var(--g700) 0 6px,
+    var(--g600) 6px 12px
+  );
+  cursor: default;
+}
+
+/* ---- buttons, steppers, chips -------------------------------------------- */
+
+.style-panel-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.style-panel-button:hover:not(:disabled) {
+  background: var(--g750);
+}
+
+.style-panel-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.style-panel-stepper {
+  flex: 0 0 48px;
+  width: 48px;
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  cursor: pointer;
+}
+
+.style-panel-stepper:hover:not(:disabled) {
+  background: var(--g750);
+}
+
+.style-panel-stepper svg {
+  width: 20px;
+  height: 20px;
+}
+
+.style-panel-option {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 2px 4px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  cursor: pointer;
+}
+
+.style-panel-option[aria-pressed='true'] {
+  border-color: var(--hi);
+  background: var(--g700);
+}
+
+.style-panel-option svg {
+  width: 100%;
+  max-width: 120px;
+  height: auto;
+}
+
+.style-panel-chip-option {
+  min-height: 48px;
+  min-width: 56px;
+  padding: 0 12px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.style-panel-chip-option[aria-pressed='true'] {
+  border-color: var(--hi);
+  background: var(--g700);
+  color: var(--g000);
+}
+
+.style-panel-button:disabled,
+.style-panel-stepper:disabled,
+.style-panel-option:disabled,
+.style-panel-chip-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---- ranges -------------------------------------------------------------- */
+
+.style-panel-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  margin: 0;
+  accent-color: var(--hi);
+}
+
+.style-panel-checker {
+  padding: 6px 8px;
+  border-radius: 10px;
+  /* The transparency ramp sits on a checkerboard so "see-through" reads as see-through. */
+  background-image:
+    linear-gradient(45deg, var(--g700) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--g700) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--g700) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--g700) 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
+
+/* ---- presets ------------------------------------------------------------- */
+
+.style-panel-preset-list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.style-panel-preset {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 10px;
+  border: 2px solid var(--g700);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.style-panel-preset:hover {
+  background: var(--g750);
+}
+
+.style-panel-preset-stroke {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+.style-panel-preset-stroke svg {
+  width: 64px;
+  height: auto;
+}
+
+.style-panel-preset-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.style-panel-preset-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.style-panel-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 2px solid var(--sel);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g000);
+  font: inherit;
+  font-size: 15px;
+}
+
+/* ---- a dock-hosted panel adapts to the horizontal (bottom) slot ---------- */
+
+.style-dock[data-orientation='horizontal'] .style-panel {
+  flex-direction: row;
+  align-items: center;
+  height: auto;
+  border-top: none;
+  border-left: 2px solid transparent;
+}
+
+.style-dock[data-orientation='horizontal'] .style-panel[data-selection='single'],
+.style-dock[data-orientation='horizontal'] .style-panel[data-selection='mixed'] {
+  border-left-color: var(--sel);
+}
+
+.style-dock[data-orientation='horizontal'] .style-panel-header {
+  border-bottom: none;
+  min-width: 320px;
+}
+
+.style-dock[data-orientation='horizontal'] .style-panel-body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.style-dock[data-orientation='horizontal'] .style-panel-section {
+  border-bottom: none;
+  border-right: 2px solid var(--g700);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .style-panel,
+  .style-panel-chip,
+  .style-panel-button,
+  .style-panel-swatch {
+    transition: none;
+  }
+}
+
+/* ===========================================================================
+   The deep editor sheet (§7.5) — 720 × 640 over a 60 % scrim.
+   Deliberately not 100 %: the user must still see the photo while picking a
+   colour for it. Centred, its own dialog, its own scroll.
+   =========================================================================== */
+
+.style-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 45; /* over the mat, the layers flyout (25) and the keypad sheet (40) */
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  /* §7.5: the canvas dims to 60 %, never 100 %. */
+  background: rgba(11, 14, 18, 0.6);
+}
+
+.style-sheet {
+  width: 720px;
+  max-width: 100%;
+  height: 640px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--g750);
+  border: 2px solid var(--g600);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.style-sheet-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 4px 8px 4px 16px;
+  border-bottom: 2px solid var(--g700);
+}
+
+.style-sheet-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--g300);
+}
+
+.style-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--g100);
+  cursor: pointer;
+}
+
+.style-sheet-close:hover {
+  background: var(--g800);
+}
+
+/* The §7.5 warn strip sits directly under the sheet header: same tokens as the
+   panel strip, squared off for the sheet's edge-to-edge width. */
+.style-sheet-warn {
+  border-left: none;
+}
+
+.style-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.style-sheet-section {
+  break-inside: avoid;
+  padding: 10px 16px 12px;
+  border-bottom: 2px solid var(--g700);
+}
+
+/* The palette grid: four hue-rows of 12, 44 px targets (the same sanctioned size). */
+.style-sheet-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-x: auto; /* 12 × 44 + 11 × 6 = 594 px; scrolls rather than clipping on a narrow sheet */
+}
+
+.style-sheet-grid-row {
+  display: grid;
+  grid-template-columns: repeat(12, 44px);
+  gap: 6px;
+}
+
+.style-sheet-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+}
+
+.style-sheet-field-label {
+  flex: 0 0 84px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--g300);
+}
+
+.style-sheet-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.style-sheet-ladder-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 2px 8px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.style-sheet-ladder-row[aria-pressed='true'] {
+  border-color: var(--hi);
+  background: var(--g800);
+}
+
+.style-sheet-ladder-row:hover {
+  background: var(--g800);
+}
+
+.style-sheet-ladder-value {
+  flex: 0 0 48px;
+  text-align: right;
+  font-size: 13px;
+  color: var(--g300);
+}
+
+.style-sheet-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.style-sheet-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 4px 10px;
+  border: 2px solid var(--g700);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.style-sheet-option[aria-pressed='true'] {
+  border-color: var(--hi);
+  background: var(--g700);
+}
+
+.style-sheet-option-samples {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.style-sheet-option-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.style-sheet-aa {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+}
+
+.style-sheet-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 8px 16px;
+  border-top: 2px solid var(--g700);
+}
+
+.style-sheet-done {
+  min-height: 64px;
+  padding: 0 28px;
+  border: 2px solid var(--hi);
+  border-radius: 10px;
+  background: var(--hi);
+  color: var(--g900);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.style-sheet-done:active {
+  background: var(--hi-d);
+  border-color: var(--hi-d);
+}
+
+/* Destructive styling, so it reads as a text button, not a primary action. */
+.style-sheet-reset {
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--err);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.style-sheet-reset:hover {
+  text-decoration: underline;
+}
+

@@ -29,6 +29,12 @@ import { buildInkGroup } from './renderInk';
 import { buildTextGroup } from './renderText';
 import { buildInsetGroup, type InsetAssetImage } from '@/editor/inset/renderInset';
 import { sheetToAsset, type InsetImageGeometry } from '@/editor/inset/insetGeometry';
+import type { Command } from '@/editor/history';
+import {
+  createPatchStyleCommand,
+  createReplaceStyleCommand,
+  type StyleTarget,
+} from './styleCommand';
 
 /* ------------------------------------------------------------------ *
  * §20.1 AnnotationPath — the address of an annotation
@@ -396,6 +402,54 @@ export class MarkupScene {
     this.syncOwner(pathKey);
     this.layer.batchDraw();
     this.notify();
+  }
+
+  /**
+   * Slice 1.8 (lane C1) — apply ONE style to a selection as a single undo step (§7.4
+   * #2/#3). Returns the `Command`; the shell runs it with `history.exec(...)` so a
+   * multi-object style change is exactly one undo step, and `execCoalesced` can fold a
+   * held scrubber into that one step. Addressing is by path key (child keys included).
+   *
+   * After it runs, every selected object shares `style`, so `selectionStyleState` over
+   * them reports `'single'` — the observable that the panel's indeterminate state cleared.
+   */
+  styleCommand(pathKeys: readonly string[], style: AnnotationStyle, label: string): Command {
+    return createReplaceStyleCommand(this.styleTarget(), pathKeys, style, label);
+  }
+
+  /**
+   * Slice 1.8 (lane C1) — merge a `Partial<AnnotationStyle>` into a selection as one undo
+   * step. Keys the patch does not name are left as each object had them (so a patched key
+   * clears its indeterminate state; a full replace converges the whole style).
+   */
+  patchStyleCommand(
+    pathKeys: readonly string[],
+    patch: Partial<AnnotationStyle>,
+    label: string,
+  ): Command {
+    return createPatchStyleCommand(this.styleTarget(), pathKeys, patch, label);
+  }
+
+  /**
+   * Low-level style write, the shared path for both commands (and for a single tool-style
+   * change the shell applies directly). Rebuilds the node and fires `onChange` — the
+   * persistence seam — exactly like every other mutator. Unknown keys are a no-op.
+   */
+  setStyle(pathKey: string, style: AnnotationStyle): void {
+    const ann = this.get(pathKey);
+    if (!ann) return;
+    ann.style = { ...style };
+    this.syncOwner(pathKey);
+    this.layer.batchDraw();
+    this.notify();
+  }
+
+  /** The read/write adapter the style commands operate on. */
+  private styleTarget(): StyleTarget {
+    return {
+      getStyle: (pathKey) => this.get(pathKey)?.style,
+      setStyle: (pathKey, style) => this.setStyle(pathKey, style),
+    };
   }
 
   /**

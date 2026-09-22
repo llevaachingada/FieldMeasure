@@ -214,6 +214,13 @@ export function applyScreenRules(
     if (node instanceof Konva.Text) {
       const mu = node.getAttr('fontSizeMu');
       if (typeof mu === 'number') node.fontSize(screenFontSize(mu, scale));
+      // F7: a centred label's offset is a function of its CURRENT glyph box. Re-centring
+      // after the fontSize change is cheap and MUST NOT be coupled to `regenerateInk`
+      // (during a pinch the ink is deferred, but the label anchor must stay correct).
+      if (node.getAttr('centerAnchor') === true) {
+        node.offsetX(node.width() / 2);
+        node.offsetY(node.height() / 2);
+      }
     }
     const strokeWidthMu = node.getAttr('strokeWidthMu');
     if (
@@ -234,7 +241,26 @@ export function applyScreenRules(
     if (regenerateInk && node instanceof Konva.Path && typeof node.getAttr('strokeWidthMu') === 'number') {
       regenerateInkNode(node, scale);
     }
-    if (node instanceof Konva.Group) applyScreenRules(node, scale, options);
+    if (node instanceof Konva.Group) {
+      applyScreenRules(node, scale, options);
+      // F7: re-fit a text note's background box to its (possibly counter-scaled) glyphs.
+      // Runs AFTER recursion so the glyphs' fontSize has already been re-applied. The box
+      // is a decoration of the glyphs, never a separately-positioned object.
+      const fit = node.getAttr('textBoxFit') as
+        | { box?: unknown; glyphs?: unknown }
+        | undefined;
+      if (fit && fit.box instanceof Konva.Rect && fit.glyphs instanceof Konva.Text) {
+        const glyphs = fit.glyphs;
+        const box = fit.box;
+        const padPx = node.getAttr('textPadPx');
+        const pad = (typeof padPx === 'number' ? padPx : 0) / scale;
+        box.x(glyphs.x() - pad);
+        box.y(glyphs.y() - pad);
+        box.width(glyphs.width() + pad * 2);
+        box.height(glyphs.height() + pad * 2);
+        box.cornerRadius(node.getAttr('textPill') === true ? glyphs.height() / 2 + pad : 4);
+      }
+    }
   }
 }
 

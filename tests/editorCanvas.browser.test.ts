@@ -16,6 +16,10 @@ import {
   screenStrokeConfig,
   screenTextConfig,
 } from '../src/editor/EditorCanvas';
+import { buildDimensionGroup } from '../src/editor/shapes/renderDimension';
+import { buildShapeGroup } from '../src/editor/shapes/renderShape';
+import { buildTextGroup } from '../src/editor/shapes/renderText';
+import { DEFAULT_STYLE } from '../src/domain/types';
 
 const HOST_SIZE = 400;
 const STROKE_MU = 4;
@@ -129,6 +133,209 @@ function inkBBoxWidth(
   if (maxX < minX) return 0;
   return maxX - minX + 1;
 }
+
+/**
+ * F7 helpers: the opaque-pixel bounding box of a colour class inside a screen-space
+ * region. `region` is in CSS px (pixelRatio 1 in these tests), so the result IS the
+ * rendered extent — not a node attribute.
+ */
+interface PixelBBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  cx: number;
+  cy: number;
+  width: number;
+  height: number;
+}
+
+function pixelBBox(
+  canvasElement: HTMLCanvasElement,
+  region: { x0: number; y0: number; x1: number; y1: number },
+  matches: (r: number, g: number, b: number) => boolean,
+): PixelBBox | null {
+  const ctx = canvasElement.getContext('2d');
+  if (!ctx) throw new Error('no 2D context on the layer canvas');
+  const x0 = Math.max(0, Math.floor(region.x0));
+  const y0 = Math.max(0, Math.floor(region.y0));
+  const x1 = Math.min(canvasElement.width, Math.ceil(region.x1));
+  const y1 = Math.min(canvasElement.height, Math.ceil(region.y1));
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (w <= 0 || h <= 0) return null;
+  const data = ctx.getImageData(x0, y0, w, h).data;
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const i = (y * w + x) * 4;
+      if (data[i + 3] > 128 && matches(data[i], data[i + 1], data[i + 2])) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX) return null;
+  return {
+    minX: x0 + minX,
+    minY: y0 + minY,
+    maxX: x0 + maxX,
+    maxY: y0 + maxY,
+    cx: x0 + (minX + maxX) / 2,
+    cy: y0 + (minY + maxY) / 2,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  };
+}
+
+/** The dimension label's `--sel` outline `#2FD4E0` (47,212,224) — present at every size. */
+const isCyan = (r: number, g: number, b: number): boolean => r < 180 && g > 150 && b > 180;
+/** The halo / dark ring the label and text-note glyphs sit inside. */
+const isDark = (r: number, g: number, b: number): boolean => r < 70 && g < 70 && b < 90;
+/** Rasterized glyph fill (white) of a text note. */
+const isWhite = (r: number, g: number, b: number): boolean => r > 200 && g > 200 && b > 200;
+
+const LABEL_ANCHORING_TOLERANCE_PX = 2;
+const ZOOMS = [1, 4, 0.5] as const;
+
+describe('§4.2 anchored labels and text boxes track zoom (F7)', () => {
+  /**
+   * F7: `offsetX/offsetY = width()/2` was computed ONCE at build time, but `fontSize`
+   * is re-applied on every zoom (`fontSizeMu / s`). The offset therefore kept the OLD
+   * half-width while the glyphs shrank/grew, drifting the label off its midpoint. At
+   * 4× a dimension label drifted 58.8 CSS px and at 0.5× a text note's glyphs overflowed
+   * its box by 162 px — while the §4.2 size-constancy assertions above stayed green.
+   */
+  it('a centred dimension label keeps its rendered midpoint at 1× / 4× / 0.5×', () => {
+    const { canvas } = setup();
+    // The label is NOT pushed by the 140-px collision rule (mid↔tip = 140, so
+    // `140 < 140` is false), so the geometric anchor is exactly midpoint(a, b).
+    const a = { x: -80, y: 40 };
+    const b = { x: 200, y: 40 };
+    const anchor = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; // (60, 40)
+    const group = buildDimensionGroup({
+      id: 'dim',
+      a,
+      b,
+      valueMm: 304.8, // 1 ft
+      style: { ...DEFAULT_STYLE },
+      ctx: { unitSystem: 'imperial', unitFormat: 'ft-in', precisionDenominator: 16 },
+      scale: 1,
+      ghostText: 'tap',
+    });
+    canvas.markupLayer.add(group);
+
+    for (const s of ZOOMS) {
+      // `regenerateInk: false` is the pinch path: the expensive ink outline is deferred,
+      // but label anchoring / box fitting must still be correct (F7).
+      canvas.zoomAt(s, { x: 0, y: 0 }, { regenerateInk: false });
+      canvas.markupLayer.draw();
+      const el = canvas.markupLayer.getNativeCanvasElement();
+      const expected = { x: anchor.x * s, y: anchor.y * s };
+      const bb = pixelBBox(
+        el,
+        { x0: expected.x - 90, y0: expected.y - 60, x1: expected.x + 90, y1: expected.y + 60 },
+        isCyan,
+      );
+      expect(bb, `no label pixels at ${s}×`).not.toBeNull();
+      const drift = Math.hypot(bb!.cx - expected.x, bb!.cy - expected.y);
+      expect(drift, `label midpoint drifted ${drift.toFixed(2)} px at ${s}×`).toBeLessThanOrEqual(
+        LABEL_ANCHORING_TOLERANCE_PX,
+      );
+    }
+  });
+
+  it('an angle readout keeps its rendered midpoint at 1× / 4× / 0.5×', () => {
+    const { canvas } = setup();
+    const geometry = {
+      kind: 'angle' as const,
+      a: { x: 140, y: 40 },
+      vertex: { x: 60, y: 40 },
+      c: { x: 60, y: 120 },
+    };
+    const group = buildShapeGroup({
+      id: 'angle',
+      kind: 'angle',
+      geometry,
+      style: { ...DEFAULT_STYLE },
+      ctx: { scale: 1 },
+    });
+    canvas.markupLayer.add(group);
+    const label = group.findOne('Text') as Konva.Text;
+    // The angle readout is the only dark-outlined node; the rays/arc are stroke-coloured.
+    const anchor = label.position();
+
+    for (const s of ZOOMS) {
+      // `regenerateInk: false` is the pinch path: the expensive ink outline is deferred,
+      // but label anchoring / box fitting must still be correct (F7).
+      canvas.zoomAt(s, { x: 0, y: 0 }, { regenerateInk: false });
+      canvas.markupLayer.draw();
+      const el = canvas.markupLayer.getNativeCanvasElement();
+      const expected = { x: anchor.x * s, y: anchor.y * s };
+      const bb = pixelBBox(
+        el,
+        { x0: expected.x - 70, y0: expected.y - 60, x1: expected.x + 70, y1: expected.y + 60 },
+        isDark,
+      );
+      expect(bb, `no angle readout pixels at ${s}×`).not.toBeNull();
+      const drift = Math.hypot(bb!.cx - expected.x, bb!.cy - expected.y);
+      expect(drift, `angle midpoint drifted ${drift.toFixed(2)} px at ${s}×`).toBeLessThanOrEqual(
+        LABEL_ANCHORING_TOLERANCE_PX,
+      );
+    }
+  });
+
+  it("a text note keeps its glyphs inside its box at 1× / 4× / 0.5×", () => {
+    const { canvas } = setup();
+    const text = 'Cracked sill along the north wall of the annex';
+    const group = buildTextGroup({
+      id: 'note',
+      at: { x: 30, y: 40 },
+      text,
+      background: 'pill',
+      style: { ...DEFAULT_STYLE, strokeWidthMu: 4 },
+      scale: 1,
+    });
+    canvas.markupLayer.add(group);
+    const box = group.find('Rect')[0] as Konva.Rect;
+    const glyphs = group.find('Text')[0] as Konva.Text;
+    const padPx = Math.max(4, DEFAULT_STYLE.fontSizeMu * 0.35); // 6.3 CSS px
+
+    for (const s of ZOOMS) {
+      // `regenerateInk: false` is the pinch path: the expensive ink outline is deferred,
+      // but label anchoring / box fitting must still be correct (F7).
+      canvas.zoomAt(s, { x: 0, y: 0 }, { regenerateInk: false });
+      canvas.markupLayer.draw();
+      const el = canvas.markupLayer.getNativeCanvasElement();
+      const gb = glyphs.getClientRect();
+      const bb = box.getClientRect();
+      const x0 = Math.min(gb.x, bb.x) - 40;
+      const y0 = Math.min(gb.y, bb.y) - 40;
+      const x1 = Math.max(gb.x + gb.width, bb.x + bb.width) + 40;
+      const y1 = Math.max(gb.y + gb.height, bb.y + bb.height) + 40;
+      const boxPx = pixelBBox(el, { x0, y0, x1, y1 }, isDark);
+      const glyphPx = pixelBBox(el, { x0, y0, x1, y1 }, isWhite);
+      expect(boxPx, `no box pixels at ${s}×`).not.toBeNull();
+      expect(glyphPx, `no glyph pixels at ${s}×`).not.toBeNull();
+
+      // Containment: every glyph pixel lies inside the box (small antialias slack).
+      expect(glyphPx!.minX).toBeGreaterThanOrEqual(boxPx!.minX - 1);
+      expect(glyphPx!.maxX).toBeLessThanOrEqual(boxPx!.maxX + 1);
+      expect(glyphPx!.minY).toBeGreaterThanOrEqual(boxPx!.minY - 1);
+      expect(glyphPx!.maxY).toBeLessThanOrEqual(boxPx!.maxY + 1);
+
+      // The box tracks the glyphs rather than being a stale build-time size on one side
+      // or an always-huge box on the other: it is glyph width + the 2× pad.
+      expect(boxPx!.width - glyphPx!.width).toBeLessThanOrEqual(padPx * 2 + 10);
+      expect(boxPx!.height).toBeLessThanOrEqual(glyphPx!.height + padPx * 2 + 10);
+    }
+  });
+});
 
 describe('§4.2 screen scaling is constant across zoom', () => {
   it('stroke and ink stay 4 CSS px, glyph fontSizeMu stays 18 CSS px, geometry scales', () => {

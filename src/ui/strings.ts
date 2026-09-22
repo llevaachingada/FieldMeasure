@@ -173,6 +173,9 @@ export const STRINGS = {
     actionDeleteDimension: 'Delete dimension',
     actionSetValue: 'Set dimension value',
     actionAdjustDimension: 'Adjust dimension',
+    // Slice 1.8: a style edit on a selection is one history step, so the undo toast needs
+    // a name for it. Same provenance as its siblings above (beyond the gaps appendix).
+    actionChangeStyle: 'Change style',
     // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
     actionAddShape: 'Add shape',
     actionAddInk: 'Add ink',
@@ -188,6 +191,10 @@ export const STRINGS = {
     makeSeparateProject: 'Make this a separate project',
     noSheetsEmpty: 'No sheets yet — take a photo to start.',
     readOnlyChip: "Read-only — changes can't be saved",
+    // APPROVED inventory (appendix-strings.md `project.selectionCount`) — slice 1.8:
+    // the Style Chip / panel header when objects are selected. The appendix `String`
+    // column shows the rendered `3 selected`; `{count}` is its declared interpolation.
+    selectionCount: '{count} selected',
     // ⚠ PROPOSED (C14) — not approved copy: the literal word inside the
     // `Sheet NN` default name (appendix `project.sheetNameExample` = "Sheet 04",
     // pattern `Sheet NN`, zero-padded 2, never renumbered).
@@ -404,6 +411,88 @@ export const STRINGS = {
     // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
     straightLineLock: 'Straight-line lock',
     chiselWidth: 'Chisel width',
+
+    // APPROVED inventory (appendix-strings.md `## style`) — slice 1.8: the style panel
+    // and the deep style editor. A `{token}` value is the appendix row's declared
+    // template (its `String` column shows the rendered example — `3 pt`, `Applied to 3
+    // objects` — and its `Interpolation` column the token), so the copy gate compiles
+    // the token to an anchored wildcard and compares only the literal wording.
+    widthReadout: '{widthPt} pt',
+    transparencyReadout: '{percent}%',
+    mixedValue: 'Mixed',
+    moreStyles: 'More styles…',
+    saveAsPreset: 'Save as preset…',
+    resetDefaults: 'Reset to defaults',
+    appliedToSelection: 'Applied to {objectCount} objects',
+    alsoSetDefault: 'Also set as default for this tool',
+    selectionHeader: '{objectCount} objects selected',
+    deselect: 'Deselect',
+    applyToSelection: 'Apply to selection',
+    applyToScope: 'Apply to: {typeCounts}',
+    presetsError: "Presets couldn't be loaded — changes will apply to this session only.",
+
+    // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §6): the §7.2
+    // diagram's backticked placeholder labels (`COLOR`, `WIDTH`, …). Title case matches
+    // the existing `style.*` keys. `recentHeader` is the §7.3 Recents row's label.
+    sectionColor: 'Color',
+    sectionWidth: 'Width',
+    sectionFill: 'Fill',
+    sectionTransparency: 'Transparency',
+    sectionLineStyle: 'Line style',
+    sectionArrowheads: 'Arrowheads',
+    presetsMenu: 'Presets',
+    recentHeader: 'Recent',
+    precision: 'Precision',
+    unitFormat: 'Unit format',
+    bold: 'Bold',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix): panel and
+    // deep-editor chrome that neither appendix keys. A plain sub-comment does NOT clear
+    // this marker (tests/strings.test.ts `parseSourceKeys`); only a blank line or an
+    // `APPROVED inventory` block does.
+    panelLabel: 'Style',
+    fontSize: 'Size',
+    paletteLabel: 'Palette',
+    widthLadder: 'Width ladder',
+    hexLabel: 'Hex',
+    hueLabel: 'Hue',
+    saturationLabel: 'Saturation',
+    lightnessLabel: 'Lightness',
+    // Option values verbatim from the specs' own lists (P §11.5 / U §7.2).
+    lineStyleSolid: 'Solid',
+    lineStyleDashed: 'Dashed',
+    lineStyleDotted: 'Dotted',
+    arrowNone: 'None',
+    arrowStart: 'Start',
+    arrowEnd: 'End',
+    arrowBoth: 'Both',
+    noFill: 'No fill',
+    customColor: 'Custom…',
+    nudgeContrast: 'Nudge for contrast',
+    presetNameLabel: 'Preset name',
+    presetsEmpty: 'No presets yet',
+    // The mixed (indeterminate) readout glyph — UI §7.4: "the width readout shows «—»".
+    mixedDash: '—',
+    // The disabled control's SECOND accessible clause: §19.6 requires the name to say why.
+    disabledForTool: 'Not available for this tool',
+    disabledForSelection: 'Not available for this selection',
+    // The project-level precision / unit-format cluster is dimension-only (U §7.2).
+    precisionDimensionOnly: 'Available with the Dimension tool',
+    // The Style Chip SVG's accessible description (the pattern is `a11y.dimensionTool`).
+    chipStyleLabel: '{color} · {widthPt} pt · {lineStyle} · arrowheads {arrowheads}',
+    // The 12 markup-palette names from the "Site Slate" visual direction (P §11.7).
+    swatchHiVisOrange: 'Hi-Vis Orange',
+    swatchSafetyYellow: 'Safety Yellow',
+    swatchSignalRed: 'Signal Red',
+    swatchMagenta: 'Magenta',
+    swatchCyan: 'Cyan',
+    swatchSky: 'Sky',
+    swatchGreen: 'Green',
+    swatchLime: 'Lime',
+    swatchWhite: 'White',
+    swatchBlack: 'Black',
+    swatchConcrete: 'Concrete',
+    swatchDeepNavy: 'Deep Navy',
   },
 
   layers: {

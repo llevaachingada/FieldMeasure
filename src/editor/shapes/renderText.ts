@@ -61,7 +61,10 @@ export function buildTextGroup(input: TextRenderInput): Konva.Group {
   group.setAttr('kind', 'text');
 
   const fontSize = screenFontSize(input.style.fontSizeMu, input.scale);
-  const pad = Math.max(4, input.style.fontSizeMu * 0.35) / input.scale;
+  // §4.2: the pad is a screen-px measure, so its image-space value is `padPx / scale`.
+  // Kept in CSS px on the group so `applyScreenRules` can re-fit the box on every zoom (F7).
+  const padPx = Math.max(4, input.style.fontSizeMu * 0.35);
+  const pad = padPx / input.scale;
 
   // Choose the treatment. 'auto' needs the caller's sample; the default without one is
   // the dark pill (readable on the mat and most field photos).
@@ -96,6 +99,11 @@ export function buildTextGroup(input: TextRenderInput): Konva.Group {
       listening: false,
     });
     group.add(box);
+    // F7: the box is sized once here, then re-fitted in `applyScreenRules` whenever the
+    // counter-scaled glyphs change size (otherwise a note's glyphs overflow its box).
+    group.setAttr('textBoxFit', { box, glyphs });
+    group.setAttr('textPill', input.background === 'pill');
+    group.setAttr('textPadPx', padPx);
   }
   group.add(glyphs);
   group.position(input.at);

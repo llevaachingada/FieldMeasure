@@ -17,6 +17,8 @@ import { createElement } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import Konva from 'konva';
 import SheetEditor from '../src/ui/SheetEditor';
+import EditorLayout from '../src/ui/EditorLayout';
+import { editorSession } from '../src/editor/session';
 import { useEditorStore, createInitialEditorState } from '../src/state/editorStore';
 import { useAppStore, createInitialAppState } from '../src/state/appStore';
 import { STRINGS } from '../src/ui/strings';
@@ -99,6 +101,34 @@ function markupGroup(stage: Konva.Stage): Konva.Group {
   // reference goes stale (that is exactly what the D63 test must not fall for).
   // Layer order: photo(0), inset(1), markup(2), overlay(3), drag(4) — §8.1.
   return stage.getLayers()[2].getChildren()[0] as Konva.Group;
+}
+
+/**
+ * Mount the real shell (`EditorLayout`), which owns the `Esc` ladder. The F3 finding
+ * lives in the SEAM between the ladder (shell) and the placement machine (canvas), so
+ * the guard has to mount both — mounting `SheetEditor` alone cannot reach it.
+ */
+async function mountLayout() {
+  useEditorStore.getState().setActiveTool('dimension');
+  const view = render(
+    createElement(EditorLayout, { projectId: 'p:f', folderName: 'f', onExit: () => {} }),
+  );
+  await screen.findByText(STRINGS.project.noSheetsEmpty);
+  const host = view.container.querySelector('.editor-canvas') as HTMLDivElement;
+  host.style.width = '800px';
+  host.style.height = '600px';
+  const rect = host.getBoundingClientRect();
+  const stage = Konva.stages[Konva.stages.length - 1];
+  const at = { x: rect.left + 300, y: rect.top + 200 };
+  return { view, host, stage, at };
+}
+
+/** Is the live provisional overlay present on the overlay layer (photo/inset/markup/overlay/drag)? */
+function hasProvisional(stage: Konva.Stage): boolean {
+  return stage
+    .getLayers()[3]
+    .getChildren()
+    .some((node) => (node as Konva.Node).getAttr('annotationId') === '__provisional__');
 }
 
 function linePoints(group: Konva.Group): number[] {
@@ -225,5 +255,96 @@ describe('D63 — a second finger restores the pre-drag object position', () => 
     pointer('pointerup', host, mid.x + 120, mid.y, 1);
     // No commit at the displaced position: still exactly the original geometry.
     expect(linePoints(markupGroup(stage))[0]).toBeCloseTo(before[0], 3);
+  });
+});
+
+describe('F3 — Escape cancels a pending dimension through the shell ladder', () => {
+  it('clears the provisional and the next tap starts a fresh placement', async () => {
+    const { host, stage, at } = await mountLayout();
+
+    // First tap authors A only — an uncommitted pending placement.
+    pointer('pointerdown', host, at.x, at.y);
+    pointer('pointerup', host, at.x, at.y);
+    await sleep(10);
+    expect(host.dataset.placementPhase).toBe('anchorA');
+    expect(useEditorStore.getState().pendingOp).toBe('dimension');
+    expect(hasProvisional(stage)).toBe(true);
+
+    // Rung 1 must CANCEL the pending dimension, not merely clear the store flag.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(10);
+    expect(useEditorStore.getState().pendingOp).toBe('none');
+    expect(host.dataset.placementPhase).toBe('idle');
+    expect(hasProvisional(stage)).toBe(false);
+
+    // The next tap begins a NEW placement (A) — it must not commit from the stale A.
+    pointer('pointerdown', host, at.x + 200, at.y);
+    pointer('pointerup', host, at.x + 200, at.y);
+    await sleep(10);
+    expect(host.dataset.placementPhase).toBe('anchorA');
+    expect(stage.getLayers()[2].getChildren()).toHaveLength(0); // nothing committed
+  });
+});
+
+describe('F5 — a tool switch inside the settle window cancels the dimension settle', () => {
+  it('does not open the dimension keypad over the newly selected placement tool', async () => {
+    // The REAL tool id drives the switch (the coarse `activeTool` prop stays 'place').
+    useEditorStore.getState().setActiveTool('dimension');
+    const { host, stage, at } = await mountEditor('place');
+    tapTap(host, at, { x: at.x + 200, y: at.y });
+    await sleep(10); // committed geometry, 450 ms settle running
+    expect(host.dataset.placementPhase).toBe('anchorB');
+    expect(useEditorStore.getState().keypadOpen).toBe(false);
+
+    // Switch to the rectangle tool INSIDE the settle window. dimension → rect keeps the
+    // coarse prop at 'place', so the OLD wiring never reached `dimRef.onToolChange()`.
+    useEditorStore.getState().setActiveTool('rect');
+    await sleep(600);
+
+    expect(useEditorStore.getState().keypadOpen).toBe(false);
+    expect(screen.queryByTestId('keypad-sheet')).toBeNull();
+    // onToolChange keeps the COMMITTED B (the Valueless ghost) — the documented rule.
+    expect(stage.getLayers()[2].getChildren()).toHaveLength(1);
+  });
+});
+
+describe('F6 — a sub-slop object drag records exactly one history step', () => {
+  it('undo restores the original position and the object still exists', async () => {
+    const { view, host, stage, at } = await mountEditor('place');
+    tapTap(host, at, { x: at.x + 200, y: at.y });
+    // Cancel the keypad so the placement finishes (geometry kept, phase idle).
+    await sleep(520);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(10);
+
+    // Select tool so a one-finger drag is object-first.
+    view.rerender(
+      createElement(SheetEditor, {
+        projectId: 'p:f',
+        folderName: 'f',
+        onExit: () => {},
+        activeTool: 'select',
+      }),
+    );
+    await sleep(10);
+
+    const before = linePoints(markupGroup(stage));
+    expect(before).toHaveLength(4);
+    const mid = { x: at.x + 100, y: at.y }; // segment midpoint
+
+    // Drag BELOW the 8 px tap slop: 3 px. The move still mutates the geometry, but the
+    // old path only recorded a history step once `drag.moved` (≥ slop) became true.
+    pointer('pointerdown', host, mid.x, mid.y, 1);
+    pointer('pointermove', host, mid.x + 3, mid.y, 1);
+    expect(linePoints(markupGroup(stage))[0]).toBeCloseTo(before[0] + 3, 3);
+    pointer('pointerup', host, mid.x + 3, mid.y, 1);
+    await sleep(10);
+
+    const undone = editorSession()?.undo() ?? null;
+    expect(undone).not.toBeNull();
+    // Undo restored the pre-drag position…
+    expect(linePoints(markupGroup(stage))[0]).toBeCloseTo(before[0], 3);
+    // …and the dimension still EXISTS (undo did not delete it as "Add dimension").
+    expect(stage.getLayers()[2].getChildren()).toHaveLength(1);
   });
 });
