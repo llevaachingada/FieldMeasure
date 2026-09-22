@@ -937,6 +937,7 @@ document and was corrected (both the build-order line and the gate line), not th
 magnification, source} is free, and the same defect has now been caught **three** times (F8/C4, round 5,
 and here) — so the slice-1.5 lane must state all three numbers **with their arithmetic**, and the gate
 must be checked for **both** loupes.
+
 ### D66 — process hardening from the session-9 reflect pass (and one correction to it)
 
 **C4 — fired in slice 1.3 but NOT MEASURABLE there (recorded, not skipped).** `CHECKPOINTS.md` C4 asks
@@ -1572,6 +1573,7 @@ was dead used synthetic events for a gesture whose semantics depend on **implici
 When a test drives an input, ask what real input does that the synthetic one does not — and where a
 gate depends on browser input semantics, the browser project or Playwright/CDP is the only honest
 place to prove it.
+
 ### D79 — D77 remediation: F3, F5, F6, F7 and F9 (the remaining five findings)
 
 Three lanes on disjoint file sets, each finding **reproduced by execution before the fix** and each
@@ -1910,6 +1912,7 @@ the renderer death reproduced in session 13 was with an **OPFS** handle written 
 > The check in `docs/HARDWARE-TEST-CHECKLIST.md` therefore stays, **narrowed** to *"does a user-picked
 > folder survive a reload?"*, and that row now records this positive data point so the next session does not
 > re-derive it.
+
 ### D87 — Home «New project»: app-created, auto-named folder (owner decision; the control had been dead since 1.4)
 
 The owner found this by **using the running app**: `«New project»` — a real, enabled button with approved copy
@@ -2095,6 +2098,7 @@ intersection still uses the `highlight` row, and `tsc`, node, jsdom and browser 
 by re-introducing exactly that divergence). `StylePanel` imports one pure data constant — no hook, no
 store read, no runtime cycle — and its header records the narrowing. If the seam must stay byte-pure, a
 third module both files import is a five-minute change.
+
 ### D95
 
 **D84's root cause is ISOLATED by execution, and the D90 experiment has a definitive answer: the
@@ -3189,6 +3193,30 @@ decides** — with the order inverted, the harness measured a trigger the app ne
   not become ready within 60000ms" alongside Vite's "unexpectedly reloaded a test" warning — the D84 shape
   (mid-run dep re-optimization with the lazy-loaded editor). Flaky-until-explained, recorded in CONTINUITY.
 
+### D127 — the rail ignored the handedness setting (found by LOOKING at the clickthru's screenshots)
+
+**How it survived every gate.** `EditorLayout` sets `data-rail={railSideFor(handedness)}` — and the default is
+**`right`** (a right-handed user) — while the rotation gate asserts that `data-rail` **does not move** across
+rotation. Every assertion passed. What the **screenshots** showed is that the rail renders as the **left-most**
+column regardless, with the style panel next to it: `styles.css` had
+`.editor-layout[data-rail='left'] .tool-rail { order: 0 }` and `…[data-rail='right'] .style-dock { order: 0 }`,
+but **`.tool-rail` carries no `order` of its own** (so it defaults to 0) — under `data-rail='right'` both the
+rail and the dock therefore sat at `0` and the flex container fell back to **source order**. The rail is first
+in the DOM, so it stayed left-most: the setting did nothing on the target device.
+
+**This is the class the harness exists for.** Its first run flagged this as an *observation only* because the
+build under test contained a concurrent lane's uncommitted `styles.css`; the second run — on the **reconciled**
+tree — reproduced it, so it is confirmed rather than contamination, which is exactly the follow-up its §10 table
+asked for.
+
+**Fixed:** `.editor-layout[data-rail='right'] .tool-rail { order: 2 }` (dock at `0`), so the panel sits on the
+opposite edge as §5.3 requires. **Pinned in real layout** — `tests/editorChromeFit.browser.test.ts` now asserts,
+for each handedness, that the attribute agrees with where the rail actually is (`rail.left > center.left` for
+`right`, `<` for `left`). The hardware row that had this green **on the strength of an attribute** is corrected
+to say what is actually machine-proven.
+
+---
+
 ### D128 — a pen barrel press must never draw (the spec's own degrade, applied)
 
 **Found by the clickthru harness on the built app** (step 17, real CDP pen input): *"pen barrel press
@@ -3291,125 +3319,33 @@ keyboard path the spec wants first.
 
 **Process note:** this round ran with **no specialist lanes** — the provider account was out of credit
 (`Insufficient Balance` on two dispatches), so the audit, the fix and the tests were done in-session. The
-browser-project and clickthru runs stayed with the orchestrator as the lane protocol requires. — the rail ignored the handedness setting (found by LOOKING at the clickthru's screenshots)
+browser-project and clickthru runs stayed with the orchestrator as the lane protocol requires.
 
-**How it survived every gate.** `EditorLayout` sets `data-rail={railSideFor(handedness)}` — and the default is
-**`right`** (a right-handed user) — while the rotation gate asserts that `data-rail` **does not move** across
-rotation. Every assertion passed. What the **screenshots** showed is that the rail renders as the **left-most**
-column regardless, with the style panel next to it: `styles.css` had
-`.editor-layout[data-rail='left'] .tool-rail { order: 0 }` and `…[data-rail='right'] .style-dock { order: 0 }`,
-but **`.tool-rail` carries no `order` of its own** (so it defaults to 0) — under `data-rail='right'` both the
-rail and the dock therefore sat at `0` and the flex container fell back to **source order**. The rail is first
-in the DOM, so it stayed left-most: the setting did nothing on the target device.
+### D131 — docs hygiene: two sessions wrote the same decision numbers, and an insert ate a heading
 
-**This is the class the harness exists for.** Its first run flagged this as an *observation only* because the
-build under test contained a concurrent lane's uncommitted `styles.css`; the second run — on the **reconciled**
-tree — reproduced it, so it is confirmed rather than contamination, which is exactly the follow-up its §10 table
-asked for.
+Found while preparing a handoff, and worth its own entry because **two of this project's own rules were broken in
+the doc layer while every machine gate stayed green.**
 
-**Fixed:** `.editor-layout[data-rail='right'] .tool-rail { order: 2 }` (dock at `0`), so the panel sits on the
-opposite edge as §5.3 requires. **Pinned in real layout** — `tests/editorChromeFit.browser.test.ts` now asserts,
-for each handedness, that the attribute agrees with where the rail actually is (`rail.left > center.left` for
-`right`, `<` for `left`). The hardware row that had this green **on the strength of an attribute** is corrected
-to say what is actually machine-proven.
+1. **D123–D125 were written TWICE.** Two concurrent sessions wrote a harness narrative under the same three
+   numbers — the driver ("the built-in desktop browser cannot run it; Playwright is the driver of record"), the
+   D81 correction ("the renderer death is on the IndexedDB **read**, same page load, headed and headless"), and
+   the first product finding ("`thumb.jpg` is never written") — each wrote a set. **Repaired by merging**, not
+   renumbering: the earlier section of each pair was kept and the facts that lived only in the later copy were
+   folded into it (the measured `put ✅ / get ❌` ladder, `src/App.tsx:354` as the trigger, the `idb-keyval` v6
+   contract, "the third escape in the same unmount seam", the midpoint-is-a-handle observation). Merging keeps
+   every one of the ~30 existing `D123`/`D124`/`D125` references across four documents valid; renumbering would
+   have silently falsified them.
 
----
+2. **`D127`'s heading was consumed by an insert.** Adding `D128` anchored on the literal text `### D127`, so the
+   replace **deleted that heading** and left D127's prose dangling under D128 — and later after D130. **Repaired**:
+   the heading is restored and D127 is back in numeric order.
 
-### D123 — the clickthru driver: the built-in desktop browser cannot run it; Playwright does
+3. **The CONTINUITY header and snapshot table had drifted** to a session-22 gate and to a "Next action" that still
+   said *"Fix D125's `thumb.jpg` defect"* — fixed two commits earlier. Both refreshed.
 
-**Measured against the built app on `http://localhost:4173/`.** The desktop browser tool **loads and
-renders the app correctly** — `document.styleSheets.length === 1`, body font `Archivo`, DPR 2, viewport
-1000×700, `navigator.storage.getDirectory()` available — and `evaluate` / `snapshot` / `wait` / `console`
-all work (the first-run radios are visible to the accessibility tree as `@e1`/`@e2`). But:
+**Verified after the repair:** every decision heading is unique and ascending (98 sections, D1–D131).
 
-- `browser.screenshot` → `Screenshot needs a visible tab. Call browser.tabs.focus and keep its desktop
-  window visible.` — reproduced after `tabs.focus`.
-- `browser.click` → `[browser.operation_failed] UnknownVizError`.
-
-With no visible desktop window it therefore has **no vision and no input**. An independent source review
-(separate lane) confirms the rest is **structural, not incidental**: the tool is an Electron
-`WebContentsView` (not your Chrome — no `channel`, no launch flags, a fresh non-persistent partition), it
-exposes **ref-only** clicking (so the imperative Konva canvas is unreachable even when visible), there is
-no `addInitScript`, no CDP access and no touch/device emulation, `browser.dialog` handles **JavaScript**
-dialogs only (not the native folder picker), and **all permissions are hard-denied**
-(`setPermissionRequestHandler(cb(false))`) — so `getUserMedia` can never succeed and `--use-fake-*` has no
-path. The shutter/camera step, the heart of this app, is impossible there **by construction**.
-
-**Decision:** the clickthru's **driver of record is Playwright** (`@playwright/test` 1.63.0, already
-pinned — no new dependency, so spec §2.2's closed runtime list is intact). The agent's vision comes from
-per-step PNGs read back with the image-capable file reader, plus a self-contained contact sheet. The
-built-in browser remains useful as a **DOM-only live inspector** (`evaluate`/`snapshot`/`console`/
-`network`) when a visible window is available — never as the driver for canvas, camera or picker work.
-
-### D124 — D81 corrected: the renderer death is on the IndexedDB **read**, not the write, and not "the next load"
-
-D81 recorded: *"a page that **loads** with an OPFS directory handle stored under `fm:projects-root` kills
-the renderer … the write succeeds and the page survives; the *next* load dies."*
-
-**Measured ladder** — reproduced in **both** `chromium_headless_shell` and headed `chrome.exe`
-(Playwright's Chromium 1243), one operation per evaluate call:
-
-```
-navigator.storage.getDirectory()       ✅
-structuredClone(handle)                ✅
-IDB put(handle, 'fm:projects-root')    ✅  transaction completes, page stays alive
-IDB get('fm:projects-root')            ❌  RENDERER DIES
-```
-
-The failing operation is **deserialising the OPFS handle on read**. It fires on the **same page load**,
-because Home mounts and re-reads its root the instant first-run completes (`src/App.tsx:354`) — which is
-exactly why a first-run walk dies immediately rather than at the next reload. It reproduces headed *and*
-headless, so the variable is the **Chromium build**, not headedness — consistent with D86, where a real
-(auto-granted) handle in a different Chromium reloaded Home normally. D86's narrowed hardware question
-(*"does a user-picked folder survive a reload?"*) is **unchanged and still owed**; this entry only rules
-out the OPFS case in Playwright's Chromium.
-
-**Harness fix (not a product change).** An `addInitScript` interposes on `IDBObjectStore.prototype`: for
-`fm:projects-root`, `put` stores a **sentinel string** and `get` returns a **live** OPFS root
-(`navigator.storage.getDirectory()`), so a handle never round-trips through IndexedDB. The shim matches
-`idb-keyval` v6's real contract — `request.onsuccess = () => resolve(request.result)`, read from
-`node_modules/idb-keyval/dist/index.js` — so a synthetic request needs only settable
-`onsuccess`/`result`. The detail that cost one run: `get` must read the sentinel under the **same key**
-(`fm:projects-root`), not under the sentinel value.
-
-**OPFS verified as a capable backing store (executed, not assumed):** `queryPermission` /
-`requestPermission` → `granted`; `getDirectoryHandle({create:true})`, `getFileHandle({create:true})`,
-`createWritable()`, **`FileSystemFileHandle.move()`** all succeed; an absent name throws
-`NotFoundError`. So every write the harness observes is a real tmp → close → `move()`.
-
-### D125 — the clickthru's first findings: `thumb.jpg` is never written, and the test that cannot see it
-
-Two runs (20/20 steps, headed Chrome 153, `surfaceLandscape`) produced three observations. **Recorded, not
-fixed** — `src/**` was out of the harness lane's scope, and the capture seam was being edited by another
-lane concurrently.
-
-1. **`thumb.jpg` is never written for a captured sheet.** Measured at **every** step: the sheet folder
-   holds only `photo.jpg` (61,549 B, constant) and `markup.json` (862 → 2,855 B as objects were added).
-   `thumb.jpg` is **absent** after capture, after the dimension was committed *and* persisted, after the
-   reload, and after export — and the grid card's `<img.sheet-card-image>` count is 0 each time, so every
-   card can only show its placeholder.
-   **Mechanism (source):** `CameraFlow` arms `createThumbnailScheduler(...).schedule()` with a **3 s**
-   debounce; `onCaptured` then closes the overlay, so `CameraFlow` **unmounts**, and its cleanup calls
-   `scheduler.cancel()` → `clearTimer(); latest = null`. The debounce can never elapse.
-   **Why no test saw it:** `tests/cameraFlow.test.tsx` **mocks the scheduler** and calls `options.write()`
-   by hand, so it asserts that `schedule()` was *called* and can never observe the file landing. That is
-   the review brief's first question — *a test that proves nothing* — in its purest form, and it is
-   contradicted by design intent: `docs/HARDWARE-TEST-CHECKLIST.md` slice 1.4 expects "thumbnail appears".
-   This is the capture path's **third** escape in a row (the grant → D122, the hang → D121, now the
-   thumbnail), all in the same unmount/lifecycle seam.
-2. **The pen barrel button is not distinguished from the tip.** With the freehand tool active, a CDP pen
-   press with `buttons: 2` **created an object** (2 → 3), exactly like a tip stroke. Evidence for **H13**;
-   the documented degrade path (radial absent rather than broken) still holds, but the button is not
-   currently readable as a distinct signal.
-3. **A dimension's midpoint is a handle, not the body.** A one-finger drag started at the exact midpoint
-   did **not** move the object (the harness's first step-7 FAIL); started 25 % along the body it moved
-   `(520.93, 223.26)` image px. A real interaction detail jsdom cannot see; the harness now starts object
-   drags at 25 %.
-
-**Also observed, deliberately NOT recorded as a defect:** the rotation gate's machine half is green
-(`data-rail` fixed; `data-dock` `side → bottom → side`; tool, selection and zoom survive), but the tool
-rail renders as the **left-most** column while `data-rail="right"`, and `src/styles.css` carries
-`[data-rail='right'] .style-dock { order: 0 }` with **no** matching `.tool-rail` rule. The build under test
-included a **concurrent lane's uncommitted edits** to `src/styles.css` and `src/ui/EditorLayout.tsx`, so
-this must be **confirmed on a clean tree** before anyone calls it a product defect. Recorded as an
-observation with that caveat, per D66 (test a finding against the revision it was made against).
+**The lesson, and it is the D100 lesson again:** the decision log is a **shared mutable document with no
+uniqueness check**, so two writers can mint the same number, and an insert anchored on a heading can delete it.
+What would catch it mechanically: **a test asserting the decision numbers are unique and ascending** — the doc
+layer has no gate today, which is why this survived four review rounds and a green suite. Owed.
