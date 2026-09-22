@@ -49,6 +49,7 @@ vi.mock('@/fs/projectStore', () => ({
   })),
   isPhotoDamaged: vi.fn(async () => false),
   resolveSheetDir: vi.fn(async () => ({ kind: 'directory', name: 'sheet' })),
+  resolveAssetsDir: vi.fn(async () => ({ kind: 'directory', name: 'assets' })),
   writeAtomic: vi.fn(async () => undefined),
   writeJsonAtomic: vi.fn(async () => undefined),
   readSheetMarkup: vi.fn(async () => ({ schemaVersion: 1, sheetId: 's', objects: [] })),

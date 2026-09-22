@@ -209,6 +209,44 @@ export function isDraggable(row: LayerRow): boolean {
   return (row.indent ?? 0) === 0 && row.group !== 'photo';
 }
 
+/**
+ * The row key an element sits inside. `closest` walks up from whatever the hit test
+ * returned (the `<li>` itself, or a button/icon child) to the row's stable
+ * `data-layer-row` attribute.
+ */
+export function rowKeyFromElement(element: Element | null): string | null {
+  if (element === null || typeof element.closest !== 'function') return null;
+  return element.closest('[data-layer-row]')?.getAttribute('data-layer-row') ?? null;
+}
+
+/**
+ * The drop target at a viewport coordinate.
+ *
+ * Chromium **implicitly captures** the pointer to the grip (the `pointerdown` target) on
+ * touch, so every later event targets the grip and the rows' `pointerover` NEVER fires —
+ * leaving `dropKey` null and the drop a silent no-op (D77/F1). A captured `pointermove`
+ * still carries the finger's true `clientX`/`clientY`, so the target is resolved
+ * geometrically instead. `elementFromPoint` is injected so this is pure and unit-testable
+ * without layout.
+ */
+export function dropKeyAtPoint(
+  clientX: number,
+  clientY: number,
+  elementFromPoint: (x: number, y: number) => Element | null,
+): string | null {
+  return rowKeyFromElement(elementFromPoint(clientX, clientY));
+}
+
+/** `document.elementFromPoint`, guarded for environments without layout (jsdom, D40). */
+function elementFromPoint(x: number, y: number): Element | null {
+  if (typeof document.elementFromPoint !== 'function') return null;
+  try {
+    return document.elementFromPoint(x, y);
+  } catch {
+    return null;
+  }
+}
+
 export type Section =
   | { kind: 'markup'; blocks: LayerBlock[] }
   | { kind: 'band'; group: LayerGroup; rows: LayerRow[] };
@@ -257,7 +295,6 @@ export default function LayersPanel({
   const timerRef = useRef<number | null>(null);
   const pressRef = useRef<{ x: number; y: number } | null>(null);
   const suppressClickRef = useRef(false);
-  const dragKeyRef = useRef<string | null>(null);
   const dropKeyRef = useRef<string | null>(null);
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
@@ -417,7 +454,6 @@ export default function LayersPanel({
     if (dragKey === null) return;
     const finish = (commit: boolean): void => {
       const res = commit ? resolveDrop(rows, dragKey, dropKeyRef.current) : { ok: false as const, reason: 'missing' as const };
-      dragKeyRef.current = null;
       dropKeyRef.current = null;
       suppressClickRef.current = false;
       setDragKey(null);
@@ -433,13 +469,22 @@ export default function LayersPanel({
     const onUp = (): void => finish(true);
     // A cancelled pointer (a browser scroll takeover) must not commit a reorder.
     const onCancel = (): void => finish(false);
+    // Chromium implicitly captures the pointer to the grip on touch, so `pointerover` on
+    // the rows never fires (D77/F1). The captured move still carries true coordinates, so
+    // the drop target is resolved from them.
+    const onMove = (event: PointerEvent): void => {
+      const key = dropKeyAtPoint(event.clientX, event.clientY, elementFromPoint);
+      if (key !== null) setDrop(key);
+    };
     document.addEventListener('pointerup', onUp);
     document.addEventListener('pointercancel', onCancel);
+    document.addEventListener('pointermove', onMove);
     return () => {
       document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointercancel', onCancel);
+      document.removeEventListener('pointermove', onMove);
     };
-  }, [dragKey, onReorder, rows]);
+  }, [dragKey, onReorder, rows, setDrop]);
 
   // ---- group collapse ------------------------------------------------------
   const toggleGroup = useCallback((id: string): void => {
@@ -577,9 +622,6 @@ export default function LayersPanel({
         data-visible={row.visible ? 'true' : 'false'}
         data-dragging={dragKey === row.key ? 'true' : 'false'}
         data-drop-target={dropKey === row.key ? 'true' : 'false'}
-        onPointerOver={() => {
-          if (dragKeyRef.current !== null) setDrop(row.key);
-        }}
       >
         {draggable ? (
           // Decorative pointer-only grip (no appendix string exists for a labelled handle).
@@ -593,7 +635,6 @@ export default function LayersPanel({
               event.preventDefault();
               armLongPress(() => {
                 setMenuFor(null);
-                dragKeyRef.current = row.key;
                 dropKeyRef.current = null;
                 setDragKey(row.key);
                 setDropKey(null);

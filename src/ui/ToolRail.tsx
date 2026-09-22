@@ -97,7 +97,7 @@ export const TOOL_DEFS: readonly ToolDef[] = [
   { id: 'freehand', group: 4, label: STRINGS.tool.freehand, Icon: ToolFreehandIcon, implemented: true },
   { id: 'highlight', group: 4, label: STRINGS.tool.highlighter, Icon: ToolHighlighterIcon, implemented: true },
   { id: 'text', group: 4, label: STRINGS.tool.textNote, Icon: ToolTextIcon, implemented: true },
-  { id: 'inset', group: 5, label: STRINGS.tool.imageInset, Icon: ToolInsetIcon, implemented: false },
+  { id: 'inset', group: 5, label: STRINGS.tool.imageInset, Icon: ToolInsetIcon, implemented: true },
   { id: 'erase', group: 6, label: STRINGS.tool.erase, Icon: ToolEraseIcon, implemented: true },
 ];
 
@@ -137,6 +137,12 @@ export interface ToolRailProps {
   /** Slice 1.5 supplies these; absent = the button renders disabled (no history yet). */
   onUndo?: () => void;
   onRedo?: () => void;
+  /**
+   * Slice 1.7: tools temporarily unavailable in this context (the Inset tool inside a
+   * Focus session — nesting is one level). Rendered `disabled` with a native tooltip.
+   */
+  disabledTools?: ReadonlySet<ToolId>;
+  disabledReason?: Partial<Record<ToolId, string>>;
 }
 
 const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
@@ -144,7 +150,15 @@ const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', '
 /** Visual top→bottom = group 6 → group 1 (UI §6.2: bottom-anchored, reading upward). */
 const RAIL_GROUP_ORDER: readonly ToolDef['group'][] = [6, 5, 4, 3, 2, 1];
 
-export default function ToolRail({ activeTool, onSelectTool, side, onUndo, onRedo }: ToolRailProps) {
+export default function ToolRail({
+  activeTool,
+  onSelectTool,
+  side,
+  onUndo,
+  onRedo,
+  disabledTools,
+  disabledReason,
+}: ToolRailProps) {
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   // Roving tabindex: one tab stop for the whole toolbar; arrows move focus.
   const [focusIndex, setFocusIndex] = useState<number>(() => {
@@ -201,6 +215,8 @@ export default function ToolRail({ activeTool, onSelectTool, side, onUndo, onRed
                 {tools.map((def) => {
                   const isActive = def.id === activeTool;
                   const defIndex = TOOL_DEFS.indexOf(def);
+                  const unavailable = disabledTools?.has(def.id) ?? false;
+                  const reason = unavailable ? disabledReason?.[def.id] : undefined;
                   return (
                     <button
                       key={def.id}
@@ -210,11 +226,13 @@ export default function ToolRail({ activeTool, onSelectTool, side, onUndo, onRed
                       className={isActive ? 'tool-button is-active' : 'tool-button'}
                       aria-label={def.label}
                       aria-pressed={isActive}
+                      disabled={!def.implemented || unavailable}
+                      title={reason}
                       tabIndex={defIndex === focusIndex ? 0 : -1}
                       onClick={() => {
                         // The unimplemented no-op lives HERE as well as in the layout,
                         // so a bare rail cannot change the tool either.
-                        if (!def.implemented) return;
+                        if (!def.implemented || unavailable) return;
                         onSelectTool(def.id);
                       }}
                     >

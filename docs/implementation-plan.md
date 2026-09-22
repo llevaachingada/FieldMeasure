@@ -1190,7 +1190,7 @@ correctly (children glued to photo content).
 **Gate (all must pass)**
 - [ ] **Child round-trip test (the B3 acceptance):** inset → child dimension inside → scale ×2 + move crop window + rotate 30° → save → reload → child lands at the same **visual** point on the photo content. [Surface]
 - [ ] Crop-window move: children stay glued to the photo content (they do not slide with the window).
-- [ ] Focus: draw inside clips; draw outside renders above all insets; Esc exits with selection unchanged.
+- [ ] Focus: draw inside clips; draw outside renders above all insets. `Esc` follows the **UI §4.2** ladder — `pending → deselect → exit Focus → navigate`, **one rung per press**; exiting Focus does not itself change the selection. *(Wording corrected in session 12 / DECISIONS D78: the earlier "Esc exits with selection unchanged" contradicted §4.2, which outranks this plan in the authority chain.)*
 - [ ] Replace photo with different dimensions → the warned dialog, markup preserved or removed **per the user's explicit choice only**.
 - [ ] Two insets from the same asset → independent children.
 - [ ] **(session 4, §19.3)** Assets are **content-addressed**: importing the same image twice writes

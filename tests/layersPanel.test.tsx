@@ -36,8 +36,10 @@ import LayersPanel, {
   LONG_PRESS_MS,
   buildBlocks,
   buildSections,
+  dropKeyAtPoint,
   isDraggable,
   resolveDrop,
+  rowKeyFromElement,
   type LayerRow,
   type LayersPanelProps,
 } from '../src/ui/LayersPanel';
@@ -109,10 +111,35 @@ function longPress(el: Element): void {
   });
 }
 
-/** The whole drag: hold the grip, cross the target row, release. */
+/**
+ * jsdom does not implement `document.elementFromPoint`, so the panel's coordinate →
+ * row-key resolution is driven through a stub here. The panel reads the real method at
+ * call time (its own guard tolerates a missing one), so assigning/reinstating it is
+ * enough. This is the D77/F1 mechanism: real touch is implicitly captured to the grip,
+ * so the drop target can only come from the pointer's coordinates, never `pointerover`.
+ */
+type ElementFromPointDoc = { elementFromPoint?: (x: number, y: number) => Element | null };
+
+/** A captured-style pointermove whose coordinates resolve to `toKey`. */
+function moveOver(toKey: string, target: Element = document.body): void {
+  const doc = document as unknown as ElementFromPointDoc;
+  const previous = doc.elementFromPoint;
+  doc.elementFromPoint = () => rowEl(toKey);
+  try {
+    fireEvent.pointerMove(target, { clientX: 10, clientY: 40 });
+  } finally {
+    if (previous === undefined) delete doc.elementFromPoint;
+    else doc.elementFromPoint = previous;
+  }
+}
+
+/** The whole drag: hold the grip, move the finger over the target row, release. */
 function dragOnto(fromKey: string, toKey: string): void {
-  longPress(gripEl(fromKey));
-  fireEvent.pointerOver(rowEl(toKey));
+  const grip = gripEl(fromKey);
+  longPress(grip);
+  // The captured move targets the Grip (the pointerdown target) — exactly the real-touch
+  // case the fix is for.
+  moveOver(toKey, grip);
   fireEvent.pointerUp(document.body);
 }
 
@@ -323,7 +350,7 @@ describe('long-press vs tap', () => {
     expect(rowEl('dim-1').dataset.dragging).toBe('true');
     expect(onSelect).not.toHaveBeenCalled();
 
-    fireEvent.pointerOver(rowEl('dim-2'));
+    moveOver('dim-2');
     fireEvent.pointerUp(document.body);
     // The dimensions band without `dim-1` is [dim-2, dim-3]; dropping on dim-2 is index 0.
     expect(onReorder).toHaveBeenCalledWith('dim-1', 0);
@@ -357,7 +384,7 @@ describe('long-press vs tap', () => {
       vi.advanceTimersByTime(LONG_PRESS_MS - 1);
     });
     fireEvent.pointerUp(gripEl('dim-1'));
-    fireEvent.pointerOver(rowEl('dim-2'));
+    moveOver('dim-2');
     fireEvent.pointerUp(document.body);
     expect(onReorder).not.toHaveBeenCalled();
     expect(rowEl('dim-1').dataset.dragging).toBe('false');
@@ -722,5 +749,29 @@ describe('pure helpers', () => {
 
   it('LONG_PRESS_MS is the §9 400 ms', () => {
     expect(LONG_PRESS_MS).toBe(400);
+  });
+
+  it('resolves a drop target from coordinates, not a row event (D77/F1)', () => {
+    // A synthetic element looking like the panel's row markup; the pointer landed on a
+    // descendant (an icon/button), which must walk up to the row.
+    const row = document.createElement('li');
+    row.setAttribute('data-layer-row', 'dim-2');
+    const child = document.createElement('span');
+    row.appendChild(child);
+
+    expect(rowKeyFromElement(null)).toBeNull();
+    expect(rowKeyFromElement(document.body)).toBeNull();
+    expect(rowKeyFromElement(row)).toBe('dim-2');
+    expect(rowKeyFromElement(child)).toBe('dim-2');
+
+    // The injected lookup receives the exact client coordinates (the captured move's),
+    // so the target is the row under the finger even though the event targets the grip.
+    const seen: Array<[number, number]> = [];
+    const key = dropKeyAtPoint(42, 77, (x, y) => {
+      seen.push([x, y]);
+      return child;
+    });
+    expect(key).toBe('dim-2');
+    expect(seen).toEqual([[42, 77]]);
   });
 });

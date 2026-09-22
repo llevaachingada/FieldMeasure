@@ -1,0 +1,114 @@
+/**
+ * `src/ui/insetWire.css` — slice 1.7 (Wave B integration lane): the shell chrome the
+ * picker/engine did not own — the Focus breadcrumb chip, the inset actions HUD slot
+ * (reuses `.placement-hud`), and the Replace-photo warned dialog.
+ *
+ * CSP: no inline `style=""` anywhere (the e2e `[style]` count must stay 0). State is
+ * carried by `data-`/class and dressed here.
+ *
+ * Targets (§19.6): every control here is ≥ 48 px and carries `.hit-slop` (16 px total).
+ */
+
+/* Positioning wrapper for the picker sheet — its own `.inset-picker-scrim` is fixed. */
+.inset-picker-mount {
+  position: relative;
+  z-index: 40;
+}
+
+/* ---- Focus breadcrumb chip (UI §9:630) ---------------------------------- */
+
+.focus-breadcrumb {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(92%, 640px);
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  background: rgba(14, 19, 24, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--g100);
+  z-index: 26;
+}
+
+/* The path itself is a real control: tapping it goes up one level. */
+.focus-breadcrumb-path {
+  min-height: 48px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--g000);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.focus-breadcrumb-path:active {
+  background: var(--g700);
+}
+
+.focus-breadcrumb-done {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid var(--hi);
+  background: var(--hi);
+  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ---- Replace-photo warned dialog (§8.5 M7) ------------------------------ */
+
+.replace-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 20px;
+  border-radius: 14px 14px 0 0;
+  background: var(--g750);
+  border: 1px solid var(--g700);
+  border-bottom: none;
+  color: var(--g000);
+}
+
+.replace-photo-warn {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.replace-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* The hold-to-confirm target. `--err` while armed so the destructive intent is visible,
+   not colour-only: the pressed state also flips the label weight. */
+.replace-photo .btn-danger {
+  background: var(--g800);
+  border-color: var(--err);
+  color: var(--err);
+  font-weight: 700;
+}
+
+.replace-photo .btn.is-holding {
+  background: var(--err);
+  border-color: var(--err);
+  color: #ffffff;
+  font-weight: 700;
+}

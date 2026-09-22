@@ -206,6 +206,12 @@ export class ShapeTool implements MarkupTool {
     if (this.phase === 'anchorA') {
       this.contactRole = 'placingB';
       this.provisional = { ...point };
+      // D77/F8: re-arm the hold-to-constrain baseline for THIS contact. The baseline was
+      // only set on the first contact, so `maybeConstrain` measured `travel` from A and a
+      // held second contact could never satisfy the 400/600 ms + 8/16 px window when B ≠ A.
+      this.contactStart = { ...point };
+      this.contactStartAt = performance.now();
+      this.constrained = false;
       this.renderProvisional();
       return 'consume';
     }

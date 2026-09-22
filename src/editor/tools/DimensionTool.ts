@@ -372,7 +372,10 @@ export class DimensionTool {
     const prev = this.deps.scene.get(key);
     const prevValue = prev?.valueMm ?? null;
     const prevText = prev?.enteredText ?? null;
-    const committedB = this.b;
+    // D77/F4: read the LIVE anchor from the scene. A refine drag moves the geometry via
+    // `scene.setAnchor` and never updates `this.b`, so chaining from the stale field locked
+    // the next dimension at the pre-refine B (the typed value was unaffected).
+    const committedB = this.deps.scene.geometryAt(key)?.b ?? this.b;
     this.exec({
       label: this.deps.labels.setValue,
       do: () => this.deps.scene.setValue(key, result.valueMm, result.enteredText),
@@ -401,14 +404,13 @@ export class DimensionTool {
   /** `Adjust endpoints` HUD button — enters refine for the last anchor (B). */
   adjustEndpoints(): void {
     if (!this.pendingKey) return;
-    const anchors = this.committedAnchors();
-    this.refineWhich = 'b';
-    this.refineStartGeometry = anchors;
-    this.phase = 'refine';
-    this.contactRole = 'none';
     this.cancelAutoOpen();
-    this.deps.onKeypadOpen(null);
-    this.snapshot();
+    this.closeKeypad();
+    // Enter the SAME refine state the 40 px-contact path enters (D77/F2). The old body set
+    // `phase='refine'` but left `contactRole='none'`, so the next drag returned `'pan'` and
+    // panned the canvas — the button was dead. `beginRefine` arms `contactRole='refining'`
+    // (and records the start geometry for the one-step undo).
+    this.beginRefine('b');
   }
 
   /** Esc / ✕ / tool change. Returns `'kept'` when committed geometry was retained. */
@@ -523,6 +525,9 @@ export class DimensionTool {
     const which = this.refineWhich;
     this.refineWhich = null;
     this.refineStartGeometry = null;
+    // A refine armed by the HUD button (D77/F2) has no pointer-up to clear the role; drop
+    // it here so no stale `refining` survives into the next contact.
+    this.contactRole = 'none';
     if (key && start && which) {
       const end = this.committedAnchors();
       if (end && (end[which].x !== start[which].x || end[which].y !== start[which].y)) {

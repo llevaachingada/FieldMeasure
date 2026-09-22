@@ -39,6 +39,12 @@ import { STRINGS, t } from './strings';
 
 export type PanelDock = 'side' | 'bottom';
 
+/** Slice 1.7: the one tool disabled inside Focus (nesting is one level). */
+const INSET_DISABLED: ReadonlySet<ToolId> = new Set<ToolId>(['inset']);
+const INSET_DISABLED_REASON: Partial<Record<ToolId, string>> = {
+  inset: STRINGS.inset.nestedTooltip,
+};
+
 /** UI §5.3: aspect ≥ 1.2 → side; < 1.2 → bottom. The boundary is inclusive. */
 export const DOCK_ASPECT_THRESHOLD = 1.2;
 
@@ -71,16 +77,28 @@ export function sheetEditorToolFor(tool: ToolId): 'select' | 'pan' | 'place' {
   return 'place';
 }
 
-export type EscapeStep = 'cancelPending' | 'deselect' | 'exitFocus' | 'navigate';
+export type EscapeStep = 'cancelPending' | 'exitFocus' | 'deselect' | 'navigate';
 
-/** The `Esc` ladder state (UI §6.6): pending → deselect → exit Focus → navigate. */
+/** The `Esc` ladder state (UI §6.6 / §4.2). */
 export interface EscapeState {
   pendingOp: PendingOp;
   hasSelection: boolean;
   focusInsetId: string | null;
 }
 
-/** One rung per press — never two (plan build order step 6). */
+/**
+ * One rung per press — never two.
+ *
+ * **The order is UI §4.2's, because §4.2 outranks this plan in the authority chain
+ * (build spec > UI spec > implementation plan):** `pending → deselect → exit Focus →
+ * navigate`. The slice-1.7 gate phrase "Esc exits with selection unchanged" holds in the
+ * sense that *exiting Focus does not itself change the selection*: with a selection
+ * present the first `Esc` is the deselect rung and the next one exits Focus; with no
+ * selection the first `Esc` exits Focus and leaves the (empty) selection alone.
+ *
+ * (The engine lane first reordered this to exit-Focus-before-deselect on the strength of a
+ * handoff brief rather than the spec; corrected in DECISIONS D78.)
+ */
 export function escapeStep(state: EscapeState): EscapeStep {
   if (state.pendingOp !== 'none') return 'cancelPending';
   if (state.hasSelection) return 'deselect';
@@ -149,6 +167,7 @@ export default function EditorLayout({
   const pendingOp = useEditorStore((s) => s.pendingOp);
   const keypadOpen = useEditorStore((s) => s.keypadOpen);
   const layersOpen = useEditorStore((s) => s.layersOpen);
+  const focusInsetId = useEditorStore((s) => s.focusInsetId);
 
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => subscribeToast(setToast), []);
@@ -189,6 +208,8 @@ export default function EditorLayout({
     const def = toolDefById(id);
     // No-op unless the tool is implemented — the same rule as the rail.
     if (!def || !def.implemented) return;
+    // Slice 1.7: the Inset tool is unavailable inside Focus (nesting is one level).
+    if (id === 'inset' && useEditorStore.getState().focusInsetId !== null) return;
     useEditorStore.getState().setActiveTool(id);
   }, []);
 
@@ -260,6 +281,7 @@ export default function EditorLayout({
       data-rail={railSide}
       data-keypad-open={keypadOpen ? 'true' : 'false'}
       data-layers-open={layersOpen ? 'true' : 'false'}
+      data-focus-inset={focusInsetId ?? 'false'}
     >
       <div className="editor-main">
         <ToolRail
@@ -268,6 +290,8 @@ export default function EditorLayout({
           side={railSide}
           onUndo={undo}
           onRedo={redo}
+          disabledTools={focusInsetId ? INSET_DISABLED : undefined}
+          disabledReason={focusInsetId ? INSET_DISABLED_REASON : undefined}
         />
         <div className="editor-center">
           <SheetEditor

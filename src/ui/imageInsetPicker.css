@@ -1,0 +1,237 @@
+/**
+ * `src/ui/imageInsetPicker.css` — slice 1.7 (lane B2), the image-inset picker sheet
+ * (UI spec §9 insert flow; implementation plan §1.7 step 1).
+ *
+ * EXTERNAL STYLESHEET, NO INLINE STYLES. The CSP is `style-src 'self'` and the e2e suite
+ * asserts `[style]` count === 0 (design handoff §7.2), so every bit of state is carried by a
+ * `data-` attribute and dressed here — never by a `style=""` attribute.
+ *
+ * TOKENS are the "Site Slate" globals from `styles.css` (`--g750`, `--hi`, `--sel` …).
+ * `.hit-slop` / `.visually-hidden` / `.mono` are global too.
+ *
+ * TARGETS (§19.6, touch-primary): the two source rows are 64 px (UI §9:612), the recents
+ * thumbnails are 96 px (UI §9:614) with a 64 px floor on a narrow viewport, and the ✕ is
+ * 48 px + `.hit-slop`. Every control clears the 48 px floor by its VISUAL box, so `.hit-slop`
+ * is used only on the ✕ (16 px of slop on adjacent 64/96 px targets would overlap, which
+ * UI §14.5 forbids).
+ *
+ * WIDTH — a reported spec defect, not a silent deviation. UI §9:611 calls this a "bottom
+ * sheet, 320px", but its own 4×2 grid of 96 px thumbnails cannot fit 320 px:
+ *     4 × 96 px thumbs + 3 × 8 px gaps + 2 × 16 px padding = 384 + 24 + 32 = 440 px.
+ * So the sheet is content-sized with a 720 px cap (the same cap as the keypad sheet), which
+ * is the smallest width that honours the spec's own 96 px thumbnail. Arithmetic above.
+ */
+
+.inset-picker-scrim {
+  position: fixed;
+  inset: auto 0 0 0;
+  display: flex;
+  justify-content: center;
+  /* The canvas stays live for pan/pinch behind the sheet (mirrors the keypad sheet): the
+     frame itself never swallows a gesture that lands outside the sheet. */
+  pointer-events: none;
+  z-index: 40; /* over the mat, level with the keypad sheet */
+}
+
+.inset-picker-sheet {
+  pointer-events: auto;
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  max-height: min(92vh, 620px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  background: var(--g750);
+  border: 1px solid var(--g700);
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -12px 32px rgba(11, 14, 18, 0.6);
+}
+
+/* The grabber handle (same affordance as the keypad sheet). Decorative — never a target. */
+.inset-picker-sheet::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 40px;
+  height: 4px;
+  margin-left: -20px;
+  border-radius: 2px;
+  background: var(--g600);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .inset-picker-sheet {
+    animation: inset-picker-slide-up 180ms ease-out;
+  }
+}
+
+@keyframes inset-picker-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ---- header -------------------------------------------------------------- */
+
+.inset-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 6px;
+}
+
+.inset-picker-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 700;
+  color: var(--g000);
+}
+
+.inset-picker-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g800);
+  color: var(--g100);
+  font: inherit;
+  cursor: pointer;
+}
+
+.inset-picker-close:active {
+  background: var(--g700);
+}
+
+/* ---- the two single-pick source rows (64 px, UI §9:612) ------------------ */
+
+.inset-picker-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inset-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 64px;
+  padding: 0 18px;
+  border: 2px solid var(--g600);
+  border-radius: 12px;
+  background: var(--g800);
+  color: var(--g000);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inset-picker-option:hover {
+  background: var(--g750);
+  border-color: var(--hi);
+}
+
+.inset-picker-option:active {
+  background: var(--g700);
+}
+
+.inset-picker-option-icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  color: var(--hi);
+}
+
+.inset-picker-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Recent photos: 4×2 grid, 96 px thumbnails, or an honest empty state -- */
+
+.inset-picker-recents {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inset-picker-recents-heading {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--g300);
+}
+
+.inset-picker-recents-empty {
+  margin: 0;
+  padding: 20px 16px;
+  border: 1px dashed var(--g600);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--g300);
+}
+
+.inset-picker-grid {
+  display: grid;
+  /* 96 px when there is room (UI §9:614); the 64 px floor keeps the target well over the
+     48 px minimum on a narrow viewport. Four columns are the spec's 4×2 shape. */
+  grid-template-columns: repeat(4, minmax(64px, 96px));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inset-picker-thumb {
+  min-width: 0;
+}
+
+.inset-picker-thumb-button {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  min-height: 48px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid var(--g600);
+  border-radius: 10px;
+  background: var(--g850);
+  cursor: pointer;
+}
+
+.inset-picker-thumb-button:hover {
+  border-color: var(--hi);
+}
+
+.inset-picker-thumb-button:active {
+  border-color: var(--sel);
+}
+
+.inset-picker-thumb-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

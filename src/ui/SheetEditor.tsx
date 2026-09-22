@@ -81,6 +81,11 @@ import {
 } from '@/fs/projectStore';
 import { useAppStore } from '@/state/appStore';
 import { addSheetFromPhoto, defaultSheetTitle } from '@/fs/sheetIntake';
+import { InsetTool, replacePhotoDecision, type InsetAssetInput } from '@/editor/tools/InsetTool';
+import { storeInsetAsset } from '@/editor/inset/insetAssets';
+import ImageInsetPickerSheet from '@/ui/ImageInsetPickerSheet';
+import { InsetAssetRegistry, createFocusAwareScene } from '@/ui/insetWiring';
+import './insetWire.css';
 import { STRINGS, t } from './strings';
 
 type SheetFile = ProjectFile['sheets'][number];
@@ -112,6 +117,12 @@ export interface SheetEditorProps {
   onImportReady?: (trigger: () => void) => void;
   onSheetTitleChange?: (title: string) => void;
   sheetId?: string;
+  /**
+   * Slice 1.7 integration seam (the `onImportReady` precedent): the live imperative
+   * scene + canvas, handed out once they exist. Lets an in-browser test drive geometry
+   * through the REAL editor without reaching into Konva globals.
+   */
+  onSceneReady?: (api: { scene: MarkupScene; canvas: EditorCanvas }) => void;
 }
 
 /**
@@ -199,6 +210,7 @@ export default function SheetEditor({
   onImportReady,
   onSheetTitleChange,
   sheetId,
+  onSceneReady,
 }: SheetEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const keypadMountRef = useRef<HTMLDivElement | null>(null);
@@ -227,6 +239,12 @@ export default function SheetEditor({
   const selectRef = useRef<SelectTool | null>(null);
   const persistRef = useRef<PersistQueue | null>(null);
   const sheetIdRef = useRef<string | null>(null);
+  // ---- slice 1.7 (image insets) ----
+  const insetRef = useRef<InsetTool | null>(null);
+  const insetAssetsRef = useRef<InsetAssetRegistry>(new InsetAssetRegistry());
+  const insetDeviceInputRef = useRef<HTMLInputElement | null>(null);
+  const insetCameraInputRef = useRef<HTMLInputElement | null>(null);
+  const replacePhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [polygon, setPolygon] = useState<{ count: number } | null>(null);
   const [angleSheet, setAngleSheet] = useState<AngleSheetRequest | null>(null);
@@ -237,6 +255,18 @@ export default function SheetEditor({
   const [pinnedToolbar, setPinnedToolbar] = useState(false);
   /** Bumped when the scene changes while the Layers flyout is open, to re-derive rows. */
   const [, setSceneTick] = useState(0);
+  // ---- slice 1.7 state ----
+  const [insetPickerOpen, setInsetPickerOpen] = useState(false);
+  const [insetRecents, setInsetRecents] = useState<
+    Array<{ assetId: string; thumbUrl: string; name: string }>
+  >([]);
+  /** A warned Replace-photo decision awaiting the user's explicit choice. */
+  const [replacePrompt, setReplacePrompt] = useState<{ key: string; asset: InsetAssetInput } | null>(
+    null,
+  );
+  /** True while the warned dialog's hold-to-confirm button is armed. */
+  const [replaceHolding, setReplaceHolding] = useState(false);
+  const replaceHoldTimerRef = useRef<number | null>(null);
 
   const [status, setStatus] = useState<EditorStatus>('loading');
   const [sheetTitle, setSheetTitle] = useState('');
@@ -314,10 +344,22 @@ export default function SheetEditor({
     historyRef.current = history;
     const scene = new MarkupScene({
       layer: canvas.markupLayer,
+      // §8.1/§20.2: insets render BELOW markup, so every object created outside Focus
+      // renders above all insets. Without this the layering rule is not guaranteed.
+      insetLayer: canvas.insetLayer,
       ctx: appLabelContext(),
       ghostText: STRINGS.dimension.ghostLabel,
+      // §19.3: `assets/<sha256hex>.jpg`, decoded once per session and cached.
+      assetProvider: insetAssetsRef.current.provider,
     });
     sceneRef.current = scene;
+    // Tools draw through a Focus-aware facade: inside Focus their sheet-space geometry
+    // becomes children in the inset's ASSET px (§8.5). Transparent otherwise.
+    const toolScene = createFocusAwareScene(scene, {
+      getFocusId: () => useEditorStore.getState().focusInsetId,
+      getAssetSize: (assetId) => insetAssetsRef.current.sizeOf(assetId),
+    });
+    onSceneReady?.({ scene, canvas });
 
     // ---- slice 1.6 step 9: markup.json persistence (the D70 carry-in) ----
     // The document is in memory only; this is the writer. Writes are coalesced 400 ms
@@ -345,7 +387,7 @@ export default function SheetEditor({
     });
     const tool = new DimensionTool({
       canvas,
-      scene,
+      scene: toolScene,
       history,
       loupe,
       getSettings: () => {
@@ -416,12 +458,13 @@ export default function SheetEditor({
       textRef.current?.cancel();
       eraseRef.current?.onToolChange();
       selectRef.current?.onToolChange();
+      insetRef.current?.onToolChange();
     }
 
     for (const kind of ['line', 'arrow', 'rect', 'ellipse', 'polygon'] as ShapeKind[]) {
       const shape = new ShapeTool(kind, {
         canvas,
-        scene,
+        scene: toolScene,
         history,
         getSettings: mkSettings,
         onSnapshot: (pending) => {
@@ -440,7 +483,7 @@ export default function SheetEditor({
 
     angleRef.current = new AngleTool({
       canvas,
-      scene,
+      scene: toolScene,
       history,
       onSheetOpen: (request) => {
         setAngleSheet(request);
@@ -457,7 +500,7 @@ export default function SheetEditor({
 
     const inkCommon = {
       canvas,
-      scene,
+      scene: toolScene,
       history,
       getSettings: mkSettings,
       onSnapshot: markupPending,
@@ -479,7 +522,7 @@ export default function SheetEditor({
 
     textRef.current = new TextTool({
       canvas,
-      scene,
+      scene: toolScene,
       history,
       onRequestEntry: (at) => {
         setTextAnchor(at);
@@ -493,7 +536,7 @@ export default function SheetEditor({
 
     eraseRef.current = new EraseTool({
       canvas,
-      scene,
+      scene: toolScene,
       history,
       objectName: (ann) => eraseObjectName(ann),
       onDeleteToast: (name) => emitToast(t(STRINGS.toasts.undoAction, { actionName: `${STRINGS.select.delete} ${name}` })),
@@ -503,7 +546,7 @@ export default function SheetEditor({
 
     selectRef.current = new SelectTool({
       canvas,
-      scene,
+      scene: toolScene,
       history,
       getSelection: () => useEditorStore.getState().selection,
       setSelection: (keys) => useEditorStore.getState().setSelection(keys),
@@ -521,22 +564,66 @@ export default function SheetEditor({
       onLockedToast: () => emitToast(STRINGS.editor.lockedToast),
     });
 
+    // ---- slice 1.7: the image-inset tool (insert flow + §8.5 manipulation + Focus) ----
+    insetRef.current = new InsetTool({
+      canvas,
+      scene: toolScene,
+      history,
+      getSheetSize: () => {
+        const size = canvas.photoSize;
+        return { width: size.width || 1, height: size.height || 1 };
+      },
+      getSelection: () => useEditorStore.getState().selection,
+      setSelection: (keys) => useEditorStore.getState().setSelection(keys),
+      onRequestPicker: () => {
+        setInsetPickerOpen(true);
+        useEditorStore.getState().setPendingOp('inset');
+      },
+      onPickerDismissed: () => {
+        setInsetPickerOpen(false);
+        useEditorStore.getState().setPendingOp('none');
+      },
+      onPlaced: () => {
+        setInsetPickerOpen(false);
+        useEditorStore.getState().setPendingOp('none');
+      },
+      onFocusChange: (insetId) => useEditorStore.getState().setFocusInsetId(insetId),
+      getAssetSize: (assetId) => insetAssetsRef.current.sizeOf(assetId),
+    });
+
     // Track the real tool id (the prop is the coarse seam) and cancel on switch.
     toolIdRef.current = useEditorStore.getState().activeTool;
     const unsubscribeTool = useEditorStore.subscribe((state, prev) => {
       if (state.activeTool === prev.activeTool) return;
       cancelActiveMarkup();
       toolIdRef.current = state.activeTool;
+      // A pending picker belongs to the inset tool: switching away discards it.
+      setInsetPickerOpen(false);
       if (state.activeTool === 'select') selectRef.current?.refresh();
       else {
         selectRef.current?.onToolChange();
         setPinnedToolbar(false);
       }
+      // Handles belong to the Inset tool alone (the Select tool draws its own).
+      if (state.activeTool === 'inset') insetRef.current?.refresh();
     });
     const unsubscribeSelection = useEditorStore.subscribe((state, prev) => {
       if (state.selection === prev.selection) return;
       if (state.selection.length === 0) setPinnedToolbar(false);
       selectRef.current?.refresh();
+      if (useEditorStore.getState().activeTool === 'inset') insetRef.current?.refresh();
+    });
+    // The store is the mirror; this keeps the InsetFocus owner (the dim + the one-level
+    // guard) in lockstep with it, so the shell's Esc rung can exit Focus by name alone.
+    const unsubscribeFocus = useEditorStore.subscribe((state, prev) => {
+      if (state.focusInsetId === prev.focusInsetId) return;
+      const inset = insetRef.current;
+      if (!inset) return;
+      if (state.focusInsetId === null) {
+        if (inset.focusId !== null) inset.exitFocus();
+      } else if (inset.focusId !== state.focusInsetId) {
+        inset.enterFocus(state.focusInsetId);
+      }
     });
 
     // Bridge the shell's chrome to the imperative canvas (undo/redo/delete/✓/adjust).
@@ -607,6 +694,13 @@ export default function SheetEditor({
         }
         return erase.onPointerDown(imagePoint, pointerType);
       }
+      if (id === 'inset') {
+        // The tool returns `'pan'` for a non-handle contact, but its TAP must still reach
+        // `onPointerUp` (the one-tap insert). Take the contact; a real drag is released
+        // back to the pan path by `onPointerMove` returning `'pan'`.
+        insetRef.current!.onPointerDown(imagePoint, pointerType);
+        return 'consume';
+      }
       if (id === 'freehand' || id === 'highlight') {
         const ink = id === 'freehand' ? freehandRef.current! : highlightRef.current!;
         if (id === 'freehand' && pointerType === 'touch' && !isFingerInkAllowed(mkSettings())) {
@@ -629,6 +723,7 @@ export default function SheetEditor({
       if (id === 'angle') return angleRef.current!.onPointerMove(imagePoint);
       if (id === 'erase') return eraseRef.current!.onPointerMove();
       if (id === 'select') return selectRef.current!.onPointerMove(imagePoint, moved);
+      if (id === 'inset') return insetRef.current!.onPointerMove(imagePoint, moved);
       if (id === 'text') return textRef.current!.onPointerMove();
       return null;
     };
@@ -650,6 +745,10 @@ export default function SheetEditor({
       }
       if (id === 'select') {
         selectRef.current!.onPointerUp(imagePoint, tapped, pointerType);
+        return;
+      }
+      if (id === 'inset') {
+        insetRef.current!.onPointerUp(imagePoint, tapped, pointerType);
         return;
       }
       if (id === 'freehand' || id === 'highlight') {
@@ -957,8 +1056,12 @@ export default function SheetEditor({
               undo: () => scene.setGeometry(drag.key, drag.geometry),
             });
           } else if (tapped) {
-            // A second tap on an already-selected object opens its actions (A2).
-            if (selectRef.current?.tapObject(drag.key) === 'action') setPinnedToolbar(true);
+            // A second tap on an already-selected object opens its actions (A2). For an
+            // inset it enters Focus (UI §9:588/627).
+            if (selectRef.current?.tapObject(drag.key) === 'action') {
+              if (sceneRef.current?.get(drag.key)?.type === 'image') insetRef.current?.enterFocus(drag.key);
+              else setPinnedToolbar(true);
+            }
           }
         }
       }
@@ -974,7 +1077,10 @@ export default function SheetEditor({
         if (key) {
           // A locked object already toasted on pointerdown (touch model §3.3 shake);
           // selecting it is still allowed so it can be unlocked in Layers.
-          if (selectRef.current?.tapObject(key) === 'action') setPinnedToolbar(true);
+          if (selectRef.current?.tapObject(key) === 'action') {
+            if (sceneRef.current?.get(key)?.type === 'image') insetRef.current?.enterFocus(key);
+            else setPinnedToolbar(true);
+          }
           return;
         }
         useEditorStore.getState().clearSelection();
@@ -1031,7 +1137,8 @@ export default function SheetEditor({
           freehandRef.current?.pending ||
           highlightRef.current?.pending ||
           textRef.current?.pending ||
-          eraseRef.current?.pending,
+          eraseRef.current?.pending ||
+          insetRef.current?.pending,
       );
     };
 
@@ -1056,6 +1163,15 @@ export default function SheetEditor({
         event.preventDefault();
         shapeToolsRef.current.get('polygon')?.done();
         return;
+      }
+      // Enter while a single inset is selected enters Focus (UI §9:627).
+      if (event.key === 'Enter' && !useEditorStore.getState().focusInsetId) {
+        const selected = useEditorStore.getState().selection;
+        if (selected.length === 1 && sceneRef.current?.get(selected[0])?.type === 'image') {
+          event.preventDefault();
+          insetRef.current?.enterFocus(selected[0]);
+          return;
+        }
       }
       if (id === 'polygon' && event.key === 'Backspace') {
         event.preventDefault();
@@ -1120,6 +1236,7 @@ export default function SheetEditor({
       unsubscribeCtx();
       unsubscribeTool();
       unsubscribeSelection();
+      unsubscribeFocus();
       setEditorSession(null);
       // Land any coalesced markup write before the scene is torn down.
       void persist.flush();
@@ -1140,6 +1257,9 @@ export default function SheetEditor({
       eraseRef.current = null;
       selectRef.current?.dispose();
       selectRef.current = null;
+      insetRef.current?.dispose();
+      insetRef.current = null;
+      insetAssetsRef.current.dispose();
       schedulerRef.current?.cancel();
       schedulerRef.current = null;
       channelRef.current?.close();
@@ -1155,7 +1275,10 @@ export default function SheetEditor({
       dimRef.current = null;
       useEditorStore.getState().setKeypadOpen(false);
       useEditorStore.getState().setLayersOpen(false);
+      useEditorStore.getState().setFocusInsetId(null);
       setPinnedToolbar(false);
+      setInsetPickerOpen(false);
+      setReplacePrompt(null);
       useEditorStore.getState().setPendingOp('none');
       tool.dispose();
       loupe.destroy();
@@ -1203,6 +1326,179 @@ export default function SheetEditor({
     };
   }, [keypadOpen]);
 
+  // ---- slice 1.7 (image insets): asset decode, picker callbacks, Focus, replace ----
+  const focusInsetId = useEditorStore((s) => s.focusInsetId);
+
+  const syncRecents = (): void => {
+    setInsetRecents(insetAssetsRef.current.recentsList());
+  };
+
+  /**
+   * Decode + cache one stored asset (`assets/<sha256hex>.jpg`). Off the main thread via
+   * the shipped decode worker; a miss is swallowed (the placeholder stays).
+   */
+  async function ensureInsetAsset(assetId: string, name?: string): Promise<void> {
+    const state = projectDirRef.current;
+    if (!state || insetAssetsRef.current.has(assetId)) return;
+    const entry = await insetAssetsRef.current.load(state.dir, assetId, name);
+    if (entry) sceneRef.current?.refreshInsets();
+    syncRecents();
+  }
+
+  /** §8.5: a restored `markup.json` may already contain insets — decode their assets. */
+  async function hydrateInsetAssets(objects: readonly Annotation[]): Promise<void> {
+    const state = projectDirRef.current;
+    if (!state) return;
+    const ids = new Set<string>();
+    for (const object of objects) {
+      if (object.type === 'image' && object.assetId) ids.add(object.assetId);
+    }
+    for (const id of ids) await ensureInsetAsset(id);
+  }
+
+  /** Store + decode every picked file, then insert them as one cascaded batch. */
+  async function placePickedFiles(files: File[]): Promise<void> {
+    const state = projectDirRef.current;
+    if (!state) return;
+    const assets: InsetAssetInput[] = [];
+    for (const file of files) {
+      let stored: { assetId: string; width: number; height: number };
+      try {
+        stored = await storeInsetAsset(state.dir, projectId, file);
+      } catch {
+        continue;
+      }
+      // Decode the STORED bytes (normalized JPEG), not the picked file (may be HEIC).
+      await ensureInsetAsset(stored.assetId, file.name);
+      assets.push({ assetId: stored.assetId, width: stored.width, height: stored.height });
+    }
+    syncRecents();
+    if (assets.length > 0) insetRef.current?.placeFromAssets(assets);
+  }
+
+  const handleInsetDeviceChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    const input = event.currentTarget;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    void placePickedFiles(files);
+  };
+
+  const handleInsetCameraChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
+    if (file) void placePickedFiles([file]);
+  };
+
+  const pickRecent = (assetId: string): void => {
+    void (async () => {
+      let size = insetAssetsRef.current.sizeOf(assetId);
+      if (!size) {
+        await ensureInsetAsset(assetId);
+        size = insetAssetsRef.current.sizeOf(assetId);
+      }
+      if (!size) return;
+      insetRef.current?.placeFromAssets([{ assetId, width: size.width, height: size.height }]);
+    })();
+  };
+
+  const enterFocusInset = (key: string): void => {
+    // Inside Focus the user draws with any markup tool; the Inset tool is unavailable.
+    useEditorStore.getState().setActiveTool('select');
+    insetRef.current?.enterFocus(key);
+  };
+
+  /** Exits Focus WITHOUT touching the selection (UI §9:633 / the 1.7 gate). */
+  const exitFocusInset = (): void => {
+    insetRef.current?.exitFocus();
+    useEditorStore.getState().setFocusInsetId(null);
+  };
+
+  const cancelReplacePrompt = (): void => {
+    cancelReplaceHold();
+    setReplacePrompt(null);
+  };
+
+  const applyReplace = (choice: 'keep' | 'remove'): void => {
+    const prompt = replacePrompt;
+    if (!prompt) return;
+    insetRef.current?.replacePhoto(prompt.key, prompt.asset, choice);
+    setReplacePrompt(null);
+  };
+
+  const startReplaceHold = (): void => {
+    if (replaceHoldTimerRef.current !== null) return;
+    setReplaceHolding(true);
+    replaceHoldTimerRef.current = window.setTimeout(() => {
+      replaceHoldTimerRef.current = null;
+      setReplaceHolding(false);
+      applyReplace('remove');
+    }, LONG_PRESS_MS);
+  };
+
+  function cancelReplaceHold(): void {
+    if (replaceHoldTimerRef.current !== null) {
+      window.clearTimeout(replaceHoldTimerRef.current);
+      replaceHoldTimerRef.current = null;
+    }
+    setReplaceHolding(false);
+  }
+
+  const handleReplaceChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
+    if (file) void beginReplace(file);
+  };
+
+  /** Replace-photo: identical dimensions swap silently; a different size warns. */
+  async function beginReplace(file: File): Promise<void> {
+    const state = projectDirRef.current;
+    const scene = sceneRef.current;
+    const key = useEditorStore.getState().selection[0];
+    if (!state || !scene || !key) return;
+    const ann = scene.get(key);
+    if (!ann || ann.type !== 'image') return;
+    let stored: { assetId: string; width: number; height: number };
+    try {
+      stored = await storeInsetAsset(state.dir, projectId, file);
+    } catch {
+      return;
+    }
+    await ensureInsetAsset(stored.assetId, file.name);
+    syncRecents();
+    const newAsset: InsetAssetInput = {
+      assetId: stored.assetId,
+      width: stored.width,
+      height: stored.height,
+    };
+    const oldAsset = insetAssetsRef.current.sizeOf(ann.assetId ?? '') ?? { width: 0, height: 0 };
+    if (replacePhotoDecision(oldAsset, newAsset) === 'swap') {
+      insetRef.current?.replacePhoto(key, newAsset, 'keep');
+    } else {
+      setReplacePrompt({ key, asset: newAsset });
+    }
+  }
+
+  // The warned Replace-photo dialog is a real modal (§19.6): focus in on open, back on
+  // close, Escape cancels (never a keyboard trap). Mirrors the keypad-sheet pattern.
+  const replaceOpen = replacePrompt !== null;
+  useEffect(() => {
+    if (!replaceOpen) return;
+    const first = document.querySelector<HTMLElement>('[data-replace-photo] [data-replace-default]');
+    first?.focus();
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelReplacePrompt();
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replaceOpen]);
+
   // ---- actions ------------------------------------------------------------------
   async function loadSheet(
     canvas: EditorCanvas,
@@ -1232,6 +1528,9 @@ export default function SheetEditor({
       }));
       sceneRef.current?.load(markup.objects);
       sheetIdRef.current = sheet.id;
+      // §8.5: a restored sheet may already contain insets. Decode their assets off the
+      // main thread and refresh so the placeholder is replaced (never left blank).
+      void hydrateInsetAssets(markup.objects);
       return 'ready';
     } catch {
       return 'damaged';
@@ -1488,6 +1787,22 @@ export default function SheetEditor({
 
   const showMiniToolbar = pinnedToolbar && selection.length > 0 && !keypadOpen && activeToolId === 'select';
 
+  // ---- slice 1.7 derived render state ----
+  const focusedInsetAnn = focusInsetId ? sceneRef.current?.get(focusInsetId) : undefined;
+  const breadcrumbText = focusInsetId
+    ? t(STRINGS.inset.focusBreadcrumb, {
+        sheetName: sheetTitle || STRINGS.editor.breadcrumbSheetSegment,
+        insetName: focusedInsetAnn ? annotationName(focusedInsetAnn, labelCtx) : STRINGS.tool.imageInset,
+      })
+    : '';
+  // Entry announces where you are (the breadcrumb); exit announces where you are now.
+  const focusAnnouncement = focusInsetId ? breadcrumbText : status === 'ready' ? sheetTitle : '';
+  const selectedInsetKey =
+    selection.length === 1 && sceneRef.current?.get(selection[0])?.type === 'image'
+      ? selection[0]
+      : null;
+  const showInsetActions = selectedInsetKey !== null && !focusInsetId && !keypadOpen;
+
   const placementAnnouncement =
     placement.phase === 'anchorA'
       ? STRINGS.placement.secondPoint
@@ -1512,6 +1827,58 @@ export default function SheetEditor({
         <p className="visually-hidden" role="status" aria-live="polite">
           {placementAnnouncement}
         </p>
+
+        {/* Focus mode announces entry/exit (§19.6). Entry: the breadcrumb; exit: the sheet. */}
+        <p className="visually-hidden" role="status" aria-live="polite" data-testid="focus-announcement">
+          {focusAnnouncement}
+        </p>
+
+        {/* Focus breadcrumb chip (UI §9:630). The path is a real control (tap to go up a
+            level); `Done` is the approved exit. */}
+        {focusInsetId ? (
+          <div className="focus-breadcrumb" role="group" aria-label={STRINGS.a11y.breadcrumb}>
+            <button
+              type="button"
+              className="focus-breadcrumb-path hit-slop"
+              data-testid="focus-breadcrumb"
+              aria-label={breadcrumbText}
+              onClick={exitFocusInset}
+            >
+              {breadcrumbText}
+            </button>
+            <button
+              type="button"
+              className="focus-breadcrumb-done hit-slop"
+              data-testid="focus-done"
+              onClick={exitFocusInset}
+            >
+              {STRINGS.editor.done}
+            </button>
+          </div>
+        ) : null}
+
+        {/* Inset actions while a single inset is selected (2nd tap / Enter also enters
+            Focus). `Replace photo` is the §8.5 M7 flow. */}
+        {showInsetActions ? (
+          <div className="placement-hud" role="toolbar" aria-label={STRINGS.tool.imageInset}>
+            <button
+              type="button"
+              className="placement-hud-button"
+              data-testid="inset-focus"
+              onClick={() => selectedInsetKey && enterFocusInset(selectedInsetKey)}
+            >
+              {STRINGS.inset.focusControl}
+            </button>
+            <button
+              type="button"
+              className="placement-hud-button"
+              data-testid="inset-replace"
+              onClick={() => replacePhotoInputRef.current?.click()}
+            >
+              {STRINGS.inset.actionReplace}
+            </button>
+          </div>
+        ) : null}
 
         {readOnly ? (
           <p className="editor-readonly" role="status">
@@ -1704,6 +2071,38 @@ export default function SheetEditor({
           onChange={(e) => void handleFile(e)}
         />
 
+        {/* Inset sources: device (multi-select, §9:615) and a capture-capable camera
+            input (the "Take a photo" row). Both route through `storeInsetAsset`. */}
+        <input
+          ref={insetDeviceInputRef}
+          className="editor-file-input"
+          type="file"
+          accept="image/*"
+          multiple
+          data-testid="inset-device-input"
+          aria-label={STRINGS.inset.chooseFromDevice}
+          onChange={handleInsetDeviceChange}
+        />
+        <input
+          ref={insetCameraInputRef}
+          className="editor-file-input"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          data-testid="inset-camera-input"
+          aria-label={STRINGS.inset.takePhoto}
+          onChange={handleInsetCameraChange}
+        />
+        <input
+          ref={replacePhotoInputRef}
+          className="editor-file-input"
+          type="file"
+          accept="image/*"
+          data-testid="inset-replace-input"
+          aria-label={STRINGS.inset.actionReplace}
+          onChange={handleReplaceChange}
+        />
+
         <div className="zoom-pill" role="group" aria-label={STRINGS.a11y.zoom}>
           <button
             type="button"
@@ -1823,6 +2222,69 @@ export default function SheetEditor({
               </button>
               <button type="button" className="btn btn-primary hit-slop" onClick={commitText}>
                 {STRINGS.editor.done}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Image-inset picker (slice 1.7). Positioning wrapper ONLY — the sheet supplies its
+          own role="dialog"/focus trap; a second dialog wrapper would nest two modals. */}
+      {insetPickerOpen ? (
+        <div className="inset-picker-mount" data-testid="inset-picker-mount">
+          <ImageInsetPickerSheet
+            recents={insetRecents}
+            onPickCamera={() => insetCameraInputRef.current?.click()}
+            onPickDevice={() => insetDeviceInputRef.current?.click()}
+            onPickRecent={pickRecent}
+            onCancel={() => insetRef.current?.cancelPicker()}
+          />
+        </div>
+      ) : null}
+
+      {/* Replace-photo warned dialog (§8.5 M7): different dimensions → explicit choice.
+          A real modal: focus in on open, Escape cancels, hold-to-confirm on Remove. */}
+      {replaceOpen ? (
+        <div className="keypad-sheet-mount" data-testid="replace-photo-dialog">
+          <div
+            className="replace-photo"
+            role="dialog"
+            aria-modal="true"
+            aria-label={STRINGS.inset.actionReplace}
+            data-replace-photo=""
+          >
+            <p className="replace-photo-warn">{STRINGS.project.replacePhotoWarn}</p>
+            <div className="replace-photo-actions">
+              <button
+                type="button"
+                className="btn btn-secondary hit-slop"
+                data-replace-default=""
+                onClick={() => applyReplace('keep')}
+              >
+                {STRINGS.project.replacePhotoKeep}
+              </button>
+              <button
+                type="button"
+                className={`btn hit-slop ${replaceHolding ? 'is-holding' : 'btn-danger'}`}
+                data-testid="replace-remove"
+                aria-pressed={replaceHolding}
+                onPointerDown={startReplaceHold}
+                onPointerUp={cancelReplaceHold}
+                onPointerLeave={cancelReplaceHold}
+                onPointerCancel={cancelReplaceHold}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') startReplaceHold();
+                }}
+                onKeyUp={cancelReplaceHold}
+              >
+                {STRINGS.project.replacePhotoRemove}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary hit-slop"
+                onClick={cancelReplacePrompt}
+              >
+                {STRINGS.editor.cancel}
               </button>
             </div>
           </div>

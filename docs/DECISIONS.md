@@ -1440,3 +1440,135 @@ sentinel the keyboard path already produces for "past the end". Corrected in `La
 test was right to change only because the spec's intent for *Send to back* is the back. The shell
 could not have fixed this: `(key, reduced.length - 1)` is byte-identical to Alt+ArrowDown arriving at
 the group's last-but-one slot, so no shell translation can distinguish the two.
+
+### D77 — independent adversarial review of the 1.4→1.6 batch: register and remediation
+
+**Why it ran.** Session 10's owner **waived** the independent `@oracle` pass for the 1.4/1.4.5/1.5/1.6
+batch and recorded it as a carried watch item ("gate-green but unproven against `review-brief.md`").
+An orchestrator review of the 1.6 wave then found two real defects a **643-test green suite could not
+see** (D76), which is the argument that carried. The review ran read-only against a **clean worktree at
+`e06bf8f`**, by **execution** — scratch harnesses in the browser project against a real Konva stage,
+plus one Playwright/CDP harness driving **real touch input**.
+
+**Nothing wrong-measurement and nothing data-loss was found.** Six **correctness** findings, and four
+of them are the *same shape as D76*: **wiring that exists, tests that pass, and a real input that
+cannot reach it.** Severity is the reason this is a register of owed work rather than a note.
+
+| # | Class | Finding | Where |
+|---|---|---|---|
+| **F1** | correctness (high) | **Touch drag-to-reorder can never work.** Chromium **implicitly captures** the pointer to the grip, so rows' `pointerover` never fires, `dropKey` stays `null`, and `resolveDrop` returns `missing` — a **silent no-op**. Mouse/pen fine. Proven with real CDP touch. | `LayersPanel.tsx:580-606`, `:416-442` |
+| **F2** | correctness | **«Adjust endpoints» is dead.** The button sets `phase='refine'` but never `contactRole='refining'`, so a subsequent drag returns `'pan'` and pans the canvas instead of moving the anchor. | `DimensionTool.ts:402-412`, `:281` |
+| **F3** | correctness | **Escape's first rung does not cancel a pending dimension.** It clears `pendingOp` only; the next tap still commits the dimension the user escaped. | `EditorLayout.tsx:230-247` vs `SheetEditor.tsx:1047-1053` |
+| **F4** | correctness (geometry) | **Chain locks at the ORIGINAL B after a refine** — `commitValue` uses a `this.b` that refine drags never update. Typed value unaffected. | `DimensionTool.ts:369-384` |
+| **F5** | correctness | **The 450 ms settle timer survives a switch to another placement tool**, so the dimension keypad opens over the rectangle tool. Angle's settle *is* cancelled — the omission is an asymmetry. | `SheetEditor.tsx:526-535`, `:262-265` |
+| **F6** | undo integrity | **Sub-slop moves mutate outside history**: geometry is applied per move but recorded only if `moved ≥ 8 px`, so undo can delete the object instead of restoring it. | `SelectTool.ts:357-385`, `SheetEditor.tsx:876-891,946-958` |
+| **F7** | §4.2 seam | **One-time label layout drifts on zoom** (measured, real pixels): dimension label centre **65.4 CSS px** off at 4×; angle readout **58 px**; a text note's glyphs **167 px** wider than their box at 0.5×. Size is invariant; the *anchor and box* are not. | `renderDimension.ts:49-55`, `renderShape.ts:213-229`, `renderText.ts:88-99` |
+| **F8** | gesture | **Hold-to-constrain is dead on the second contact** (tap A, hold at B) — `travel` is measured from the first contact, so it always exceeds the hold slop. | `ShapeTool.ts:194-212`, `:329-342` |
+| **F9** | spec gap | **Handles translate; §8.6 requires scale/stretch** — corner/edge drags move the whole geometry, and `handleAxis` maps `n/s→'x'`, `e/w→'y'` (inverted). The §8.6 rotate handle is absent (chips only). | `SelectTool.ts:357-368`, `:113-117` |
+| **F10** | doc honesty | **The recorded 1.6 gate was not reproducible from git** (see below). | `BUILD-LOG`, `CONTINUITY` |
+| **F11** | doc/copy | `LayersPanel`'s header says the photo row is lockable while the shell no-ops its eye/lock; the closure entry's "row count proves persistence" was overstated. | `LayersPanel.tsx:21-22` |
+
+**F10 is the orchestrator's own error, and it is fixed in this commit.** The 1.6 closure entry recorded
+"47 files / 643 tests" measured on a tree that also held three **uncommitted off-critical-path lane**
+test files; the committed tree runs **44 files / 565 tests**, and the same bullet's arithmetic
+(`526 + 35 + 4`) already summed to 565. **The rule this restores: a recorded gate must be reproducible
+from the commit it names** — measure it with only that commit's files present. The `[Surface]` ledger's
+"machine half green" for drag-to-reorder was likewise false (F1) and is corrected there. Note the
+agent-reported gates from off-critical-path lanes are legitimate *for those lanes* — the error was
+folding them into a *slice* gate.
+
+**Verified sound, with evidence** (not merely "not obviously broken"): the §4.2 **size** invariants at
+1×/4×/8× (pixel-measured; ink regenerates from the raw `inkPoints`/`pressure` attrs, never from the
+derived path, so there is no double division); **`Annotation.visible`** through the zod path
+(absent→`undefined`, `false`→`false`; unknown keys still stripped) and through `serialize`/`load`;
+the **anchor-based §20.2 reorder** primitives incl. the panel↔shell rest-index translation and the
+Send-to-back sentinel; **timer** arming/cancelling (no double-arm, every cancel path clears — the two
+timer defects are wiring, F2/F5); `markup.json` persistence (400 ms coalescing, failure re-queues, no
+data loss, `sheetIntake` photo-first); the **loupe** arithmetic (all three numbers derived); the
+`history` cap/coalescing/redo-clear; the copy contract; `panelDockFor`'s inclusive 1.2 boundary.
+
+**Coverage gaps reported as gaps, not defects:** the "restore does not queue a redundant write" path is
+never exercised (every mount harness lands in `'empty'`); `visible`-through-zod had no test (executed
+manually, sound); dead exports (`SelectTool.miniToolbarPosition`, `EraseTool.previewName`,
+`ShapeTool.shapeReadout`) and an unreachable `markupPointerDown` `'select'` branch.
+
+**Remediation.** F1/F2/F4/F8/F9 are dispatched as one lane on files the in-flight 1.7 integration lane
+cannot touch; **F3/F5/F6/F7 are deferred** until that lane lands, because they need `SheetEditor.tsx` /
+`EditorCanvas.ts` / `EditorLayout.tsx` and a second writer on those files is the exact hazard D76
+already cost this session. F1 needs a **real-input** regression test (CDP), which only the orchestrator
+can run.
+
+### D78 — slice 1.7 decisions, and the D77 status update
+
+**The Esc ladder contradicted the spec, and the spec won.** The engine lane reordered `escapeStep` to
+`exitFocus` **before** `deselect`, citing a handoff brief and the 1.7 packet's gate wording. **UI §4.2
+states the ladder explicitly** — `pending → deselect → exit Focus → navigate`, one rung per press —
+and the authority chain puts the **UI spec above the implementation plan** (which is authoritative on
+order and done-ness only; its `[x]` gates are not maintained). §4.2's order is also coherent with the
+packet's intent: exiting Focus does not itself change the selection, but with a selection present the
+first `Esc` *is* the deselect rung. Restored §4.2's order in `EditorLayout.escapeStep`, corrected the
+plan's gate wording, and rewrote both tests (the unit test and the browser test that had encoded the
+reordered behaviour). **The briefing error was the orchestrator's** — it relayed a lane's phrasing
+instead of checking §4.2 first, which is the same failure mode as trusting a lane's report over the
+spec.
+
+**Ink inside a scaled inset — measured, and left alone.** Canvas zoom is **constant** (`mu = 10` at
+zoom 1 and at zoom 4), so the §4.2 screen invariant holds and the runbook tripwire *"ink/stroke width
+changing with zoom"* is **not** tripped. Inset scale is **proportional** (`mu = 10` at inset scale 1 →
+`20 px` at ×2), which is exactly what §8.5 specifies ("children are never rewritten when the inset is
+moved/scaled/rotated/cropped" — the container scales them). **No code changed**; the behaviour is
+pinned by `tests/insetWire.browser.test.ts` so it cannot drift silently. This closes the question the
+engine lane raised, with numbers rather than an opinion.
+
+**Children are not sheet-band members.** A child's `zIndex` orders it only inside its inset's Konva
+group; the sheet's §20.2 bands apply to top-level objects only. This is enforced structurally rather
+than by convention: `moveInBandBefore`/`moveInBandToBack` return `false` for any key containing `/`,
+so a cross-band child move is **unexpressible**, and `keysInRect` is tops-only by default (a sheet
+marquee must never grab a child) with an explicit `{ insetId }` form for querying one inset's children
+in **asset** space.
+
+**The camera has no in-app path for an inset (owed).** `CameraFlow` owns "a photo becomes a sheet" and
+cannot hand a normalized blob back without widening its frozen props, so `onPickCamera` opens a hidden
+`capture="environment"` file input — a genuine OS camera, but not the in-app viewfinder UI §9:614
+describes. Owed: either a `CameraFlow` inset mode that returns the normalized blob, or a spec
+amendment. Recorded rather than quietly shipped as equivalent.
+
+**Two structural additions, both reported rather than inlined.** `src/ui/insetWiring.ts` holds the
+asset registry (decode off the main thread, session-only recents — there is no index file, §19.3) and
+`createFocusAwareScene`, a `MarkupScene` facade that converts sheet↔asset inside Focus and nests
+creations through the child APIs; it is transparent when Focus is closed. `Focus` mode's dim is
+**opacity** rather than a scrim, so the focused inset's own children stay bright. `SheetEditorProps`
+gained an optional `onSceneReady` test seam (the `onImportReady` precedent — additive).
+
+**Deferred gate, explicitly not a pass.** `tests/e2e/layersReorderTouch.spec.ts` is the **real-touch**
+proof for D77/F1 (CDP `Input.dispatchTouchEvent`). It is written and wired but marked **`fixme`**: it
+stalls in **first-run step 2**, where the stubbed `showDirectoryPicker` returns an OPFS handle that does
+not satisfy the step-2 persistence path, so `disabled={busy}` never clears and the editor is never
+mounted. The failure is in the e2e bootstrap, **before any of F1's code runs** — the product is not
+implicated. F1's *mechanism* is covered by a pure test and by browser tests using a real
+`elementFromPoint`, but **neither is a real touch**, which is exactly what made F1 invisible before.
+Owed: fix the first-run bootstrap and turn the spec on. Precedent: the CDP renderer-crash harness was
+deferred the same way (D53).
+
+**D77 status after this session:**
+
+| Finding | Status |
+|---|---|
+| **F1** touch reorder dead | **FIXED** (mechanism + pure/browser guards). Real-touch e2e **owed** (`fixme`). |
+| **F2** «Adjust endpoints» dead | **FIXED** + browser-tested. |
+| **F4** Chain locked pre-refine B | **FIXED** + browser-tested. |
+| **F8** hold-to-constrain dead on contact 2 | **FIXED** + browser-tested. |
+| **F3** Esc rung never cancels a pending dimension | **OWED** (needs `EditorLayout`/`SheetEditor`). |
+| **F5** settle timer survives a tool switch | **OWED** (needs `SheetEditor`). |
+| **F6** sub-slop moves outside history | **OWED** (needs `SelectTool` + `SheetEditor`). |
+| **F7** label centring / text-box drift on zoom | **OWED** (measured: 65.4 px label drift at 4×, 167 px text overflow at 0.5×; needs `render*.ts` + `EditorCanvas`). |
+| **F9** handles translate instead of scale/stretch | **OWED** (spec gap vs UI §8.6; needs `SelectTool` + a geometry-scale helper). |
+| **F10** non-reproducible gate number | **FIXED** in the 1.6 commit; the rule is restated there. |
+| **F11** overstated doc/checklist claims | **FIXED** (`LayersPanel` header + the ledger row + the BUILD-LOG bullet). |
+
+**Process note for the next session.** Four of the six correctness findings had the same shape: **the
+wiring exists, the tests pass, and the real input cannot reach it.** The suite that was green while F1
+was dead used synthetic events for a gesture whose semantics depend on **implicit pointer capture**.
+When a test drives an input, ask what real input does that the synthetic one does not — and where a
+gate depends on browser input semantics, the browser project or Playwright/CDP is the only honest
+place to prove it.

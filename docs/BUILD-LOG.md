@@ -355,14 +355,15 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 
 **Machine gates:** 4/4 passing (orchestrator, on the reconciled tree)
 - [x] `npx tsc --noEmit` clean
-- [x] `npx vitest run` — **47 files / 643 tests** (was 526/40; +35 from the wave, +4 reorder, net of the panel expectation corrected in D76)
+- [x] `npx vitest run` — **44 files / 565 tests** on the *committed* tree (was 526/40; +35 from the wave, +4 reorder, net of the panel expectation corrected in D76). ⚠ **Corrected (D77/F10):** this entry first read "47 files / 643 tests", which was measured on a working tree that also held three **uncommitted off-critical-path lane** test files (`stylePanel`, `styleEditorSheet`, `imageInsetPickerSheet`). That total is **not reproducible from git**; the arithmetic in this same bullet already summed to 565. The rule this restores: **a recorded gate must be reproducible from the commit it names** — measure the gate with only that commit's files present.
 - [x] `npm run build` — 17 precache; `EditorLayout-*.js` 303 → **326.88 kB** (the panel + mini-toolbar), main chunk 345.15 kB; **no `UNLOADABLE_DEPENDENCY`** (the CP1252 trap)
 - [x] `npx playwright test` — 5 passed / 4 skipped (CSP-as-a-test green at both viewports)
-- [x] Gate halves with a machine form: rows in the right bands with children indented; tap-select passes the **key**; eye/lock undoable and named; the photo row offers no delete; the panel opens from the TopBar, Escape closes it and focus returns; row count matches after a reload (proves `visible`/`locked` persisted); marquee selects enclosed annotations; a handle drag is one undo step; the rotate commit lands snapped; long-press pins the toolbar; a 600 ms erase press previews and deletes nothing
+- [x] Gate halves with a machine form: rows in the right bands with children indented; tap-select passes the **key**; eye/lock undoable and named; the photo row offers no delete; the panel opens from the TopBar, Escape closes it and focus returns; the scene round-trip carries `visible`/`locked` after a reload (`layersWire.browser.test.ts`); marquee selects enclosed annotations; a handle drag is one undo step; the rotate commit lands snapped; long-press pins the toolbar; a 600 ms erase press previews and deletes nothing
+  - ⚠ **Corrected (D77/F11):** this bullet first claimed "row count matches after a reload (proves `visible`/`locked` persisted)". A row count cannot prove visibility — a hidden row still counts. The persistence claim rests on the scene round-trip test above, which does cover it.
 
 **Deferred to hardware:** 4 new rows → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.6 (drag-to-reorder on glass; eye/lock undo + reload; the erase 600 ms preview; the mini-toolbar pin), each with its machine half stated. None faked.
 
-**Checkpoints fired:** none. **C4's obstacle is gone** — annotations now exist, so its "50 annotations on a 4096-px sheet" measurement is constructible; it stays a hardware decision and is dispatched as its own lane.
+**Checkpoints fired:** none. **C4's obstacle is gone** — annotations now exist, so its "50 annotations on a 4096-px sheet" measurement is constructible; it stays a hardware decision and its machine half is **owed, not yet dispatched** (⚠ corrected in session 12: an earlier version of this line claimed it *was* dispatched, which was not true).
 
 **Decisions recorded:** **D74** (five UI-spec corrections: two impossible container widths, the self-contradicting Layers long-press, the 280 px panel that cannot hold its own swatch grid, and the appendix's `4 pt` example for a string whose source says `«3 pt»`), **D75** (the `visible` field, the rename no-op, marquee gating, the synthetic photo row, the mini-toolbar's CSP-forced placement, the copy fold), **D76** (the reorder seam + the Send-to-back off-by-one).
 
@@ -375,3 +376,62 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 - **The copy fold ran through three staging modules in one wave**; `layersWireCopy.ts` was folded from the appendix bytes and deleted, and the copy gate plus `layersRows` were re-run before the wave commit.
 
 **Next:** slice 1.7 (image insets) — lane B2's picker sheet is already built and green (off the critical path), so Wave B is engine + integration.
+
+## Slice 1.7 — Image insets
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built** (engine and picker built in parallel off the critical path, then integrated):
+
+- **The §8.5 coordinate model, pure and executed** — `src/editor/inset/insetGeometry.ts`: `insetTransform`, `insetLocalToSheet`/`sheetToInsetLocal` (replicating Konva's `T·R·S·T(-offset)`), `assetToInsetLocal`/`insetLocalToAsset` (the shared **`-crop`**), `sheetToAsset`/`assetToSheet`, `insetHandlePositions`/`nearestInsetHandle`, `defaultInsetPlacement` (40 % width, aspect preserved), `cascadeTap` (24 px), `scaleInset` (aspect-locked corners), `cropInsetEdge`, `rotateInset`/`snapRotation`, `replacePhotoDecision`.
+- **The container render** — `src/editor/inset/renderInset.ts`: `clipFunc(0,0,crop.w,crop.h)`, `offset(crop/2)` + `position(x+w/2, y+h/2)` so **rotation pivots on the placed rect's centre**, `scale(w/crop.w, h/crop.h)`, the asset at `-crop`, and **every child wrapped and positioned at the same `-crop`**. Verified against Konva 10.6's `Container._drawChildren` (the clip is applied in crop-window units).
+- **Focus mode** — `src/editor/inset/InsetFocus.ts`: dims the photo, markup and every *other* inset to 0.35 **opacity** (so the focused inset's children stay bright), restores exactly, one level only.
+- **Content-addressed assets** — `src/editor/inset/insetAssets.ts`: normalize → SHA-256 → `assets/<hex>.jpg`, dedupe by a `getFileHandle({create:false})` existence check, one write via `projectStore`. No index file (§19.3).
+- **Child addressing in the document** — `src/editor/shapes/scene.ts`: `locate()` as the single resolver for `top` vs `${insetId}/${childId}`, all mutators routed through it, `syncOwner` (a child's node lives in the inset's group), an `insetLayer` + per-layer `resort`, deep-cloning `serialize`/`load` of `children`, and `addChildDimension`/`addChildMarkup` (both refuse a nested `image`). **A child is not a member of any sheet z-band** — its `zIndex` orders it only inside its inset's group, and `moveInBandBefore`/`moveInBandToBack` return `false` for any key containing `/`, so a cross-band child move is unexpressible.
+- **The tool** — `src/editor/tools/InsetTool.ts`: insert state machine, multi-select cascade, replace-photo decision point, Focus entry/exit, corner/edge/rotate routing with one-undo-step commits.
+- **The picker sheet** (lane B2) — `src/ui/ImageInsetPickerSheet.tsx` + `imageInsetPicker.css`, its own `role="dialog"`, focus trap/return, three sections, honest empty state.
+- **The shell wiring** — `src/ui/insetWiring.ts` (an `InsetAssetRegistry` decoding off the main thread with session-only recents; `createFocusAwareScene`, a facade that converts sheet↔asset inside Focus and nests creations), `insetWire.css`, and the `SheetEditor`/`EditorLayout`/`ToolRail` wiring: `insetLayer` + provider, picker mount (no second dialog), Focus + breadcrumb + Esc rung, the Inset rail tool **enabled**, and the Replace-photo dialog with hold-to-confirm.
+
+**Machine gates:** 4/4 passing (orchestrator, on the **committed** file set — D77/F10's rule)
+- [x] `npx tsc --noEmit` clean
+- [x] `npx vitest run` — **52 files / 636 tests** (was 44/565). *Measured with Wave C's not-yet-committed style files moved aside; with them present the tree is 54/698 — that larger number is NOT this commit's gate.*
+- [x] `npm run build` — 17 precache (788.94 KiB); no `UNLOADABLE_DEPENDENCY`
+- [x] `npx playwright test` — 5 passed / **5 skipped** (4 pre-existing + the new real-touch spec, deferred `fixme` — see below)
+- [x] Gate halves with a machine form: the **child round-trip through the real editor** (place → Focus → child dimension → scale ×2 + crop + rotate 30° → save → remount → the child's asset geometry is unchanged and its wrapper sits at exactly `−crop`); the crop-window glue trace; two insets from one asset have **independent** children; the same image twice writes **one** file; Focus clips inside and outside-markup renders above insets; the §4.2 Esc ladder; Replace-photo warn/keep/hold-to-confirm-remove; a11y (Focus announced, breadcrumb is a real button, 48 px + 16 px slop, no inline style)
+
+**Deferred to hardware:** 2 rows → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.7 (the on-glass Focus/target walk; and the deferred real-touch reorder gate). None faked.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D78** — the §4.2 Esc-ladder authority resolution, the ink measurement verdict, the camera fallback, the focus-aware facade, and the deferred real-touch gate.
+
+**Surprises:**
+- **The Esc ladder contradicted the spec, and the spec won.** The engine lane reordered `escapeStep` to `exitFocus`-before-`deselect` on the strength of a handoff brief and the plan's gate wording. **UI §4.2 states the ladder explicitly** (`pending → deselect → exit Focus → navigate`), and the authority chain puts the UI spec above the plan (`[x]` plan gates are not maintained; done-ness lives here). Restored §4.2's order, corrected the plan's gate text and both tests, and recorded it (D78). The mistake was mine in briefing: I relayed the engine lane's phrasing instead of checking §4.2 first.
+- **The ink-thickness question was measured, not guessed.** Canvas zoom is **constant** (`mu = 10` at zoom 1 and 4), so the §4.2 tripwire ("ink width changing with zoom") is **not** tripped. Inset scale is **proportional** (`10 → 20 px` at ×2), which is exactly §8.5's "children scale with the inset" — intended, so **no code changed**; the behaviour is pinned by `tests/insetWire.browser.test.ts`.
+- **The camera has no in-app path for an inset.** `CameraFlow` owns sheet creation and cannot hand back a normalized blob without widening its frozen props, so `onPickCamera` opens a hidden `capture="environment"` input — a real OS camera, but not the UI-spec §9:614 in-app viewfinder. Owed.
+- **The real-touch regression gate is written but cannot yet run.** `tests/e2e/layersReorderTouch.spec.ts` (CDP `Input.dispatchTouchEvent`) stalls in **first-run step 2**: the stubbed `showDirectoryPicker` returns an OPFS handle that does not satisfy the step-2 persistence path, so `disabled={busy}` never clears and the editor is never mounted. The failure is in the e2e bootstrap, **not the product** — it is marked `fixme` with the observation in its header, never faked.
+- **Five pre-existing browser tests needed a mock widened** (`resolveAssetsDir` on the `projectStore` mock) once `SheetEditor` began importing the inset modules transitively.
+
+**Next:** slice 1.8 (style system) — its `StylePanel`/`StyleEditorSheet` UI half is already built and green, untracked, so Wave C is style state + presets IO plus integration.
+
+## Defect remediation — D77 F1/F2/F4/F8 (independent review follow-up)
+**Date:** 2026-09-21 · **Commit:** this commit
+
+**Built:** fixes for the four defects the independent adversarial review found in the 1.4→1.6 batch, each **reproduced before the fix** and shown passing after (D77 register; D78 status).
+
+- **F1 (highest value) — touch drag-to-reorder was silently dead.** Chromium **implicitly captures** the pointer to the grip, so the rows' `pointerover` never fired, `dropKey` stayed null, and the drop was a silent no-op. The panel now resolves the drop target **geometrically from captured `pointermove` coordinates** (`dropKeyAtPoint(clientX, clientY, elementFromPoint)`, with `elementFromPoint` injected so it is pure and unit-testable); the `pointerover` handler and the now-write-only `dragKeyRef` are gone. Pre-fix: `6 failed | 39 passed` in `layersPanel.test.tsx`; post-fix 46/46.
+- **F2 — «Adjust endpoints» was dead.** It set `phase='refine'` but never armed `contactRole='refining'`, so the next drag returned `'pan'` and panned the canvas. It now routes through `beginRefine('b')` like the working 40 px-contact path, and `endRefine` clears the role.
+- **F4 — Chain locked at the pre-refine B.** `commitValue` now reads the **live** anchor from the scene (`geometryAt(key)?.b`) instead of the stale field that refine drags never updated.
+- **F8 — hold-to-constrain was dead on the second contact.** `placingB` now re-arms the hold baseline, so the 400 ms/8 px (pen) and 600 ms/16 px (touch) windows are measured from the *dragging* contact.
+
+**Machine gates:** 4/4 passing (folded into the slice 1.7 run above; same tree)
+- [x] `tsc` 0 · `vitest` 52 files / 636 · `build` 0 (17 precache) · `playwright` 5 passed / 5 skipped
+- [x] Per-defect **pre-fix failing → post-fix passing** evidence captured for all four (F1: `onReorder` never called + no refusal alert; F2: move returned `'pan'`, B unchanged; F4: next locked A was `{300,100}` not `{300,200}`; F8: `|dx| 210` vs `|dy| 90`)
+- [x] New guards: `tests/dimensionRefine.browser.test.ts`, `tests/shapeToolHold.browser.test.ts`, a pure `dropKeyAtPoint`/`rowKeyFromElement` test, and reworked drag helpers in `layersPanel.test.tsx` / `layersReorder.browser.test.ts`
+
+**Deferred to hardware / owed:** the **real-touch** regression proof (`tests/e2e/layersReorderTouch.spec.ts`) is written and marked `fixme` — it cannot yet reach the editor because the e2e first-run bootstrap stalls with the OPFS stub (see the slice 1.7 surprises). Recorded in D78.
+
+**Checkpoints fired:** none. **Decisions recorded:** D78 (status update on D77).
+
+**Surprises:** **the two tests that "covered" F1 were themselves driving the broken mechanism** — a synthetic `pointerover` that real touch never delivers. That is the fourth instance this session of *wiring that exists, tests that pass, and a real input that cannot reach it*; it is now the reason `review-brief.md` question 8 exists. Also: `fix-5` observed a transient failure in another lane's in-flight `insetWire.browser.test.ts` that passed on re-run — mid-wave cross-lane test noise, resolved by re-running on the settled tree.
+
+**Next:** the remaining D77 findings (F3, F5, F6, F7, F9), then slice 1.8.

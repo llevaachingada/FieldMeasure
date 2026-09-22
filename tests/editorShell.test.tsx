@@ -44,7 +44,7 @@ import EditorLayout, {
   railSideFor,
   sheetEditorToolFor,
 } from '../src/ui/EditorLayout';
-import ToolRail, { TOOL_DEFS, TOOL_GROUPS, TOOL_HOTKEYS } from '../src/ui/ToolRail';
+import ToolRail, { TOOL_DEFS, TOOL_GROUPS, TOOL_HOTKEYS, type ToolId } from '../src/ui/ToolRail';
 import TopBar from '../src/ui/TopBar';
 import { createInitialEditorState, useEditorStore } from '../src/state/editorStore';
 import { createInitialAppState, useAppStore } from '../src/state/appStore';
@@ -123,11 +123,15 @@ describe('sheetEditorToolFor — editorStore tool → SheetEditor seam (D61)', (
   });
 });
 
-describe('escapeStep — one rung per press (pending → deselect → exit Focus → navigate)', () => {
+describe('escapeStep — one rung per press (§4.2: pending → deselect → exit Focus → navigate)', () => {
   it('walks the ladder in order and stops at navigate', () => {
     expect(escapeStep({ pendingOp: 'dimension', hasSelection: true, focusInsetId: 'i' })).toBe('cancelPending');
+    // §4.2 puts de-select BEFORE exit Focus; the first Esc in a Focus session with something
+    // selected clears the selection, and the next one leaves the inset (DECISIONS D78).
     expect(escapeStep({ pendingOp: 'none', hasSelection: true, focusInsetId: 'i' })).toBe('deselect');
+    // Exiting Focus does not itself change the selection — with none selected it exits.
     expect(escapeStep({ pendingOp: 'none', hasSelection: false, focusInsetId: 'i' })).toBe('exitFocus');
+    expect(escapeStep({ pendingOp: 'none', hasSelection: true, focusInsetId: null })).toBe('deselect');
     expect(escapeStep({ pendingOp: 'none', hasSelection: false, focusInsetId: null })).toBe('navigate');
   });
 });
@@ -144,22 +148,10 @@ describe('TOOL_DEFS — the frozen 14-tool table', () => {
     }
   });
 
-  it('implements every rail tool except the image inset (slice 1.6)', () => {
-    expect(TOOL_DEFS.filter((d) => d.implemented).map((d) => d.id).sort()).toEqual([
-      'angle',
-      'arrow',
-      'dimension',
-      'ellipse',
-      'erase',
-      'freehand',
-      'highlight',
-      'line',
-      'pan',
-      'polygon',
-      'rect',
-      'select',
-      'text',
-    ]);
+  it('implements all 14 rail tools (slice 1.7 completes the set)', () => {
+    expect(
+      TOOL_DEFS.filter((d) => !d.implemented).map((d) => d.id),
+    ).toEqual([]);
   });
 
   it('binds every §6.6 hotkey to a real tool id', () => {
@@ -209,13 +201,23 @@ describe('ToolRail', () => {
     expect(onSelectTool).toHaveBeenCalledWith('pan');
   });
 
-  it('is a no-op for a tool with implemented: false (no throw, no selection)', () => {
-    const { view, onSelectTool } = renderRail();
-    expect(() => {
-      act(() => {
-        (view.container.querySelector('[data-tool="inset"]') as HTMLButtonElement).click();
-      });
-    }).not.toThrow();
+  it('is disabled (with a reason) when listed in disabledTools, and does not select', () => {
+    const onSelectTool = vi.fn();
+    const view = render(
+      createElement(ToolRail, {
+        activeTool: 'select',
+        onSelectTool,
+        side: 'right',
+        disabledTools: new Set<ToolId>(['inset']),
+        disabledReason: { inset: STRINGS.inset.nestedTooltip },
+      }),
+    );
+    const inset = view.container.querySelector('[data-tool="inset"]') as HTMLButtonElement;
+    expect(inset.disabled).toBe(true);
+    expect(inset.title).toBe(STRINGS.inset.nestedTooltip);
+    act(() => {
+      inset.click();
+    });
     expect(onSelectTool).not.toHaveBeenCalled();
   });
 
@@ -370,11 +372,17 @@ describe('EditorLayout — composition, docking, rotation, keys', () => {
     expect(useEditorStore.getState().selection).toEqual(['ann-1']);
   });
 
-  it('is a no-op when an unimplemented rail tool is tapped (activeTool unchanged)', () => {
+  it('disables the Inset tool inside Focus (nesting is one level) and no-ops the tap', () => {
     const { container } = renderLayout();
+    act(() => {
+      useEditorStore.getState().setFocusInsetId('inset-1');
+    });
+    const inset = container.querySelector('[data-tool="inset"]') as HTMLButtonElement;
+    expect(inset.disabled).toBe(true);
+    expect(inset.title).toBe(STRINGS.inset.nestedTooltip);
     expect(() => {
       act(() => {
-        (container.querySelector('[data-tool="inset"]') as HTMLButtonElement).click();
+        inset.click();
       });
     }).not.toThrow();
     expect(useEditorStore.getState().activeTool).toBe('select');
@@ -388,7 +396,7 @@ describe('EditorLayout — composition, docking, rotation, keys', () => {
     expect(useEditorStore.getState().activeTool).toBe('pan');
   });
 
-  it('runs the §6.6 hotkeys, selecting a newly-implemented tool and no-oping the rest', () => {
+  it('runs the §6.6 hotkeys, including the newly-implemented Inset tool', () => {
     renderLayout();
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', bubbles: true }));
@@ -402,6 +410,10 @@ describe('EditorLayout — composition, docking, rotation, keys', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true }));
     });
     expect(useEditorStore.getState().activeTool).toBe('angle'); // 1.6 implements it
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'i', bubbles: true }));
+    });
+    expect(useEditorStore.getState().activeTool).toBe('inset'); // 1.7 completes the set
   });
 
   it('advances the Esc ladder one rung per press, ending in exit', () => {

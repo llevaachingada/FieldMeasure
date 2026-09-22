@@ -70,9 +70,9 @@ redraw while panning a 4096-px sheet carrying ~50 annotations" could not be run.
 now**: slice 1.6 added shapes, ink, text and the Layers panel, so a ~50-annotation sheet is
 constructible. It remains **⬜** because the decision it feeds is a *Surface Go* decision (the §21.8
 ladder: ≤16 ms keep, else drop overlay → 1, then markup → 1.5, then 1) and no Surface Go is
-available. The machine half is dispatched as its own lane and will be recorded as **provisional**,
-not as a pass — a dev-machine frame time does not decide a tablet ladder. `min(devicePixelRatio, 2)`
-is what ships until hardware says otherwise.
+available. The machine half is **owed as its own lane — not yet dispatched** (⚠ corrected in
+session 12) and will be recorded as **provisional**, not as a pass — a dev-machine frame time does
+not decide a tablet ladder. `min(devicePixelRatio, 2)` is what ships until hardware says otherwise.
 
 **Measure:** markup-layer redraw time while panning a 4096-px sheet carrying ~50 annotations, at
 `pixelRatio = min(devicePixelRatio, 2)`. Use the Performance panel; report the median frame time.

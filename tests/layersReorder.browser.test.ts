@@ -12,8 +12,9 @@
  * Browser project only (real `Konva.Stage` → D40). Storage is mocked; no photo is needed.
  *
  * Everything here drives the REAL `SheetEditor` + REAL `LayersPanel` through the DOM
- * (400 ms grip long-press → pointerover target → pointerup), so it proves the shell's
- * `panelReorder` TRANSLATION and the scene primitive together, not a decision in isolation.
+ * (400 ms grip long-press → captured pointermove at the target's coordinates → pointerup),
+ * so it proves the shell's `panelReorder` TRANSLATION and the scene primitive together,
+ * not a decision in isolation.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
@@ -45,6 +46,7 @@ vi.mock('@/fs/projectStore', () => ({
   })),
   isPhotoDamaged: vi.fn(async () => false),
   resolveSheetDir: vi.fn(async () => ({ kind: 'directory', name: 'sheet' })),
+  resolveAssetsDir: vi.fn(async () => ({ kind: 'directory', name: 'assets' })),
   writeAtomic: vi.fn(async () => undefined),
   writeJsonAtomic: vi.fn(async () => undefined),
   readSheetMarkup: vi.fn(async () => ({ schemaVersion: 1, sheetId: 's', objects: [] })),
@@ -151,13 +153,19 @@ async function openLayers(): Promise<{
   return { rows };
 }
 
-/** §8.1 grip drag: 400 ms hold, cross the target row, release on the document. */
+/** §8.1 grip drag: 400 ms hold, move over the target row's real coordinates, release. */
 async function dragRowOnto(fromKey: string, toKey: string): Promise<void> {
   const grip = document.querySelector(`[data-layer-grip="${fromKey}"]`) as HTMLElement;
   const target = document.querySelector(`[data-layer-row="${toKey}"]`) as HTMLElement;
   pev('pointerdown', grip, 10, 10, { pointerType: 'touch' });
   await sleep(LONG_PRESS_MS + 40);
-  pev('pointerover', target, 10, 10, { pointerType: 'touch' });
+  // Real touch is implicitly captured to the grip, so the move still TARGETS the grip
+  // (D77/F1). Aim at the target row's real centre so the panel's coordinate → row-key
+  // resolution finds it — `pointerover` never fires under capture.
+  const rect = target.getBoundingClientRect();
+  pev('pointermove', grip, rect.left + rect.width / 2, rect.top + rect.height / 2, {
+    pointerType: 'touch',
+  });
   pev('pointerup', document.body, 10, 10, { pointerType: 'touch' });
   await sleep(20);
 }

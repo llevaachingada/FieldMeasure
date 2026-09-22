@@ -192,6 +192,11 @@ export const STRINGS = {
     // `Sheet NN` default name (appendix `project.sheetNameExample` = "Sheet 04",
     // pattern `Sheet NN`, zero-padded 2, never renumbered).
     sheetNamePrefix: 'Sheet',
+    // APPROVED inventory (appendix-strings.md `project.replacePhoto*`) — slice 1.7:
+    // the Replace-photo warned dialog (different dimensions).
+    replacePhotoWarn: "The new photo is a different size. Markup saved in the old photo's coordinates may land in the wrong place.",
+    replacePhotoKeep: 'Keep markup',
+    replacePhotoRemove: 'Remove markup',
   },
 
   // APPROVED inventory (appendix-strings.md `## capture`)
@@ -424,9 +429,24 @@ export const STRINGS = {
   },
 
   inset: {
-    // APPROVED inventory (appendix-strings.md `inset.layersName`, `{insetName}`) — the
-    // Layers panel row name for an inset (U §9:609).
+    // APPROVED inventory (appendix-strings.md `## inset`) — slices 1.6/1.7.
     layersName: 'Inset {insetName}',
+    placeHint: 'Tap where the inset should go',
+    takePhoto: 'Take a photo',
+    chooseFromDevice: 'Choose from device',
+    recentPhotos: 'Recent photos',
+    focusBreadcrumb: '{sheetName} › {insetName}',
+    nestedTooltip: "Nested insets aren't supported",
+    focusControl: 'Focus',
+    keepMarkupAnyway: 'Keep markup anyway — it may land in the wrong place',
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): the inset
+    // operation names used in undo toasts, and the Recents grid's empty state.
+    actionPlace: 'Place inset',
+    actionCrop: 'Crop inset',
+    actionScale: 'Scale inset',
+    actionRotate: 'Rotate inset',
+    actionReplace: 'Replace photo',
+    recentsEmpty: 'No recent photos yet',
   },
 } as const;
 

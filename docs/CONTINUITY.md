@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-21 (session 11, continued — slice **1.6 is COMPLETE**: the three owed wiring items are closed, and the wave review found and fixed a real Layers-reorder defect — see D76)
+**Last updated:** 2026-09-21 (session 12 — slice **1.7 image insets is COMPLETE**; the **independent adversarial review of the 1.4→1.6 batch has now run** (D77) and its first four defects are fixed (D78))
 
 ---
 
@@ -11,16 +11,16 @@ resume without re-deriving context. **Update this file at the end of each work s
 
 | Field | Value |
 |---|---|
-| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 complete and green.** Markup tools ship, **annotations persist** to `markup.json`, and the **Layers panel is mounted** with undoable eye/lock, a band-safe reorder and a shell-driven `SelectTool`. Next: **1.7 (image insets)** |
-| Application code | **Nine slices**, **643 machine tests / 47 files**. 1.6 adds `shapes/{svgPath,renderShape,renderInk,renderText}.ts`, `tools/{toolTypes,ShapeTool,AngleTool,FreehandTool,TextTool,EraseTool,SelectTool}.ts`, `ui/LayersPanel.tsx`, `ui/layersRows.ts` (+CSS) and the `markup.json` persistence wiring; its wiring closure mounts the panel and drives `SelectTool` + the erase long-press preview. Plus 1.9 **step 1 only** |
+| Phase | **Slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 + 1.4 + 1.4.5 + 1.5 + 1.6 + 1.7 complete and green.** Image insets ship with the §8.5 coordinate model, content-addressed assets, one-level Focus and the Layers panel fully wired. Next: the **remaining independent-review findings** (D77 F3/F5/F6/F7/F9), then **1.8 (style system)** |
+| Application code | **Ten slices**, **636 machine tests / 52 files** on the committed tree (1.7's closure). 1.7 adds `src/editor/inset/**` (`insetGeometry`, `renderInset`, `InsetFocus`, `insetAssets`), `tools/InsetTool.ts`, **child addressing** in `scene.ts`, `ui/ImageInsetPickerSheet.tsx` + `ui/insetWiring.ts` + `insetWire.css`, and the D77 F1/F2/F4/F8 fixes. Plus 1.9 **step 1 only**. ⚠ Wave C's style-panel files are on disk **untracked** for their own wave; with them present the tree runs 54 files / 698 tests — **that larger number is not any commit's gate** (D77/F10). |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
-| Adversarial review | ✅ rounds 1–5 · ✅ sessions 7–9 (orchestrator + independent oracle on 1.3, F1–F5) · ✅ **session 10** — the owner **waived** the independent `@oracle` pass for the 1.4/1.4.5/1.5 batch; an orchestrator internal review was run against `docs/review-brief.md` (no stored `label`; the D65 loupe arithmetic; D63 restore live with a browser test; the 450 ms settle; the refusal table) and the full gate is green. **The waiver is recorded in the batch entry — this batch has not had an independent adversarial review.** |
+| Adversarial review | ✅ rounds 1–5 · ✅ sessions 7–9 (orchestrator + independent oracle on 1.3, F1–F5) · ⚠️ **session 10's waiver is now discharged: session 12 ran the independent `@oracle` pass over the 1.4→1.6 batch** — execution-based, in a clean worktree at `e06bf8f`, with a real-CDP-touch harness. **No wrong-measurement and no data-loss finding**, six correctness findings (**D77**): F1 touch drag-to-reorder silently dead, F2 «Adjust endpoints» dead, F3 Esc never cancels a pending dimension, F4 Chain locks at the pre-refine B, F5 settle survives a tool switch, F6 sub-slop moves outside history, plus F7 (a **measured** §4.2 label/text layout drift), F8, F9 and two doc-fidelity items. **F1/F2/F4/F8 are fixed** with pre-fix-failing evidence; **F3/F5/F6/F7/F9 remain owed** and are the next action. **Verified sound** with evidence: the §4.2 size invariants, `Annotation.visible` through zod, the anchor-based §20.2 reorder, the timers, persistence, the loupe arithmetic, history, and the copy contract. |
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **Slice 1.7 (image insets).** Lane B2's picker sheet is already built and green **off the critical path**, so Wave B is the inset engine (`InsetTool` + the §8.5 coordinate model) plus integration. Then **1.8 (style system)**, whose StylePanel/StyleEditorSheet UI half is likewise already built. |
+| Next action | **Clear the remaining independent-review findings (D77 F3/F5/F6/F7/F9)** — F3 (Esc never cancels a pending dimension), F5 (settle survives a tool switch), F6 (sub-slop moves mutate outside history) are wiring gaps in `EditorLayout`/`SheetEditor`/`SelectTool`; F7 is a **measured** §4.2 label/text layout drift; F9 is the §8.6 handle semantics gap. Then **slice 1.8 (style system)**, whose `StylePanel`/`StyleEditorSheet` UI half is already built and green. |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -458,13 +458,70 @@ second-from-back) was corrected with its pinned expectation, arithmetic shown in
 
 **Machine gates:** `tsc` 0 · `vitest` **643 passed / 47 files** · `build` 0 (17 precache, no
 `UNLOADABLE_DEPENDENCY`) · `playwright` 5 passed / 4 skipped. **Checkpoints:** none fired; C4's
-obstacle is gone (annotations exist) and it is dispatched as its own lane.
+obstacle is gone (annotations exist), so its machine half is now **constructible and owed — not yet
+dispatched** (⚠ corrected in session 12: this line previously said "dispatched").
 
 **Also corrected in the same commit (D74):** five subordinate-document defects in the UI spec and the
 strings appendix — two container dimensions that could not hold their own contents (`360px` keypad =
 538 px; `320px` picker = 440 px), the self-contradicting Layers long-press (resolved **grip = drag,
 row body = menu**), the 280 px panel that cannot hold its own 6-across 44 px swatch grid (294 px), and
 the appendix's `4 pt` example for a string whose own source says `«3 pt»` (pt = 0.75 × mu).
+
+### 2026-09-21 — Session 12: slice 1.7 (image insets), the independent review, and four defects fixed
+
+**Three lanes ran at once, two of them off the critical path** (the 1.7 engine, and — from the
+previous wave — the 1.8 style-panel UI), then integration, then a remediation lane on a hard file
+allowlist chosen so no two writers could touch one file.
+
+**Slice 1.7 shipped** (D78): the §8.5 coordinate model as **pure, executed** geometry (the shared
+`-crop` offset on the asset *and* every child, rotation pivoting on the placed rect's centre); the
+Konva container render verified against Konva 10.6's `_drawChildren`; **content-addressed assets**
+(`assets/<sha256hex>.jpg`, dedupe by existence check, no index file); one-level **Focus** mode; an
+`InsetTool`; **child addressing** in `MarkupScene` (`${insetId}/${childId}`) with children explicitly
+**outside** the sheet z-bands; the props-driven picker sheet; and the shell wiring (asset registry
+decoding off the main thread, a Focus-aware scene facade, breadcrumb, Replace-photo dialog with
+hold-to-confirm), with the Inset rail tool finally **enabled**.
+
+**The independent review the owner waived in session 10 was run** (D77), and it earned its keep:
+execution-based, in a clean worktree, with a real-CDP-touch harness. **No wrong-measurement and no
+data-loss finding**, but **six correctness defects** — and **four of them the same shape as the D76
+defect**: *the wiring exists, the tests pass, and the real input cannot reach it.*
+
+- **F1 is the headline.** **Touch drag-to-reorder could never work**: Chromium **implicitly captures**
+  the pointer to the grip, so the rows' `pointerover` never fired and the drop was a silent no-op.
+  The suite was green because its drag helpers drove synthetic `pointerover` — an event real touch
+  never delivers. **Fixed** by resolving the target geometrically from captured `pointermove`
+  coordinates, with `elementFromPoint` injected so the logic stays pure and testable.
+- **F2/F4/F8** («Adjust endpoints» dead; Chain locking at the pre-refine B; hold-to-constrain dead on
+  the second contact) are **fixed**, each reproduced **before** the fix.
+- **F3/F5/F6/F7/F9 remain owed** — F7 is a *measured* §4.2 drift (a dimension label **65.4 px** off
+  centre at 4×; a text note's glyphs **167 px** wider than their box at 0.5×).
+
+**Two of the eleven findings were the orchestrator's own** and are corrected: **F10** — the 1.6
+closure entry recorded "47 files / 643 tests" measured on a tree that still held three **uncommitted**
+off-path lane test files (the committed tree is 44/565, and the same bullet's arithmetic already
+summed to 565); and an **untrue claim that C4 had been "dispatched as its own lane"**, which it had
+not. The restated rule: **a recorded gate must be reproducible from the commit it names.** This
+session's own gate follows it — 1.7's numbers were measured with Wave C's uncommitted files moved
+aside, because including them would have repeated the error exactly.
+
+**The Esc ladder contradicted the spec, and the spec won.** A lane reordered `escapeStep` on the
+strength of a handoff brief; **UI §4.2 states the ladder** (`pending → deselect → exit Focus →
+navigate`) and outranks the implementation plan. Restored, with the plan's gate wording and both
+tests corrected (D78). The briefing error was the orchestrator's.
+
+**The ink question was answered with numbers, not an opinion.** Canvas zoom is **constant**
+(`mu = 10` at zoom 1 and 4) — the §4.2 tripwire is **not** tripped. Inset scale is **proportional**
+(§8.5's "children scale with the inset"), so **no code changed**; pinned by a browser test.
+
+**Machine gates (on the committed file set):** `tsc` 0 · `vitest` **636 passed / 52 files** · `build` 0
+(17 precache, 788.94 KiB) · `playwright` 5 passed / 5 skipped. **Checkpoints:** none fired.
+
+**Deferred, explicitly:** the **real-touch** regression gate (`tests/e2e/layersReorderTouch.spec.ts`)
+is written and marked **`fixme`** — it stalls in e2e first-run step 2 (the OPFS stub does not satisfy
+the step-2 persistence path, so `disabled={busy}` never clears and the editor is never mounted). The
+failure is in the harness, **before F1's code runs**; the product is not implicated, and it is never
+reported as a pass.
 
 ## Done
 
@@ -624,6 +681,38 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   is *front of the row's own group*, not of the sheet, because `(key, 0)` is shared with a drop on the
   group's front row (D76). Insets will add a new group and (in Focus mode) a nesting level, which is
   exactly the shape of change that produced the defect above.
+
+## Known drift / watch items (session 12)
+
+- **The remaining independent-review findings (D77) are the next action after 1.7** — F3, F5, F6, F7,
+  F9, each with its file anchors and executed evidence in the register. F7 is the only **measured**
+  rendering defect (65.4 px label drift at 4×; 167 px text overflow at 0.5×).
+- **The real-touch regression gate is deferred, not passed.** `tests/e2e/layersReorderTouch.spec.ts`
+  is `fixme` because the e2e **first-run bootstrap** cannot complete step 2 against the OPFS stub. Fix
+  the bootstrap — do **not** delete the spec, and do not report F1's real-input half as proven until it
+  runs. Precedent: D53's deferred CDP harness.
+- **The camera has no in-app inset path (owed).** `onPickCamera` uses a hidden
+  `capture="environment"` input (a real OS camera), not UI §9:614's in-app viewfinder, because
+  `CameraFlow` cannot return a normalized blob without widening its frozen props. Needs either a
+  `CameraFlow` inset mode or a spec amendment.
+- **The inset decode-error state is unreachable.** `inset.openError` / `chooseAnother` / `removePhoto`
+  exist in the appendix but nothing surfaces them; a corrupt asset leaves the placeholder. Owed.
+- **Second-tap-to-Focus is wired but not independently tested** (the HUD `Focus` and Enter-while-
+  selected paths are). A second-tap test needs a drawn layer before hit-testing — `getIntersection`
+  reads a stale hit canvas when the stage transform changes without a layer draw. Not a product bug.
+- **Still open from earlier sessions:** object **groups** (no model anywhere — Group/Ungroup disabled);
+  the synthetic **photo row's lock cannot persist**; the **mini-toolbar** uses the `.placement-hud` slot
+  because a computed anchor needs an inline `style` the CSP forbids; **rename is a deliberate no-op**;
+  the `⚠ PROPOSED (C14)` copy set still needs a content owner; the 14 tool glyphs are still
+  **placeholders**; C4's machine half is **owed** (its obstacle is gone, it is not dispatched).
+- **Wave C's style-panel files are on disk and untracked**, deliberately, for slice 1.8's own wave.
+  They are green; they are simply not part of the 1.7 commit — and because they are present,
+  `npx vitest run` on the working tree reports a **larger** count than the commit's gate. Do not
+  record the working-tree number as a commit's gate (D77/F10).
+- **Process:** four of the six correctness findings had one shape — *wiring that exists, tests that
+  pass, and a real input that cannot reach it.* When a test drives an input, ask what the real input
+  does that the synthetic one does not; when behaviour depends on browser input semantics, only the
+  browser project or Playwright/CDP is honest proof.
 
 ## How to resume
 
