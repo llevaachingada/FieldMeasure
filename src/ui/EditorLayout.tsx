@@ -222,6 +222,7 @@ export default function EditorLayout({
   sheetId,
 }: EditorLayoutProps) {
   const handedness = useAppStore((s) => s.handedness);
+  const density = useAppStore((s) => s.density);
   const activeTool = useEditorStore((s) => s.activeTool);
   const pendingOp = useEditorStore((s) => s.pendingOp);
   const keypadOpen = useEditorStore((s) => s.keypadOpen);
@@ -640,6 +641,7 @@ export default function EditorLayout({
       className="editor-layout"
       data-dock={dock}
       data-rail={railSide}
+      data-density={density}
       data-keypad-open={keypadOpen ? 'true' : 'false'}
       data-layers-open={layersOpen ? 'true' : 'false'}
       data-focus-inset={focusInsetId ?? 'false'}

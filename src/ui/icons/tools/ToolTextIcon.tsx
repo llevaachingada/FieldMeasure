@@ -1,9 +1,14 @@
 /**
- * `ToolTextIcon` — PLACEHOLDER glyph for the Text note tool (slice 1.4.5).
+ * `ToolTextIcon` - the Text note glyph (UI spec §6.1/§8.5; build spec §11.7).
  *
- * ⚠ PLACEHOLDER ART — MUST NOT SHIP. The plan sanctions a numbered square to unblock
- * the editor shell; the 14 bespoke single-path glyphs (§2.2, UI §11.7) are a
- * prerequisite for slice 2.0, not for 1.5. Replace this file with the real glyph.
+ * A capital T, drawn as two strokes (never a `<text>` element - the rail glyphs must
+ * render without a font, and `tests/toolGlyphs.test.ts` pins that). The T is the one
+ * glyph built from a stem plus a crossbar, so it cannot collide with Line (a diagonal
+ * with nodes) or Arrow (a diagonal with a head).
+ *
+ * Bespoke inline SVG (no new dependency, AGENTS #5): 24x24 viewBox, `currentColor` only,
+ * no `<text>`, no inline `style`, round caps/joins per §3.4. Decorative - the rail
+ * button's accessible name is `STRINGS.tool.textNote`.
  */
 export default function ToolTextIcon() {
   return (
@@ -15,21 +20,12 @@ export default function ToolTextIcon() {
       focusable="false"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
-      <text
-        x="12"
-        y="12.5"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="9"
-        fontWeight="600"
-        fill="currentColor"
-        stroke="none"
-      >
-        12
-      </text>
+      <path d="M5 6.5 H19" />
+      <path d="M12 6.5 V19" />
     </svg>
   );
 }

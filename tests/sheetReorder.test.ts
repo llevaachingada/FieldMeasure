@@ -10,7 +10,16 @@
  * component actually FEEDS it (a stubbed rect grid, a real pointer sequence).
  */
 import { describe, expect, it } from 'vitest';
-import { dropIndexFor, moveId, type SheetCardRect } from '../src/ui/sheetReorder';
+import {
+  AUTOSCROLL_EDGE_PX,
+  AUTOSCROLL_STEP_PX,
+  autoscrollDelta,
+  dropIndexFor,
+  moveId,
+  shiftRectsByScroll,
+  type ScrollerMetrics,
+  type SheetCardRect,
+} from '../src/ui/sheetReorder';
 
 /**
  * A 4-across grid of 320 × 300 cards with a 16 px gap, two rows.
@@ -109,5 +118,104 @@ describe('dropIndexFor — the target from captured rects + the pointer point', 
 
   it('an out-of-range fallback index degrades to the first card, not a bogus index', () => {
     expect(dropIndexFor(grid4x2(), { x: -500, y: -500 }, 99)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Autoscroll during a live drag (D118 M8) — pure decision + the rect shift it feeds
+// ---------------------------------------------------------------------------
+
+describe('autoscrollDelta — the edge-band decision, clamped at the scroller limits', () => {
+  /** A tall scroller: rect 0…800, 2000 px of content, scrolled to 300. maxScroll = 1200. */
+  const scroller = (overrides: Partial<ScrollerMetrics> = {}): ScrollerMetrics => ({
+    top: 0,
+    bottom: 800,
+    scrollTop: 300,
+    scrollHeight: 2000,
+    clientHeight: 800,
+    ...overrides,
+  });
+
+  it('pins the edge constants', () => {
+    // The band and step are behaviour, not magic numbers: 48 px in from either edge.
+    expect(AUTOSCROLL_EDGE_PX).toBe(48);
+    // 18 px/frame at ~60 Hz ≈ 1080 px/s — about one 894 px screenful a second.
+    expect(AUTOSCROLL_STEP_PX).toBe(18);
+  });
+
+  it('scrolls toward the top inside the top band', () => {
+    // y 0 is the top edge; the band is [0, 48].
+    expect(autoscrollDelta(scroller(), 0)).toBe(-AUTOSCROLL_STEP_PX);
+  });
+
+  it('treats exactly 48 px from an edge as INSIDE the band (inclusive boundary)', () => {
+    // top + 48 = 48 → the last pixel of the top band scrolls up.
+    expect(autoscrollDelta(scroller(), 48)).toBe(-AUTOSCROLL_STEP_PX);
+    // 49 is one past the band and not near the bottom (bottom band starts at 800 − 48 = 752).
+    expect(autoscrollDelta(scroller(), 49)).toBe(0);
+  });
+
+  it('scrolls toward the bottom inside the bottom band', () => {
+    // The band starts at 800 − 48 = 752; 752 is inclusive, 751 is not.
+    expect(autoscrollDelta(scroller(), 752)).toBe(AUTOSCROLL_STEP_PX);
+    expect(autoscrollDelta(scroller(), 751)).toBe(0);
+    // Past the bottom edge (the finger can leave the scroller) still scrolls down.
+    expect(autoscrollDelta(scroller(), 900)).toBe(AUTOSCROLL_STEP_PX);
+  });
+
+  it('does not scroll in the middle of the scroller', () => {
+    expect(autoscrollDelta(scroller(), 400)).toBe(0);
+  });
+
+  it('clamps at the top: already at scrollTop 0 the top band is a no-op', () => {
+    // Cannot scroll above 0, so the requested −18 clamps to −0.
+    expect(autoscrollDelta(scroller({ scrollTop: 0 }), 10)).toBe(0);
+  });
+
+  it('clamps at the bottom: already at the last scroll offset the bottom band is a no-op', () => {
+    // maxScroll = 2000 − 800 = 1200; at 1200 the remaining distance is 0.
+    expect(autoscrollDelta(scroller({ scrollTop: 1200 }), 790)).toBe(0);
+  });
+
+  it('returns the REMAINING distance when less than a full step is left', () => {
+    // maxScroll − scrollTop = 1200 − 1195 = 5 < 18: ask for only what is left.
+    expect(autoscrollDelta(scroller({ scrollTop: 1195 }), 790)).toBe(5);
+  });
+
+  it('returns 0 with no scroller (no layout, or unmounted)', () => {
+    expect(autoscrollDelta(null, 10)).toBe(0);
+    expect(autoscrollDelta(null, 900)).toBe(0);
+  });
+
+  it('a scroller shorter than two bands resolves the overlap deterministically (top wins)', () => {
+    // bottom 60 < 2 × 48 = 96: y 30 satisfies BOTH bands; the top band is checked first.
+    const short = scroller({ bottom: 60, scrollHeight: 100, clientHeight: 60, scrollTop: 20 });
+    expect(autoscrollDelta(short, 30)).toBe(-AUTOSCROLL_STEP_PX);
+  });
+});
+
+describe('shiftRectsByScroll — the drop target tracks scrolled content', () => {
+  it('moves every captured top up by the applied scroll delta', () => {
+    const cards: SheetCardRect[] = [{ id: 'a', left: 0, top: 100, width: 320, height: 300 }];
+    expect(shiftRectsByScroll(cards, 100)).toEqual([
+      { id: 'a', left: 0, top: 0, width: 320, height: 300 },
+    ]);
+    // A negative delta (scrolled up) moves content down.
+    expect(shiftRectsByScroll(cards, -50)[0].top).toBe(150);
+  });
+
+  it('never mutates its input', () => {
+    const cards: SheetCardRect[] = [{ id: 'a', left: 0, top: 100, width: 320, height: 300 }];
+    const out = shiftRectsByScroll(cards, 100);
+    expect(out).not.toBe(cards);
+    expect(cards[0].top).toBe(100);
+  });
+
+  it('resolves a post-scroll drop to the card now under the point', () => {
+    // grid4x2 row pitch is 316. Point (496, 150) hits index 1 before any scroll…
+    expect(dropIndexFor(grid4x2(), { x: 496, y: 150 }, 0)).toBe(1);
+    // …after scrolling one row (316) the row-1 cards sit at viewport y 0…300, so the same
+    // point now resolves to row 1, column 1 = index 5. The index keeps meaning SLOT.
+    expect(dropIndexFor(shiftRectsByScroll(grid4x2(), 316), { x: 496, y: 150 }, 0)).toBe(5);
   });
 });

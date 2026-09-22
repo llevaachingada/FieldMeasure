@@ -1,9 +1,13 @@
 /**
- * `ToolPolygonIcon` — PLACEHOLDER glyph for the Polygon tool (slice 1.4.5).
+ * `ToolPolygonIcon` - the Polygon tool glyph (UI spec §6.1/§7.2; build spec §11.7).
  *
- * ⚠ PLACEHOLDER ART — MUST NOT SHIP. The plan sanctions a numbered square to unblock
- * the editor shell; the 14 bespoke single-path glyphs (§2.2, UI §11.7) are a
- * prerequisite for slice 2.0, not for 1.5. Replace this file with the real glyph.
+ * A regular pentagon, point up: an odd number of sides so it can never read as the
+ * rectangle, and no curves so it can never read as the ellipse. §7.2 exposes 3-12 sides;
+ * the pentagon is the shape that says "many sides" at 24 px without a vertex count.
+ *
+ * Bespoke inline SVG (no new dependency, AGENTS #5): 24x24 viewBox, `currentColor` only,
+ * no `<text>`, no inline `style`, round caps/joins per §3.4. Decorative - the rail
+ * button's accessible name is `STRINGS.tool.polygon`.
  */
 export default function ToolPolygonIcon() {
   return (
@@ -15,21 +19,12 @@ export default function ToolPolygonIcon() {
       focusable="false"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
-      <text
-        x="12"
-        y="12.5"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="9"
-        fontWeight="600"
-        fill="currentColor"
-        stroke="none"
-      >
-        9
-      </text>
+      {/* A pentagon of circumradius 8.6 about (12, 12.3); vertices at -90, -18, 54, 126, 198 deg. */}
+      <path d="M12 3.7 L20.2 9.6 L17.1 19.3 L6.9 19.3 L3.8 9.6 Z" />
     </svg>
   );
 }

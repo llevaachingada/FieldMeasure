@@ -1,9 +1,13 @@
 /**
- * `ToolHighlighterIcon` — PLACEHOLDER glyph for the Highlighter tool (slice 1.4.5).
+ * `ToolHighlighterIcon` - the Highlighter glyph (UI spec §6.1/§8.4; build spec §11.7).
  *
- * ⚠ PLACEHOLDER ART — MUST NOT SHIP. The plan sanctions a numbered square to unblock
- * the editor shell; the 14 bespoke single-path glyphs (§2.2, UI §11.7) are a
- * prerequisite for slice 2.0, not for 1.5. Replace this file with the real glyph.
+ * A broad chisel marker standing on the stroke it paints. It is upright with a flared tip
+ * and a full-width base bar, while Freehand is a thin wave and Erase is a tilted block
+ * above a line - the three "ink/remove" glyphs are therefore never confused.
+ *
+ * Bespoke inline SVG (no new dependency, AGENTS #5): 24x24 viewBox, `currentColor` only,
+ * no `<text>`, no inline `style`, round caps/joins per §3.4. Decorative - the rail
+ * button's accessible name is `STRINGS.tool.highlighter`.
  */
 export default function ToolHighlighterIcon() {
   return (
@@ -15,21 +19,15 @@ export default function ToolHighlighterIcon() {
       focusable="false"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
-      <text
-        x="12"
-        y="12.5"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="9"
-        fontWeight="600"
-        fill="currentColor"
-        stroke="none"
-      >
-        11
-      </text>
+      {/* Marker barrel, then the chisel that flares out onto the line below. */}
+      <path d="M9.5 4.5 H14.5 V13 H9.5 Z" />
+      <path d="M9.5 13 H14.5 L17 17.5 H7 Z" />
+      {/* The highlighted line. */}
+      <path d="M5 20.5 H19" />
     </svg>
   );
 }

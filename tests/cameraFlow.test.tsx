@@ -48,12 +48,16 @@ import {
  * Module mocks (hoisted)
  * ------------------------------------------------------------------ */
 
-const hoisted = vi.hoisted(() => ({ schedule: vi.fn(), cancel: vi.fn() }));
+const hoisted = vi.hoisted(() => ({
+  schedule: vi.fn(),
+  flush: vi.fn(async () => {}),
+  cancel: vi.fn(),
+}));
 
 vi.mock('@/media/thumbnails', () => ({
   createThumbnailScheduler: vi.fn(() => ({
     schedule: hoisted.schedule,
-    flush: vi.fn(async () => {}),
+    flush: hoisted.flush,
     cancel: hoisted.cancel,
     pending: false,
   })),
@@ -137,6 +141,7 @@ async function setup(testHooks: FakeHooks = {}): Promise<void> {
 
 beforeEach(() => {
   hoisted.schedule.mockClear();
+  hoisted.flush.mockClear();
   hoisted.cancel.mockClear();
   vi.mocked(createThumbnailScheduler).mockClear();
 });
@@ -618,5 +623,30 @@ describe('a DENIED folder grant offers a re-pick, not an impossible re-authorize
     await user.click(repick);
     await waitFor(() => expect(vi.mocked(pickRoot)).toHaveBeenCalledTimes(1));
     expect(vi.mocked(queryRootWritePermission)).toHaveBeenCalled();
+  });
+});
+
+describe('the card thumbnail is written before the sheet is handed off (D125)', () => {
+  it('flushes the scheduler BEFORE onCaptured, because this component unmounts on capture', async () => {
+    // The defect the clickthru harness found by reading the sheet directory on disk: `thumb.jpg`
+    // was never written for a captured sheet. The component unmounts the instant `onCaptured`
+    // fires and its cleanup cancels the scheduler, so the armed 3 s debounce died with it — and
+    // this suite only ever asserted that `schedule()` was CALLED (a call is not an effect).
+    await setup();
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    const { onCaptured } = renderFlow();
+    const user = userEvent.setup();
+    await screen.findByTestId('camera-resolution');
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+    await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+
+    expect(hoisted.schedule).toHaveBeenCalledTimes(1);
+    expect(hoisted.flush).toHaveBeenCalledTimes(1);
+    // The ORDER is the whole point: after the hand-off there is no component left to flush.
+    expect(hoisted.flush.mock.invocationCallOrder[0]).toBeLessThan(
+      onCaptured.mock.invocationCallOrder[0]!,
+    );
   });
 });

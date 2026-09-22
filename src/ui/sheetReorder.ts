@@ -29,6 +29,89 @@ export interface Point {
 }
 
 /**
+ * The edge band, in CSS px, in which a live drag autoscrolls the grid (D118 M8).
+ * The band is measured from the SCROLLING ELEMENT's viewport rect, not the window:
+ * once the grid body is the scroller (D118 H2) the two coincide, but reading the
+ * element's own rect is what keeps the arithmetic true if a bar ever changes height.
+ */
+export const AUTOSCROLL_EDGE_PX = 48;
+
+/**
+ * How far one autoscroll frame advances the scroller, in CSS px. Constant on purpose:
+ * a proportional (faster-nearer-the-edge) curve is a "do not simplify" behaviour the
+ * spec does not pin, and any guess would be unverifiable without a real pen. 18 px at
+ * ~60 Hz is ~1080 px/s — about one screenful a second, which is enough for 20+ sheets.
+ */
+export const AUTOSCROLL_STEP_PX = 18;
+
+/**
+ * The scroller's viewport rect plus its current scroll offsets — everything the pure
+ * autoscroll decision needs. No DOM in the type: `getBoundingClientRect()` and the
+ * three scroll properties are read by the caller.
+ */
+export interface ScrollerMetrics {
+  /** The scroller's viewport rect top / bottom (a `DOMRect`'s `top` / `bottom`). */
+  top: number;
+  bottom: number;
+  /** The scroller's current scroll offsets. */
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+}
+
+/**
+ * How far a LIVE drag should scroll the grid this frame: negative = up, positive = down,
+ * `0` = do not scroll.
+ *
+ * A pointer within {@link AUTOSCROLL_EDGE_PX} of the scroller's top or bottom edge
+ * scrolls one {@link AUTOSCROLL_STEP_PX} step toward that edge. The decision is CLAMPED
+ * against the scroller's real limits, so it never asks for a scroll the browser would
+ * refuse: at `scrollTop === 0` the top band returns `0`, and at
+ * `scrollTop === scrollHeight − clientHeight` the bottom band returns `0`. That clamp is
+ * what lets the caller apply the returned delta and treat it as the ACTUAL scroll (the
+ * card rects are shifted by exactly this value).
+ *
+ * Boundaries are INCLUSIVE: a pointer exactly `AUTOSCROLL_EDGE_PX` from an edge is in the
+ * band and scrolls. When the scroller is shorter than `2 × AUTOSCROLL_EDGE_PX` the two
+ * bands overlap and the TOP band wins (checked first) — an arbitrary but deterministic
+ * resolution of an under-specified case. A `null` scroller (no layout yet, or unmounted)
+ * returns `0`.
+ */
+export function autoscrollDelta(scroller: ScrollerMetrics | null, pointerY: number): number {
+  if (!scroller) return 0;
+  const { top, bottom, scrollTop, scrollHeight, clientHeight } = scroller;
+  const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+  if (pointerY <= top + AUTOSCROLL_EDGE_PX) {
+    // Cannot scroll above the top: at the limit the answer is exactly 0 (not `-0`, which
+    // `Object.is` equality and a `toBe(0)` pin would reject).
+    if (scrollTop <= 0) return 0;
+    return Math.max(-AUTOSCROLL_STEP_PX, -scrollTop);
+  }
+  if (pointerY >= bottom - AUTOSCROLL_EDGE_PX) {
+    // Cannot scroll past the bottom: the remaining distance is 0 at the limit.
+    return Math.min(AUTOSCROLL_STEP_PX, maxScrollTop - scrollTop);
+  }
+  return 0;
+}
+
+/**
+ * Shift captured card rectangles by a real scroll delta, so the drop target stays correct
+ * while the grid autoscrolls (D118 M8).
+ *
+ * WHY SHIFT, NOT RE-CAPTURE: `dropIndexFor`'s array index is a SLOT (its geometry was
+ * captured against the press order), while a re-`getBoundingClientRect()` after the live
+ * renumber would map slots to the *current* ids and silently change the meaning of the
+ * index handed to `moveId`. Scrolling moves content, not slots, so `top − delta` keeps the
+ * index↔slot mapping intact: a positive delta (scrolled down) moves every card up.
+ */
+export function shiftRectsByScroll(
+  cards: readonly SheetCardRect[],
+  scrollDelta: number,
+): SheetCardRect[] {
+  return cards.map((card) => ({ ...card, top: card.top - scrollDelta }));
+}
+
+/**
  * Move `ids[from]` so it comes to rest at index `to` in the RESULTING list.
  *
  * `to` is the destination index **after** the moved id has been lifted out, which is the

@@ -23,7 +23,15 @@
  * drop target is resolved GEOMETRICALLY from captured `pointermove` coordinates
  * (`src/ui/sheetReorder.ts`): Chromium implicitly captures the pointer on the card that
  * took `pointerdown`, so `pointerover` on the other cards never fires (D77/F1 — the
- * Layers panel's exact trap). The rects are captured once at gesture start.
+ * Layers panel's exact trap). The rects are captured once at gesture start and then
+ * SHIFTED by any autoscroll delta, so a 20+ sheet grid can be reordered without lifting
+ * the finger (D118 M8: a pointer in the 48 px edge band scrolls `.project-body`).
+ *
+ * THE CARD MENU IS PORTALED to `document.body` (D118 H2 + the session-22 finding 1
+ * coupling): `.project-body` is now the scroll container, and an absolutely positioned
+ * popup inside it is clipped by that scroller at the bottom row. The popup's computed
+ * position is applied with `element.animate()` — never an inline `style` — the same
+ * CSP-safe technique as the drag chip.
  *
  * A11Y (per-slice, non-negotiable):
  *   - every control has an accessible name; 48 px minimum targets with `.hit-slop`;
@@ -57,13 +65,21 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { Camera, Check, ChevronLeft, MoreHorizontal, Share2, Upload } from 'lucide-react';
 import { emitToast } from '@/editor/session';
 import type { ProjectSheetCard } from '@/fs/projectSheets';
 import { STRINGS, t } from './strings';
 import StorageChip from './StorageChip';
 import TrashPanel, { type TrashedSheet } from './TrashPanel';
-import { dropIndexFor, moveId, type SheetCardRect } from './sheetReorder';
+import {
+  autoscrollDelta,
+  dropIndexFor,
+  moveId,
+  shiftRectsByScroll,
+  type Point,
+  type SheetCardRect,
+} from './sheetReorder';
 import './projectScreen.css';
 
 export type { ProjectSheetCard, TrashedSheet };
@@ -164,6 +180,56 @@ export function menuDirectionFor(el: HTMLElement | null): 'up' | 'down' {
   const rect = el.getBoundingClientRect();
   const spaceBelow = window.innerHeight - rect.bottom;
   return spaceBelow < MENU_MAX_HEIGHT ? 'up' : 'down';
+}
+
+/** The menu's downward offset from the item's top edge (was CSS `top: 236px`). */
+export const MENU_DOWN_TOP_PX = 236;
+/** The gap above the item's bottom edge when the menu opens upward. */
+export const MENU_UP_GAP_PX = 68;
+/** The menu's inset from the item's right edge (was CSS `right: 8px`). */
+export const MENU_RIGHT_INSET_PX = 8;
+/** The minimum inset from any viewport edge, so a clamped menu is never flush. */
+export const MENU_VIEWPORT_INSET_PX = 8;
+/** Fallback menu width when `offsetWidth` is unavailable (jsdom has no layout). */
+export const MENU_FALLBACK_WIDTH = 168;
+
+/**
+ * Where the portaled menu's top-left must sit so it hangs off the card the way the CSS
+ * used to, without ever leaving the viewport.
+ *
+ * `item` is the `.sheet-grid-item`'s real viewport rect (the card fills it, so item top /
+ * bottom / right are the card's). Downward: the menu's top pins `MENU_DOWN_TOP_PX` below
+ * the item's top. Upward: its bottom pins `MENU_UP_GAP_PX` above the item's bottom (8 px
+ * clear of the ⋯ trigger at `bottom: 76px`). Right-aligned with an 8 px inset, then the
+ * whole box is clamped into `[8, viewport − size − 8]` on both axes — the guarantee the
+ * session-22 review could not give an absolutely positioned menu, and the reason the
+ * browser suite can assert the box is fully on screen.
+ *
+ * Exported and pure so its arithmetic is pinned in jsdom (D40: no layout there).
+ */
+export function menuAnchorFor(
+  item: { top: number; bottom: number; right: number },
+  direction: 'up' | 'down',
+  menu: { width: number; height: number },
+  viewport: { width: number; height: number },
+): { left: number; top: number } {
+  const clamp = (value: number, lo: number, hi: number): number =>
+    Math.min(Math.max(value, lo), Math.max(lo, hi));
+  const left = clamp(
+    item.right - MENU_RIGHT_INSET_PX - menu.width,
+    MENU_VIEWPORT_INSET_PX,
+    viewport.width - menu.width - MENU_VIEWPORT_INSET_PX,
+  );
+  const desiredTop =
+    direction === 'up'
+      ? item.bottom - MENU_UP_GAP_PX - menu.height
+      : item.top + MENU_DOWN_TOP_PX;
+  const top = clamp(
+    desiredTop,
+    MENU_VIEWPORT_INSET_PX,
+    viewport.height - menu.height - MENU_VIEWPORT_INSET_PX,
+  );
+  return { left, top };
 }
 
 /**
@@ -465,17 +531,66 @@ function SheetCardRow({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  /** The menu's anchor animation — cancelled when it closes or the direction changes. */
+  const menuAnimRef = useRef<Animation | null>(null);
   const menuName = t(STRINGS.sheetMenu.moreNamed, { title: card.title });
 
   useEffect(() => {
     if (!menuOpen) return;
     menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not([disabled])')?.focus();
     const onPointerDown = (event: PointerEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) setMenuOpen(false);
+      const target = event.target as Node;
+      // The menu is PORTALED to `document.body`, so it is NOT inside `rootRef`: without
+      // this second check a press on a menu item would close the menu before its `click`
+      // could fire (the item became unreachable — the D102 class).
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setMenuOpen(false);
+    };
+    // A portaled menu is fixed to the VIEWPORT, so a wheel/trackpad scroll of the grid
+    // would leave it floating over the wrong card. Touch scrolling already closes it via
+    // the pointerdown guard above; this covers the pointer-less scroll. `capture` because
+    // element `scroll` events do not bubble; the menu's OWN scroll is exempt so an
+    // overflowing menu stays open while it is scrolled.
+    const onScroll = (event: Event): void => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      setMenuOpen(false);
     };
     document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('scroll', onScroll, true);
+    };
   }, [menuOpen]);
+
+  // Place the portaled menu where the card actually is. `useLayoutEffect` so the seed
+  // animation lands BEFORE paint: the menu's CSS origin is `left:0; top:0`, and a passive
+  // effect would paint one frame at the viewport corner (the chip's finding 13). Web
+  // Animations is the only CSP-safe computed position (`style-src 'self'`; no `[style]`).
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+    const menu = menuRef.current;
+    const item = rootRef.current;
+    // jsdom has no `element.animate`; the real browsers all do (the `gridReorder` suite
+    // proves the same guard for the chip).
+    if (!menu || !item || typeof menu.animate !== 'function') return;
+    const rect = item.getBoundingClientRect();
+    const { left, top } = menuAnchorFor(
+      { top: rect.top, bottom: rect.bottom, right: rect.right },
+      menuDirection,
+      { width: menu.offsetWidth || MENU_FALLBACK_WIDTH, height: menu.offsetHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+    );
+    menuAnimRef.current?.cancel();
+    menuAnimRef.current = menu.animate([{ transform: `translate(${left}px, ${top}px)` }], {
+      duration: 0,
+      fill: 'forwards',
+    });
+    return () => {
+      menuAnimRef.current?.cancel();
+      menuAnimRef.current = null;
+    };
+  }, [menuOpen, menuDirection]);
 
   // Opening the rename field seeds it with the real title and takes focus + select. Keyed on
   // `renaming` alone: the title is read at open time (a later title change IS the commit).
@@ -635,15 +750,16 @@ function SheetCardRow({
         ) : null}
       </div>
 
-      {menuable && menuOpen ? (
-        <div
-          ref={menuRef}
-          className="sheet-card-menu"
-          data-direction={menuDirection}
-          role="menu"
-          aria-label={menuName}
-          onKeyDown={onMenuKeyDown}
-        >
+      {menuable && menuOpen
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className="sheet-card-menu"
+              data-direction={menuDirection}
+              role="menu"
+              aria-label={menuName}
+              onKeyDown={onMenuKeyDown}
+            >
           <button
             type="button"
             role="menuitem"
@@ -753,8 +869,10 @@ function SheetCardRow({
               {STRINGS.sheetMenu.delete}
             </button>
           ) : null}
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </li>
   );
 }
@@ -812,6 +930,8 @@ export default function ProjectScreen({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLUListElement | null>(null);
+  /** The grid's scroll container (`.project-body`) — the autoscroll target (D118 M8). */
+  const bodyRef = useRef<HTMLDivElement | null>(null);
 
   // ---- the reorder gesture's mutable state (refs: no re-render per pointermove) -----
   const longPressRef = useRef<number | null>(null);
@@ -825,6 +945,9 @@ export default function ProjectScreen({
   const chipRef = useRef<HTMLDivElement | null>(null);
   const chipAnimRef = useRef<Animation | null>(null);
   const lastChipRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  /** The last pointer position, so the autoscroll loop can run while the finger is still. */
+  const lastPointerRef = useRef<Point>({ x: 0, y: 0 });
+  const autoscrollFrameRef = useRef<number | null>(null);
 
   const selected = useMemo(() => new Set(selectedIds ?? []), [selectedIds]);
   // A read-only project (UI §11.2) and an unreadable one (state `error`) can't take a write.
@@ -1036,36 +1159,96 @@ export default function ProjectScreen({
   // Never leave an armed lift behind on unmount.
   useEffect(() => clearLongPress, [clearLongPress]);
 
+  // ---- autoscroll while a drag is live (D118 M8) -----------------------------
+
+  const stopAutoscroll = useCallback((): void => {
+    if (autoscrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoscrollFrameRef.current);
+      autoscrollFrameRef.current = null;
+    }
+  }, []);
+
+  /** Never leave an autoscroll frame running past the gesture. */
+  useEffect(() => stopAutoscroll, [stopAutoscroll]);
+
+  /**
+   * One autoscroll step per animation frame for as long as the drag is live. The DECISION
+   * is the pure `autoscrollDelta` (see `sheetReorder.ts`); this shell only reads the
+   * scroller's live metrics, applies the delta, and shifts the captured card rects by the
+   * delta the browser ACTUALLY applied — so a drop after scrolling still resolves to the
+   * card under the finger (`shiftRectsByScroll` documents why a shift, not a re-capture).
+   * A frame is always re-armed: the loop runs for the whole gesture and the finger does not
+   * have to move for the grid to keep scrolling (a stationary finger at the edge is the
+   * whole point).
+   */
+  const runAutoscrollFrame = useCallback((): void => {
+    autoscrollFrameRef.current = null;
+    const scroller = bodyRef.current;
+    if (!scroller) return;
+    const rect = scroller.getBoundingClientRect();
+    const delta = autoscrollDelta(
+      {
+        top: rect.top,
+        bottom: rect.bottom,
+        scrollTop: scroller.scrollTop,
+        scrollHeight: scroller.scrollHeight,
+        clientHeight: scroller.clientHeight,
+      },
+      lastPointerRef.current.y,
+    );
+    if (delta !== 0) {
+      const before = scroller.scrollTop;
+      scroller.scrollTop = before + delta;
+      // Use the ACTUAL movement: the browser clamps at the ends, and rects must shift by
+      // what really happened, not by what was asked for.
+      const applied = scroller.scrollTop - before;
+      if (applied !== 0) rectsRef.current = shiftRectsByScroll(rectsRef.current, applied);
+    }
+    autoscrollFrameRef.current = requestAnimationFrame(runAutoscrollFrame);
+  }, []);
+
+  const startAutoscroll = useCallback((): void => {
+    if (autoscrollFrameRef.current !== null) return;
+    autoscrollFrameRef.current = requestAnimationFrame(runAutoscrollFrame);
+  }, [runAutoscrollFrame]);
+
   /**
    * The 400 ms timer elapsed: lift the card. The rects are captured ONCE, here, because
    * Chromium captures the pointer to this card and the other cards never see hover events
    * (D77/F1) — the drop target is later resolved from these rectangles and the pointer's
    * captured coordinates.
    */
-  const activateDrag = useCallback((id: string): void => {
-    longPressRef.current = null;
-    const grid = gridRef.current;
-    if (!grid) return;
-    const items = Array.from(grid.querySelectorAll<HTMLElement>('.sheet-grid-item[data-sheet-id]'));
-    const rects: SheetCardRect[] = [];
-    for (const item of items) {
-      const rectId = item.getAttribute('data-sheet-id');
-      if (!rectId) continue;
-      const box = item.getBoundingClientRect();
-      rects.push({ id: rectId, left: box.left, top: box.top, width: box.width, height: box.height });
-    }
-    const from = rects.findIndex((rect) => rect.id === id);
-    if (from < 0) return;
-    rectsRef.current = rects;
-    fromIndexRef.current = from;
-    pressOrderRef.current = rects.map((rect) => rect.id);
-    // Set on the LIFT, not on the drop: a lift that is released without moving must not
-    // also open the sheet (the brief's "after a drag or a lift").
-    suppressClickRef.current = true;
-    setDragId(id);
-    setLiveOrder(pressOrderRef.current);
-    setDragPhase('dragging');
-  }, []);
+  const activateDrag = useCallback(
+    (id: string): void => {
+      longPressRef.current = null;
+      const grid = gridRef.current;
+      if (!grid) return;
+      const items = Array.from(grid.querySelectorAll<HTMLElement>('.sheet-grid-item[data-sheet-id]'));
+      const rects: SheetCardRect[] = [];
+      for (const item of items) {
+        const rectId = item.getAttribute('data-sheet-id');
+        if (!rectId) continue;
+        const box = item.getBoundingClientRect();
+        rects.push({ id: rectId, left: box.left, top: box.top, width: box.width, height: box.height });
+      }
+      const from = rects.findIndex((rect) => rect.id === id);
+      if (from < 0) return;
+      rectsRef.current = rects;
+      fromIndexRef.current = from;
+      pressOrderRef.current = rects.map((rect) => rect.id);
+      // Seed the autoscroll with the lift point, then keep scrolling while the finger stays
+      // in an edge band (D118 M8).
+      lastPointerRef.current = { x: pressRef.current?.x ?? 0, y: pressRef.current?.y ?? 0 };
+      // Set on the LIFT, not on the drop: a lift that is released without moving must not
+      // also open the sheet (the brief's "after a drag or a lift").
+      suppressClickRef.current = true;
+      setDragId(id);
+      setLiveOrder(pressOrderRef.current);
+      setDragPhase('dragging');
+      startAutoscroll();
+    },
+    [startAutoscroll],
+  );
 
   /** Walk the chip to the pointer. Web Animations is CSP-safe (no `[style]` attribute). */
   const followChip = useCallback((x: number, y: number): void => {
@@ -1144,6 +1327,7 @@ export default function ProjectScreen({
       const startOrder = pressOrderRef.current;
       const current = liveOrderRef.current ?? startOrder;
       pressRef.current = null;
+      stopAutoscroll();
       setDragId(null);
       setDragPhase('idle');
       if (!commit) {
@@ -1161,6 +1345,9 @@ export default function ProjectScreen({
     const onMove = (event: PointerEvent): void => {
       const cards = rectsRef.current;
       if (cards.length === 0) return;
+      // The autoscroll loop reads this between pointermoves — a stationary finger at the
+      // edge must keep scrolling.
+      lastPointerRef.current = { x: event.clientX, y: event.clientY };
       const to = dropIndexFor(cards, { x: event.clientX, y: event.clientY }, fromIndexRef.current);
       setLiveOrder(moveId(pressOrderRef.current, fromIndexRef.current, to));
       followChip(event.clientX, event.clientY);
@@ -1191,7 +1378,7 @@ export default function ProjectScreen({
       document.removeEventListener('pointercancel', onCancel);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [dragPhase, followChip, persistOrder]);
+  }, [dragPhase, followChip, persistOrder, stopAutoscroll]);
 
   /** Arm the lift. The `⋯` trigger, the select toggle and the rename field are not handles. */
   function onGridPointerDown(event: ReactPointerEvent<HTMLUListElement>): void {
@@ -1342,7 +1529,7 @@ export default function ProjectScreen({
         </div>
       </header>
 
-      <div className="project-body">
+      <div className="project-body" ref={bodyRef}>
         <div className="project-body-inner">
           {state === 'error' ? (
             <p className="project-error-line" role="alert">

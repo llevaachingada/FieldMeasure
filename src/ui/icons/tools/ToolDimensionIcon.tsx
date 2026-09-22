@@ -1,9 +1,14 @@
 /**
- * `ToolDimensionIcon` — PLACEHOLDER glyph for the Dimension tool (slice 1.4.5).
+ * `ToolDimensionIcon` - the Dimension tool glyph (UI spec §3.4/§11.7; build spec §11.7).
  *
- * ⚠ PLACEHOLDER ART — MUST NOT SHIP. The plan sanctions a numbered square to unblock
- * the editor shell; the 14 bespoke single-path glyphs (§2.2, UI §11.7) are a
- * prerequisite for slice 2.0, not for 1.5. Replace this file with the real glyph.
+ * §11.7's glyph note is explicit: *Dimension = a measured line with ticks and outward
+ * arrowheads.* Drawn here as a horizontal measure line between two extension ticks, with
+ * an outward chevron at each end - symmetric, so it can never be mistaken for the
+ * one-headed Arrow/Leader glyph.
+ *
+ * Bespoke inline SVG (no new dependency, AGENTS #5): 24x24 viewBox, `currentColor` only,
+ * no `<text>`, no inline `style`, round caps/joins per §3.4 ("24px grid, 2px stroke, round
+ * caps"). Decorative - the rail button's accessible name is `STRINGS.tool.dimension`.
  */
 export default function ToolDimensionIcon() {
   return (
@@ -15,21 +20,17 @@ export default function ToolDimensionIcon() {
       focusable="false"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
-      <text
-        x="12"
-        y="12.5"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="9"
-        fontWeight="600"
-        fill="currentColor"
-        stroke="none"
-      >
-        3
-      </text>
+      {/* Extension lines at each measured end (y 5.5..18.5). */}
+      <path d="M5 5.5 V18.5" />
+      <path d="M19 5.5 V18.5" />
+      {/* The measure line, with outward arrowheads pointing away from each other. */}
+      <path d="M5 12 H19" />
+      <path d="M7.6 9.2 L5 12 L7.6 14.8" />
+      <path d="M16.4 9.2 L19 12 L16.4 14.8" />
     </svg>
   );
 }

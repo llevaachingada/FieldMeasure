@@ -255,13 +255,54 @@ export function writeLockName(projectId: string): string {
   return 'fm:project:' + projectId + ':write';
 }
 
+/**
+ * How long a write may wait for the per-write mutex before it gives up.
+ *
+ * `navigator.locks.request` queues **silently and without a timeout**, so a write that cannot get
+ * the mutex waits forever and reports nothing — the same shape as the D121 deadlock, from the
+ * other direction. 20 s is deliberately far above a real write on a field device: this exists to
+ * turn a STUCK holder into an honest error, not to police slow disks.
+ */
+export const WRITE_LOCK_TIMEOUT_MS = 20_000;
+
+/**
+ * Run `fn` under the per-write mutex, refusing to wait forever.
+ *
+ * The acquisition is **aborted**, never merely abandoned: a queued request that was reported as
+ * failed but later ran would write behind the caller's back (and duplicate work that the caller
+ * already retried). Aborting guarantees `fn` never runs. A timeout is classified `target-locked`
+ * — the honest reading is that something else holds the folder busy.
+ */
+export async function withWriteLock<T>(
+  projectId: string,
+  fn: () => Promise<T>,
+  timeoutMs: number = WRITE_LOCK_TIMEOUT_MS,
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await navigator.locks.request(
+      writeLockName(projectId),
+      { signal: controller.signal },
+      fn,
+    );
+  } catch (e) {
+    if ((e as DOMException | undefined)?.name === 'AbortError') {
+      throw new StorageWriteError('target-locked', e);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function writeAtomic(
   dir: FileSystemDirectoryHandle,
   name: string,
   data: string | Blob,
   projectId: string,
 ): Promise<void> {
-  await navigator.locks.request(writeLockName(projectId), async () => {
+  await withWriteLock(projectId, async () => {
     const tmpName = `${name}.tmp`;
     // REVIEW F2: `getFileHandle(tmp, { create: true })` was OUTSIDE this `try`, so a
     // revoked write grant (`NotAllowedError`) escaped as a RAW DOMException instead of the
@@ -506,7 +547,7 @@ export async function cleanStaleTmp(
   // user-restorable). `.history/` IS recursed — a crashed snapshot write leaves an orphaned
   // `<epochMs>-<name>.tmp` there that must be cleaned like any other tmp; valid snapshots
   // never end in `.tmp`, so they are protected by the suffix filter below.
-  await navigator.locks.request(writeLockName(projectId), async () => {
+  await withWriteLock(projectId, async () => {
     const cutoff = Date.now() - 5 * 60_000;
     const SKIP = new Set(['.trash']);
     const walk = async (d: FileSystemDirectoryHandle, depth: number): Promise<void> => {

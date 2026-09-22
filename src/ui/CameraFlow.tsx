@@ -849,11 +849,26 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         state.file = nextFile;
 
         // §7.3: 640×480 composite, written atomically into the sheet folder.
-        schedulerRef.current?.cancel();
-        schedulerRef.current = createThumbnailScheduler({
+        //
+        // FLUSHED BEFORE THE HAND-OFF, not left to the debounce. This component unmounts the
+        // moment `onCaptured` fires (the shell closes the capture overlay), and its cleanup
+        // cancels the scheduler — so the pending 3 s debounce died with it and `thumb.jpg` was
+        // NEVER written for a captured sheet: every grid card could only show its placeholder.
+        // Found by the clickthru harness reading the sheet directory on disk (D125); the unit
+        // test had only asserted that `schedule()` was *called*. The debounce still serves
+        // repeated edits — a one-shot capture flushes.
+        const scheduler = createThumbnailScheduler({
           write: (thumb) => writeAtomic(sheetDir, 'thumb.jpg', thumb, projectId),
         });
-        schedulerRef.current.schedule(normalized.blob);
+        schedulerRef.current?.cancel();
+        schedulerRef.current = scheduler;
+        scheduler.schedule(normalized.blob);
+        try {
+          await scheduler.flush();
+        } catch {
+          // Best-effort: the photo and the row are already durable, and a thumbnail that could
+          // not be generated is the card's honest placeholder — never a failed save.
+        }
 
         setWrite('idle');
         onCaptured({ id: sheet.id, index: sheet.sortIndex, title: sheet.title });

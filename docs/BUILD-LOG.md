@@ -1438,6 +1438,59 @@ expired" diagnosis.
 
 **Next:** the owner re-picks the folder (and reloads manually on the build they have), then captures again.
 
+## Wave (owner-reported, from the Surface) - beta readiness: real glyphs, a chrome that fits, a grid that scrolls, and the clickthru's findings
+**Date:** 2026-09-22 · **Commit:** this commit
+
+**Built:** the owner sent two screenshots from the real Surface (~1920×1120 CSS px) — *"the tools aren't
+displaying correctly"*, *"make the palette not have scroll / be too long to display fully on this tablet"* — then
+*"make it ready to beta test"*. Three lanes on disjoint files, integrated here; details in **D123–D127**.
+
+- **The 14 tool glyphs are real** (they were numbered `1…14` squares whose own headers said *"PLACEHOLDER ART —
+  MUST NOT SHIP"*).
+- **The editor chrome fits:** panel content 1430–1566 px → **127 / 835 / 786 / 614** for
+  select/dimension/rectangle/text at 1920×1120 (it used to clip mid-`LINE STYLE`), including a **second
+  instance** the lane found in its own first rule (a selection returning every section: 1204 px in an 861 px
+  box). The gate fails on the pre-change source at both targets.
+- **The grid scrolls with its bar fixed** (`min-height: 100%` → `height: 100%`) and **drag-autoscrolls**
+  (48 px band / 18 px per frame). The clip coupling this creates was measured first: a height-only fix clips
+  42 px of «Delete», so the card menu is **portaled to `document.body`** and anchored with `element.animate()`.
+- **The write lock is bounded** (D121's owed item): `withWriteLock` aborts after 20 s instead of queueing
+  forever — and it aborts rather than abandons, so nothing lands after a reported failure.
+- **D125:** `thumb.jpg` was never written for a captured sheet (a 3 s debounce cancelled by the unmount);
+  flushed before the hand-off now, pinned by an **order** assertion.
+- **D127:** the rail ignored the handedness setting (`.tool-rail` had no `order` of its own, so the flex
+  container fell back to source order) — fixed, and pinned in **real layout**.
+
+**Machine gates (this commit's tree):** 4/4 passing
+- [x] `npx tsc --noEmit` → 0
+- [x] `npx vitest run` → **97 files / 1379 tests** (node + jsdom + browser), exit 0
+- [x] `npm run build` → 0 errors, 26 precache entries (1524.60 KiB)
+- [x] `npx playwright test` → **5 passed / 5 skipped, exit 0**
+- [x] **`npm run clickthru`** (inspection, not a gate) → **20 PASS / 0 FAIL / 0 UNREACHED**, with the built-app
+      screenshots reviewed: the rail on the right with real glyphs, the panel fitting, the card thumbnail
+      rendered, the exported PDF read back out of OPFS (`%PDF`, dimension `valueMm`/`enteredText` intact)
+
+**Deferred to hardware:** the chrome fit at 100–150 % text scaling / Sunlight / portrait, the autoscroll FEEL,
+the rail-top symptom (with its diagnostic), and everything the harness can never prove — all logged under
+slice 1.10/1.4.5.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** **D123** (the clickthru harness; never a gate, never promotes a `[Surface]` row),
+**D124** (the OPFS/IDB shim — it settles the D81 crash's shape), **D125** (the thumbnail), **D126** (the wave),
+**D127** (the rail side).
+
+**Surprises:** four. (1) **The harness earned its keep on its first runs**: a thumbnail that was never written,
+and a rail that ignored the handedness setting — neither visible to any gate, both visible in the pixels.
+(2) **The placeholder glyphs had been shipping since slice 1.4.5** and the owner is the first person to see the
+rail. (3) **A lane's browser test had never been run** (contended, correctly) and failed for two harness reasons
+— an in-flow fixture measured against `window.innerHeight`, and an overhang constant outside its own
+constraints; both fixed, and the cascade-order trap recorded in the harness doc. (4) **A browser-project flake**
+with the D84 signature reappeared once and did not reproduce in isolation.
+
+**Next:** the owner runs the hardware rows on the Surface (with the projects root pointed at a real folder, not
+the source repo); the two non-fitting chrome states need their decision; then the owed polish.
+
 ---
 
 ## Clickthru harness — drive the whole app with real touch/pen, then look at the pixels

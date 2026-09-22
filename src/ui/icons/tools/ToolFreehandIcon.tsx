@@ -1,9 +1,14 @@
 /**
- * `ToolFreehandIcon` — PLACEHOLDER glyph for the Freehand tool (slice 1.4.5).
+ * `ToolFreehandIcon` - the Freehand pen glyph (UI spec §6.1/§8.4; build spec §11.7).
  *
- * ⚠ PLACEHOLDER ART — MUST NOT SHIP. The plan sanctions a numbered square to unblock
- * the editor shell; the 14 bespoke single-path glyphs (§2.2, UI §11.7) are a
- * prerequisite for slice 2.0, not for 1.5. Replace this file with the real glyph.
+ * A single flowing stroke. §6.1 puts Freehand in "Ink & Notes" as the hand-driven mark, so
+ * the glyph is the drawn line itself rather than a pen: a pen body would read as the
+ * Highlighter marker sitting next to it. Thin and wavy, against the Highlighter's broad
+ * chisel, so the two ink tools never collide.
+ *
+ * Bespoke inline SVG (no new dependency, AGENTS #5): 24x24 viewBox, `currentColor` only,
+ * no `<text>`, no inline `style`, round caps/joins per §3.4. Decorative - the rail
+ * button's accessible name is `STRINGS.tool.freehand`.
  */
 export default function ToolFreehandIcon() {
   return (
@@ -15,21 +20,11 @@ export default function ToolFreehandIcon() {
       focusable="false"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
-      <text
-        x="12"
-        y="12.5"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="9"
-        fontWeight="600"
-        fill="currentColor"
-        stroke="none"
-      >
-        10
-      </text>
+      <path d="M3.5 15.5 C6 9.5 9 20.5 12 14.5 S17.5 5.5 20.5 10.5" />
     </svg>
   );
 }

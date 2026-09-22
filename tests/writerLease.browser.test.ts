@@ -15,7 +15,13 @@
  * a real OPFS directory and real Web Locks: **no mocks at all**.
  */
 import { describe, expect, it } from 'vitest';
-import { acquireWriterLease, cleanStaleTmp, writeAtomic } from '../src/fs/projectStore';
+import {
+  acquireWriterLease,
+  cleanStaleTmp,
+  withWriteLock,
+  writeAtomic,
+  writeLockName,
+} from '../src/fs/projectStore';
 
 const BUDGET_MS = 2000;
 
@@ -53,6 +59,30 @@ describe('the session writer lease must not block the writes it guards', () => {
     } finally {
       lease?.release();
     }
+  });
+
+  it('a write that cannot get the mutex gives up — and never runs late', async () => {
+    // The other half of the D121 shape: `navigator.locks.request` queues silently, so a write
+    // that cannot get the mutex used to wait forever and report nothing. The acquisition is now
+    // bounded AND aborted — aborting matters, because a queued write that was reported as failed
+    // and then ran would land behind the caller's back (duplicating work the caller retried).
+    const scope = 'lease-probe:three';
+    void navigator.locks.request(writeLockName(scope), () => new Promise(() => {})); // a stuck holder
+
+    let ran = false;
+    await expect(
+      withWriteLock(
+        scope,
+        async () => {
+          ran = true;
+        },
+        150,
+      ),
+    ).rejects.toMatchObject({ kind: 'target-locked' });
+    expect(ran).toBe(false);
+
+    // The control: with no holder the same call runs, so the assertion above is not vacuous.
+    expect(await withWriteLock(scope + ':free', async () => 'ok', 150)).toBe('ok');
   });
 
   it('the lease is CROSS-TAB arbitration: a same-client re-request is granted (executed fact)', async () => {

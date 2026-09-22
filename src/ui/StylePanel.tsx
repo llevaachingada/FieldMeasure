@@ -50,10 +50,21 @@
  *  5. The width scrubber's *track* cannot render the live preview: a CSS gradient would need
  *     an inline `style=""`, which the CSP test forbids. The live preview is a real SVG strip
  *     beside the scrubber instead — same information, no prohibited attribute.
+ *  6. (lane D, panel-fit pass) §7.2's "the panel is contextual, not a fixed form" is now
+ *     implemented: a section whose controls the ACTIVE TOOL does not use is hidden **while
+ *     nothing is selected** (`hideUnused`, carried by `data-hidden` and hidden in CSS so the
+ *     DOM shape is unchanged). With any selection every section returns and the §7.4 #4/#5
+ *     "disabled, never hidden" rule holds exactly as before - a selection, not a tool, is
+ *     what makes a control incompatible.
+ *  7. (lane D, panel-fit pass) FILL is now the §7.2 diagram's single `[swatch ▾]` row that
+ *     opens the 12 swatches inline, instead of a second always-open 12-swatch grid; and the
+ *     palette swatches are actually PAINTED (an SVG `fill` on each button). Both were needed
+ *     for the 1916x960 fit and for the palette to be visible at all; the measured before/after
+ *     is in the lane report.
  */
 
 import { useId, useState, type JSX, type ReactNode } from 'react';
-import { Bold as BoldIcon, Contrast, Minus, Plus, X } from 'lucide-react';
+import { Bold as BoldIcon, ChevronDown, Contrast, Minus, Plus, X } from 'lucide-react';
 
 import { type AnnotationStyle, type AnnotationType } from '@/domain/types';
 import { VALID_DENOMINATORS } from '@/domain/units';
@@ -597,18 +608,38 @@ export function StyleChipSvg({
 // Small building blocks
 // ---------------------------------------------------------------------------
 
+/**
+ * One panel section.
+ *
+ * `data-hidden` is the §7.2 "contextual, not a fixed form" switch (see `hideUnused`): the
+ * section stays in the DOM (so every control remains queryable and the seam is unchanged)
+ * and is hidden by CSS. When it is `false` nothing changes at all.
+ */
 function Section({
   title,
   testid,
+  hidden = false,
+  head,
   children,
 }: {
   title: string;
   testid: string;
-  children: ReactNode;
+  hidden?: boolean;
+  /** §7.2's own one-line rows (`WIDTH «3 pt»`, `FILL [swatch ▾]`, `TRANSPARENCY «35%»`):
+   *  the label sits on the same line as its control instead of stacking above it. */
+  head?: ReactNode;
+  children?: ReactNode;
 }): JSX.Element {
   return (
-    <section className="style-panel-section" data-testid={testid}>
-      <h3 className="style-panel-section-title">{title}</h3>
+    <section className="style-panel-section" data-testid={testid} data-hidden={hidden ? 'true' : 'false'}>
+      {head === undefined ? (
+        <h3 className="style-panel-section-title">{title}</h3>
+      ) : (
+        <div className="style-panel-section-head">
+          <h3 className="style-panel-section-title">{title}</h3>
+          {head}
+        </div>
+      )}
       {children}
     </section>
   );
@@ -651,7 +682,22 @@ function SwatchList({
             title={disabled && disabledLabel ? disabledLabel : entry.label}
             disabled={disabled}
             onClick={() => onPick(entry.hex)}
-          />
+          >
+            {/* The colour itself. An SVG `fill` presentation attribute is the only CSP-legal
+                way to paint a data-driven colour (an inline `style=""` is forbidden and
+                asserted against). Before this the twelve swatches all rendered as the same
+                grey `--g700` - the palette was in the DOM but not on the screen. */}
+            <svg
+              className="style-panel-swatch-fill"
+              viewBox="0 0 44 44"
+              width={44}
+              height={44}
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect width="44" height="44" fill={entry.hex} />
+            </svg>
+          </button>
         );
       })}
       {mixed ? (
@@ -701,6 +747,7 @@ export default function StylePanel({
   const [expanded, setExpanded] = useState(true);
   const [presetOpen, setPresetOpen] = useState(false);
   const [presetDraft, setPresetDraft] = useState('');
+  const [fillOpen, setFillOpen] = useState(false);
 
   const mixed = selection === 'mixed';
   const hasSelection = selectionCount > 0;
@@ -722,6 +769,29 @@ export default function StylePanel({
 
   const widthIndex = nearestLadderIndex(style.strokeWidthMu);
   const descriptor = describeStyle(style);
+
+  /**
+   * §7.2's "the panel is contextual, not a fixed form" / §15's `<ContextualControls
+   * switches by tool>`: a section whose controls are inapplicable is hidden.
+   *
+   * The one carve-out is §7.4 #4/#5 "disabled, never hidden" - and that rule is scoped BY
+   * THE SPEC to a **heterogeneous** selection ("Type-changing controls are disabled, not
+   * hidden, when the selection is heterogeneous (e.g. Text size is disabled because
+   * Dimensions aren't text objects)"). So:
+   *
+   *   - no selection: hide what the ACTIVE TOOL does not use (the Select tool uses nothing);
+   *   - a HOMOGENEOUS selection: `applicable` is the selected type's own tool table, so hide
+   *     exactly what that type cannot edit (a Rectangle selection has no Size control);
+   *   - a MIXED selection: show EVERYTHING, disabled - the spec's explicit requirement, and
+   *     the only case where a control's presence is what tells the user it exists.
+   *
+   * Measured on the owner's 1920x1120 before this rule: with an object selected the panel
+   * body was 1204 px in an 861 px box (343 px of overflow), because every section returned
+   * the moment anything was selected. Hiding is CSS (`[data-hidden]`), never a conditional
+   * render: the node stays in the DOM, so no seam, name or test changes shape.
+   */
+  const hideUnused = (keys: readonly StyleKey[]): boolean =>
+    selection !== 'mixed' && keys.every((key) => applicable[key] === false);
 
   /** §7.4 #1: the visible header and the announced status share one string. */
   const selectionHeaderText = t(S.selectionHeader, { objectCount: selectionCount });
@@ -880,7 +950,11 @@ export default function StylePanel({
       {expanded ? (
         <div className="style-panel-body">
           {/* ---- COLOR (§7.2) ------------------------------------------------ */}
-          <Section title={S.sectionColor} testid="style-section-color">
+          <Section
+            title={S.sectionColor}
+            testid="style-section-color"
+            hidden={hideUnused(['strokeColor'])}
+          >
             <SwatchList
               colors={PALETTE.map((entry) => ({ hex: entry.hex, label: S[entry.nameKey] }))}
               selectedHex={style.strokeColor}
@@ -919,12 +993,16 @@ export default function StylePanel({
           </Section>
 
           {/* ---- WIDTH (§7.2/§7.3) ------------------------------------------ */}
-          <Section title={S.sectionWidth} testid="style-section-width">
-            <div className="style-panel-readout">
+          <Section
+            title={S.sectionWidth}
+            testid="style-section-width"
+            hidden={hideUnused(['strokeWidthMu'])}
+            head={
               <span className="style-panel-readout-value mono">
                 {mixed ? S.mixedDash : t(S.widthReadout, { widthPt: formatPt(style.strokeWidthMu) })}
               </span>
-            </div>
+            }
+          >
             <StrokeSample
               style={style}
               width={clampDisplayWidth(style.strokeWidthMu)}
@@ -977,44 +1055,87 @@ export default function StylePanel({
             </div>
           </Section>
 
-          {/* ---- FILL (§7.2) ------------------------------------------------- */}
-          <Section title={S.sectionFill} testid="style-section-fill">
-            <div className="style-panel-row style-panel-row--wrap">
-              <button
-                type="button"
-                className="style-panel-button"
-                data-testid="style-fill-none"
-                data-style-focusable="true"
-                aria-label={nameFor(S.noFill, 'fillColor')}
-                aria-pressed={style.fillColor === null}
+          {/* ---- FILL (§7.2: `FILL [swatch ▾]`, not an inline 12-swatch grid) ------- */}
+          {/* The §7.2 diagram gives FILL one row - `[swatch ▾]` - that opens the colour
+              choice. Reproducing the whole 12-swatch COLOR grid here cost 234 px that the
+              1916x960 budget does not have (arithmetic in the lane report / DECISIONS).
+              Tap opens the picker inline; the swatches stay in the DOM behind `data-open`. */}
+          <Section
+            title={S.sectionFill}
+            testid="style-section-fill"
+            hidden={hideUnused(['fillColor'])}
+            head={
+              <div className="style-panel-row">
+                <button
+                  type="button"
+                  className="style-panel-button"
+                  data-testid="style-fill-none"
+                  data-style-focusable="true"
+                  aria-label={nameFor(S.noFill, 'fillColor')}
+                  aria-pressed={style.fillColor === null}
+                  disabled={notApplicable('fillColor')}
+                  title={titleFor('fillColor', S.noFill)}
+                  onClick={() => onChange({ fillColor: null })}
+                >
+                  {S.noFill}
+                </button>
+                <button
+                  type="button"
+                  className="style-panel-button style-panel-fill-toggle"
+                  data-testid="style-fill-toggle"
+                  data-style-focusable="true"
+                  aria-label={nameFor(S.sectionFill, 'fillColor')}
+                  aria-expanded={fillOpen}
+                  disabled={notApplicable('fillColor')}
+                  title={titleFor('fillColor', S.sectionFill)}
+                  onClick={() => setFillOpen((value) => !value)}
+                >
+                  <svg
+                    className="style-panel-fill-current"
+                    viewBox="0 0 16 16"
+                    width={16}
+                    height={16}
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <rect width="16" height="16" rx="3" fill={style.fillColor ?? 'none'} />
+                  </svg>
+                  <ChevronDown className="style-panel-fill-chevron" aria-hidden="true" />
+                </button>
+              </div>
+            }
+          >
+            <div
+              className="style-panel-fill-picker"
+              data-open={fillOpen ? 'true' : 'false'}
+              data-testid="style-fill-picker"
+            >
+              <SwatchList
+                colors={PALETTE.map((entry) => ({ hex: entry.hex, label: S[entry.nameKey] }))}
+                selectedHex={style.fillColor}
+                mixed={mixed}
                 disabled={notApplicable('fillColor')}
-                title={titleFor('fillColor', S.noFill)}
-                onClick={() => onChange({ fillColor: null })}
-              >
-                {S.noFill}
-              </button>
+                disabledLabel={notApplicable('fillColor') ? baseReason : undefined}
+                groupLabel={S.sectionFill}
+                onPick={(hex) => onChange({ fillColor: hex })}
+                testidPrefix="style-fill-swatch"
+              />
             </div>
-            <SwatchList
-              colors={PALETTE.map((entry) => ({ hex: entry.hex, label: S[entry.nameKey] }))}
-              selectedHex={style.fillColor}
-              mixed={mixed}
-              disabled={notApplicable('fillColor')}
-              disabledLabel={notApplicable('fillColor') ? baseReason : undefined}
-              groupLabel={S.sectionFill}
-              onPick={(hex) => onChange({ fillColor: hex })}
-              testidPrefix="style-fill-swatch"
-            />
           </Section>
 
           {/* ---- TRANSPARENCY (§7.2) ---------------------------------------- */}
-          <Section title={S.sectionTransparency} testid="style-section-transparency">
-            <div className="style-panel-readout">
+          <Section
+            title={S.sectionTransparency}
+            testid="style-section-transparency"
+            hidden={hideUnused(['fillAlpha'])}
+            head={
               <span className="style-panel-readout-value mono">
                 {mixed
                   ? S.mixedDash
                   : t(S.transparencyReadout, { percent: transparencyPercent(style.fillAlpha) })}
               </span>
-            </div>
+            }
+          >
             <div className="style-panel-checker">
               <input
                 type="range"
@@ -1040,7 +1161,11 @@ export default function StylePanel({
           </Section>
 
           {/* ---- LINE STYLE (§7.2) ------------------------------------------ */}
-          <Section title={S.sectionLineStyle} testid="style-section-line">
+          <Section
+            title={S.sectionLineStyle}
+            testid="style-section-line"
+            hidden={hideUnused(['lineStyle'])}
+          >
             <div className="style-panel-row" role="group" aria-label={S.sectionLineStyle}>
               {(['solid', 'dashed', 'dotted'] as const).map((option) => (
                 <button
@@ -1062,7 +1187,11 @@ export default function StylePanel({
           </Section>
 
           {/* ---- ARROWHEADS (§7.2) ------------------------------------------ */}
-          <Section title={S.sectionArrowheads} testid="style-section-arrows">
+          <Section
+            title={S.sectionArrowheads}
+            testid="style-section-arrows"
+            hidden={hideUnused(['arrowheads'])}
+          >
             <div className="style-panel-row" role="group" aria-label={S.sectionArrowheads}>
               {(['none', 'start', 'end', 'both'] as const).map((option) => (
                 <button
@@ -1084,7 +1213,11 @@ export default function StylePanel({
           </Section>
 
           {/* ---- SIZE + BOLD (the text/label controls, §7.2) ---------------- */}
-          <Section title={S.fontSize} testid="style-section-text">
+          <Section
+            title={S.fontSize}
+            testid="style-section-text"
+            hidden={hideUnused(['fontSizeMu', 'bold'])}
+          >
             <div className="style-panel-readout">
               <span className="style-panel-readout-value mono">
                 {mixed ? S.mixedDash : String(style.fontSizeMu)}
@@ -1123,7 +1256,11 @@ export default function StylePanel({
           </Section>
 
           {/* ---- PRECISION + UNIT FORMAT (project-level; D31) ---------------- */}
-          <Section title={S.precision} testid="style-section-precision">
+          <Section
+            title={S.precision}
+            testid="style-section-precision"
+            hidden={selection !== 'mixed' && !precisionApplies}
+          >
             <div className="style-panel-row style-panel-row--wrap" role="group" aria-label={S.precision}>
               {PRECISION_LADDER.map((denominator) => (
                 <button

@@ -684,6 +684,14 @@ pre,
 .editor-layout[data-rail='left'] .style-dock {
   order: 2;
 }
+/* `data-rail='right'` needs the RAIL's own order, not just the dock's. `.tool-rail` carries no
+   `order` of its own (it defaults to 0), so giving the dock `order: 0` as well left the flex
+   container to fall back on SOURCE order — and the rail, being first in the DOM, stayed left-most
+   while `data-rail="right"`. Measured in the clickthru's editor screenshots, on the default
+   right-handed setting; invisible to every attribute assertion the rotation gate makes. */
+.editor-layout[data-rail='right'] .tool-rail {
+  order: 2;
+}
 .editor-layout[data-rail='right'] .style-dock {
   order: 0;
 }
@@ -831,8 +839,8 @@ button.crumb:hover {
   flex: 0 0 128px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 4px;
+  gap: 6px;
+  padding: 6px 4px;
   background: var(--g850);
   overflow-y: auto;
 }
@@ -846,7 +854,7 @@ button.crumb:hover {
 .tool-rail-groups {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   /* Bottom-anchored: `auto` pushes the groups down when there is room and reaches
      for the scroll when there is not (which `justify-content: flex-end` cannot do). */
   margin-top: auto;
@@ -854,7 +862,7 @@ button.crumb:hover {
 .tool-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 /* Full-width hairline between groups (UI §6.2). Group 6 (ERASE) is additionally
    isolated: hairline + 16 px of extra gap from its neighbour. */
@@ -862,13 +870,13 @@ button.crumb:hover {
   border-top: 2px solid var(--g700);
 }
 .tool-group[data-group='6'] {
-  padding-bottom: 8px;
+  padding-bottom: 6px;
 }
 .tool-group-header {
   margin: 0;
   padding: 0 4px;
   font-size: 11px;
-  line-height: 14px;
+  line-height: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -943,7 +951,7 @@ button.crumb:hover {
   grid-template-columns: repeat(2, 56px);
   gap: 8px;
   justify-content: center;
-  padding-top: 8px;
+  padding-top: 6px;
   border-top: 2px solid var(--g700);
 }
 .rail-history-button {
@@ -974,6 +982,44 @@ button.crumb:hover {
   line-height: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+/* ---- Density (UI §3.5) -------------------------------------------------- */
+/*
+ * `density` has been persisted since 0.3 (`src/settings/density.ts`) but compacted
+ * nothing: the setting was stored, shown in Settings, and inert in the editor. This is
+ * the spec's own lever, so it is what got wired rather than a third mechanism.
+ *
+ * Field (default) is untouched — 56 px controls, 128 px rail, 8 px gaps (§6.2).
+ * Desk is §3.5's numbers: 48 px controls, ~108 px rail (2 x 48 + 6 gutter + 6 padding),
+ * 6 px gaps. It is NOT auto-selected yet (UI §3.5's mouse/pen auto-rule needs pointer
+ * telemetry that does not exist); the user picks it in Settings.
+ */
+.editor-layout[data-density='desk'] .tool-rail {
+  flex-basis: 108px;
+  gap: 6px;
+  padding: 6px 3px;
+}
+.editor-layout[data-density='desk'] .tool-grid,
+.editor-layout[data-density='desk'] .tool-rail-history {
+  grid-template-columns: repeat(2, 48px);
+}
+.editor-layout[data-density='desk'] .tool-button,
+.editor-layout[data-density='desk'] .tool-well,
+.editor-layout[data-density='desk'] .rail-history-button {
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+}
+.editor-layout[data-density='desk'] .tool-button svg {
+  width: 22px;
+  height: 22px;
+}
+.editor-layout[data-density='desk'] .style-panel-section {
+  padding: 4px 8px 5px;
+}
+.editor-layout[data-density='desk'] .style-panel-section-title {
+  margin-bottom: 4px;
 }
 
 /* ---- style dock (slice 1.8: hosts the real 280 px style panel) ---------- */

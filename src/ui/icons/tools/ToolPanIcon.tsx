@@ -1,9 +1,14 @@
 /**
- * `ToolPanIcon` — PLACEHOLDER glyph for the Pan & Zoom tool (slice 1.4.5).
+ * `ToolPanIcon` - the Pan & Zoom tool glyph (UI spec §3.4/§6.3; build spec §11.7).
  *
- * ⚠ PLACEHOLDER ART — MUST NOT SHIP. The plan sanctions a numbered square to unblock
- * the editor shell; the 14 bespoke single-path glyphs (§2.2, UI §11.7) are a
- * prerequisite for slice 2.0, not for 1.5. Replace this file with the real glyph.
+ * "Pan & Zoom" moves the view, so the glyph is a four-way move cross with a head on each
+ * arm. Chosen over a hand because a hand is illegible at 24 px and because the two MOVE
+ * tools must be instantly separable: Select is a solid pointer silhouette, Pan is an open
+ * four-way cross.
+ *
+ * Bespoke inline SVG (no new dependency, AGENTS #5): 24x24 viewBox, `currentColor` only,
+ * no `<text>`, no inline `style`, round caps/joins per §3.4. Decorative - the rail
+ * button's accessible name is `STRINGS.tool.panZoom`.
  */
 export default function ToolPanIcon() {
   return (
@@ -15,21 +20,16 @@ export default function ToolPanIcon() {
       focusable="false"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
-      <text
-        x="12"
-        y="12.5"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="9"
-        fontWeight="600"
-        fill="currentColor"
-        stroke="none"
-      >
-        2
-      </text>
+      <path d="M12 3.5 V20.5" />
+      <path d="M3.5 12 H20.5" />
+      <path d="M9.3 6.2 L12 3.5 L14.7 6.2" />
+      <path d="M9.3 17.8 L12 20.5 L14.7 17.8" />
+      <path d="M6.2 9.3 L3.5 12 L6.2 14.7" />
+      <path d="M17.8 9.3 L20.5 12 L17.8 14.7" />
     </svg>
   );
 }

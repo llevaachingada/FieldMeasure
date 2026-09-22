@@ -48,7 +48,7 @@
   align-items: center;
   gap: 8px;
   min-height: 56px;
-  padding: 4px 8px;
+  padding: 0 8px;
   border-bottom: 2px solid var(--g700);
 }
 
@@ -155,14 +155,36 @@
 }
 
 .style-panel-section {
-  padding: 8px 10px 10px;
+  padding: 4px 8px 4px;
   border-bottom: 2px solid var(--g700);
 }
 
+/* §7.2's own one-line rows: `WIDTH «3 pt»`, `FILL [swatch ▾]`, `TRANSPARENCY «35%»` -
+   label and control on ONE line, which is how the spec draws them and a large part of how
+   the panel fits 1916x960 without scrolling. */
+.style-panel-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 20px;
+}
+.style-panel-section-head .style-panel-section-title {
+  margin: 0;
+}
+
+/* §7.2's contextual panel: a section the ACTIVE TOOL does not use is hidden while nothing
+   is selected. It stays in the DOM (so every control is still queryable and the seam is
+   unchanged); the moment a selection exists the attribute flips back to `false` and the
+   §7.4 #4 "disabled, never hidden" behaviour is restored for a heterogeneous selection. */
+.style-panel-section[data-hidden='true'] {
+  display: none;
+}
+
 .style-panel-section-title {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   font-size: 11px;
-  line-height: 14px;
+  line-height: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -182,7 +204,7 @@
 .style-panel-readout {
   display: flex;
   justify-content: flex-end;
-  min-height: 20px;
+  min-height: 18px;
 }
 
 .style-panel-readout-value {
@@ -193,7 +215,7 @@
 }
 
 .style-panel-note {
-  margin: 6px 0 0;
+  margin: 2px 0 0;
   font-size: 12px;
   line-height: 16px;
   color: var(--g400);
@@ -204,7 +226,7 @@
   width: 100%;
   max-width: 120px;
   height: auto;
-  margin: 2px 0 8px;
+  margin: 0 0 6px;
 }
 
 /* ---- selection bar (§7.4 #1/#3): count, Deselect, synchronous mode, scope ---- */
@@ -389,7 +411,17 @@
   border: 2px solid var(--g600);
   border-radius: 8px;
   background: var(--g700);
+  overflow: hidden; /* clip the painted swatch to the rounded control */
   cursor: pointer;
+}
+
+/* The swatch's colour. Painted by an SVG `fill` presentation attribute because a
+   data-driven colour cannot be an inline `style=""` (CSP `style-src 'self'`, asserted by
+   the e2e suite) and a CSS class per hex would duplicate the palette. */
+.style-panel-swatch-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .style-panel-swatch[data-selected='true'] {
@@ -481,6 +513,37 @@
   height: 20px;
 }
 
+/* ---- Fill (§7.2: ONE row - `[No fill] [swatch ▾]`) ---------------------- */
+
+/* The spec's diagram gives FILL a single row that opens the colour choice; the inline
+   12-swatch grid it used to render measured 234 px in this section (now 58 px, a 176 px
+   saving at the same information). The picker below is the disclosure. */
+.style-panel-fill-toggle {
+  flex: 1 1 auto;
+  justify-content: space-between;
+}
+
+.style-panel-button .style-panel-fill-current {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 2px solid var(--g600);
+}
+
+.style-panel-button .style-panel-fill-chevron {
+  width: 18px;
+  height: 18px;
+  color: var(--g300);
+}
+
+.style-panel-fill-picker[data-open='false'] {
+  display: none;
+}
+
+.style-panel-fill-picker[data-open='true'] {
+  margin-top: 6px;
+}
+
 .style-panel-option {
   flex: 1 1 0;
   min-width: 0;
@@ -545,7 +608,7 @@
 }
 
 .style-panel-checker {
-  padding: 6px 8px;
+  padding: 4px 6px;
   border-radius: 10px;
   /* The transparency ramp sits on a checkerboard so "see-through" reads as see-through. */
   background-image:
@@ -560,7 +623,7 @@
 /* ---- presets ------------------------------------------------------------- */
 
 .style-panel-preset-list {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   padding: 0;
   list-style: none;
   display: flex;

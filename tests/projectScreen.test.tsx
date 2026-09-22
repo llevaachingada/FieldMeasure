@@ -12,11 +12,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import ProjectScreen, {
   MENU_MAX_HEIGHT,
+  menuAnchorFor,
   menuDirectionFor,
   type ProjectScreenProps,
   type TrashedSheet,
 } from '../src/ui/ProjectScreen';
 import type { ProjectSheetCard } from '../src/fs/projectSheets';
+import { AUTOSCROLL_STEP_PX } from '../src/ui/sheetReorder';
 import { STRINGS, t } from '../src/ui/strings';
 import { resetToastBus, subscribeToastMessage, type ToastMessage } from '../src/editor/session';
 
@@ -1111,6 +1113,199 @@ describe('the card menu opens where the card actually is (finding 1 of the sessi
         value: originalInnerHeight,
         configurable: true,
       });
+    }
+  });
+});
+
+describe('the card menu is portaled out of the scroll container (D118 H2 coupling)', () => {
+  it('mounts the popup on document.body, not inside .project-body', async () => {
+    const user = userEvent.setup();
+    renderScreen({ onDeleteSheet: vi.fn() });
+
+    await user.click(cardMenuItem('s1'));
+
+    const menu = document.querySelector('.sheet-card-menu') as HTMLElement;
+    // `.project-body` is now the scroll container; an absolutely positioned popup inside it
+    // is clipped by that scroller at the bottom row (measured: 42 px of «Delete» past the
+    // scroller's bottom edge). The portal makes the clip structurally impossible.
+    expect(menu.parentElement).toBe(document.body);
+    expect(document.querySelector('.project-body')?.contains(menu)).toBe(false);
+    // CSP-as-a-test: the anchor rides on Web Animations, so no `[style]` attribute appears.
+    expect(menu.hasAttribute('style')).toBe(false);
+    // …and it is still a real menu, reachable by name.
+    expect(screen.getByRole('menu')).toBe(menu);
+  });
+
+  it('a press inside the portaled menu does not close it before the item can act', async () => {
+    const user = userEvent.setup();
+    const onDeleteSheet = vi.fn(async () => {});
+    renderScreen({ onDeleteSheet });
+
+    await user.click(cardMenuItem('s1'));
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: t(STRINGS.sheetMenu.deleteNamed, { title: 'Sheet 01' }),
+      }),
+    );
+
+    // The portaled menu is NOT inside `rootRef`; the outside-pointerdown guard must also
+    // exempt `menuRef`, or the press closes the menu before `click` and the item is dead.
+    expect(onDeleteSheet).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes on an outside scroll, but stays open while its own list scrolls', async () => {
+    const user = userEvent.setup();
+    renderScreen({ onDeleteSheet: vi.fn() });
+    await user.click(cardMenuItem('s1'));
+    const menu = document.querySelector('.sheet-card-menu') as HTMLElement;
+
+    // A portaled menu is fixed to the viewport: a scroll of the grid must dismiss it, or
+    // it floats over the wrong card. Its OWN overflow scrolling (a short viewport) is fine.
+    fireEvent.scroll(menu);
+    expect(screen.queryByRole('menu')).toBe(menu);
+
+    fireEvent.scroll(document.querySelector('.project-body') as Element);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+});
+
+describe('menuAnchorFor — the portaled menu stays fully on screen', () => {
+  const viewport = { width: 1440, height: 960 };
+  const menu = { width: 168, height: 364 };
+
+  it('opens upward above the card, right-aligned with the 8 px inset', () => {
+    // item bottom 900 − MENU_UP_GAP 68 − height 364 = 468; right 672 − inset 8 − width 168 = 496.
+    expect(menuAnchorFor({ top: 600, bottom: 900, right: 672 }, 'up', menu, viewport)).toEqual({
+      left: 496,
+      top: 468,
+    });
+  });
+
+  it('opens downward unless the viewport clamps it up', () => {
+    // down: top = item.top + 236 = 836, but the lowest on-screen top is 960 − 364 − 8 = 588 →
+    // clamped. That clamp is what guarantees the whole box is visible.
+    expect(menuAnchorFor({ top: 600, bottom: 900, right: 672 }, 'down', menu, viewport).top).toBe(588);
+    // A card high in the viewport opens down without clamping: 100 + 236 = 336.
+    expect(menuAnchorFor({ top: 100, bottom: 400, right: 672 }, 'down', menu, viewport).top).toBe(336);
+  });
+
+  it('clamps the left edge into the viewport on both sides', () => {
+    // item.right 100 − 8 − 168 = −76 → clamp to the 8 px inset.
+    expect(menuAnchorFor({ top: 0, bottom: 300, right: 100 }, 'down', menu, viewport).left).toBe(8);
+    // item.right 3000 − 176 = 2824 → clamp to 1440 − 168 − 8 = 1264.
+    expect(menuAnchorFor({ top: 0, bottom: 300, right: 3000 }, 'down', menu, viewport).left).toBe(1264);
+  });
+
+  it('clamps an upward menu at the top edge too', () => {
+    // 100 − 68 − 364 = −332 → the 8 px inset.
+    expect(menuAnchorFor({ top: -200, bottom: 100, right: 672 }, 'up', menu, viewport).top).toBe(8);
+  });
+
+  it('degrades to the top inset when the menu is taller than the viewport', () => {
+    // hi = max(8, 200 − 364 − 8) = 8, so the clamp cannot produce a negative top.
+    expect(menuAnchorFor({ top: 0, bottom: 300, right: 672 }, 'up', menu, { width: 400, height: 200 }).top).toBe(8);
+  });
+});
+
+describe('autoscroll while a drag is live (D118 M8) — the loop consults the pure decision', () => {
+  /** Hand the jsdom `.project-body` a real scroller geometry (jsdom has no layout, D40). */
+  function stubScroller(panel: HTMLElement, initialScrollTop: number): { top(): number; writes(): number } {
+    panel.getBoundingClientRect = () =>
+      ({
+        top: 0,
+        bottom: 400,
+        left: 0,
+        right: 800,
+        width: 800,
+        height: 400,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    Object.defineProperty(panel, 'scrollHeight', { value: 1000, configurable: true });
+    Object.defineProperty(panel, 'clientHeight', { value: 400, configurable: true });
+    let scrollTop = initialScrollTop;
+    let writes = 0;
+    Object.defineProperty(panel, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        writes += 1;
+        scrollTop = value;
+      },
+    });
+    return { top: () => scrollTop, writes: () => writes };
+  }
+
+  it('a finger at the bottom edge scrolls the grid; the middle does not', () => {
+    // rAF is faked explicitly: the loop is a frame loop, so it must be driven deterministically.
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'],
+    });
+    const restoreRects = stubCardRects(['s1', 's2', 's3']);
+    try {
+      const onReorderSheets = vi.fn(async () => {});
+      renderScreen({ onReorderSheets });
+      const panel = document.querySelector('.project-body') as HTMLElement;
+      const scroller = stubScroller(panel, 100);
+      const card = screen.getByRole('button', { name: 'Sheet 01' });
+
+      // y 380 of a 0…400 panel is 20 px from the bottom edge — inside the 48 px band.
+      dispatchPointer(card, 'pointerdown', { clientX: 10, clientY: 380 });
+      act(() => {
+        vi.advanceTimersByTime(400); // the lift arms the autoscroll loop
+      });
+      act(() => {
+        vi.advanceTimersByTime(20); // one animation frame
+      });
+
+      expect(scroller.writes()).toBeGreaterThan(0);
+      // 100 + one 18 px step; allow a second frame if the fake clock runs two.
+      expect(scroller.top()).toBeGreaterThan(100);
+      expect(scroller.top()).toBeLessThanOrEqual(100 + AUTOSCROLL_STEP_PX * 2);
+
+      // Finishing the gesture stops the loop — no frames touch the scroller after this.
+      dispatchPointer(document, 'pointercancel');
+      const settled = scroller.top();
+      const writesAtCancel = scroller.writes();
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(scroller.top()).toBe(settled);
+      expect(scroller.writes()).toBe(writesAtCancel);
+    } finally {
+      restoreRects();
+      vi.useRealTimers();
+    }
+  });
+
+  it('a finger in the middle of the scroller never scrolls it', () => {
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'],
+    });
+    const restoreRects = stubCardRects(['s1', 's2', 's3']);
+    try {
+      renderScreen({ onReorderSheets: vi.fn() });
+      const panel = document.querySelector('.project-body') as HTMLElement;
+      const scroller = stubScroller(panel, 100);
+      const card = screen.getByRole('button', { name: 'Sheet 01' });
+
+      // y 200 is the middle of a 0…400 panel: outside both 48 px bands.
+      dispatchPointer(card, 'pointerdown', { clientX: 10, clientY: 200 });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      act(() => {
+        vi.advanceTimersByTime(60); // several frames
+      });
+
+      expect(scroller.writes()).toBe(0);
+      expect(scroller.top()).toBe(100);
+
+      dispatchPointer(document, 'pointercancel');
+    } finally {
+      restoreRects();
+      vi.useRealTimers();
     }
   });
 });

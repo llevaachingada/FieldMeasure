@@ -1,9 +1,13 @@
 /**
- * `ToolArrowIcon` — PLACEHOLDER glyph for the Arrow / Leader tool (slice 1.4.5).
+ * `ToolArrowIcon` - the Arrow / Leader tool glyph (UI spec §6.1/§7.2; build spec §11.7).
  *
- * ⚠ PLACEHOLDER ART — MUST NOT SHIP. The plan sanctions a numbered square to unblock
- * the editor shell; the 14 bespoke single-path glyphs (§2.2, UI §11.7) are a
- * prerequisite for slice 2.0, not for 1.5. Replace this file with the real glyph.
+ * A leader: one open line with a single arrowhead at its tip. It is the only MARK glyph
+ * with exactly ONE head on a diagonal line - Line has none, Dimension has two outward
+ * heads plus extension ticks - so "leader" never reads as "measure".
+ *
+ * Bespoke inline SVG (no new dependency, AGENTS #5): 24x24 viewBox, `currentColor` only,
+ * no `<text>`, no inline `style`, round caps/joins per §3.4. Decorative - the rail
+ * button's accessible name is `STRINGS.tool.arrowLeader`.
  */
 export default function ToolArrowIcon() {
   return (
@@ -15,21 +19,14 @@ export default function ToolArrowIcon() {
       focusable="false"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
-      <text
-        x="12"
-        y="12.5"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="9"
-        fontWeight="600"
-        fill="currentColor"
-        stroke="none"
-      >
-        6
-      </text>
+      {/* The leader line, and an open V head at its upper-right tip (a 72 deg head). */}
+      <path d="M4.5 19.5 L18.2 5.8" />
+      <path d="M18.2 5.8 L11.4 6.9" />
+      <path d="M18.2 5.8 L17.1 12.6" />
     </svg>
   );
 }

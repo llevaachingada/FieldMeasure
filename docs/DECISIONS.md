@@ -3057,6 +3057,160 @@ project data. If the folder is the source repo, this is also the moment to point
 re-pick action lives in Settings and in the capture failure overlay, and §5.3's "Reconnect folder" state
 (§11.4's chip actions) still has no home outside those two.
 
+### D123 — the clickthru harness: the app now gets *looked at*, and it is never a gate
+
+Every owner-visible defect in this project's recent history was found by **running the app** — D85 (the
+handedness cards), D103 (a dead button), D110 (Home cards stating fiction), D119/D120/D122 (the capture path) —
+and never by a green gate. `docs/handoff-session-21.md` §2 put the gap plainly: *"No agent has ever driven the
+app end to end."* This wave adds the machine-checkable half of closing it: `npm run clickthru`
+(`playwright.clickthru.config.ts` + `tests/clickthru/**`), documented in **`docs/clickthru-harness.md`**, which
+drives the **built** app in a real headed browser with **real CDP touch and pen input** on the Surface geometry
+(1440×960 DPR 2 primary, portrait and desk profiles) and screenshots every step into
+`test-results/clickthru/latest/` (contact sheet, per-step PNGs, `run.json`, video, and export artifacts read
+back out of OPFS).
+
+**The line this draws, and it is the whole reason it is safe:** it is an **inspection tool, not a gate.** It is
+never wired into `playwright.config.ts` or `npm run e2e`, and a green run **never promotes a `[Surface]` row** —
+the contact sheet prints what it can never prove (contact geometry, palm physics, the digitiser curve, OS
+gesture delays, camera optics, thermals, sunlight) and `run.json` records that list with every run. The
+orchestrator runs it on the **reconciled** tree after any wave that changes what the user sees
+(`docs/BUILD-RUNBOOK.md` §11, `AGENTS.md`).
+
+**Its first two runs earned it** (findings in §10 of its doc): **D125** below, the pen barrel button not being
+distinguished from the tip (evidence for H13), a dimension's midpoint being a handle rather than the body, and
+— honestly flagged as *contaminated* — a rail-side observation it saw while a concurrent lane's `styles.css` was
+uncommitted, to be re-checked on a clean tree.
+
+### D124 — the harness's IndexedDB shim: an OPFS handle round-trip kills the renderer
+
+The harness must fake the folder picker (`showDirectoryPicker` opens a native dialog no agent can drive), so it
+overrides it in an `addInitScript` and backs the app with **OPFS**. That runs straight into **D81/D86's**
+unresolved crash: a page that *loads* with an **OPFS** `FileSystemDirectoryHandle` stored under
+`fm:projects-root` **kills the renderer** — which is exactly what the app does the moment Home mounts and
+re-reads its root.
+
+**The harness therefore shims `IDBObjectStore.get`/`put`** for that key: `put` stores a sentinel string, `get`
+mints a **live** OPFS root, so the handle never round-trips through IndexedDB. Twenty lines, and it settles a
+question this project has carried since D81: the crash is in **deserialising an OPFS handle out of IndexedDB**,
+not in OPFS itself — because underneath the shim, `queryPermission`, `createWritable` **and `move()`** all work,
+so every write the harness exercises is a real atomic write. The product's own path (a **user-picked** handle,
+which D86 exercised in the running app) remains unaffected; the hardware check stays owed as recorded.
+
+### D125 — `thumb.jpg` was never written for a captured sheet (found by the harness, fixed)
+
+**The harness found it by reading the sheet directory on disk**: `photo.jpg`, `markup.json` — and **no
+`thumb.jpg`**, at every step, including after the dimension persisted, after a reload and after an export. So
+every grid card could only ever show its grey placeholder, and the sheet's own card lied about having a
+thumbnail.
+
+**Mechanism.** `CameraFlow` armed `createThumbnailScheduler` (a **3 s** debounce) and then called `onCaptured`,
+which unmounts the capture overlay — and its cleanup **cancels** the scheduler. The pending generation died with
+the component. **The test could not see it because it asserted the CALL:** `tests/cameraFlow.test.tsx`
+hand-drove `write()` and only asserted that `schedule()` had been called — the review brief's "proof, not
+decision" question, caught in the act.
+
+**Fixed:** the thumbnail is **flushed before the hand-off** (`await scheduler.flush()`, best-effort — the photo
+and the row are already durable, so a thumbnail that cannot be generated is the card's honest placeholder and
+never a failed save). The debounce still serves repeated edits; a one-shot capture flushes. Pinned by a test
+that asserts the **order** (flush before `onCaptured`), because after the hand-off there is no component left to
+flush.
+
+### D126 — the wave: real tool glyphs, chrome that fits a Surface, a grid that scrolls, and the bounded write lock
+
+Driven by the owner's two Surface screenshots (a maximised window on a 2880×1920 display at 150 % scaling →
+**~1920×1120 CSS px**): *"the tools aren't displaying correctly"* and *"make the palette not have scroll / be
+too long to display fully on this tablet"*. Three lanes, then integration.
+
+**1. The 14 tool glyphs.** Every file in `src/ui/icons/tools/` was a numbered square whose own header said
+*"⚠ PLACEHOLDER ART — MUST NOT SHIP"* — so the rail rendered `1…14` where tools should be. All 14 are now real
+single-path glyphs (24 px, `currentColor`, no `<text>`, mutually distinguishable, no new dependency).
+
+**2. The editor chrome fits.** The style panel was measured **1430–1566 px of content in a ~1006 px box** at the
+owner's size, clipping mid-`LINE STYLE` with an internal scrollbar. After: `select` **127**, `dimension` **835**
+(171 px spare), `rectangle` **786**, `text` **614** — all inside the box at 1920×1120, and at 1916×960
+`dimension` still fits with 11 px to spare. The lane also found a **second, worse instance of the same defect**:
+with an object selected every section returned and the panel measured **1204 px in an 861 px box at the owner's
+own size** — its own first rule had hidden sections only when *nothing* was selected. The rule is now
+§7.4-scoped (hide what the active tool cannot edit; a **homogeneous** selection uses that type's own table; a
+**mixed** selection shows everything disabled, which is what the spec explicitly requires). Nothing below 48 px
+was shrunk, the two 44 px exceptions are unchanged, and the width pins are now asserted: style container
+**exactly 280 px** (§7.2), rail **128 px** (§6.2). The fit gate **fails on the pre-change source** at both
+targets (stash → run → restore) and treats 1920×1120 as a first-class target.
+
+**3. The grid scrolls, and its top bar stays.** `.project-screen` was `min-height: 100%`, so `.project-body`'s
+`overflow-y: auto` never engaged and the **document** scrolled: measured `.project-body` 1628/1628,
+`window.scrollY` 734, `.project-bar` at y −734 — on a tablet you lose `‹ Projects`, `Export` and `⋯` while the
+grid scrolls. Now bounded (`height: 100%`), so the bar stays at y 0 and the body really scrolls. The **coupling**
+this creates was measured, not assumed: the card `⋯` menu is `position: absolute` inside that scroller, and a
+height-only fix clips 42 px of «Delete» at a reachable position (the lane's negative control) — so the menu is
+**portaled to `document.body`** and anchored with `element.animate()` (CSP-safe; `[style]` count stays 0, the
+chip's precedent), with the open menu closing on an outside scroll.
+
+**4. Drag autoscroll** (D118's owed M8): a live drag scrolls the body from a **48 px edge band**, 18 px per
+frame, and the drop target's rectangles are shifted by the delta the browser actually applied — so dragging a
+card past the first screenful no longer needs a second lift (16 items are 1248 px at 1440 and 2452 px at 960
+against 894/1374 px visible).
+
+**5. D121's owed hardening — the write lock is now bounded.** `writeAtomic`/`cleanStaleTmp` go through
+`withWriteLock(projectId, fn, timeoutMs = WRITE_LOCK_TIMEOUT_MS (20 s))`, which **aborts** the queued request on
+timeout rather than abandoning it: a write that was reported as failed must never run later and land behind the
+caller's back. A timeout classifies as `target-locked` («File is open in another app»). Pinned in the browser
+project with a stuck holder, including a control assertion.
+
+**6. Two harness bugs fixed during integration** (`tests/gridScroll.browser.test.ts`, written by a lane that —
+correctly — could not run the browser project): its fixture was **in-flow**, so the container's bottom sat at
+1054 while the assertions compared against `window.innerHeight` (960) — two coordinate spaces at once; and the
+overhang constant (110 px) sat outside **both** constraints, so the ⋯ it was about to click was pushed 128 px
+below the fold. The overhang is now derived from the trigger's own inset with an explicit non-empty window
+assertion, and the fixture is viewport-anchored. **The product was never at fault** — only the test drives a row
+into that position. A related trap is now recorded in the harness doc: the vitest browser project needs the
+**global stylesheet imported before the component**, because `.hit-slop { position: relative }` (styles.css:109)
+has the same single-class specificity as `.sheet-card-menu-button { position: absolute }` and **cascade order
+decides** — with the order inverted, the harness measured a trigger the app never renders.
+
+**Machine gates (this commit's tree):** 4/4 passing — `tsc` 0 · `vitest` **97 files / 1378 tests** (node + jsdom
++ browser) · `build` 0 (26 precache, 1524.56 KiB) · `playwright` 5 passed / 5 skipped.
+
+**Honest gaps, recorded rather than smoothed over:**
+- **A mixed (heterogeneous) selection still cannot fit** at either size (1205 px of spec-mandated content —
+  §7.4 #4 requires every control visible-and-disabled — against 839/663). Two sanctioned trades are written up
+  for the owner: use the **union of the selected types' tables** (~831 px → fits at 1920×1120, still over at
+  1916×960), or a section-level disclosure. Not invented here.
+- **`dimension` + an object selected remains 134 px over at 1916×960** (it fits at 1920×1120). The selection
+  bar costs 145 px because its two buttons wrap to two rows at 280 px.
+- **The rail-top clipping the owner saw was NOT reproduced** in the production height chain (rail content
+  758 px in a 908/1068 px box; the pre-change rail also fitted). The lane pinned the diagnostic instead: if it
+  recurs, read `document.scrollingElement.scrollHeight` vs `innerHeight` and
+  `rail.getBoundingClientRect().top/height` + `rail.scrollTop` — a *page* scroll (a broken `height: 100%` chain
+  outside the editor) is the only mechanism that can put a rail tile above the visible top.
+- **The lifted card's `scale(1.04)` can be clipped ~6 px** by the new scroller at a row edge while dragging —
+  cosmetic, no measurement impact, not fixed.
+- **One browser-project flake** (not reproduced in isolation): `tests/insetWire.browser.test.ts`'s iframe "did
+  not become ready within 60000ms" alongside Vite's "unexpectedly reloaded a test" warning — the D84 shape
+  (mid-run dep re-optimization with the lazy-loaded editor). Flaky-until-explained, recorded in CONTINUITY.
+
+### D127 — the rail ignored the handedness setting (found by LOOKING at the clickthru's screenshots)
+
+**How it survived every gate.** `EditorLayout` sets `data-rail={railSideFor(handedness)}` — and the default is
+**`right`** (a right-handed user) — while the rotation gate asserts that `data-rail` **does not move** across
+rotation. Every assertion passed. What the **screenshots** showed is that the rail renders as the **left-most**
+column regardless, with the style panel next to it: `styles.css` had
+`.editor-layout[data-rail='left'] .tool-rail { order: 0 }` and `…[data-rail='right'] .style-dock { order: 0 }`,
+but **`.tool-rail` carries no `order` of its own** (so it defaults to 0) — under `data-rail='right'` both the
+rail and the dock therefore sat at `0` and the flex container fell back to **source order**. The rail is first
+in the DOM, so it stayed left-most: the setting did nothing on the target device.
+
+**This is the class the harness exists for.** Its first run flagged this as an *observation only* because the
+build under test contained a concurrent lane's uncommitted `styles.css`; the second run — on the **reconciled**
+tree — reproduced it, so it is confirmed rather than contamination, which is exactly the follow-up its §10 table
+asked for.
+
+**Fixed:** `.editor-layout[data-rail='right'] .tool-rail { order: 2 }` (dock at `0`), so the panel sits on the
+opposite edge as §5.3 requires. **Pinned in real layout** — `tests/editorChromeFit.browser.test.ts` now asserts,
+for each handedness, that the attribute agrees with where the rail actually is (`rail.left > center.left` for
+`right`, `<` for `left`). The hardware row that had this green **on the strength of an attribute** is corrected
+to say what is actually machine-proven.
+
 ---
 
 ### D123 — the clickthru driver: the built-in desktop browser cannot run it; Playwright does

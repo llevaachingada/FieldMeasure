@@ -1,9 +1,14 @@
 /**
- * `ToolEraseIcon` — PLACEHOLDER glyph for the Erase tool (slice 1.4.5).
+ * `ToolEraseIcon` - the Erase/delete glyph (UI spec §6.1/§8.7; build spec §11.7).
  *
- * ⚠ PLACEHOLDER ART — MUST NOT SHIP. The plan sanctions a numbered square to unblock
- * the editor shell; the 14 bespoke single-path glyphs (§2.2, UI §11.7) are a
- * prerequisite for slice 2.0, not for 1.5. Replace this file with the real glyph.
+ * A tilted eraser block with the seam between rubber and holder, lifted just above the
+ * line it is clearing. A block on a baseline reads as "remove", and it is deliberately
+ * NOT an arrow, a cross or a pointer, so Erase can never be mistaken for Select, Pan or
+ * the Highlighter marker.
+ *
+ * Bespoke inline SVG (no new dependency, AGENTS #5): 24x24 viewBox, `currentColor` only,
+ * no `<text>`, no inline `style`, round caps/joins per §3.4. Decorative - the rail
+ * button's accessible name is `STRINGS.tool.erase`.
  */
 export default function ToolEraseIcon() {
   return (
@@ -15,21 +20,16 @@ export default function ToolEraseIcon() {
       focusable="false"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
-      <text
-        x="12"
-        y="12.5"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="9"
-        fontWeight="600"
-        fill="currentColor"
-        stroke="none"
-      >
-        14
-      </text>
+      {/* The eraser block (a 10.2 x 5.4 rectangle at 45 deg) ... */}
+      <path d="M5.4 15 L12.6 7.8 L16.4 11.6 L9.2 18.8 Z" />
+      {/* ... the rubber/holder seam, parallel to its short edge ... */}
+      <path d="M7.6 12.8 L11.4 16.6" />
+      {/* ... and the line it is clearing. */}
+      <path d="M8 20.5 H20.5" />
     </svg>
   );
 }

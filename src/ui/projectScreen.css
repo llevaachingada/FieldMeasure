@@ -17,7 +17,13 @@
  */
 
 .project-screen {
-  min-height: 100%;
+  /* D118 H2: this MUST be a bounded height, not `min-height: 100%`. With `min-height`
+     the screen grew with the grid, `html, body, #root { height: 100% }` handed the
+     content height to <body>, and the DOCUMENT became the scroller — the 66 px
+     `.project-bar` scrolled away (D118's UI review measured `window.scrollY` 418 with
+     the bar at y −418 at 1440×960; a 16-sheet fixture reproduces it at 734). A bounded
+     height makes `.project-body`'s `overflow-y: auto` engage and the bar stay put. */
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--g900);
@@ -476,16 +482,19 @@
   height: 22px;
 }
 
-/* The popup lives OUTSIDE `.sheet-card` (which clips for the thumbnail's corners), as a
-   sibling inside `.sheet-grid-item`. `data-direction` is decided in JS from the card's real
-   viewport rect (the popup is 364 px tall and there is no room to flip inside a 300 px
-   card), and the `max-height`/`overflow-y` pair is the backstop that guarantees it can
-   never be taller than the screen — the session-22 UI review measured 102 px of 364 visible
-   at the bottom row before this. */
+/* The popup is PORTALED to `document.body` (see `SheetCardRow`): the grid body is now the
+   scroll container, and an absolutely positioned popup inside it is clipped by that
+   scroller — at a reachable scroll position the bottom of «Delete» sat past the scroller's
+   bottom edge (measured: menu bottom 1002 vs scroller bottom 960, 42 px clipped). Portaling
+   it out of `.project-body` makes the clip structurally impossible. Its computed position is
+   applied with `element.animate()` (Web Animations is CSP-safe — no `[style]` attribute, and
+   the e2e suite asserts `[style]` count === 0); the `left: 0; top: 0` here is only the
+   pre-animation origin, seeded before paint by a `useLayoutEffect` (the chip's pattern).
+   `max-height`/`overflow-y` stay as the backstop that makes an off-screen menu impossible. */
 .sheet-card-menu {
-  position: absolute;
-  right: 8px;
-  top: 236px;
+  position: fixed;
+  left: 0;
+  top: 0;
   z-index: 20;
   min-width: 168px;
   max-height: min(364px, calc(100vh - 96px));
@@ -498,13 +507,6 @@
   background: var(--g800);
   border: 2px solid var(--g600);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
-}
-
-/* Open upward: the bottom edge pins above the ⋯ trigger (68 px up from the item's bottom,
-   i.e. 8 px above the trigger's own top edge at `bottom: 76px`). */
-.sheet-card-menu[data-direction='up'] {
-  top: auto;
-  bottom: 68px;
 }
 
 /* Loading: 8 skeletons (reuses the global `fm-shimmer` keyframes from styles.css). */

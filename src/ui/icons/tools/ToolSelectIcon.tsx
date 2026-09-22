@@ -1,9 +1,14 @@
 /**
- * `ToolSelectIcon` — PLACEHOLDER glyph for the Select tool (slice 1.4.5).
+ * `ToolSelectIcon` - the Select/Edit tool glyph (UI spec §3.4/§6.3; build spec §11.7).
  *
- * ⚠ PLACEHOLDER ART — MUST NOT SHIP. The plan sanctions a numbered square to unblock
- * the editor shell; the 14 bespoke single-path glyphs (§2.2, UI §11.7) are a
- * prerequisite for slice 2.0, not for 1.5. Replace this file with the real glyph.
+ * The universal pointer arrow: tap or drag the thing you can see, so the glyph is the
+ * cursor itself. It is deliberately the ONLY arrow-shaped glyph of the two "MOVE" tools
+ * that has no heads on a line (that is Pan's four-way cross), so Select and Pan never
+ * read as each other.
+ *
+ * Bespoke inline SVG (no new dependency, AGENTS #5): 24x24 viewBox, `currentColor` only,
+ * no `<text>`, no inline `style`, round caps/joins per §3.4. Decorative - the rail
+ * button's accessible name is `STRINGS.tool.select`.
  */
 export default function ToolSelectIcon() {
   return (
@@ -15,21 +20,12 @@ export default function ToolSelectIcon() {
       focusable="false"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.5}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="4" />
-      <text
-        x="12"
-        y="12.5"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="9"
-        fontWeight="600"
-        fill="currentColor"
-        stroke="none"
-      >
-        1
-      </text>
+      {/* A pointer: shaft down the left, nose, then the little tail to the lower right. */}
+      <path d="M6 3 L6 18.5 L9.7 14.9 L12.2 20.4 L14.7 19.2 L12.2 13.8 L17.5 13.5 Z" />
     </svg>
   );
 }

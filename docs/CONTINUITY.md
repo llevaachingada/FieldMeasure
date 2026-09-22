@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 23 — **there is now a clickthru harness: one command drives the *built* app end to end with real touch and pen input on the Surface geometry and screenshots every step**, so an agent can *look* at the app instead of trusting a green gate. `npm run clickthru` · `playwright.clickthru.config.ts` · `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc **`docs/clickthru-harness.md`**; a **`clickthru` skill**; an OMO orchestrator rule. **20 PASS / 0 FAIL / 0 UNREACHED** on a headed real Chrome 153 at `surfaceLandscape` 1440×960 @ DPR 2 (~30 s) with a self-contained contact sheet, and the existing `npm run e2e` gate is untouched. Two decisions en route: **D123** — the built-in desktop browser *loads* the app but cannot *drive* it (with no visible desktop window it has no screenshot and no click; and structurally no camera, no picker, no coordinate click, no `addInitScript`, and all permissions hard-denied), so **Playwright is the driver of record**; **D124** — **D81 is corrected**: the renderer death is on the IndexedDB **read** of an OPFS handle (`put` ✅ / `get` ❌), on the **same** page load and in both headed and headless builds, fixed for the harness by an `IDBObjectStore` sentinel shim, with OPFS verified as a real store. **D125** is the harness's first *product* finding: **`thumb.jpg` is never written for a captured sheet** — `CameraFlow` cancels its own 3 s debounce when it unmounts, and `tests/cameraFlow.test.tsx` hand-drives `write()` so it only asserts `schedule()` was *called* (a test that proves nothing) — plus the pen barrel being indistinguishable from the tip (**H13**) and a dimension's midpoint being a handle rather than the body. The harness's own caveats keep every `[Surface]` row `PENDING`). **Session 22 (retained):** (**the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **94 files / 1319 tests** · build 0 (26 precache, 1520.63 KiB) · playwright 5/5. Three rounds of the capture blocker are root-caused: **D121** (a Web Lock name collision — fixed and pinned), **D119/D120** (the honest failure surface and the bounded wait), and **D122** (the owner's folder grant is **`denied`**, which no prompt can fix — the app now offers a **re-pick** and `Settings → Storage → «Change folder…»` finally **adopts** the picked handle). **Both reviews of the wave landed and are discharged** — an executed correctness register (no wrong-measurement, no data-loss; one claim-fidelity inversion and one wiring-seam gap, both fixed) and a **measured** UI/UX review (three Highs, all fixed) — full register and owed items in **D118**. Owed here: the **real end-to-end run on hardware**, and four recorded review items (drag autoscroll, the inert scroll container/top bar, the editor's replace dialog, `aria-pressed` on the hold))
+**Last updated:** 2026-09-22 (session 23 — **there is now a clickthru harness: one command drives the *built* app end to end with real touch and pen input on the Surface geometry and screenshots every step**, so an agent can *look* at the app instead of trusting a green gate. `npm run clickthru` · `playwright.clickthru.config.ts` · `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc **`docs/clickthru-harness.md`**; a **`clickthru` skill**; an OMO orchestrator rule. **20 PASS / 0 FAIL / 0 UNREACHED** on a headed real Chrome 153 at `surfaceLandscape` 1440×960 @ DPR 2 (~30 s) with a self-contained contact sheet, and the existing `npm run e2e` gate is untouched. Two decisions en route: **D123** — the built-in desktop browser *loads* the app but cannot *drive* it (with no visible desktop window it has no screenshot and no click; and structurally no camera, no picker, no coordinate click, no `addInitScript`, and all permissions hard-denied), so **Playwright is the driver of record**; **D124** — **D81 is corrected**: the renderer death is on the IndexedDB **read** of an OPFS handle (`put` ✅ / `get` ❌), on the **same** page load and in both headed and headless builds, fixed for the harness by an `IDBObjectStore` sentinel shim, with OPFS verified as a real store. **D125** is the harness's first *product* finding: **`thumb.jpg` is never written for a captured sheet** — `CameraFlow` cancels its own 3 s debounce when it unmounts, and `tests/cameraFlow.test.tsx` hand-drives `write()` so it only asserts `schedule()` was *called* (a test that proves nothing) — plus the pen barrel being indistinguishable from the tip (**H13**) and a dimension's midpoint being a handle rather than the body. The harness's own caveats keep every `[Surface]` row `PENDING`). **Session 22 (retained):** (**the sheets grid's five owed items (D111) are built**: reorder (400 ms long-press drag, live renumber, pointer-following «Drop to move»), rename (inline), duplicate, the constrained §11.2:720 replace photo, and the §11.4 storage chip. Building it exposed and fixed a real `sortIndex` defect — `addSheetFromPhoto` wrote a gap-of-1 index, so after any reorder a newly appended sheet would have sorted **before every existing sheet** (**D116**); the replace was reordered with a rollback so a failure can no longer leave the new photo under the old dimensions or the old thumbnail under the new photo (**D117**); the wave's own choices are **D115**. Storage: `src/fs/sheetOps.ts` + `src/fs/projectSize.ts`; UI: `ProjectScreen.tsx`, `sheetReorder.ts`, `StorageChip.tsx`; the shell seam is `App.tsx`. Gate: tsc 0 · **97 files / 1379 tests** · build 0 (26 precache, 1524.60 KiB) · playwright 5/5. **The beta-readiness wave landed** (the owner's two Surface screenshots): the 14 tool glyphs are real, the editor chrome fits ~1920×1120, the grid scrolls with its top bar fixed and drag-autoscrolls, the write lock is bounded, and the **clickthru harness** drove the whole beta path **20/20** on the built app with real touch/pen — which also produced **D124**, **D125** (a thumbnail that was never written) and **D127** (the rail ignored the handedness setting). **Both reviews of the wave landed and are discharged** — an executed correctness register (no wrong-measurement, no data-loss; one claim-fidelity inversion and one wiring-seam gap, both fixed) and a **measured** UI/UX review (three Highs, all fixed) — full register and owed items in **D118**. Owed here: the **real end-to-end run on hardware**, and four recorded review items (drag autoscroll, the inert scroll container/top bar, the editor's replace dialog, `aria-pressed` on the hold))
 
 ---
 
@@ -12,7 +12,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 | Field | Value |
 |---|---|
 | Phase | **Slices 0.2–1.9 complete (1.9 reviewed, D109); 1.10 in progress; 1.11 landed (D112); the Project screen is built (D111) and now owns sheet trash (D113).** Shipped in 1.10 so far: themes (D104), the trust layer (D107), sheet trash (D113). Still owed: the History flyout, the end-to-end a11y audit, the arrow nudge, D101's halo fix, PDF captions, and the grid's remaining items are now **built** (session 22, D115–D117) — what still owes is the **independent review of that wave**, the **real end-to-end run on hardware**, the paused 1.10 polish, and PDF captions. Then 2.0 |
-| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **94 files / 1317 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1519.78 KiB); playwright 5 passed / 5 skipped. Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows). **Session 22 built the grid's five remaining D111 items** — `src/fs/sheetOps.ts` (reorder/rename/duplicate/replace-photo storage), `src/ui/sheetReorder.ts` (the pure drag arithmetic), `src/ui/StorageChip.tsx` + `src/fs/projectSize.ts` (§11.4 from real disk facts), the grid's card menu / inline rename / drag / warned replace dialog, and the `App` seam that owns the picker and the dimension decision |
+| Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **97 files / 1379 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1524.60 KiB); playwright 5 passed / 5 skipped. **Session 22 continued into a beta-readiness wave** (from the owner's Surface screenshots): real tool glyphs, the editor chrome fitted to ~1920×1120, the grid's scroll container bound + drag autoscroll, the bounded write lock, the D125 thumbnail fix, the D127 rail-side fix, and the **clickthru harness** (20/20 on the built app with real touch/pen) Session 21 added `src/fs/sheetTrash.ts` + `src/ui/TrashPanel.tsx` (delete/restore/prune), the grid's card menu, the folded `trash.*`/`sheetMenu.*` copy, the `App`/`EditorLayout` wiring for delete, restore, prune-on-open and the Export hand-off — and then the review resolutions (the single shell-level toast host, the delete reordering, the export-scope expansion, the restore-failure toast, the honest Settings rows). **Session 22 built the grid's five remaining D111 items** — `src/fs/sheetOps.ts` (reorder/rename/duplicate/replace-photo storage), `src/ui/sheetReorder.ts` (the pure drag arithmetic), `src/ui/StorageChip.tsx` + `src/fs/projectSize.ts` (§11.4 from real disk facts), the grid's card menu / inline rename / drag / warned replace dialog, and the `App` seam that owns the picker and the dimension decision |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
 | Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
@@ -897,6 +897,47 @@ content-owner items.
    is **cross-tab** (recorded; the fake had taught the opposite). Written up for the next session in
    **`docs/handoff-capture-save.md`**.
 
+### 2026-09-22 — Session 22 (continued): the beta-readiness wave (the owner's Surface screenshots)
+
+Two screenshots from the real Surface (2880×1920 @150 % → **~1920×1120 CSS px**): *"the tools aren't displaying
+correctly"*, *"make the palette not have scroll / be too long to display fully on this tablet… scale down the
+toolbars to fit"* — then the mandate: ***"make it ready to beta test"***. Three lanes on disjoint files, then
+integration.
+
+1. **The 14 tool glyphs are real** (D126). Every `src/ui/icons/tools/*.tsx` was a numbered square whose own
+   header said *"⚠ PLACEHOLDER ART — MUST NOT SHIP"*, so the rail rendered `1…14`. Now 14 real single-path
+   glyphs (24 px, `currentColor`, no `<text>`, no new dependency) — visible in the clickthru screenshots.
+2. **The editor chrome fits the Surface** (D126). The panel measured **1430–1566 px of content in a ~1006 px
+   box** and clipped mid-`LINE STYLE`; after: `select` **127**, `dimension` **835** (171 px spare),
+   `rectangle` **786**, `text` **614** — and `dimension` still fits at 1916×960 with 11 px to spare. The lane
+   also caught a **second, worse instance of its own defect** (with a selection active every section returned:
+   1204 px in an 861 px box *at the owner's size*) and scoped the rule to §7.4. No target below 48 px; the
+   panel's 280 px and the rail's 128 px are asserted in the gate, which **fails on the pre-change source**.
+3. **The grid scrolls, bar fixed, and drag-autoscrolls** (D126). `.project-screen` was `min-height: 100%`, so
+   the *document* scrolled and the top bar left the screen (measured `window.scrollY` 734, bar at −734). Now
+   bounded — and the coupling that creates was **measured, not assumed**: a height-only fix clips 42 px of
+   «Delete» (the lane's negative control), so the card menu is portaled to `document.body` and anchored with
+   `element.animate()`. Autoscroll: a 48 px edge band, 18 px per frame, rects shifted by the applied delta.
+4. **The write lock is bounded** (D121's owed item): `withWriteLock` **aborts** a queued acquisition after 20 s
+   rather than waiting forever — aborting, not abandoning, so a write reported as failed can never run later
+   behind the caller's back.
+5. **The clickthru ran the beta path 20/20** on the built app with real CDP touch and pen (D123), and its
+   findings are fixed: **D125** (`thumb.jpg` was never written for a captured sheet — the camera armed a 3 s
+   debounce and unmounted on `onCaptured`, cancelling it; now flushed before the hand-off and pinned by an
+   **order** assertion) and **D127** (the rail rendered left-most while `data-rail="right"` — the *default* for
+   a right-handed user — because `.tool-rail` carried no `order` of its own and the flex container fell back to
+   source order; fixed and pinned in **real layout**).
+6. **Two harness bugs fixed at integration** (a lane wrote `tests/gridScroll.browser.test.ts` and correctly
+   could not run the browser project): an **in-flow fixture** compared against `window.innerHeight` (two
+   coordinate spaces at once) and an **overhang constant outside both of its own constraints**, pushing the ⋯
+   the test clicks 128 px below the fold. The product was never at fault; both traps are now recorded in
+   `docs/clickthru-harness.md`.
+7. **One browser-project flake**, not reproduced in isolation (`tests/insetWire.browser.test.ts`'s iframe never
+   became ready alongside Vite's "unexpectedly reloaded a test") — the D84 shape, flaky-until-explained.
+
+**Gates:** tsc 0 · vitest **97 files / 1379 tests** · build 0 (26 precache, 1524.60 KiB) · playwright 5/5 ·
+**clickthru 20 PASS / 0 FAIL / 0 UNREACHED**.
+
 ### 2026-09-22 — Session 23: the clickthru harness (look at the app, don't just test it)
 
 Three lanes — an `@explorer` recon of the existing e2e/boot surface, an independent `@librarian` review of
@@ -1322,6 +1363,34 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   D107 (chip/toast items), D101 (the on-screen label halo), the **History flyout** (`writeHistorySnapshot`
   still has no caller), the end-to-end **a11y audit**, the **arrow nudge**, and the content-owner items
   (the PDF caption placement and the two `Skip`-row strings).
+
+## Known drift / watch items (session 22 — the beta wave)
+
+- **Two chrome states still do not fit, and they need the owner's call (D126):** a **mixed** (heterogeneous)
+  selection — 1205 px of §7.4-mandated visible-and-disabled content against 839 px at 1920×1120 / 663 px at
+  1916×960 — and `dimension` **+ a selection** at 1916×960 (+134 px; it fits at 1920×1120). Two sanctioned
+  trades are written up: use the **union of the selected types' tables** (~831 px → fits at 1920×1120, still
+  over at 1916×960), or a section-level disclosure. Not invented here.
+- **The rail-top clipping the owner saw was NOT reproduced** (rail content 758 px in a 908/1068 px box; the
+  pre-change rail fitted too). If it recurs, the hardware row carries the exact diagnostic — a *page* scroll (a
+  broken `height: 100%` chain outside the editor) is the only mechanism that can put a rail tile above the
+  visible top.
+- **While a sheet loads, the editor shows «Loading projects…»** — `strings.ts:49` is the Home/grid line, used
+  for a *sheet*. A weak instance of the D110 family (copy that names the wrong thing); needs a copy decision.
+- **The pen barrel button is not distinguished from the tip** — the clickthru's step 17: a `buttons: 2` press
+  with freehand active **draws**. Evidence for **H13**, unfixed.
+- **The lifted card's `scale(1.04)` can be clipped ~6 px** by the grid scroller at a row edge while dragging —
+  cosmetic, no measurement impact.
+- **One browser-project flake, not reproduced in isolation:** `tests/insetWire.browser.test.ts`'s iframe "did
+  not become ready within 60000ms" plus Vite's "unexpectedly reloaded a test" — the D84 shape. Logged; if it
+  recurs, capture the browser console, not just the summary.
+- **The clickthru is emulation and never promotes a `[Surface]` row.** Still owed to hardware: contact geometry,
+  palm physics, the digitiser pressure curve, OS gesture delays (H15), coalescing (H16), the Ink API (H17),
+  thermals/DPR-2 FPS (H18), camera optics (H10), sunlight (H3), the 14-day trash clock, and the service-worker
+  update lifecycle.
+- Carried: the end-to-end **a11y audit**, the **History flyout** (`writeHistorySnapshot` has no caller), the
+  **arrow nudge**, **D101**'s label halo, the editor's **replace dialog** (§13.3:808's progress treatment), and
+  the content-owner copy (the PDF caption placement, the `Skip` row, and the twelve `⚠ PROPOSED` rows).
 
 ## How to resume
 
