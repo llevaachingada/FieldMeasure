@@ -1,0 +1,136 @@
+/**
+ * tests/png.test.ts — src/export/png.ts (slice 1.9, Lane B: PNG + zip).
+ *
+ * `canvasToPngBytes` needs a real `HTMLCanvasElement` (jsdom has no canvas —
+ * decision D40) and lives only in tests/png.browser.test.ts. Everything else here —
+ * `pngPixelSize`, `zipPngs`, `readPngSize` — is pure/node-testable.
+ *
+ * Fixtures are imported `?inline` (Vite hands back a base64 data URL), same pattern
+ * as tests/exif.test.ts — the repo pins `types: ["vite/client"]` and does not install
+ * `@types/node`, so `node:fs`/`node:path` are not available to a type-checked `.ts`
+ * test file (make-png-fixture.mjs itself is untyped and free to use `node:fs`/`zlib`
+ * directly, same as tests/fixtures/make-fixtures.mjs).
+ *
+ * Pure module → the `node` Vitest project.
+ */
+import { unzipSync } from 'fflate';
+import { describe, expect, it } from 'vitest';
+import pngFixtureData from './fixtures/tiny-3x2.png?inline';
+import jpegFixtureData from './fixtures/tiny-2x2.jpg?inline';
+import { DuplicatePngNameError, pngPixelSize, readPngSize, zipPngs, type PngFile } from '../src/export/png';
+
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+}
+
+const pngFixture = dataUrlToBytes(pngFixtureData);
+const jpegFixture = dataUrlToBytes(jpegFixtureData);
+
+describe('pngPixelSize', () => {
+  it('M=1: no scaling — width/height pass through unchanged', () => {
+    // 4032 * 1 = 4032, 3024 * 1 = 3024.
+    expect(pngPixelSize(4032, 3024, 1)).toEqual({ width: 4032, height: 3024 });
+  });
+
+  it('M=2', () => {
+    // 4032 * 2 = 8064, 3024 * 2 = 6048.
+    expect(pngPixelSize(4032, 3024, 2)).toEqual({ width: 8064, height: 6048 });
+  });
+
+  it('M=3 — the worked example from implementation-plan.md line 1372/1268', () => {
+    // 4032 * 3 = 12096, 3024 * 3 = 9072.
+    expect(pngPixelSize(4032, 3024, 3)).toEqual({ width: 12096, height: 9072 });
+  });
+
+  it('a small odd size, to catch an off-by-factor bug a round number could hide', () => {
+    // 7 * 3 = 21, 5 * 3 = 15.
+    expect(pngPixelSize(7, 5, 3)).toEqual({ width: 21, height: 15 });
+  });
+});
+
+describe('zipPngs — round-trip via fflate unzipSync', () => {
+  it('round-trips entry names, exact byte contents, and entry count', () => {
+    const files: PngFile[] = [
+      { name: 'Job 12_01_North wall.png', bytes: new Uint8Array(pngFixture) },
+      { name: 'Job 12_02_South wall.png', bytes: Uint8Array.from([1, 2, 3, 4, 5]) },
+    ];
+    const zipped = zipPngs(files);
+    const unzipped = unzipSync(zipped);
+
+    const names = Object.keys(unzipped).sort();
+    expect(names).toEqual(
+      ['Job 12_01_North wall.png', 'Job 12_02_South wall.png'].sort(),
+    );
+    expect(names.length).toBe(2); // entry count
+
+    expect(unzipped['Job 12_01_North wall.png']).toEqual(new Uint8Array(pngFixture));
+    expect(unzipped['Job 12_02_South wall.png']).toEqual(Uint8Array.from([1, 2, 3, 4, 5]));
+  });
+
+  it('stores rather than re-compresses (level 0) — round-trip is exact either way, ' +
+    'but this documents the pinned choice', () => {
+    const files: PngFile[] = [{ name: 'a.png', bytes: new Uint8Array(pngFixture) }];
+    const zipped = zipPngs(files);
+    const unzipped = unzipSync(zipped);
+    expect(unzipped['a.png']).toEqual(new Uint8Array(pngFixture));
+  });
+
+  it('duplicate names: throws a typed DuplicatePngNameError (documented judgement call — ' +
+    'a silent collapse would drop a sheet from the export with no error)', () => {
+    const files: PngFile[] = [
+      { name: 'Sheet.png', bytes: Uint8Array.from([1]) },
+      { name: 'Sheet.png', bytes: Uint8Array.from([2]) },
+    ];
+    expect(() => zipPngs(files)).toThrow(DuplicatePngNameError);
+    expect(() => zipPngs(files)).toThrow(/duplicate entry name "Sheet\.png"/);
+    // The colliding name is carried on `entryName`, NOT on `name`: `this.name` is the
+    // error's class tag, so a field called `name` would always read back
+    // 'DuplicatePngNameError' and the caller could never learn which entry collided.
+    let caught: unknown;
+    try {
+      zipPngs(files);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(DuplicatePngNameError);
+    expect((caught as DuplicatePngNameError).entryName).toBe('Sheet.png');
+    expect((caught as DuplicatePngNameError).name).toBe('DuplicatePngNameError');
+  });
+
+  it('empty list: produces a valid, empty zip (documented judgement call — not a refusal)', () => {
+    const zipped = zipPngs([]);
+    const unzipped = unzipSync(zipped);
+    expect(Object.keys(unzipped)).toEqual([]);
+    // A valid zip's minimum well-formed size is the End Of Central Directory record
+    // alone (22 bytes, no comment) — assert it's non-garbage, not just "some bytes".
+    expect(zipped.length).toBeGreaterThanOrEqual(22);
+  });
+});
+
+describe('readPngSize', () => {
+  it('reads the real fixture bytes (3x2, generated by make-png-fixture.mjs)', () => {
+    expect(readPngSize(new Uint8Array(pngFixture))).toEqual({ width: 3, height: 2 });
+  });
+
+  it('returns null for a truncated buffer (valid signature, chunk header cut off)', () => {
+    const truncated = pngFixture.subarray(0, 10); // signature (8) + 2 bytes of chunk length
+    expect(readPngSize(new Uint8Array(truncated))).toBeNull();
+  });
+
+  it('returns null for a JPEG (wrong signature)', () => {
+    expect(readPngSize(new Uint8Array(jpegFixture))).toBeNull();
+  });
+
+  it('returns null for an empty buffer', () => {
+    expect(readPngSize(new Uint8Array(0))).toBeNull();
+  });
+
+  it('returns null when the first chunk is not IHDR', () => {
+    const bytes = new Uint8Array(pngFixture);
+    // Corrupt the chunk type bytes (offset 12..15, "IHDR") to something else.
+    const corrupted = new Uint8Array(bytes);
+    corrupted.set([0x41, 0x42, 0x43, 0x44], 12); // "ABCD"
+    expect(readPngSize(corrupted)).toBeNull();
+  });
+});
