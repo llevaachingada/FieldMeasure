@@ -23,6 +23,7 @@ import PWAUpdate from '@/ui/PWAUpdate';
 import { useThemeRuntime } from '@/ui/themeRuntime';
 import { useWatermarkRuntime } from '@/ui/watermarkRuntime';
 import WatermarkOverlay from '@/ui/WatermarkOverlay';
+import NewProjectDialog from '@/ui/NewProjectDialog';
 import { emitToast } from '@/editor/session';
 import ProjectScreen from '@/ui/ProjectScreen';
 import { listProjectSheets, type ProjectSheetCard } from '@/fs/projectSheets';
@@ -113,6 +114,9 @@ export default function App() {
    * button itself stays enabled and no spinner/copy is added.
    */
   const creatingProject = useRef(false);
+  /** The «New project» name pop-up (D135): Home's button only OPENS it; the create runs on confirm. */
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProjectBusy, setNewProjectBusy] = useState(false);
 
   /**
    * Slice 1.10: open a project on the **Project screen** (the sheets grid, UI §11.2; build
@@ -321,11 +325,13 @@ export default function App() {
    *
    * A failure (root not open, quota, a locked target) surfaces as a toast — never silence.
    */
-  async function handleNewProject(): Promise<void> {
+  async function handleNewProject(name: string): Promise<void> {
     if (creatingProject.current) return;
     creatingProject.current = true;
+    setNewProjectBusy(true);
     try {
-      const created = await createProject();
+      const created = await createProject({ title: name });
+      setNewProjectOpen(false);
       // D51: register under the full runtime key, exactly as the editor's load path does.
       const projectId = `${created.id}:${created.folderName}`;
       registerOpenProject(projectId, created.folderName);
@@ -346,6 +352,7 @@ export default function App() {
       emitToast({ text: STRINGS.errors.projectUnavailable, urgent: true });
     } finally {
       creatingProject.current = false;
+      setNewProjectBusy(false);
     }
   }
 
@@ -488,9 +495,7 @@ export default function App() {
             if (!id || !folderName) return;
             openProject(id, folderName);
           }}
-          onNewProject={() => {
-            void handleNewProject();
-          }}
+          onNewProject={() => setNewProjectOpen(true)}
           onOpenFolder={() => {
             /* slice 1.2 — reveals/opens an existing project folder */
           }}
@@ -528,6 +533,14 @@ export default function App() {
           consistent across every route. Renders nothing when Settings › Display ›
           Watermark is off. */}
       <WatermarkOverlay />
+      {/* D135: asks for the project's name before anything is created. */}
+      {newProjectOpen ? (
+        <NewProjectDialog
+          busy={newProjectBusy}
+          onCancel={() => setNewProjectOpen(false)}
+          onCreate={(name) => void handleNewProject(name)}
+        />
+      ) : null}
       {/* §13.4: exactly ONE toast host for the whole app, mounted here rather than per route.
           A route that renders none (the sheets grid) silently swallowed every toast. */}
       <ToastHost />

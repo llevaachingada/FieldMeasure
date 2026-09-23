@@ -227,14 +227,21 @@ test('beta-critical path + gesture lab on the Surface profile', async ({ page, c
       name: 'New project -> capture overlay with live camera',
       run: async () => {
         await page.getByRole('button', { name: 'New project', exact: true }).click();
+        // D135: «New project» asks for a name first.
+        const nameField = page.getByRole('textbox', { name: 'Project name' });
+        await waitVisible(nameField, 'the «Name your project» pop-up field', 10_000);
+        await nameField.fill('Clickthru project');
+        await page.getByRole('button', { name: 'Create project', exact: true }).click();
         await waitVisible(page.locator('.camera-shutter'), 'camera shutter (.camera-shutter)', 30_000);
+        // The resolution readout was removed (D135): the shutter and the zoom chips are the proof
+        // the fake camera stream is live.
         await waitVisible(
-          page.locator('[data-testid="camera-resolution"]'),
-          'live camera resolution readout (fake device)',
+          page.getByRole('button', { name: '1×', exact: true }),
+          'the 1× zoom chip (enabled even with no hardware zoom)',
           30_000,
         );
-        const resolution = await page.locator('[data-testid="camera-resolution"]').textContent();
-        return `capture overlay open; live camera reports ${resolution ?? 'unknown'}`;
+        const chips = await page.locator('.camera-zoom-chip').allTextContents();
+        return `capture overlay open after naming the project; zoom chips: ${chips.join(' ')}`;
       },
     },
     {

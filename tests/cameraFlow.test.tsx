@@ -87,7 +87,7 @@ function fakeTrack(width: number, height: number, deviceId: string) {
   return {
     kind: 'video' as const,
     getSettings: () => ({ width, height, deviceId }),
-    getCapabilities: () => ({ torch: true, zoom: { min: 1, max: 4, step: 0.25 } }),
+    getCapabilities: () => ({ zoom: { min: 1, max: 4, step: 0.25 } }),
     applyConstraints: vi.fn(async () => {}),
     stop: vi.fn(),
   };
@@ -187,8 +187,8 @@ describe('capture → review → Use photo', () => {
     const { onCaptured } = renderFlow();
     const user = userEvent.setup();
 
-    // The stream is live once the honest resolution readout appears.
-    expect(await screen.findByTestId('camera-resolution')).toBeTruthy();
+    // The stream is live once the viewfinder (its shutter) is drawn.
+    expect(await screen.findByRole('button', { name: STRINGS.a11y.shutter })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
 
@@ -238,7 +238,7 @@ describe('capture → review → Use photo', () => {
     await setup();
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     const { onCaptured } = renderFlow();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     const input = screen.getByLabelText(STRINGS.capture.importAPhoto) as HTMLInputElement;
     fireEvent.change(input, {
@@ -254,7 +254,7 @@ describe('capture → review → Use photo', () => {
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     const { onCaptured } = renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     // Hold the normalize step open so the write is observably in flight.
     let release!: () => void;
@@ -290,7 +290,7 @@ describe('write failure — a field photo is never trapped', () => {
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
     await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
@@ -326,7 +326,7 @@ describe('write failure — a field photo is never trapped', () => {
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
     await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
@@ -347,7 +347,7 @@ describe('write failure — a field photo is never trapped', () => {
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     const { onCaptured } = renderFlow(vi.fn(), vi.fn(), 'Nope'); // not in the root, not registered
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
     await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
@@ -391,14 +391,13 @@ describe('a11y — keyboard operability and labelling', () => {
 
     expect(await screen.findByRole('button', { name: STRINGS.a11y.shutter })).toBeTruthy();
     expect(screen.getByRole('button', { name: STRINGS.capture.close })).toBeTruthy();
-    expect(screen.getByRole('button', { name: STRINGS.a11y.torch })).toBeTruthy();
     expect(screen.getByRole('button', { name: STRINGS.a11y.grid })).toBeTruthy();
     expect(screen.getByRole('button', { name: STRINGS.a11y.level })).toBeTruthy();
     expect(screen.getByRole('button', { name: STRINGS.a11y.cameraFlip })).toBeTruthy();
     expect(screen.getByRole('button', { name: STRINGS.capture.importButton })).toBeTruthy();
 
-    // The three viewfinder toggles are pressed-state switches.
-    for (const label of [STRINGS.a11y.torch, STRINGS.a11y.grid, STRINGS.a11y.level]) {
+    // The viewfinder toggles are pressed-state switches. (No torch: the owner removed it.)
+    for (const label of [STRINGS.a11y.grid, STRINGS.a11y.level]) {
       expect(screen.getByRole('button', { name: label }).getAttribute('aria-pressed')).toBe(
         'false',
       );
@@ -410,7 +409,7 @@ describe('a11y — keyboard operability and labelling', () => {
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     expect(document.querySelector('.camera-grid')).toBeNull();
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.grid }));
@@ -420,52 +419,11 @@ describe('a11y — keyboard operability and labelling', () => {
     );
   });
 
-  it('the torch toggle reverts when the device refuses the constraint (D108)', async () => {
-    await setup();
-    const track = fakeTrack(1920, 1080, 'cam-back');
-    // A Windows tablet: the platform does not expose `torch`, so the advanced constraint rejects.
-    (track.applyConstraints as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('Unsupported constraint'),
-    );
-    installMedia(vi.fn(async () => fakeStream(track)));
-    renderFlow();
-    const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
-
-    await user.click(screen.getByRole('button', { name: STRINGS.a11y.torch }));
-
-    await waitFor(() =>
-      expect(track.applyConstraints).toHaveBeenCalledWith({ advanced: [{ torch: true }] }),
-    );
-    // The button must NOT claim the LED is on when the hardware refused it.
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: STRINGS.a11y.torch }).getAttribute('aria-pressed'),
-      ).toBe('false'),
-    );
-  });
-
-  it('the torch toggle stays pressed when the hardware accepts it', async () => {
-    await setup();
-    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
-    renderFlow();
-    const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
-
-    await user.click(screen.getByRole('button', { name: STRINGS.a11y.torch }));
-
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: STRINGS.a11y.torch }).getAttribute('aria-pressed'),
-      ).toBe('true'),
-    );
-  });
-
   it('tap-to-focus shows a reticle; long-press shows the AE/AF lock chip', async () => {
     await setup();
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     renderFlow();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     const surface = document.querySelector('.camera-surface') as HTMLElement;
     expect(surface).not.toBeNull();
@@ -493,7 +451,7 @@ describe('a11y — keyboard operability and labelling', () => {
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
     await screen.findByRole('button', { name: STRINGS.capture.usePhoto });
 
@@ -551,7 +509,7 @@ describe('a save that never finishes names its stage and gives the photo back (o
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
     await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
@@ -576,7 +534,7 @@ describe('a save that never finishes names its stage and gives the photo back (o
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     const { onCaptured } = renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
     await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
@@ -608,7 +566,7 @@ describe('a DENIED folder grant offers a re-pick, not an impossible re-authorize
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
     await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
@@ -636,7 +594,7 @@ describe('the card thumbnail is written before the sheet is handed off (D125)', 
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     const { onCaptured } = renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
     await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));

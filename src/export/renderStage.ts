@@ -84,6 +84,9 @@ export interface ExportSheetInput {
    *  rather than read here — `renderSheet` stays a pure rendering function with no
    *  settings/idb dependency of its own. Absent/`null` = no watermark. */
   watermark?: { image: CanvasImageSource; aspectRatio: number } | null;
+  /** The photo's date/time, ready to print (`formatCaptureStamp`), drawn above the watermark.
+   *  Only ever drawn WITH the watermark: it follows the same Settings switch. */
+  captureStamp?: string | null;
 }
 
 export interface RenderedSheet {
@@ -428,7 +431,14 @@ export async function renderSheet(
   // UI/GUI handoff pass: drawn straight onto the flattened bitmap, on top of every
   // layer just composited — same as a real watermark sits on top of a printed page.
   if (input.watermark) {
-    drawWatermark(ctx2d, input.watermark.image, bitmapWidthPx, bitmapHeightPx, input.watermark.aspectRatio);
+    drawWatermark(
+      ctx2d,
+      input.watermark.image,
+      bitmapWidthPx,
+      bitmapHeightPx,
+      input.watermark.aspectRatio,
+      input.captureStamp ?? null,
+    );
   }
 
   // Free everything: destroy the nodes, the stage (Konva releases the layer canvases on

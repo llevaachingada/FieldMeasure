@@ -35,6 +35,7 @@ import DimensionKeypadSheet, {
   backspace,
   badFractionInRaw,
   cycleDenominator,
+  KEYPAD_KEY_IDS,
   refusalReason,
   scopeToInches,
   seedSlots,
@@ -191,12 +192,17 @@ describe('truth table — hardware keys, real primitives', () => {
     expect(result.valueMm).toBeCloseTo(expectedMm(124.5), 9);
   });
 
-  it('the on-screen keys drive the same slot machine (inches first, then ft)', () => {
+  // D135 (spec expectation corrected, not weakened): this test drove the OLD prefix model — digits
+  // first into the inches slot, then `ft` and MORE digits into feet. The pad is now a calculator
+  // pad, where a unit key claims the digits typed BEFORE it: `1 2 FT 6 IN` = 12'-6". Arithmetic:
+  // 12 ft x 12 = 144 in, + 6 in = 150 in.
+  it('the on-screen keys are postfix, like a calculator: 1 2 FT 6 IN = 12\'-6"', () => {
     const { onCommit } = mountSheet();
-    clickKey('digit-6'); // the inches slot is where emptyKeypadState starts
-    clickKey('ft');
     clickKey('digit-1');
     clickKey('digit-2');
+    clickKey('ft'); // the 12 becomes FEET
+    clickKey('digit-6');
+    clickKey('in'); // the 6 becomes whole INCHES
 
     expect(previewText()).toContain(`12'-6"`);
     act(() => {
@@ -207,6 +213,85 @@ describe('truth table — hardware keys, real primitives', () => {
       enteredText: `12'-6"`,
       chain: false,
     });
+  });
+
+  it('1 2 FT 6 IN 3 / 8 = 12\'-6 3/8" and stores exactly what was keyed', () => {
+    const { onCommit } = mountSheet();
+    for (const k of ['digit-1', 'digit-2', 'ft', 'digit-6', 'in', 'digit-3', 'slash', 'digit-8']) {
+      clickKey(k);
+    }
+    // 12 x 12 = 144, + 6 = 150, + 3/8 = 0.375  ->  150.375 in.
+    expect(previewText()).toContain(`12'-6 3/8"`);
+    act(() => {
+      commitButton().click();
+    });
+    expect(onCommit.mock.calls[0][0].enteredText).toBe(`12'-6 3/8"`);
+    expect(onCommit.mock.calls[0][0].valueMm).toBeCloseTo(expectedMm(150.375), 9);
+  });
+
+  it('a preset fraction key enters a whole fraction in one tap, keeping pending whole inches', () => {
+    const { onCommit } = mountSheet();
+    clickKey('digit-6');
+    clickKey('fraction-2'); // 6 then 1/2
+    // 6 + 1/2 = 6.5 in.
+    expect(previewText()).toContain(`6 1/2"`);
+    act(() => {
+      commitButton().click();
+    });
+    expect(onCommit.mock.calls[0][0].enteredText).toBe(`6 1/2"`);
+    expect(onCommit.mock.calls[0][0].valueMm).toBeCloseTo(expectedMm(6.5), 9);
+  });
+
+  it('/ with no denominator typed uses the project precision (3 / = 3/16 at 1/16)', () => {
+    mountSheet({ precisionDenominator: 16 });
+    clickKey('digit-3');
+    clickKey('slash');
+    expect(previewText()).toContain(`3/16"`);
+    expect(commitButton().disabled).toBe(false);
+  });
+
+  it('a typed denominator is checked: 5 / 3 2 = 5/32, but 3 / 1 is refused with its reason', () => {
+    mountSheet();
+    for (const k of ['digit-5', 'slash', 'digit-3', 'digit-2']) clickKey(k);
+    expect(previewText()).toContain(`5/32"`);
+    expect(commitButton().disabled).toBe(false);
+
+    clickKey('clear');
+    for (const k of ['digit-3', 'slash', 'digit-1']) clickKey(k); // denominator 1 is not 2/4/8/16/32/64
+    expect(commitButton().disabled).toBe(true);
+    expect(previewText()).toContain(STRINGS.keypad.errorDenominator);
+  });
+
+  it('whole inches need IN first: 6 3 / reads 63/16 and is refused, not guessed', () => {
+    mountSheet();
+    for (const k of ['digit-6', 'digit-3', 'slash']) clickKey(k);
+    // numerator 63 >= denominator 16.
+    expect(commitButton().disabled).toBe(true);
+    expect(previewText()).toContain(STRINGS.keypad.errorFractionTooBig);
+  });
+
+  it('FT with nothing typed still works prefix-style: FT 1 2 IN 6 = 12\'-6"', () => {
+    mountSheet();
+    for (const k of ['ft', 'digit-1', 'digit-2', 'in', 'digit-6']) clickKey(k);
+    // 6 lands in the inches slot after IN; 12*12 + 6 = 150 in.
+    expect(previewText()).toContain(`12'-6"`);
+  });
+
+  it('C clears the whole entry', () => {
+    mountSheet();
+    for (const k of ['digit-1', 'digit-2', 'ft', 'digit-6', 'in']) clickKey(k);
+    clickKey('clear');
+    expect(commitButton().disabled).toBe(true);
+    expect(previewText()).toContain(STRINGS.keypad.errorEnterLength);
+  });
+
+  it('the typed-entry line shows what was keyed, with the active part marked', () => {
+    mountSheet();
+    for (const k of ['digit-1', 'digit-2', 'ft', 'digit-6']) clickKey(k);
+    const entry = document.querySelector('[data-testid="keypad-entry"]')!;
+    expect(entry.textContent).toBe(`12'6"`);
+    // The 6 is pending in the inches slot: that is the active (underlined) segment.
+    expect(entry.querySelector('.is-active')?.textContent).toBe('6');
   });
 
   it('⌫ deletes the last character of the slot the next digit would land in', () => {
@@ -278,9 +363,8 @@ describe('refusal table — the reason is shown, never a silently disabled butto
 
   it('a numerator ≥ denominator typed on the pad is refused too', () => {
     mountSheet();
-    clickKey('fraction-2'); // entry denominator 2; active slot → numerator
-    clickKey('digit-1');
-    clickKey('digit-5');
+    // 1 5 / 2: numerator 15, denominator 2 (a VALID denominator).
+    for (const k of ['digit-1', 'digit-5', 'slash', 'digit-2']) clickKey(k);
     // 15/2 = 7.5 in is arithmetically fine, and `isCommittableInches` says yes. It is still
     // a typo (§6.1.1) — which is exactly why the fraction rule exists on top of the primitive.
     expect(commitButton().disabled).toBe(true);
@@ -362,13 +446,19 @@ describe('fraction chips are entry-scoped (D31)', () => {
     expect(previewText()).toContain(`12'-6 3/16"`);
   });
 
-  it('routes the active slot to the numerator only when none is entered (§6.1.1 wiring)', () => {
+  // D135 (spec expectation corrected): the chip used to set the denominator and route the NEXT digits
+  // into the numerator (1 then 6 = 16/2 = 8"). A preset key now enters the whole fraction, so a
+  // further digit edits the DENOMINATOR: 1/2 then 6 -> denominator "26", which is refused.
+  it('after a preset fraction, a further digit edits the denominator (1/2 then 6 = 1/26, refused)', () => {
     mountSheet();
     clickKey('fraction-2');
-    clickKey('digit-1'); // lands in the numerator → 1/2"
     expect(previewText()).toContain(`1/2"`);
-    clickKey('digit-6'); // numerator non-empty → the slot does NOT move → 16/2 = 8"
-    expect(previewText()).toContain(`8"`);
+    clickKey('digit-6'); // denominator typed "2" + "6" = 26, which is not an allowed denominator
+    expect(commitButton().disabled).toBe(true);
+    expect(previewText()).toContain(STRINGS.keypad.errorDenominator);
+    clickKey('backspace'); // back to 2
+    expect(previewText()).toContain(`1/2"`);
+    expect(commitButton().disabled).toBe(false);
   });
 
   it('← / → cycle the entry denominator across the whole VALID_DENOMINATORS enum', () => {
@@ -390,8 +480,8 @@ describe('fraction chips are entry-scoped (D31)', () => {
 describe('preview is a pure function of the slots', () => {
   it('shows the DERIVED value, which is not the composed enteredText', () => {
     const { onCommit } = mountSheet();
-    clickKey('dot'); // → numerator slot, denominator unchanged (16)
     clickKey('digit-8');
+    clickKey('slash'); // numerator 8, denominator = project precision 16
 
     const slots = { ...emptyKeypadState(16), numerator: '8', activeSlot: 'numerator' as const };
     // `8/16"` and `1/2"` are the same value: the preview shows the canonical label while the
@@ -409,14 +499,13 @@ describe('preview is a pure function of the slots', () => {
 
   it('re-renders when the entry denominator changes — no cached label', () => {
     mountSheet();
-    clickKey('digit-1');
-    clickKey('digit-2');
-    clickKey('dot');
-    clickKey('digit-4'); // numerator 4, denominator 16 → 12 4/16" = 12.25"
+    for (const k of ['digit-1', 'digit-2', 'in', 'digit-4']) clickKey(k);
+    // 12 in + numerator 4 over the default 16 = 12.25 in = 1'-0 1/4".
     const before = previewText();
     expect(before).toContain(`1'-0 1/4"`);
 
-    clickKey('fraction-2'); // same slots, denominator 2 → 12 + 4/2 = 14"
+    clickKey('slash');
+    clickKey('digit-2'); // same numerator 4, denominator now 2: 12 + 4/2 = 14 in
     expect(previewText()).not.toBe(before);
     expect(previewText()).toContain(`1'-2"`);
   });
@@ -646,31 +735,25 @@ describe('accessibility floor', () => {
   it('orders the pad for the keyboard the way it reads on screen', () => {
     mountSheet();
     const pad = Array.from(
-      document.querySelectorAll<HTMLElement>('.keypad-grid [data-keypad-key]'),
+      document.querySelectorAll<HTMLElement>('.keypad-pad [data-keypad-key]'),
     ).map((el) => el.dataset.keypadKey);
-    // Row-major: the two 3-wide blocks must not make Tab jump down a block first.
+    // Row-major, calculator order: 7 8 9 | FT | 1/2, 4 5 6 | IN | 1/4, 1 2 3 | / | 1/8,
+    // 0 ⌫ | C | 1/16 (0 is double-wide).
     expect(pad).toEqual([
-      'digit-1',
-      'digit-2',
-      'digit-3',
-      'digit-4',
-      'digit-5',
-      'digit-6',
-      'digit-7',
-      'digit-8',
-      'digit-9',
-      'digit-0',
-      'backspace',
-      'dot',
+      'digit-7', 'digit-8', 'digit-9', 'ft', 'fraction-2',
+      'digit-4', 'digit-5', 'digit-6', 'in', 'fraction-4',
+      'digit-1', 'digit-2', 'digit-3', 'slash', 'fraction-8',
+      'digit-0', 'backspace', 'clear', 'fraction-16',
     ]);
+    expect(pad).toEqual([...KEYPAD_KEY_IDS]);
   });
 
-  it('orders the whole sheet for Tab: cancel → units/chips → pad → actions', () => {
+  it('orders the whole sheet for Tab: cancel → the pad → actions', () => {
     mountSheet();
     const order = Array.from(document.querySelectorAll<HTMLElement>('[data-keypad-key]')).map(
       (el) => el.dataset.keypadKey ?? '',
     );
-    expect(order.slice(0, 3)).toEqual(['cancel', 'ft', 'in']);
+    expect(order.slice(0, 2)).toEqual(['cancel', 'digit-7']);
     expect(order.slice(-2)).toEqual(['commit', 'chain']);
   });
 
@@ -699,29 +782,33 @@ describe('accessibility floor', () => {
 // ---------------------------------------------------------------------------
 
 describe('unit toggles and their hints (§6.1.1)', () => {
-  it('`in` re-scopes the whole entry to inches without changing the value', () => {
+  it('IN closes the whole inches, so the next digits are a numerator (6 IN 3 = 6 3/16")', () => {
     mountSheet();
     clickKey('digit-6');
-    clickKey('ft');
-    clickKey('digit-1');
-    clickKey('digit-2');
-    expect(previewText()).toContain(`12'-6"`); // 12×12 + 6 = 150 in
-
     clickKey('in');
-    expect(keyEl('in').getAttribute('aria-pressed')).toBe('true');
-    expect(keyEl('ft').getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByText(STRINGS.keypad.entryNowInches)).toBeTruthy();
-    // Still the same measurement — the secondary readout is now the whole entry: 150".
-    expect(previewText()).toContain(`= 150"`);
+    expect(previewText()).toContain(`6"`);
+    clickKey('digit-3'); // a numerator now, over the project precision 16
+    // 6 + 3/16 = 6.1875 in.
+    expect(previewText()).toContain(`6 3/16"`);
   });
 
-  it('hides the «Entry is now inches» hint after its 1.5 s window', async () => {
+  it('⌫ un-presses the last unit key, one step at a time (12\' 6 3/8 -> back to 12\')', () => {
     mountSheet();
-    clickKey('in');
-    expect(screen.getByText(STRINGS.keypad.entryNowInches)).toBeTruthy();
-    await waitFor(() => expect(screen.queryByText(STRINGS.keypad.entryNowInches)).toBeNull(), {
-      timeout: 3000,
-    });
+    for (const k of ['digit-1', 'digit-2', 'ft', 'digit-6', 'in', 'digit-3', 'slash', 'digit-8']) {
+      clickKey(k);
+    }
+    const entry = (): string => document.querySelector('[data-testid="keypad-entry"]')!.textContent ?? '';
+    expect(entry()).toBe(`12'63/8"`);
+    clickKey('backspace'); // the typed denominator 8 -> back to the default 16
+    expect(entry()).toBe(`12'63/16"`);
+    clickKey('backspace'); // un-press /
+    clickKey('backspace'); // delete the numerator 3
+    clickKey('backspace'); // re-open the inches (6 is still there)
+    expect(entry()).toBe(`12'6"`);
+    clickKey('backspace'); // delete the 6
+    clickKey('backspace'); // un-press FT: 12 is pending inches again
+    expect(entry()).toBe(`12"`);
+    expect(previewText()).toContain(`1'-0"`);
   });
 
   it('shows the «← /16» cycling hint once a chip sets the entry denominator', () => {

@@ -88,6 +88,8 @@ export interface Sheet {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
+  /** When the photo was taken (ISO 8601). Printed on exports as the date/time stamp. */
+  capturedAt?: string | null;
 }
 
 export type UnitFormat = 'ft-in' | 'in' | 'ft-decimal';

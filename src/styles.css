@@ -955,6 +955,10 @@ button.crumb:hover {
   border-top: 2px solid var(--g700);
 }
 .rail-history-button {
+  /* Above the in-app VANGARDE mark (z-index 80, bottom-right): the buttons' labels must stay crisp; the
+     mark shows through everywhere around them. */
+  position: relative;
+  z-index: 81;
   width: 56px;
   min-height: 56px;
   display: flex;
@@ -1479,7 +1483,9 @@ button.crumb:hover {
   position: fixed;
   right: 12px;
   bottom: 12px;
-  z-index: 2;
+  /* Above every page, panel, rail and the camera (owner: the mark shows on ALL pages, bottom
+     right). It is decorative and `pointer-events: none`, so being on top never blocks a touch. */
+  z-index: 80;
   pointer-events: none;
 }
 
@@ -1493,7 +1499,9 @@ button.crumb:hover {
    more complexity than a brand mark warrants. */
 .watermark-overlay-mark {
   display: block;
-  width: clamp(56px, 6vw, 96px);
+  /* Owner: larger. Was clamp(56px, 6vw, 96px) at 0.08. The mark is 1911x897 (2.13:1), so at the
+     top of the clamp it is 260 x 122 px. The camera's zoom chips clear that height. */
+  width: clamp(140px, 14vw, 260px);
   height: auto;
-  opacity: 0.08;
+  opacity: 0.14;
 }

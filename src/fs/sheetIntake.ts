@@ -36,6 +36,8 @@ export interface SheetIntakeOptions {
   title: string;
   /** Sheet `createdAt`: the EXIF capture time when known, else `new Date()`. */
   createdAt: Date;
+  /** When the photo was TAKEN (shutter / EXIF / file date). Stored as `Sheet.capturedAt`. */
+  capturedAt?: Date;
 }
 
 export interface SheetIntakeResult {
@@ -81,6 +83,7 @@ export async function addSheetFromPhoto(
     calibrationPxPerFoot: null,
     createdAt: createdAt.toISOString(),
     updatedAt: now.toISOString(),
+    capturedAt: (options.capturedAt ?? createdAt).toISOString(),
   };
   const sheetDir = await resolveSheetDir(projectDir, sheet.id, { create: true });
   await writeAtomic(sheetDir, 'photo.jpg', photo.blob, projectId);

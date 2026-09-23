@@ -104,21 +104,122 @@ export interface KeypadState {
   inches: string;         // digits only (whole inches), '' = none
   numerator: string;      // digits only, '' = no fraction
   denominator: number;    // active fraction denominator (project precision by default)
-  activeSlot: 'feet' | 'inches' | 'numerator';   // which slot receives digit keys
-  inchesMode: boolean;     // true = whole entry scoped to inches only (ft/in toggle)
+  /** Which slot receives digit keys. `denominator` = digits typed after the `/` key. */
+  activeSlot: 'feet' | 'inches' | 'numerator' | 'denominator';
+  inchesMode: boolean;     // true = whole entry scoped to inches only (hardware-parsed decimals / `124`)
+  /** Digits typed after `/` (max 2). `''`/absent = none typed, so `denominator` is the default. */
+  denominatorTyped?: string;
+  /** The entry's starting denominator (project precision): restored when a typed one is erased. */
+  baseDenominator?: number;
 }
 
 export const emptyKeypadState = (denominator: number): KeypadState =>
-  ({ feet: '', inches: '', numerator: '', denominator, activeSlot: 'inches', inchesMode: false });
+  ({ feet: '', inches: '', numerator: '', denominator, activeSlot: 'inches', inchesMode: false,
+     denominatorTyped: '', baseDenominator: denominator });
 
 /** Digit key → slot routing (pure). */
 export function pressDigit(st: KeypadState, d: string): KeypadState {
   const next = { ...st };
-  if (st.inchesMode) { next.inches = (next.inches + d).replace(/^0+(?=\d)/, ''); return next; }
+  // `inchesMode` routes to the inches slot only while that slot is the active one, so a fraction can
+  // still be typed after a whole-inch entry.
+  if (st.inchesMode && st.activeSlot === 'inches') { next.inches = (next.inches + d).replace(/^0+(?=\d)/, ''); return next; }
   if (st.activeSlot === 'feet')       next.feet     = (next.feet + d).replace(/^0+(?=\d)/, '');
   else if (st.activeSlot === 'inches') next.inches  = (next.inches + d).replace(/^0+(?=\d)/, '');
+  else if (st.activeSlot === 'denominator') {
+    // The denominator is at most two digits (64 is the largest valid one); a third is ignored.
+    const typed = (st.denominatorTyped ?? '') + d;
+    if (typed.length > 2) return st;
+    next.denominatorTyped = typed;
+    next.denominator = Number(typed);
+  }
   else                                  next.numerator = (next.numerator + d).replace(/^0+(?=\d)/, '');
   return next;
+}
+
+// ---------------------------------------------------------------------------
+// Calculator-style keys (the Construction Master Pro workflow, owner request 2026-09-23, D135).
+// Units are POSTFIX: type the digits, then the key that says what they were —
+//   `1 2 FT 6 IN 3 / 8` = 12'-6 3/8".  Digits typed while the inches slot is active are "pending"
+// until a unit key claims them. Every function is pure and returns a new state.
+// ---------------------------------------------------------------------------
+
+/** `FT`: pending digits become FEET. With nothing pending it selects the feet slot (prefix style). */
+export function pressFeet(st: KeypadState): KeypadState {
+  if (st.inchesMode) return { ...st, inchesMode: false, activeSlot: 'feet' };
+  if (st.activeSlot === 'inches') {
+    if (st.inches !== '' && st.feet === '') {
+      return { ...st, feet: st.inches, inches: '', activeSlot: 'inches' };   // `12 FT`
+    }
+    if (st.inches === '') return { ...st, activeSlot: 'feet' };              // `FT 12` (prefix)
+  }
+  return st;   // a second FT, or FT inside a fraction, has no meaning: ignored
+}
+
+/** `IN`: pending digits become whole INCHES and close that slot; the next digits are a numerator. */
+export function pressInch(st: KeypadState): KeypadState {
+  if (st.activeSlot === 'feet') return { ...st, activeSlot: 'inches' };      // prefix: `FT 12 IN 6`
+  if (st.activeSlot === 'inches' && st.inches !== '') return { ...st, activeSlot: 'numerator' };
+  return st;
+}
+
+/** `/`: pending digits become the NUMERATOR and the next digits type the denominator. With no
+ *  denominator typed the entry's denominator (project precision) applies, like the calculator's
+ *  resolution setting. Whole inches must be closed with `IN` first (`6 3 /` reads 63/…, refused). */
+export function pressSlash(st: KeypadState): KeypadState {
+  if (st.activeSlot === 'inches' && !st.inchesMode && st.inches !== '') {
+    return { ...st, numerator: st.inches, inches: '', activeSlot: 'denominator', denominatorTyped: '',
+      denominator: st.baseDenominator ?? st.denominator };
+  }
+  if (st.activeSlot === 'numerator' && st.numerator !== '') {
+    return { ...st, activeSlot: 'denominator', denominatorTyped: '',
+      denominator: st.baseDenominator ?? st.denominator };
+  }
+  return st;
+}
+
+/** A preset fraction key (`1/2`, `1/4`, `1/8`, `1/16`): digits still pending stay as the whole
+ *  inches, and the whole fraction is entered in one tap. */
+export function pressFraction(st: KeypadState, numerator: number, denominator: number): KeypadState {
+  return {
+    ...st,
+    numerator: String(numerator),
+    denominator,
+    denominatorTyped: String(denominator),
+    activeSlot: 'denominator',
+  };
+}
+
+/** `⌫`: delete the last thing typed, stepping back through the slots once one is empty
+ *  (denominator → numerator → inches → un-press `FT`). */
+export function pressBackspace(st: KeypadState): KeypadState {
+  if (st.activeSlot === 'denominator') {
+    const typed = st.denominatorTyped ?? '';
+    if (typed !== '') {
+      const rest = typed.slice(0, -1);
+      return { ...st, denominatorTyped: rest,
+        denominator: rest === '' ? (st.baseDenominator ?? st.denominator) : Number(rest) };
+    }
+    return { ...st, activeSlot: 'numerator' };                                // un-press `/`
+  }
+  if (st.activeSlot === 'numerator') {
+    if (st.numerator !== '') return { ...st, numerator: st.numerator.slice(0, -1) };
+    return { ...st, activeSlot: 'inches' };                                   // re-open the inches
+  }
+  if (st.activeSlot === 'feet') return { ...st, feet: st.feet.slice(0, -1) };
+  // inches slot
+  if (st.inches !== '') return { ...st, inches: st.inches.slice(0, -1) };
+  if (st.feet !== '' && !st.inchesMode) return { ...st, inches: st.feet, feet: '' };  // un-press `FT`
+  return st;
+}
+
+/** `C`: clear the whole entry (back to the entry's starting denominator). */
+export function pressClear(st: KeypadState): KeypadState {
+  return emptyKeypadState(st.baseDenominator ?? st.denominator);
+}
+
+/** A fraction whose denominator is not 2/4/8/16/32/64 (still being typed, or a typo) has no value. */
+export function hasBadDenominator(st: KeypadState): boolean {
+  return st.numerator !== '' && !(VALID_DENOMINATORS as readonly number[]).includes(st.denominator);
 }
 
 /** `.` key: starts a fraction (the `«1/2»`…`«1/16»` chips are the primary path; `.` is the
@@ -181,6 +282,7 @@ export function isCommittableInches(v: number | null): boolean {
 
 /** The live preview: slots → value. The truth; never parse the composed string for display. */
 export function keypadValueInches(st: KeypadState): number | null {
+  if (hasBadDenominator(st)) return null;   // `3 / 1` is still being typed: no value, and never a guess
   // SESSION-4 (F6): presence tests must MATCH composeEnteredText's, or the preview value and
   // the stored text disagree. A slot holding '0' contributes 0 but is not "entered".
   const has = (v: string) => v !== '' && Number(v) > 0;

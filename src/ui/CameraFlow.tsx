@@ -3,9 +3,11 @@
  * §10.1/§10.2/§17; implementation plan slice 1.4).
  *
  * WHAT THIS FILE OWNS
- *  - A full-bleed `getUserMedia` viewfinder: torch / grid / level / flip / resolution
- *    toggles, a tap-to-focus reticle, long-press AE/AF lock, an 88 px shutter with a
- *    120 ms flash, and a bottom bar (`Import` · shutter · zoom chips).
+ *  - A full-bleed `getUserMedia` viewfinder: grid / level / flip toggles, a tap-to-focus
+ *    reticle, long-press AE/AF lock, an 88 px shutter with a 120 ms flash, and a bottom
+ *    bar (`Import` · shutter). The zoom chips sit above the bottom-right corner, clear of
+ *    the VANGARDE watermark. The camera ALWAYS runs at the highest resolution it offers
+ *    (owner decision: no High/Fast toggle, no torch, no resolution readout).
  *  - `enumerateDevices()` + a `deviceId` picker + `ondevicechange`. **`facingMode` is
  *    never used for selection** (it is unreliable on Windows — §11.8).
  *  - Capture → `readExifInfo` (BEFORE normalize — the re-encode strips EXIF, §7.2) →
@@ -55,7 +57,6 @@ import {
   RotateCcw,
   RotateCw,
   X,
-  Zap,
 } from 'lucide-react';
 import type { ProjectFile } from '@/domain/schema';
 import { readExifInfo } from '@/media/exif';
@@ -107,14 +108,125 @@ const LONG_PRESS_SLOP = 8;
 /** Horizon turns `--ok` within ±1.5° (UI §10.1). */
 const LEVEL_TOLERANCE_DEG = 1.5;
 
-/** `High` requests the full sensor/NPU path; the browser clamps to the real max. */
-const HIGH_IDEAL = { width: { ideal: 4096 }, height: { ideal: 2160 } } as const;
-/** `Fast` is a 720p-class preview/encode (UI §10.1). */
-const FAST_IDEAL = { width: { ideal: 1280 }, height: { ideal: 720 } } as const;
+/**
+ * The opening request: far above any webcam, so the browser's "closest to ideal" rule lands on
+ * the largest mode the device offers (a 4096×2160 ask used to cap 4:3 sensors below their max).
+ * `startCamera` then reads the track's capabilities and asks for the exact reported maximum.
+ */
+const MAX_IDEAL = { width: { ideal: 7680 }, height: { ideal: 4320 } } as const;
 
-/** Zoom chips (UI §10.1: 0.5× / 1× / 2×). */
+/** Zoom chips (UI §10.1: 0.5× / 1× / 2×). 0.5× only exists when the hardware can go wider. */
 const ZOOM_STEPS = [0.5, 1, 2] as const;
 type ZoomStep = (typeof ZOOM_STEPS)[number];
+
+/** Within this ratio a still's aspect is "the same framing as the preview" (no crop needed). */
+const ASPECT_TOLERANCE = 0.02;
+
+/* ------------------------------------------------------------------ *
+ * Exported pure helpers (unit-testable, no DOM)
+ * ------------------------------------------------------------------ */
+
+export interface CropRect {
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+}
+
+/**
+ * The centre crop of a `srcW × srcH` frame that shows what the viewfinder shows: the preview's
+ * aspect (`viewAspect`, width / height) at a digital `zoom` (≥ 1). Digital zoom is a real crop —
+ * it costs pixels, and the photo has exactly the pixels the user framed. Pure.
+ */
+export function cropRectFor(srcW: number, srcH: number, viewAspect: number, zoom: number): CropRect {
+  // Largest viewAspect-shaped rectangle inside the source…
+  let w = srcW;
+  let h = srcW / viewAspect;
+  if (h > srcH) {
+    h = srcH;
+    w = srcH * viewAspect;
+  }
+  // …then shrunk by the digital zoom.
+  const z = Math.max(1, zoom);
+  const sw = Math.max(1, Math.round(w / z));
+  const sh = Math.max(1, Math.round(h / z));
+  return { sx: Math.round((srcW - sw) / 2), sy: Math.round((srcH - sh) / 2), sw, sh };
+}
+
+/** Whether a still needs cropping at all (same framing as the preview, and no digital zoom). */
+export function needsCrop(srcW: number, srcH: number, viewAspect: number, zoom: number): boolean {
+  if (zoom > 1) return true;
+  return Math.abs(srcW / srcH / viewAspect - 1) > ASPECT_TOLERANCE;
+}
+
+/**
+ * How a chip is served. Hardware zoom when the track's reported range covers the step; a digital
+ * crop for any step ≥ 1 otherwise; and 0.5× only when the hardware can genuinely go wider.
+ * `null` = the step is not offered (a chip that could not do what it says is not drawn).
+ */
+export function zoomPlan(
+  step: number,
+  range: { min?: number; max?: number } | undefined,
+): { hardware: number | null; digital: number } | null {
+  const min = range?.min;
+  const max = range?.max;
+  const hardwareOk = min !== undefined && max !== undefined && step >= min && step <= max;
+  if (hardwareOk) return { hardware: step, digital: 1 };
+  if (step < 1) return null;
+  return { hardware: null, digital: step };
+}
+
+/**
+ * The largest photo the camera will give. `ImageCapture.takePhoto` returns the still-capture
+ * resolution, which on most cameras exceeds the video stream's; where it is missing or throws
+ * (jsdom, Firefox, a driver that refuses), the caller falls back to a frame of the preview.
+ */
+async function takeStillAtMax(track: MediaStreamTrack): Promise<Blob | null> {
+  const Ctor = (globalThis as { ImageCapture?: new (t: MediaStreamTrack) => ImageCaptureLike }).ImageCapture;
+  if (!Ctor) return null;
+  try {
+    const capture = new Ctor(track);
+    const caps = await capture.getPhotoCapabilities?.();
+    const width = caps?.imageWidth?.max;
+    const height = caps?.imageHeight?.max;
+    return await capture.takePhoto(width && height ? { imageWidth: width, imageHeight: height } : undefined);
+  } catch {
+    return null;
+  }
+}
+
+interface ImageCaptureLike {
+  getPhotoCapabilities?: () => Promise<{ imageWidth?: { max?: number }; imageHeight?: { max?: number } }>;
+  takePhoto: (settings?: { imageWidth: number; imageHeight: number }) => Promise<Blob>;
+}
+
+/** Crop a still to the preview's framing at a digital zoom, re-encoded as a high-quality JPEG. */
+async function cropStill(
+  blob: Blob,
+  viewAspect: number,
+  zoom: number,
+): Promise<{ blob: Blob; width: number; height: number }> {
+  const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+  try {
+    if (!needsCrop(bitmap.width, bitmap.height, viewAspect, zoom)) {
+      return { blob, width: bitmap.width, height: bitmap.height };
+    }
+    const rect = cropRectFor(bitmap.width, bitmap.height, viewAspect, zoom);
+    const canvas = document.createElement('canvas');
+    canvas.width = rect.sw;
+    canvas.height = rect.sh;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('2D canvas context unavailable');
+    ctx.drawImage(bitmap, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, rect.sw, rect.sh);
+    const out = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.95),
+    );
+    if (!out) throw new Error('JPEG encode failed');
+    return { blob: out, width: rect.sw, height: rect.sh };
+  } finally {
+    bitmap.close();
+  }
+}
 
 /**
  * C3 (§21.7 provisional). The build machine reports **no usable camera**
@@ -156,11 +268,6 @@ export function fallbackCopyForDeviceMax(maxHeightPx: number | null): {
   };
 }
 
-/** `1920×1080` — a numeral readout, not copy (never a sensor marketing MP). */
-export function formatResolution(width: number, height: number): string {
-  return `${width}×${height}`;
-}
-
 /**
  * Grab one frame from the live `<video>` as a JPEG. The real size comes from the
  * element (`videoWidth`/`videoHeight`); the fallback is the track's reported settings
@@ -169,17 +276,20 @@ export function formatResolution(width: number, height: number): string {
 export async function snapshotVideoFrame(
   video: HTMLVideoElement,
   fallback: { width: number; height: number },
+  digitalZoom = 1,
 ): Promise<{ blob: Blob; width: number; height: number }> {
-  const width = video.videoWidth || fallback.width;
-  const height = video.videoHeight || fallback.height;
+  const width = Math.max(1, Math.round(video.videoWidth || fallback.width));
+  const height = Math.max(1, Math.round(video.videoHeight || fallback.height));
+  // Digital zoom is a centre crop of the frame — the photo is what the preview showed.
+  const rect = cropRectFor(width, height, width / height, digitalZoom);
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(width));
-  canvas.height = Math.max(1, Math.round(height));
+  canvas.width = rect.sw;
+  canvas.height = rect.sh;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D canvas context unavailable');
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(video, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92),
+    canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.95),
   );
   if (!blob) throw new Error('JPEG encode failed');
   return { blob, width: canvas.width, height: canvas.height };
@@ -226,11 +336,14 @@ interface Delivered {
 }
 
 interface CameraCaps {
-  torch?: boolean;
+  width?: { max?: number };
+  height?: { max?: number };
   zoom?: { min?: number; max?: number; step?: number };
 }
 
 interface Captured {
+  /** The shutter moment: recorded when the photo is TAKEN, not when «Use photo» is tapped. */
+  at: Date;
   blob: Blob;
   url: string;
   width: number;
@@ -244,7 +357,6 @@ interface ProjectState {
 
 /** `MediaTrackConstraintSet` plus the Chromium-only members we probe best-effort. */
 type ExtendedConstraintSet = MediaTrackConstraintSet & {
-  torch?: boolean;
   zoom?: number;
   pointsOfInterest?: Array<{ x: number; y: number }>;
   focusMode?: string;
@@ -427,11 +539,11 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   const [inFlight, setInFlight] = useState(false);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [high, setHigh] = useState(true);
   const [delivered, setDelivered] = useState<Delivered | null>(null);
   const [caps, setCaps] = useState<CameraCaps>({});
   const [zoom, setZoom] = useState<ZoomStep>(1);
-  const [torchOn, setTorchOn] = useState(false);
+  /** The crop the preview shows for the chosen zoom (1 when the hardware did the zooming). */
+  const [digitalZoom, setDigitalZoom] = useState(1);
   const [gridOn, setGridOn] = useState(false);
   const [levelOn, setLevelOn] = useState(false);
   const [levelOk, setLevelOk] = useState(false);
@@ -504,7 +616,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   }, []);
 
   const startCamera = useCallback(
-    async (nextDeviceId: string | null, nextHigh: boolean): Promise<void> => {
+    async (nextDeviceId: string | null): Promise<void> => {
       const generation = generationRef.current + 1;
       generationRef.current = generation;
       stopStream();
@@ -516,7 +628,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
           audio: false,
           video: {
             ...(nextDeviceId ? { deviceId: { exact: nextDeviceId } } : {}),
-            ...(nextHigh ? HIGH_IDEAL : FAST_IDEAL),
+            ...MAX_IDEAL,
           },
         });
         if (generation !== generationRef.current) {
@@ -529,13 +641,27 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
 
         const track = stream.getVideoTracks()[0] ?? null;
         if (track) {
+          const capabilities = (track.getCapabilities?.() ?? {}) as unknown as CameraCaps;
+          // Highest resolution the camera offers: if the opening request landed below the
+          // capability maximum (a browser may weigh aspect over size), ask for the maximum outright.
+          const first = track.getSettings();
+          const capW = capabilities.width?.max ?? 0;
+          const capH = capabilities.height?.max ?? 0;
+          if (capW > 0 && capH > 0 && ((first.width ?? 0) < capW || (first.height ?? 0) < capH)) {
+            try {
+              await track.applyConstraints({ width: { ideal: capW }, height: { ideal: capH } });
+            } catch {
+              // Keep whatever the camera settled on: a hint must never break the viewfinder.
+            }
+          }
           const settings = track.getSettings();
           const width = settings.width ?? 0;
           const height = settings.height ?? 0;
-          // The HONEST max: what the track actually delivers, never the sensor's MP.
+          // The HONEST size: what the track actually delivers (only the snapshot fallback reads it).
           setDelivered(width > 0 && height > 0 ? { width, height } : null);
-          const capabilities = (track.getCapabilities?.() ?? {}) as unknown as CameraCaps;
-          setCaps({ torch: !!capabilities.torch, zoom: capabilities.zoom });
+          setCaps({ zoom: capabilities.zoom });
+          setZoom(1);
+          setDigitalZoom(1);
           if (!nextDeviceId && settings.deviceId) setDeviceId(settings.deviceId);
         }
         setView('viewfinder');
@@ -548,7 +674,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   );
 
   useEffect(() => {
-    void startCamera(null, true);
+    void startCamera(null);
     return () => {
       generationRef.current += 1;
       stopStream();
@@ -682,56 +808,75 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
 
   /* ---- toggles ----------------------------------------------------------- */
 
-  /**
-   * D108 — the toggle reflects the HARDWARE, not the intent. `torch` is a best-effort advanced
-   * constraint: on Windows tablets the platform does not expose it, so `applyConstraints` rejects and
-   * the LED never lights. Reporting "on" anyway showed a lit button over an unlit torch. The button
-   * stays always-enabled (capability-gating it from `caps.torch === false` needs approved copy), so
-   * the honest minimum is to fall back to off whenever the device refuses.
-   */
-  const toggleTorch = (): void => {
-    const next = !torchOn;
-    void applyAdvanced({ torch: next }).then((applied) => {
-      setTorchOn(applied ? next : false);
-    });
-  };
-
   const flipCamera = (): void => {
     if (devices.length === 0) return;
     const index = devices.findIndex((d) => d.deviceId === deviceId);
     const next = devices[(index + 1 + devices.length) % devices.length];
     setDeviceId(next.deviceId);
-    void startCamera(next.deviceId, high);
+    void startCamera(next.deviceId);
   };
 
   const chooseDevice = (value: string): void => {
     setDeviceId(value);
-    void startCamera(value, high);
+    void startCamera(value);
   };
 
-  const chooseResolution = (nextHigh: boolean): void => {
-    if (nextHigh === high) return;
-    setHigh(nextHigh);
-    void startCamera(deviceId, nextHigh);
-  };
-
-  const chooseZoom = (value: ZoomStep): void => {
+  /**
+   * Zoom that works on every camera. The chips used to be `disabled` unless the track reported a
+   * hardware zoom range, and Surface webcams do not, so all three were permanently dead. Now a step
+   * is served by the hardware when its range covers it, and by a digital centre crop (the preview
+   * scales, the captured frame is cropped identically) when it does not. The pressed chip is set
+   * from what actually applied, never from the intent (D108's lesson).
+   */
+  const chooseZoom = async (value: ZoomStep): Promise<void> => {
+    const plan = zoomPlan(value, caps.zoom);
+    if (!plan) return;
+    if (plan.hardware !== null) {
+      const applied = await applyAdvanced({ zoom: plan.hardware });
+      if (applied) {
+        setZoom(value);
+        setDigitalZoom(1);
+        return;
+      }
+      // The hardware refused (the range was advertised, the driver disagreed): crop instead.
+      if (value < 1) return;
+      setZoom(value);
+      setDigitalZoom(value);
+      return;
+    }
+    // A digital step: hand the hardware back to its minimum first, or the crop would compound.
+    if (caps.zoom?.min !== undefined) void applyAdvanced({ zoom: caps.zoom.min });
     setZoom(value);
-    void applyAdvanced({ zoom: value });
+    setDigitalZoom(plan.digital);
   };
 
-  const zoomSupported = Boolean(caps.zoom);
+  const visibleZoomSteps = ZOOM_STEPS.filter((step) => zoomPlan(step, caps.zoom) !== null);
 
   /* ---- capture ----------------------------------------------------------- */
 
   const takePhoto = async (): Promise<void> => {
     const video = videoRef.current;
     if (!video) return;
+    const shutterAt = new Date();
     setFlash(true);
     try {
-      const shot = await snapshotVideoFrame(video, delivered ?? { width: 1280, height: 720 });
+      const fallbackSize = delivered ?? { width: 1280, height: 720 };
+      const active = track();
+      // The still-capture path first (the camera's true maximum), then a frame of the preview.
+      let shot: { blob: Blob; width: number; height: number } | null = null;
+      const still = active ? await takeStillAtMax(active) : null;
+      if (still) {
+        try {
+          const viewAspect =
+            (video.videoWidth || fallbackSize.width) / (video.videoHeight || fallbackSize.height);
+          shot = await cropStill(still, viewAspect, digitalZoom);
+        } catch {
+          shot = null;
+        }
+      }
+      if (!shot) shot = await snapshotVideoFrame(video, fallbackSize, digitalZoom);
       const url = safeObjectUrl(shot.blob);
-      const next: Captured = { blob: shot.blob, url, width: shot.width, height: shot.height };
+      const next: Captured = { at: shutterAt, blob: shot.blob, url, width: shot.width, height: shot.height };
       capturedRef.current = next;
       setCaptured(next);
       setRotation(0);
@@ -761,7 +906,10 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   /* ---- write path -------------------------------------------------------- */
 
   const commit = useCallback(
-    async (blob: Blob, options: { askGrant?: boolean; repick?: boolean } = {}): Promise<void> => {
+    async (
+      blob: Blob,
+      options: { askGrant?: boolean; repick?: boolean; capturedAt?: Date } = {},
+    ): Promise<void> => {
       setWrite('saving');
       setStage('prepare');
       setFailure(null);
@@ -844,6 +992,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
             projectId, // D51: the runtime key, never the bare id
             title: defaultSheetTitle(state.file),
             createdAt: exif.captureTime ?? new Date(),
+            capturedAt: options.capturedAt ?? exif.captureTime ?? new Date(),
           },
         );
         state.file = nextFile;
@@ -897,14 +1046,20 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
 
   const usePhoto = (): void => {
     const current = capturedRef.current;
-    if (current) void commit(current.blob);
+    if (current) void commit(current.blob, { capturedAt: current.at });
   };
 
   const retryWrite = (): void => {
     const current = capturedRef.current;
     // The recovery is the gesture that may prompt — or, when the grant is `denied`, re-pick the
     // folder (only a fresh pick can mint a new grant). §5.2.
-    if (current) void commit(current.blob, { askGrant: true, repick: failure?.needsRepick === true });
+    if (current) {
+      void commit(current.blob, {
+        askGrant: true,
+        repick: failure?.needsRepick === true,
+        capturedAt: current.at,
+      });
+    }
   };
 
   const saveACopy = (): void => {
@@ -923,7 +1078,9 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
     const file = input.files?.[0];
     input.value = ''; // allow re-importing the same file
     if (!file) return;
-    await commit(file);
+    // An import's capture time: its EXIF, else the file's own date (never "now": it was not taken now).
+    const exif = await readExifInfo(file);
+    await commit(file, { capturedAt: exif.captureTime ?? new Date(file.lastModified) });
   };
 
   const openWindowsCamera = (): void => {
@@ -1065,7 +1222,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
     <main className="camera">
       <video
         ref={videoRef}
-        className="camera-video"
+        className={`camera-video${digitalZoom > 1 ? ` is-digital-zoom-${digitalZoom}` : ''}`}
         autoPlay
         playsInline
         muted
@@ -1131,16 +1288,6 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         <button
           type="button"
           className="camera-toggle hit-slop"
-          aria-pressed={torchOn}
-          aria-label={STRINGS.a11y.torch}
-          onClick={toggleTorch}
-        >
-          <Zap aria-hidden="true" />
-          <span className="camera-toggle-label">{STRINGS.capture.torch}</span>
-        </button>
-        <button
-          type="button"
-          className="camera-toggle hit-slop"
           aria-pressed={gridOn}
           aria-label={STRINGS.a11y.grid}
           onClick={() => setGridOn((value) => !value)}
@@ -1167,32 +1314,6 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
           <FlipHorizontal aria-hidden="true" />
           <span className="camera-toggle-label">{STRINGS.capture.flip}</span>
         </button>
-
-        <div className="camera-res">
-          <button
-            type="button"
-            className="camera-toggle hit-slop"
-            aria-pressed={high}
-            aria-label={STRINGS.capture.resolutionHigh}
-            onClick={() => chooseResolution(true)}
-          >
-            <span className="camera-toggle-label">{STRINGS.capture.resolutionHigh}</span>
-          </button>
-          <button
-            type="button"
-            className="camera-toggle hit-slop"
-            aria-pressed={!high}
-            aria-label={STRINGS.capture.resolutionFast}
-            onClick={() => chooseResolution(false)}
-          >
-            <span className="camera-toggle-label">{STRINGS.capture.resolutionFast}</span>
-          </button>
-          {delivered ? (
-            <p className="camera-res-value mono" data-testid="camera-resolution">
-              {formatResolution(delivered.width, delivered.height)}
-            </p>
-          ) : null}
-        </div>
 
         {showDevicePicker ? (
           <select
@@ -1228,14 +1349,13 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         />
 
         <div className="camera-zoom">
-          {ZOOM_STEPS.map((step) => (
+          {visibleZoomSteps.map((step) => (
             <button
               key={step}
               type="button"
               className="camera-zoom-chip hit-slop"
               aria-pressed={zoom === step}
-              disabled={!zoomSupported}
-              onClick={() => chooseZoom(step)}
+              onClick={() => void chooseZoom(step)}
             >
               {step === 0.5
                 ? STRINGS.capture.zoomHalf

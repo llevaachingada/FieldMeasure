@@ -128,6 +128,10 @@ export const ProjectFileZ = z.object({
     imageWidth: z.number(), imageHeight: z.number(),
     calibrationPxPerFoot: z.number().nullish(),
     createdAt: z.string(), updatedAt: z.string(), deletedAt: z.string().nullish(),
+    // When the PHOTO was taken (ISO 8601, UTC): the shutter moment, the EXIF capture time of an
+    // import, or its file date. Distinct from `createdAt` (when the sheet row was made, which a
+    // duplicate resets). `.nullish()` so every existing project file still parses unchanged.
+    capturedAt: z.string().nullish(),
   })),
 });
 

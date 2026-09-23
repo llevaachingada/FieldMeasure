@@ -1759,3 +1759,19 @@ Edit text, Replace photo/Focus unification) and a real test-infra trap found alo
 1635.29 KiB) · `playwright` 5/5 skipped, unchanged.
 
 **Next:** §4.3 (the two overflow menus) — not reached this session; time-boxed at the owner's request.
+
+
+## Feature (owner request) — calculator keypad, project-name pop-up, photo date stamp, larger watermarks, camera zoom
+
+**Built:** the dimension keypad is now a Construction Master Pro–style calculator pad (postfix units: `1 2 FT 6 IN 3 / 8`, preset
+`1/2 1/4 1/8 1/16` keys, `/`, `C`, a typed-entry line) on pure functions in `src/domain/units.ts`; «New project» opens a name pop-up
+and the folder is named from it; sheets record `capturedAt` (shutter / EXIF / file date) and exports print it above the logo;
+the in-app mark is larger and now sits above every page (Settings switch unchanged); the export mark is 16% → 24%; the camera
+lost the torch, High/Fast and the readout, asks for the device maximum, and its zoom chips now work (hardware zoom or a digital
+crop) and sit clear of the watermark. Full reasoning, the rewritten tests and the stated limits are in **D135**.
+
+**Machine gates:** `tsc` 0 · vitest — see the CONTINUITY snapshot for the final counts on this tree · `build` — see CONTINUITY.
+`clickthru` was **not** re-run for this change (it is owed, along with the §4.1/§4.2 re-run session 24 already owed).
+
+**Owed / `[Surface]`:** H23–H25 in `docs/HARDWARE-TEST-CHECKLIST.md` (the still-capture maximum, hardware vs digital zoom, the
+watermark/zoom-chip clearance on the real tablet).

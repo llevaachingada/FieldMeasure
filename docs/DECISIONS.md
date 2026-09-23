@@ -3570,3 +3570,65 @@ unifying them into the Select mini-toolbar's pill is a cosmetic consolidation fo
 **Machine gates:** `tsc` 0 · `vitest` **74 files / 1236 tests** (node + jsdom, unchanged from D133) + **31
 files / 228 tests** (browser, +1 test in `tests/layersWire.browser.test.ts`) · `build` 0 (28 precache,
 1635.29 KiB) · `playwright` 5 passed / 5 skipped, unchanged.
+
+
+### D135 — owner request: a calculator keypad, a project-name pop-up, photo date/time on exports, larger watermarks everywhere, and a camera that zooms
+
+The owner asked for five things in one message (2026-09-23) and answered the plan's four questions:
+larger watermark **both in-app and on exports**, **all pages, bottom-right, switchable in Settings**, the camera
+at the **highest resolution it offers**, and the **resolution readout removed**.
+
+**1. The keypad is a calculator pad (Construction Master Pro workflow) — UI §8.1 / D31 amended.**
+Research (Calculated Industries' own material; the manual PDF and store screenshots were **not retrievable**, so the
+*layout* is a design informed by the workflow, not a copy): units are **postfix** (`6 f 9 i 3 / 4`), `/` takes a numerator
+and denominator and a missing denominator falls back to the resolution setting, and Fast Fractions has dedicated preset keys.
+Built as pure functions in `src/domain/units.ts` (`pressFeet`, `pressInch`, `pressSlash`, `pressFraction`, `pressBackspace`,
+`pressClear`; `KeypadState` gains `denominatorTyped`/`baseDenominator` and `activeSlot: 'denominator'`, all additive).
+Pad (5 columns, 72 px): `7 8 9 | FT | 1/2`, `4 5 6 | IN | 1/4`, `1 2 3 | / | 1/8`, `0(wide) ⌫ | C | 1/16`. A typed-entry line
+shows what was keyed with the active slot underlined; the normalised value and its inches-only form sit below it.
+- `1 2 FT 6 IN 3 / 8` = 12·12 + 6 + 3/8 = **150.375 in**, stored as `12'-6 3/8"`. Bare digits are inches. `FT` with nothing
+  typed is the old prefix style. **Whole inches need `IN`** (`6 3 /` reads 63/16 and is refused, not guessed).
+- **D31 changed on purpose:** the four chips no longer set the entry denominator; each **enters a whole fraction** (`1/2` after
+  `6` = 6 1/2"). The entry-scoped precision idea survives — a typed denominator is per-entry and never touches the project
+  precision — and `←`/`→` on a hardware keyboard still cycle the enum. The `Entry is now inches` hint and the `ft`/`in`
+  toggles as scope switches are gone (`scopeToInches` stays exported for the hardware path and its test).
+- A fraction with a denominator outside {2,4,8,16,32,64} has **no value** (`keypadValueInches` → `null`, never Infinity) and is
+  refused with its own reason («Denominator: 2, 4, 8, 16, 32 or 64», ⚠ PROPOSED).
+- A **seeded refine value / hardware-parsed entry is "closed"** (`closeWholeParts`): `12'-6"` then `/` must not turn the 6 into a
+  numerator.
+- **Tests:** nine sheet tests encoded the old prefix/chip model (`1 2 …`-then-`ft`, chip-sets-denominator, the hint window, DOM order);
+  each was **rewritten with its arithmetic**, none deleted or loosened. New `tests/keypadCalculator.test.ts` (22 tests, incl. a
+  2000-sequence property test that composed text always strictly re-parses to the shown value, with its own coverage floors).
+
+**2. «New project» asks for a name — reverses D87's "no name prompt".** `NewProjectDialog` (modal, focus in/out, Tab trap, Esc, Enter,
+48/56 px targets). The folder is named from the typed text via `sanitizeToken` (NTFS-illegal characters, reserved device names,
+48-char cap; a clash gets ` 2`); the **title keeps exactly what was typed**. A failed create keeps the dialog and the typed name.
+`tests/createProject.test.ts`'s "folder name stays generated" expectation was the old spec and was corrected, not weakened.
+
+**3. Photo date/time.** New optional `Sheet.capturedAt` (zod `.nullish()`, **no migration bump**): the **shutter moment** for a
+camera photo (recorded at the shutter, not at «Use photo»), the EXIF capture time for an import, else the file's modified date;
+a duplicate copies it. Export draws `Sep 23, 2026 · 2:07 PM` (device-local time) on a soft dark pill **directly above the logo,
+right-aligned to it**, sized as a fraction of the sheet width so it is the same fraction of the page at every M. It **follows the
+Watermark setting** (off = no logo and no stamp) and is skipped for a sheet with no `capturedAt` (every pre-existing sheet).
+
+**4. Watermarks larger, and on every page.** In-app: `clamp(56px,6vw,96px)` @ 0.08 → `clamp(140px,14vw,260px)` @ 0.14, and its
+`z-index` 2 → 80 so it paints **above** the rail/panels/camera it used to hide behind (still `pointer-events: none`). Export: 16% →
+**24%** of the sheet width, height cap 12% → 18% (24% × 4096 = 983.04 px wide → 534.4 px tall at the mark's 1.839:1, under the
+552.96 px cap). The Settings › Display › Watermark switch already gates both.
+
+**5. Camera.** Removed the torch, the High/Fast toggle and the resolution readout (and `FAST_IDEAL`, `chooseResolution`, the torch
+handler, four strings). Resolution: the stream is opened asking for 7680×4320 (the browser lands on the device maximum — the old
+4096×2160 ask capped 4:3 sensors), then re-requests the track's reported capability maximum if it settled lower, and the shutter
+tries `ImageCapture.takePhoto` at `imageWidth/Height.max` first and falls back to a frame of the preview.
+**Zoom was dead by construction:** the chips were `disabled` unless `track.getCapabilities().zoom` existed, and Surface webcams
+do not report it (an existing test even asserted the dead state). Now `zoomPlan` uses **hardware zoom when its range covers the
+step and a digital centre crop otherwise** (preview scaled by a class — CSP forbids inline style — and the capture cropped by the
+same rectangle, `cropRectFor`); 0.5× is offered **only** if the hardware can go wider; the pressed chip reflects what applied.
+The chips moved to `bottom: 156px` (the mark is ≤ 122 px tall + 12 px margin), and the bottom bar became a 3-column grid so
+the shutter stays centred.
+
+**Limits stated honestly:** (a) `normalizeImage` still caps the working image at 4096 px (spec §7.1 fixes the coordinate space
+forever) — a camera above 4096 px on the long edge is downscaled to that; every webcam and the Surface's cameras are below it.
+(b) `takePhoto` may frame differently from the preview on some drivers; the still is centre-cropped to the preview's aspect when
+they differ by > 2%. Neither the still path nor hardware zoom can be exercised without a camera, so they are **`[Surface]` rows
+H23–H25**, not claimed.

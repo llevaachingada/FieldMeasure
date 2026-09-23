@@ -28,6 +28,13 @@
  *    The sheet's own frame is `pointer-events: none` so the canvas stays live for the
  *    pan/pinch the model keeps.
  *
+ * D135 (owner request, 2026-09-23): the pad is now a CALCULATOR pad in the Construction Master Pro
+ * mould — digits first (7 8 9 on top), then the unit key that claims them: `1 2 FT 6 IN 3 / 8` =
+ * 12'-6 3/8". The preset fraction keys (1/2 1/4 1/8 1/16) enter a whole fraction in one tap, `/` types
+ * any other, `C` clears. A typed-entry line above the value shows exactly what was keyed, with the
+ * active part underlined. The key logic is the pure `pressFeet/pressInch/pressSlash/pressFraction/
+ * pressBackspace/pressClear` in `src/domain/units.ts`; this file only routes taps to them.
+ *
  * DELIBERATE, REPORTED SCOPE NOTES (do not read these as spec silence)
  *  1. `units.ts` exposes no backspace primitive, so `backspace()` below is a UI-local
  *     edit of one slot string using `pressDigit`'s own routing. It computes no value.
@@ -53,10 +60,16 @@ import {
   emptyKeypadState,
   formatLength,
   isCommittableInches,
+  hasBadDenominator,
   keypadValueInches,
   parseLooseToSlots,
+  pressBackspace,
+  pressClear,
   pressDigit,
-  pressDot,
+  pressFeet,
+  pressFraction,
+  pressInch,
+  pressSlash,
   type KeypadState,
 } from '@/domain/units';
 
@@ -83,12 +96,13 @@ export interface DimensionKeypadSheetProps {
 // ---------------------------------------------------------------------------
 
 /** Why the commit gate is blocked. `null` = committable. */
-export type KeypadRefusal = 'empty' | 'badFraction' | 'tooLarge';
+export type KeypadRefusal = 'empty' | 'badFraction' | 'badDenominator' | 'tooLarge';
 
 /** The reason copy, in the preview area (plan §1.5 step 4). */
 export const REFUSAL_COPY: Record<KeypadRefusal, string> = {
   empty: STRINGS.keypad.errorEnterLength,
   badFraction: STRINGS.keypad.errorFractionTooBig,
+  badDenominator: STRINGS.keypad.errorDenominator,
   tooLarge: STRINGS.keypad.errorTooLarge,
 };
 
@@ -132,6 +146,8 @@ export function refusalReason({ buffer, slots, value, denominator }: RefusalInpu
   if (buffer !== null && buffer.trim() !== '' && slots === null) {
     return badFractionInRaw(buffer, denominator) ? 'badFraction' : 'empty';
   }
+  // A fraction whose denominator is not 2/4/8/16/32/64 (typed after `/`, still incomplete or a typo).
+  if (slots !== null && hasBadDenominator(slots)) return 'badDenominator';
   if (value === null) return 'empty';
   if (!isCommittableInches(value)) return value > MAX_LENGTH_IN ? 'tooLarge' : 'empty';
   if (slots !== null && slots.numerator !== '' && Number(slots.numerator) >= slots.denominator) {
@@ -144,8 +160,9 @@ export function refusalReason({ buffer, slots, value, denominator }: RefusalInpu
 // Pure slot helpers (UI-local; they never compute a value)
 // ---------------------------------------------------------------------------
 
-/** The four keyed fraction chips (UI §8.1). All of `VALID_DENOMINATORS` is reachable
- *  with `←` / `→`, which is what the `«← /16»` cycling hint names. */
+/** The four preset fraction keys. Each enters a WHOLE fraction in one tap (`1/2` … `1/16`); any
+ *  other is typed with the `/` key. `←` / `→` on a hardware keyboard still walk all of
+ *  `VALID_DENOMINATORS` (the `«← /16»` cycling hint). */
 export const FRACTION_CHIPS = [
   { denominator: 2, label: STRINGS.keypad.fractionHalf },
   { denominator: 4, label: STRINGS.keypad.fractionQuarter },
@@ -153,12 +170,59 @@ export const FRACTION_CHIPS = [
   { denominator: 16, label: STRINGS.keypad.fractionSixteenth },
 ] as const;
 
-/** Digits shown on the pad, in reading (and therefore Tab) order — UI §8.1's two 3-wide
- *  blocks. DOM order == visual order so keyboard traversal matches the eye. */
-export const KEYPAD_ROWS = [
-  ['1', '2', '3', '4', '5', '6'],
-  ['7', '8', '9', '0'],
+/** The pad in reading (and therefore Tab) order: calculator digit order, then the unit column
+ *  (FT · IN · /), then the fraction column. DOM order == visual order so traversal matches the eye.
+ *  `0` is double-wide, as on a calculator. Row 4 ends in `C` in the unit column. */
+export const KEYPAD_LAYOUT = [
+  ['7', '8', '9', 'ft', 'fraction-2'],
+  ['4', '5', '6', 'in', 'fraction-4'],
+  ['1', '2', '3', 'slash', 'fraction-8'],
+  ['0', 'backspace', 'clear', 'fraction-16'],
 ] as const;
+
+/** Every key id on the pad, in reading order (also the Tab order). */
+export const KEYPAD_KEY_IDS: readonly string[] = KEYPAD_LAYOUT.flat().map((id) =>
+  /^\d$/.test(id) ? `digit-${id}` : id,
+);
+
+/** One segment of the typed-entry line: what was keyed, and whether it is the part being typed. */
+export interface EntrySegment {
+  kind: 'feet' | 'inches' | 'numerator' | 'slash' | 'denominator';
+  text: string;
+  /** The slot the next digit lands in. */
+  active: boolean;
+  /** The denominator is the default (project precision), not typed. */
+  muted?: boolean;
+}
+
+/**
+ * The typed-entry line as segments — `12'` `6` `3` `/` `8` `"`. Pure: a view of the slots, so it can never
+ * disagree with the value (AGENTS #2: nothing here is stored or parsed back).
+ */
+export function entrySegments(st: KeypadState): EntrySegment[] {
+  const out: EntrySegment[] = [];
+  if (st.feet !== '') {
+    out.push({ kind: 'feet', text: `${st.feet}'`, active: st.activeSlot === 'feet' });
+  }
+  if (st.inches !== '') {
+    out.push({ kind: 'inches', text: st.inches, active: st.activeSlot === 'inches' });
+  }
+  if (st.numerator !== '') {
+    const typed = st.activeSlot === 'denominator' && (st.denominatorTyped ?? '') !== '';
+    out.push({ kind: 'numerator', text: st.numerator, active: st.activeSlot === 'numerator' });
+    out.push({ kind: 'slash', text: '/', active: false });
+    out.push({
+      kind: 'denominator',
+      text: typed ? (st.denominatorTyped as string) : String(st.denominator),
+      active: st.activeSlot === 'denominator',
+      muted: !typed,
+    });
+  }
+  if (st.inches !== '' || st.numerator !== '') {
+    out.push({ kind: 'inches', text: '"', active: false });
+  }
+  return out;
+}
 
 /**
  * Seed the entry from an existing dimension so «refine» opens on its current value.
@@ -192,16 +256,22 @@ export function seedSlots(
     candidates.find((d) => Math.abs(Math.round(valueIn * d) / d - valueIn) < 1e-9) ??
     precisionDenominator;
   const text = formatLength(initialValueMm, 'imperial', denom, 'ft-in');
-  return parseLooseToSlots(text, precisionDenominator)?.slots ?? emptyKeypadState(precisionDenominator);
+  const parsed = parseLooseToSlots(text, precisionDenominator)?.slots;
+  return parsed ? closeWholeParts(parsed) : emptyKeypadState(precisionDenominator);
 }
 
-/** `⌫`: delete the last character of the slot the next digit would land in. */
-export function backspace(st: KeypadState): KeypadState {
-  if (st.inchesMode) return { ...st, inches: st.inches.slice(0, -1) };
-  if (st.activeSlot === 'feet') return { ...st, feet: st.feet.slice(0, -1) };
-  if (st.activeSlot === 'inches') return { ...st, inches: st.inches.slice(0, -1) };
-  return { ...st, numerator: st.numerator.slice(0, -1) };
+/**
+ * An entry that already has whole inches (a seeded refine value, or the slots a hardware buffer
+ * parsed to) is CLOSED: the next digits are a numerator, and `/` acts on that — never on the inches
+ * already there (`12'-6"` then `/` must not turn the 6 into a numerator).
+ */
+export function closeWholeParts(st: KeypadState): KeypadState {
+  if (st.activeSlot === 'inches' && st.inches !== '') return { ...st, activeSlot: 'numerator' };
+  return st;
 }
+
+/** `⌫`: delete the last thing typed, stepping back through the slots (see `pressBackspace`). */
+export const backspace = pressBackspace;
 
 /**
  * `in` re-scopes the WHOLE entry to inches (§6.1.1). Exact by construction: whole feet
@@ -247,7 +317,6 @@ export default function DimensionKeypadSheet({
   );
   /** Non-null = the hardware path owns the entry (the lenient text buffer). */
   const [buffer, setBuffer] = useState<string | null>(null);
-  const [inchesHint, setInchesHint] = useState(false);
   const [cycleHint, setCycleHint] = useState(false);
   const [offline, setOffline] = useState(false);
 
@@ -268,6 +337,7 @@ export default function DimensionKeypadSheet({
   });
   const committable = reason === null && value !== null && activeSlots !== null;
 
+  const segments = entrySegments(shownSlots);
   const previewText =
     value === null || activeSlots === null
       ? null
@@ -301,31 +371,32 @@ export default function DimensionKeypadSheet({
   const editSlots = useCallback(
     (fn: (s: KeypadState) => KeypadState) => {
       setBuffer(null);
-      setSlots((current) => fn(buffer === null ? current : (parsed?.slots ?? current)));
+      setSlots((current) =>
+        fn(buffer === null ? current : closeWholeParts(parsed?.slots ?? current)),
+      );
     },
     [buffer, parsed],
   );
 
   const onKeyDigit = (d: string): void => editSlots((s) => pressDigit(s, d));
-  const onKeyDot = (): void => editSlots((s) => pressDot(s));
-  const onKeyBackspace = (): void => editSlots((s) => backspace(s));
-  const onFt = (): void => editSlots((s) => ({ ...s, inchesMode: false, activeSlot: 'feet' }));
-  const onIn = (): void => {
-    setInchesHint(true);
-    editSlots((s) => scopeToInches(s));
-  };
-  const onFractionChip = (denominator: number): void => {
+  const onKeyBackspace = (): void => editSlots((s) => pressBackspace(s));
+  const onFt = (): void => editSlots((s) => pressFeet(s));
+  const onIn = (): void => editSlots((s) => pressInch(s));
+  const onSlash = (): void => editSlots((s) => pressSlash(s));
+  const onClear = (): void => editSlots((s) => pressClear(s));
+  /** A preset fraction: one tap enters the whole fraction (D135). */
+  const onFractionKey = (denominator: number): void => {
     setCycleHint(true);
-    editSlots((s) => ({
-      ...s,
-      denominator,
-      // §6.1.1 wiring: only move the active slot when no numerator has been entered.
-      activeSlot: s.numerator === '' ? 'numerator' : s.activeSlot,
-    }));
+    editSlots((s) => pressFraction(s, 1, denominator));
   };
   const onCycle = (direction: 1 | -1): void => {
     setCycleHint(true);
-    editSlots((s) => ({ ...s, denominator: cycleDenominator(s.denominator, direction) }));
+    // A cycled denominator is the entry's default now, not digits typed after `/`.
+    editSlots((s) => ({
+      ...s,
+      denominator: cycleDenominator(s.denominator, direction),
+      denominatorTyped: '',
+    }));
   };
 
   // ---- hardware keyboard (§8.1: "no focus required") --------------------------
@@ -339,7 +410,7 @@ export default function DimensionKeypadSheet({
     // the `<StrictMode>` test in tests/dimensionKeypadSheet.test.tsx (it fails on the nested
     // version with `123` → `1`).
     if (buffer === null) {
-      editSlots((s) => backspace(s));
+      editSlots((s) => pressBackspace(s));
       return;
     }
     setBuffer((b) => (b === null ? null : b.slice(0, -1)));
@@ -452,14 +523,6 @@ export default function DimensionKeypadSheet({
     };
   }, []);
 
-  // The `Entry is now inches` hint is a 1.5 s acknowledgement (§6.1.1); the cycling hint
-  // is an affordance and stays for the life of the sheet.
-  useEffect(() => {
-    if (!inchesHint) return;
-    const id = window.setTimeout(() => setInchesHint(false), 1500);
-    return () => window.clearTimeout(id);
-  }, [inchesHint]);
-
   // ---- render ------------------------------------------------------------------
   return (
     <div className="keypad-scrim">
@@ -493,6 +556,22 @@ export default function DimensionKeypadSheet({
           aria-live="polite"
           aria-atomic="true"
         >
+          {/* What was KEYED, part by part, the active part underlined: the calculator's display.
+              Visual only (the polite live region below reads the value and the reason). */}
+          <div className="keypad-entry mono" aria-hidden="true" data-testid="keypad-entry">
+            {segments.length === 0 ? (
+              <span className="keypad-entry-empty">0"</span>
+            ) : (
+              segments.map((seg, i) => (
+                <span
+                  key={i}
+                  className={`keypad-seg keypad-seg--${seg.kind}${seg.active ? ' is-active' : ''}${seg.muted ? ' is-muted' : ''}`}
+                >
+                  {seg.text}
+                </span>
+              ))
+            )}
+          </div>
           {previewText !== null ? (
             <>
               <span className="keypad-preview-value mono">{previewText}</span>
@@ -505,107 +584,104 @@ export default function DimensionKeypadSheet({
           ) : null}
         </div>
 
-        {/* Unit + entry-scoped precision (D31: these change THIS entry only). */}
-        <div className="keypad-row keypad-chips">
-          <button
-            type="button"
-            className="keypad-toggle"
-            data-keypad-key="ft"
-            aria-label={STRINGS.keypad.ftToggle}
-            aria-pressed={!shownSlots.inchesMode && shownSlots.activeSlot === 'feet'}
-            onClick={onFt}
-          >
-            {STRINGS.keypad.ftToggle}
-          </button>
-          <button
-            type="button"
-            className="keypad-toggle"
-            data-keypad-key="in"
-            aria-label={STRINGS.keypad.inToggle}
-            aria-pressed={shownSlots.inchesMode}
-            onClick={onIn}
-          >
-            {STRINGS.keypad.inToggle}
-          </button>
-          <span className="keypad-chip-divider" aria-hidden="true" />
-          {FRACTION_CHIPS.map((chip) => (
-            <button
-              key={chip.denominator}
-              type="button"
-              className="keypad-chip"
-              data-keypad-key={`fraction-${chip.denominator}`}
-              aria-label={chip.label}
-              aria-pressed={shownSlots.denominator === chip.denominator}
-              onClick={() => onFractionChip(chip.denominator)}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="keypad-grid">
-          {KEYPAD_ROWS.map((row, index) => (
-            <div className="keypad-grid-row" key={index}>
-              <div className="keypad-grid-block">
-                {row.slice(0, 3).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    className="keypad-key"
-                    data-keypad-key={`digit-${d}`}
-                    aria-label={d}
-                    onClick={() => onKeyDigit(d)}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-              <div className="keypad-grid-block">
-                {row.slice(3).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    className="keypad-key"
-                    data-keypad-key={`digit-${d}`}
-                    aria-label={d}
-                    onClick={() => onKeyDigit(d)}
-                  >
-                    {d}
-                  </button>
-                ))}
-                {index === 1 ? (
-                  <>
-                    <button
-                      type="button"
-                      className="keypad-key keypad-key--action"
-                      data-keypad-key="backspace"
-                      aria-label="⌫"
-                      onClick={onKeyBackspace}
-                    >
-                      ⌫
-                    </button>
-                    <button
-                      type="button"
-                      className="keypad-key"
-                      data-keypad-key="dot"
-                      aria-label="."
-                      onClick={onKeyDot}
-                    >
-                      .
-                    </button>
-                  </>
-                ) : null}
-              </div>
-            </div>
-          ))}
+        {/* The calculator pad (D135): digits 7 8 9 on top, the unit column (FT · IN · /), and the
+            preset fractions. Every key is a labelled 72 px button; the DOM order is the reading
+            order. */}
+        <div className="keypad-pad">
+          {KEYPAD_LAYOUT.flat().map((id) => {
+            if (/^\d$/.test(id)) {
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`keypad-key${id === '0' ? ' keypad-key--wide' : ''}`}
+                  data-keypad-key={`digit-${id}`}
+                  aria-label={id}
+                  onClick={() => onKeyDigit(id)}
+                >
+                  {id}
+                </button>
+              );
+            }
+            if (id === 'ft' || id === 'in') {
+              const label = id === 'ft' ? STRINGS.keypad.ftToggle : STRINGS.keypad.inToggle;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className="keypad-key keypad-key--unit"
+                  data-keypad-key={id}
+                  aria-label={label}
+                  onClick={id === 'ft' ? onFt : onIn}
+                >
+                  {label}
+                </button>
+              );
+            }
+            if (id === 'slash') {
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className="keypad-key keypad-key--unit"
+                  data-keypad-key="slash"
+                  aria-label={STRINGS.keypad.fractionBar}
+                  onClick={onSlash}
+                >
+                  /
+                </button>
+              );
+            }
+            if (id === 'backspace') {
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className="keypad-key keypad-key--action"
+                  data-keypad-key="backspace"
+                  aria-label="⌫"
+                  onClick={onKeyBackspace}
+                >
+                  ⌫
+                </button>
+              );
+            }
+            if (id === 'clear') {
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className="keypad-key keypad-key--unit keypad-key--action"
+                  data-keypad-key="clear"
+                  aria-label={STRINGS.keypad.clearEntry}
+                  onClick={onClear}
+                >
+                  C
+                </button>
+              );
+            }
+            const chip = FRACTION_CHIPS.find((c) => `fraction-${c.denominator}` === id)!;
+            return (
+              <button
+                key={id}
+                type="button"
+                className="keypad-key keypad-key--fraction"
+                data-keypad-key={id}
+                aria-label={chip.label}
+                aria-pressed={
+                  shownSlots.numerator === '1' &&
+                  shownSlots.denominator === chip.denominator &&
+                  shownSlots.activeSlot === 'denominator'
+                }
+                onClick={() => onFractionKey(chip.denominator)}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="keypad-notes">
-          {inchesHint ? (
-            <p className="keypad-hint keypad-hint--inches" role="status">
-              {STRINGS.keypad.entryNowInches}
-            </p>
-          ) : null}
           {cycleHint ? <span className="keypad-hint-chip mono">{STRINGS.keypad.cycleHint}</span> : null}
           <span className="keypad-project-precision">
             {t(STRINGS.keypad.projectPrecisionEighth, { denominator: fractionLabel(precisionDenominator) })}

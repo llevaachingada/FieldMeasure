@@ -75,6 +75,7 @@ import {
 } from './renderStage';
 import {
   EXPORT_WATERMARK_ASPECT_RATIO,
+  formatCaptureStamp,
   loadExportWatermarkImage,
 } from './watermark';
 import { getWatermarkEnabled } from '@/settings/watermark';
@@ -528,6 +529,11 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
       }
     })();
 
+    // Each sheet's photo date/time, printed above the watermark (only when the watermark is on).
+    const stampBySheet = new Map<string, string | null>(
+      projectFile.sheets.map((row) => [row.id, formatCaptureStamp(row.capturedAt)]),
+    );
+
     const files: ExportFileResult[] = [];
     let sheetsWithoutPhoto = 0;
     let totalBytes = 0;
@@ -572,6 +578,7 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
                 photo,
                 assetProvider: assets.provider,
                 watermark,
+                captureStamp: stampBySheet.get(sheet.id) ?? null,
               },
               plan.multiplier,
             );
@@ -624,6 +631,7 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
                 photo,
                 assetProvider: assets.provider,
                 watermark,
+                captureStamp: stampBySheet.get(sheet.id) ?? null,
               },
               plan.multiplier,
             );

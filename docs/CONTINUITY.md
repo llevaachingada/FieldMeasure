@@ -11,6 +11,16 @@ can *look* instead of trusting a green gate. `npm.cmd run clickthru` | `playwrig
 `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc `docs/clickthru-harness.md`;
 a `clickthru` skill; an OMO orchestrator rule. It is **never a gate** and **never promotes a `[Surface]` row**.
 
+**Session 25 (owner request, D135):** a calculator-style dimension keypad (postfix `1 2 FT 6 IN 3 / 8`, preset fractions,
+a typed-entry line), a **project-name pop-up** on «New project», `Sheet.capturedAt` printed as a date/time stamp above the
+export logo, both watermarks larger (in-app now above every page), and the camera reworked (no torch/High-Fast/readout,
+device-maximum resolution, **zoom chips that work** via hardware or digital crop, moved clear of the mark). Gates on this
+tree: `tsc` 0 | vitest **106 files / 1515 tests** (all projects) | `build` 0 (28 precache, 1641.95 KiB) | **clickthru 20/20**
+(its New-project step was updated for the pop-up and the removed readout). **Watch item:** two of four full vitest runs
+showed 2-6 timing failures in `sheetEditor.dimension.browser.test.ts` / `gridReorder.browser.test.ts` (real pointer events +
+`sleep`); each file passes alone and the next full run was green, so this reads as load flakiness, not a regression - but it
+is unproven against the pre-change tree. New `[Surface]` rows H23-H25. Not committed.
+
 **Session 24:** the owner's `docs/handoff-ui-pass-for-claude.md` (the UI/GUI pass — make every rail/panel/HUD/
 menu control real, §0–§8) plus a direct watermark request. **Shipped, in order: the VANGARDE watermark**
 (**D132**), **§4.1** (**D133** — the style data channel: inset border/corner-radius/shadow, the arrow elbow
@@ -52,6 +62,7 @@ consumed by an insert. Both repaired - one section per number, in order, all 131
 | Field | Value |
 |---|---|
 | Phase | **Slices 0.2-1.9 complete (1.9 reviewed, D109); 1.10 in progress; 1.11 landed (D112); the Project screen built (D111) and now owns sheet trash (D113); the beta-readiness wave landed (D126-D130).** Still owed: the hardware pass, the Offset Nudge Pad, the History flyout, D101's halo, the export list, PDF captions, and two owner decisions. Then 2.0 |
+| Latest change | **D135 (session 25, owner request):** calculator keypad, project-name pop-up, `Sheet.capturedAt` + export date stamp, larger watermarks on every page, camera at max resolution with working zoom. 106 files / 1515 tests, build 0, clickthru 20/20. |
 | Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **100 files / 1409 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1525.57 KiB); playwright 5 passed / 5 skipped; **clickthru 20/20**. Session 22 built the grid's five D111 items (`src/fs/sheetOps.ts`, `src/ui/sheetReorder.ts`, `StorageChip.tsx`, `src/fs/projectSize.ts`) and then, from the owner's two Surface screenshots, the beta-readiness wave: real tool glyphs, the chrome fitted to ~1920x1120, the grid scroller + drag autoscroll, the bounded write lock, the D125/D127/D128 fixes, both a11y audits, and the arrow-key nudge |
 | Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
 | UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
@@ -60,7 +71,7 @@ consumed by an insert. Both repaired - one section per number, in order, all 131
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **The hardware pass** - the `[Surface]` rows in `docs/HARDWARE-TEST-CHECKLIST.md` (palm/sunlight/the 14-day trash clock/the SW update lifecycle/the real digitiser), which no emulation can promote. The machine half is now driven by `npm.cmd run clickthru` (20/20 on the Surface profile). Then the **Offset Nudge Pad** and the **History flyout**, the last two large owed items, and the two **owner decisions** (the mixed-selection chrome, the 14.9 handedness tab order) |
+| Next action | **The hardware pass** (now including H23-H25 from D135) - the `[Surface]` rows in `docs/HARDWARE-TEST-CHECKLIST.md` (palm/sunlight/the 14-day trash clock/the SW update lifecycle/the real digitiser), which no emulation can promote. The machine half is now driven by `npm.cmd run clickthru` (20/20 on the Surface profile). Then the **Offset Nudge Pad** and the **History flyout**, the last two large owed items, and the two **owner decisions** (the mixed-selection chrome, the 14.9 handedness tab order) |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.

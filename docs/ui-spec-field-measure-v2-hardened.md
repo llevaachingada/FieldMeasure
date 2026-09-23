@@ -469,6 +469,8 @@ States: **empty** n/a; **loading** n/a (all local); **error** only if the projec
 
 ### 8.1 Dimension tool (the flagship flow)
 
+> **Amended by D135 (2026-09-23, owner request): the keypad is a calculator pad.** Layout `7 8 9 | FT | 1/2`, `4 5 6 | IN | 1/4`, `1 2 3 | / | 1/8`, `0 (wide) ⌫ | C | 1/16`; units are **postfix** (`1 2 FT 6 IN 3 / 8` = 12'-6 3/8"), bare digits are inches, `/` with no denominator uses the project precision, and a typed entry line shows what was keyed. The fraction keys now **enter a whole fraction**; they no longer set the entry denominator (D31 amended). Wherever this section's diagram or key list disagrees, D135 wins.
+
 **Goal:** capture a real-world feet-inches dimension on a photo in under 4 seconds — **two taps** (finger or pen) plus one value, with the input never leaving the glass until commit. 〔Touch-first, v2.1〕
 
 **Step 1 — Place point A (pen down, or the first tap).**

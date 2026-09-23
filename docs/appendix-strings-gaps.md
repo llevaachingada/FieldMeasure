@@ -51,3 +51,17 @@
 **Approval note.** All strings above are proposals and must be approved by a human before they are
 added to `src/ui/strings.ts`. Until then, `docs/appendix-strings.md` remains the authoritative
 inventory and is unchanged.
+
+## D135 additions (2026-09-23) — ⚠ PROPOSED, awaiting sign-off
+
+| Key | Proposed string | Where |
+|---|---|---|
+| home.newProjectTitle | Name your project | «New project» pop-up title |
+| home.projectNameLabel | Project name | pop-up field label |
+| home.projectNamePlaceholder | e.g. Smith kitchen remodel | pop-up field placeholder |
+| home.createProjectConfirm | Create project | pop-up primary button (Cancel reuses `editor.cancel`) |
+| keypad.errorDenominator | Denominator: 2, 4, 8, 16, 32 or 64 | refusal for a typed denominator outside the enum |
+| keypad.fractionBar | Fraction bar | `aria-label` of the `/` key |
+| keypad.clearEntry | Clear entry | `aria-label` of the `C` key |
+
+Removed with the torch and the High/Fast toggle: `capture.resolutionHigh`, `capture.resolutionFast`, `capture.torch`, `a11y.torch`.

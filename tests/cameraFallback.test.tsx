@@ -18,7 +18,12 @@ import { STRINGS } from '../src/ui/strings';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import CameraFlow, { fallbackCopyForDeviceMax, formatResolution } from '../src/ui/CameraFlow';
+import CameraFlow, {
+  cropRectFor,
+  fallbackCopyForDeviceMax,
+  needsCrop,
+  zoomPlan,
+} from '../src/ui/CameraFlow';
 import { initStore } from '../src/fs/projectStore';
 import {
   FakeDir,
@@ -36,7 +41,7 @@ function fakeTrack(
   width: number,
   height: number,
   deviceId: string,
-  capabilities: Record<string, unknown> = { torch: true, zoom: { min: 1, max: 4, step: 0.25 } },
+  capabilities: Record<string, unknown> = { zoom: { min: 1, max: 4, step: 0.25 } },
 ) {
   return {
     kind: 'video' as const,
@@ -169,28 +174,65 @@ describe('camera denied → the fallback panel', () => {
 });
 
 /* ------------------------------------------------------------------ *
- * Honest resolution label
+ * Resolution — always the camera's maximum; no High/Fast toggle, no readout
  * ------------------------------------------------------------------ */
 
-describe('resolution toggle — the honest delivered max', () => {
-  it('labels the modes as approved and shows the delivered pixels, never the sensor MP', async () => {
+describe('resolution — always the highest the camera offers', () => {
+  it('has no High/Fast buttons, no torch and no resolution readout (owner decision)', async () => {
     await setup();
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     renderFlow();
 
-    const readout = await screen.findByTestId('camera-resolution');
-    // 1920×1080 delivered by the (fake) track → the readout is the real number.
-    expect(readout.textContent).toBe(formatResolution(1920, 1080));
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+    expect(screen.queryByTestId('camera-resolution')).toBeNull();
+    expect(screen.queryByRole('button', { name: /High \(device max\)|^Fast$|Torch/ })).toBeNull();
+  });
 
-    const high = screen.getByRole('button', { name: STRINGS.capture.resolutionHigh });
-    const fast = screen.getByRole('button', { name: STRINGS.capture.resolutionFast });
-    expect(high.textContent).toBe('High (device max)');
-    expect(fast.textContent).toBe('Fast');
-    expect(high.getAttribute('aria-pressed')).toBe('true');
-    expect(fast.getAttribute('aria-pressed')).toBe('false');
+  it('opens the stream asking far above any webcam so the browser lands on the device maximum', async () => {
+    await setup();
+    const getUserMedia = vi.fn(async (_constraints?: unknown) =>
+      fakeStream(fakeTrack(1920, 1080, 'cam-back')),
+    );
+    installMedia(getUserMedia);
+    renderFlow();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
-    // The label must not promise sensor megapixels.
-    expect(high.textContent).not.toMatch(/\d+\s*MP|megapixel/i);
+    const constraints = getUserMedia.mock.calls[0][0] as unknown as {
+      video: { width: { ideal: number }; height: { ideal: number } };
+    };
+    // MAX_IDEAL in CameraFlow: 7680x4320, well above any webcam mode.
+    expect(constraints.video.width.ideal).toBe(7680);
+    expect(constraints.video.height.ideal).toBe(4320);
+  });
+
+  it('asks for the reported capability maximum when the opening request landed below it', async () => {
+    await setup();
+    // Delivers 1920x1080 although the camera reports up to 3264x2448 (a 4:3 sensor mode).
+    const track = fakeTrack(1920, 1080, 'cam-back', {
+      width: { min: 160, max: 3264 },
+      height: { min: 120, max: 2448 },
+    });
+    installMedia(vi.fn(async () => fakeStream(track)));
+    renderFlow();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+
+    expect(track.applyConstraints).toHaveBeenCalledWith({
+      width: { ideal: 3264 },
+      height: { ideal: 2448 },
+    });
+  });
+
+  it('does not re-request when the camera already delivers its maximum', async () => {
+    await setup();
+    const track = fakeTrack(3264, 2448, 'cam-back', {
+      width: { min: 160, max: 3264 },
+      height: { min: 120, max: 2448 },
+    });
+    installMedia(vi.fn(async () => fakeStream(track)));
+    renderFlow();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+
+    expect(track.applyConstraints).not.toHaveBeenCalled();
   });
 
   it('offers the deviceId picker once the OS exposes camera labels', async () => {
@@ -203,59 +245,101 @@ describe('resolution toggle — the honest delivered max', () => {
     expect(picker.textContent).toContain('Back camera');
     expect(picker.textContent).toContain('Front camera');
   });
-
-  it('switching to Fast restarts the stream with the fast (720p-class) constraints', async () => {
-    await setup();
-    const getUserMedia = vi.fn(async (_constraints?: unknown) =>
-      fakeStream(fakeTrack(1920, 1080, 'cam-back')),
-    );
-    installMedia(getUserMedia);
-    renderFlow();
-    const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
-
-    await user.click(screen.getByRole('button', { name: STRINGS.capture.resolutionFast }));
-    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
-
-    const constraints = getUserMedia.mock.calls[1][0] as unknown as {
-      video: { width: { ideal: number }; height: { ideal: number } };
-    };
-    // FAST_IDEAL from CameraFlow: 1280×720 (UI §10.1).
-    expect(constraints.video.width.ideal).toBe(1280);
-    expect(constraints.video.height.ideal).toBe(720);
-    expect(screen.getByRole('button', { name: STRINGS.capture.resolutionFast }).getAttribute('aria-pressed')).toBe(
-      'true',
-    );
-  });
 });
 
 /* ------------------------------------------------------------------ *
- * Zoom — disabled when the device cannot zoom
+ * Zoom — hardware when the range covers it, a digital crop when not
  * ------------------------------------------------------------------ */
 
+describe('zoomPlan (pure)', () => {
+  it('uses the hardware when its reported range covers the step', () => {
+    expect(zoomPlan(2, { min: 1, max: 4 })).toEqual({ hardware: 2, digital: 1 });
+    expect(zoomPlan(1, { min: 1, max: 4 })).toEqual({ hardware: 1, digital: 1 });
+  });
+
+  it('crops digitally when there is no hardware zoom (the Surface webcam case that was dead)', () => {
+    expect(zoomPlan(2, undefined)).toEqual({ hardware: null, digital: 2 });
+    expect(zoomPlan(1, undefined)).toEqual({ hardware: null, digital: 1 });
+  });
+
+  it('crops digitally when the step is beyond the hardware max', () => {
+    expect(zoomPlan(2, { min: 1, max: 1.5 })).toEqual({ hardware: null, digital: 2 });
+  });
+
+  it('never offers 0.5x unless the hardware can go wider than 1x', () => {
+    expect(zoomPlan(0.5, undefined)).toBeNull();
+    expect(zoomPlan(0.5, { min: 1, max: 4 })).toBeNull();
+    expect(zoomPlan(0.5, { min: 0.5, max: 4 })).toEqual({ hardware: 0.5, digital: 1 });
+  });
+});
+
+describe('cropRectFor / needsCrop (pure)', () => {
+  it('2x digital zoom of a 4000x3000 frame is the centre 2000x1500', () => {
+    // 4:3 view of a 4:3 frame: w=4000, h=3000; /2 -> 2000x1500; offset (4000-2000)/2=1000, (3000-1500)/2=750.
+    expect(cropRectFor(4000, 3000, 4 / 3, 2)).toEqual({ sx: 1000, sy: 750, sw: 2000, sh: 1500 });
+  });
+
+  it('1x of a 4:3 still viewed as 16:9 is the centre 16:9 band', () => {
+    // 16:9 inside 4000x3000: w=4000, h=4000/(16/9)=2250; offset y=(3000-2250)/2=375.
+    expect(cropRectFor(4000, 3000, 16 / 9, 1)).toEqual({ sx: 0, sy: 375, sw: 4000, sh: 2250 });
+  });
+
+  it('needs no crop at 1x when the aspect already matches, and always crops when zoomed', () => {
+    expect(needsCrop(1920, 1080, 16 / 9, 1)).toBe(false);
+    expect(needsCrop(4000, 3000, 16 / 9, 1)).toBe(true);
+    expect(needsCrop(1920, 1080, 16 / 9, 2)).toBe(true);
+  });
+});
+
 describe('zoom chips', () => {
-  it('applies the zoom constraint when the track supports zoom', async () => {
+  it('applies the hardware zoom constraint when the track supports it', async () => {
     await setup();
     const track = fakeTrack(1920, 1080, 'cam-back');
     installMedia(vi.fn(async () => fakeStream(track)));
     renderFlow();
     const user = userEvent.setup();
-    await screen.findByTestId('camera-resolution');
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
     await user.click(screen.getByRole('button', { name: STRINGS.capture.zoomTwo }));
     expect(track.applyConstraints).toHaveBeenCalledWith({ advanced: [{ zoom: 2 }] });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: STRINGS.capture.zoomTwo }).getAttribute('aria-pressed')).toBe(
+        'true',
+      ),
+    );
+    expect(document.querySelector('.camera-video')?.className).not.toContain('is-digital-zoom');
   });
 
-  it('disables the chips when the track reports no zoom capability', async () => {
+  it('WORKS with no hardware zoom: the chips are enabled and 2x is a digital crop', async () => {
     await setup();
-    // torch only — no `zoom` in the capabilities.
-    installMedia(
-      vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back', { torch: false }))),
-    );
+    // No `zoom` capability at all - the Surface webcam case. The chips used to be disabled here.
+    const track = fakeTrack(1920, 1080, 'cam-back', {});
+    installMedia(vi.fn(async () => fakeStream(track)));
     renderFlow();
-    await screen.findByTestId('camera-resolution');
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
 
-    const chip = screen.getByRole('button', { name: STRINGS.capture.zoomOne });
-    expect((chip as HTMLButtonElement).disabled).toBe(true);
+    const two = screen.getByRole('button', { name: STRINGS.capture.zoomTwo }) as HTMLButtonElement;
+    expect(two.disabled).toBe(false);
+    await user.click(two);
+
+    await waitFor(() => expect(two.getAttribute('aria-pressed')).toBe('true'));
+    expect(document.querySelector('.camera-video')?.className).toContain('is-digital-zoom-2');
+
+    // Back to 1x removes the crop.
+    await user.click(screen.getByRole('button', { name: STRINGS.capture.zoomOne }));
+    await waitFor(() =>
+      expect(document.querySelector('.camera-video')?.className).not.toContain('is-digital-zoom'),
+    );
+  });
+
+  it('does not draw a 0.5x chip when the camera cannot go wider', async () => {
+    await setup();
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back', {}))));
+    renderFlow();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+
+    expect(screen.queryByRole('button', { name: STRINGS.capture.zoomHalf })).toBeNull();
+    expect(screen.getByRole('button', { name: STRINGS.capture.zoomOne })).toBeTruthy();
   });
 });

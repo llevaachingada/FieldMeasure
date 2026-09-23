@@ -258,21 +258,6 @@
   white-space: nowrap;
 }
 
-.camera-res {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-.camera-res-value {
-  margin: 0;
-  font-size: 13px;
-  color: var(--g100);
-  background: rgba(14, 19, 24, 0.6);
-  padding: 2px 8px;
-  border-radius: 6px;
-}
-
 .camera-device-hit {
   min-height: 48px;
   max-width: 220px;
@@ -291,13 +276,15 @@
   bottom: 0;
   min-height: 88px;
   padding: 0 24px calc(16px + env(safe-area-inset-bottom, 0px));
-  display: flex;
+  /* Import | shutter | (empty): the shutter stays centred now that the zoom chips have left the bar. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
 }
 
 .camera-import {
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -334,7 +321,12 @@
   inset: 12px; /* 88 → 80 scale, approximated by the inner disc (UI §10.1) */
 }
 
+/* Lifted clear of the VANGARDE watermark, which now sits in the bottom-right corner: it is up to
+   122 px tall (260 px wide at 2.13:1) plus its 12 px margin, so the chips start above 156 px. */
 .camera-zoom {
+  position: absolute;
+  right: 24px;
+  bottom: calc(156px + env(safe-area-inset-bottom, 0px));
   display: flex;
   gap: 16px;
 }
@@ -358,6 +350,13 @@
 .camera-zoom-chip:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Digital zoom: the preview is scaled about its centre; the captured frame is cropped to the same
+   centre region (`cropRectFor`), so the photo is what the user framed. Classes, not inline style
+   (CSP `style-src 'self'`). */
+.camera-video.is-digital-zoom-2 {
+  transform: scale(2);
 }
 
 /* ---- review ------------------------------------------------------------ */

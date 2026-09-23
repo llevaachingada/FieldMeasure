@@ -67,6 +67,7 @@ folders.
 | Origin / distribution decision | ✅ **resolved** — static HTTPS host + origin guard (D24 / §21.1) |
 | Decisions log (ADR) | ✅ |
 | Dependencies installed | ✅ (`package.json`, Node 24 LTS, React 19.3) |
+| Latest owner-request pass (D135) | ✅ calculator-style dimension keypad (postfix `FT`/`IN`, preset fractions), a project-name pop-up on «New project», photo date/time stamped above the export logo, larger VANGARDE marks on every page (Settings switch), camera at device-maximum resolution with working zoom. Hardware rows H23-H25 owed. See `docs/DECISIONS.md` D135. |
 | Application code | ✅ **nine slices** — input router, domain core, first-run/Settings/Home, storage core, media+canvas, capture flow, editor shell, dimension tool, markup tools (PARTIAL). **526 tests / 40 files**, build + e2e green. Slice 1.9 is step 1 of 5. |
 
 ## Prerequisites

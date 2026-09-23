@@ -124,15 +124,65 @@ describe('createProject — written envelope (§3.5 / D51)', () => {
     expect(file.project.precisionDenominator).toBe(16);
   });
 
-  it('an explicit title overrides the folder-derived title; the folder name stays generated', async () => {
+  // D135 (spec expectation corrected, not weakened): this test used to assert that an explicit title
+  // left the folder name generated («New project»). The owner then asked for a name pop-up, so the
+  // typed name now BECOMES the folder name (sanitized) and the title keeps the raw text. The
+  // generated «New project» name remains the fallback when no title is given (tests above).
+  it('an explicit title names the folder (sanitized) and is kept verbatim as the title', async () => {
     const root = new FakeDir('root');
     await installRoot(root);
 
     const created = await createProject({ title: 'Riverside Elementary' });
 
-    expect(created.folderName).toBe(BASE);
+    expect(created.folderName).toBe('Riverside Elementary');
+    expect(root.childDir('Riverside Elementary').has('project.json')).toBe(true);
     const file = await readProjectFile(created.projectDir);
     expect(file.project.title).toBe('Riverside Elementary');
+  });
+
+  it('strips characters NTFS forbids from the folder name, but keeps the typed title', async () => {
+    const root = new FakeDir('root');
+    await installRoot(root);
+
+    // ':' '/' '?' '<' '>' are illegal in a Windows folder name -> removed: "Job 124 north?" -> "Job 124 north".
+    const created = await createProject({ title: 'Job: 12/4 <north>?' });
+
+    expect(created.folderName).toBe('Job 124 north');
+    const file = await readProjectFile(created.projectDir);
+    expect(file.project.title).toBe('Job: 12/4 <north>?');
+  });
+
+  it('trims the typed title, and a blank one falls back to «New project»', async () => {
+    const root = new FakeDir('root');
+    await installRoot(root);
+
+    const padded = await createProject({ title: '  Smith  ' });
+    const blank = await createProject({ title: '   ' });
+
+    expect(padded.folderName).toBe('Smith');
+    expect((await readProjectFile(padded.projectDir)).project.title).toBe('Smith');
+    expect(blank.folderName).toBe(BASE);
+  });
+
+  it('uniquifies a repeated typed name as «Smith 2» and never adopts the existing folder', async () => {
+    const root = new FakeDir('root');
+    await installRoot(root);
+
+    const first = await createProject({ title: 'Smith' });
+    const second = await createProject({ title: 'Smith' });
+
+    expect([first.folderName, second.folderName]).toEqual(['Smith', 'Smith 2']);
+    // Both keep the title the user typed.
+    expect((await readProjectFile(second.projectDir)).project.title).toBe('Smith');
+  });
+
+  it('a reserved device name cannot become the folder name (CON -> _CON)', async () => {
+    const root = new FakeDir('root');
+    await installRoot(root);
+
+    const created = await createProject({ title: 'CON' });
+
+    expect(created.folderName).toBe('_CON');
   });
 
   it('is listed by scanProjects with the D51 key and title', async () => {

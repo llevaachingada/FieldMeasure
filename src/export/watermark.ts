@@ -11,10 +11,10 @@
  * absolute px size would make the mark 3× larger on the page at M=3 than at M=1.
  */
 
-/** Bottom-right corner, 16% of the sheet width, 3% margin, capped so a very wide/
- *  narrow source image never grows past 12% of the sheet HEIGHT either. */
-const WIDTH_FRACTION = 0.16;
-const MAX_HEIGHT_FRACTION = 0.12;
+/** Bottom-right corner, 24% of the sheet width (owner: larger; was 16%), 3% margin, capped so
+ *  a very wide/narrow source image never grows past 18% (was 12%) of the sheet HEIGHT either. */
+const WIDTH_FRACTION = 0.24;
+const MAX_HEIGHT_FRACTION = 0.18;
 const MARGIN_FRACTION = 0.03;
 
 /** How present the mark reads on an exported (usually light) photo — subtle, not a
@@ -59,23 +59,96 @@ export function watermarkRect(
   };
 }
 
+/** The capture stamp's text height, as a fraction of the bitmap width: small (owner: "a small
+ *  watermark"), but 1.3% of a 4096 px sheet is ~53 px, legible on a printed page. */
+const STAMP_FONT_FRACTION = 0.013;
+/** Padding round the text inside its backing pill, and the gap between pill and logo, in em. */
+const STAMP_PAD_EM = 0.45;
+const STAMP_GAP_EM = 0.5;
+
+export interface StampLayout {
+  /** Text size in bitmap px. */
+  fontPx: number;
+  /** The pill's right edge = the logo's right edge (right-aligned above it). */
+  rightX: number;
+  /** The pill's bottom edge, `STAMP_GAP_EM` above the logo's top. */
+  bottomY: number;
+  padPx: number;
+}
+
+/**
+ * Where the date/time stamp goes: directly ABOVE the VANGARDE mark, right-aligned with it.
+ * Pure arithmetic like `watermarkRect`, and a fraction of the bitmap so it is the same fraction
+ * of the PAGE at every export multiplier M.
+ */
+export function stampLayout(
+  bitmapWidthPx: number,
+  bitmapHeightPx: number,
+  aspectRatio: number,
+): StampLayout {
+  const logo = watermarkRect(bitmapWidthPx, bitmapHeightPx, aspectRatio);
+  const fontPx = bitmapWidthPx * STAMP_FONT_FRACTION;
+  return {
+    fontPx,
+    rightX: logo.x + logo.width,
+    bottomY: logo.y - fontPx * STAMP_GAP_EM,
+    padPx: fontPx * STAMP_PAD_EM,
+  };
+}
+
+/**
+ * The stamp text for an ISO capture time, in the device's local time: `Sep 23, 2026 · 2:07 PM`.
+ * `null` for a missing or unparseable value, so a sheet without a capture time simply has no stamp.
+ */
+export function formatCaptureStamp(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  const date = at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const time = at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return `${date} · ${time}`;
+}
+
 /** Draws the mark at `EXPORT_WATERMARK_OPACITY` without disturbing the caller's
  *  context state (paired save/restore) — `renderSheet` calls this AFTER the photo
  *  and every markup layer are composited, so the mark sits on top like a real
  *  watermark, never under the annotations it would otherwise be indistinguishable
- *  from. */
+ *  from. When `stamp` is given, the capture date/time is drawn on a soft dark pill
+ *  directly above the mark (readable on any photo). */
 export function drawWatermark(
   ctx2d: CanvasRenderingContext2D,
   image: CanvasImageSource,
   bitmapWidthPx: number,
   bitmapHeightPx: number,
   aspectRatio: number,
+  stamp?: string | null,
 ): void {
   const rect = watermarkRect(bitmapWidthPx, bitmapHeightPx, aspectRatio);
   ctx2d.save();
   ctx2d.globalAlpha = EXPORT_WATERMARK_OPACITY;
   ctx2d.drawImage(image, rect.x, rect.y, rect.width, rect.height);
   ctx2d.restore();
+
+  if (stamp) {
+    const layout = stampLayout(bitmapWidthPx, bitmapHeightPx, aspectRatio);
+    ctx2d.save();
+    ctx2d.font = `600 ${layout.fontPx}px 'Archivo', system-ui, sans-serif`;
+    ctx2d.textAlign = 'right';
+    ctx2d.textBaseline = 'alphabetic';
+    const textWidth = ctx2d.measureText(stamp).width;
+    const pillW = textWidth + layout.padPx * 2;
+    const pillH = layout.fontPx + layout.padPx * 2;
+    const pillX = layout.rightX - pillW;
+    const pillY = layout.bottomY - pillH;
+    ctx2d.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx2d.beginPath();
+    ctx2d.roundRect(pillX, pillY, pillW, pillH, layout.padPx);
+    ctx2d.fill();
+    ctx2d.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    // Alphabetic baseline sits ~0.8em below the top of the caps: centre the glyphs in the pill.
+    ctx2d.fillText(stamp, layout.rightX - layout.padPx, pillY + layout.padPx + layout.fontPx * 0.82);
+    ctx2d.restore();
+  }
 }
 
 /** The full VANGARDE WOODWORKS lockup (dark ink), sized for export use — the exported

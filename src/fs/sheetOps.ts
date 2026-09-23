@@ -226,6 +226,8 @@ export async function duplicateSheet(
     calibrationPxPerFoot: source.calibrationPxPerFoot ?? null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
+    // A duplicate is the SAME photo: it keeps the moment that photo was taken.
+    capturedAt: source.capturedAt ?? null,
   };
   const next: ProjectFile = { ...file, sheets: [...file.sheets, row] };
   await writeJsonAtomic(projectDir, 'project.json', next, projectId);

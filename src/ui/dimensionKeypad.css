@@ -34,7 +34,7 @@
   /* NOT a hard 360 px: UI §8.1's "360 px tall" cannot hold its own diagram (two 72 px key
      rows = 144 px, + 64 px preview + 56 px chips + 64/56 px actions + gaps). Content-sized,
      with a viewport cap, so nothing is ever clipped. Reported as a spec inconsistency. */
-  max-height: min(92vh, 620px);
+  max-height: min(96vh, 700px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -135,8 +135,8 @@
 }
 
 .keypad-preview-value {
-  font-size: 30px;
-  line-height: 36px;
+  font-size: 20px;
+  line-height: 28px;
   font-weight: 700;
   color: var(--g000);
 }
@@ -166,87 +166,58 @@
   color: var(--warn);
 }
 
-/* ---- unit toggles + entry-scoped fraction chips (D31) ------------------- */
+/* ---- the typed-entry line: what was keyed, the active part underlined (D135) ------- */
 
-.keypad-row {
+.keypad-entry {
+  flex-basis: 100%;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
-}
-
-.keypad-chips {
-  flex-wrap: wrap;
-}
-
-.keypad-toggle {
-  min-width: 72px;
-  min-height: 56px;
-  padding: 0 16px;
-  border: 2px solid var(--g600);
-  border-radius: 10px;
-  background: var(--g800);
-  color: var(--g100);
-  font: inherit;
-  font-size: 17px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.keypad-toggle[aria-pressed='true'] {
-  border-color: var(--hi);
-  background: var(--g700);
+  min-height: 40px;
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 700;
   color: var(--g000);
 }
 
-.keypad-chip-divider {
-  width: 1px;
-  align-self: stretch;
-  margin: 4px 4px;
-  background: var(--g700);
+.keypad-entry-empty {
+  color: var(--g500, var(--g400));
 }
 
-.keypad-chip {
-  min-width: 64px;
-  min-height: 48px;
-  padding: 0 12px;
-  border: 2px solid var(--g600);
-  border-radius: 10px;
-  background: var(--g800);
-  color: var(--g100);
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
+.keypad-seg {
+  padding-bottom: 2px;
+  border-bottom: 3px solid transparent;
 }
 
-.keypad-chip[aria-pressed='true'] {
-  border-color: var(--hi);
-  background: var(--g700);
-  color: var(--g000);
+/* The slot the next digit lands in. */
+.keypad-seg.is-active {
+  border-bottom-color: var(--hi);
 }
 
-/* ---- the digit pad: two rows of 3 + 3 keys, 72 px, 8 px gaps ---------- */
-
-.keypad-grid {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+/* The denominator that is only the project default (not typed). */
+.keypad-seg.is-muted {
+  color: var(--g400);
 }
 
-.keypad-grid-row {
-  display: flex;
-  gap: 24px;
+.keypad-seg--slash {
+  color: var(--g300);
 }
 
-.keypad-grid-block {
+/* ---- the calculator pad (D135) -------------------------------------------------------
+   Five columns: three digit columns, the unit column (FT / IN / / / C), the fraction column.
+   72 px keys, 8 px gaps, and a 12 px extra gutter before each of the two right-hand columns so
+   the digit block reads as one group. `0` is double-wide. All keys clear the 48 px floor. */
+
+.keypad-pad {
   display: grid;
-  grid-template-columns: repeat(3, 72px);
-  gap: 8px;
+  grid-template-columns: repeat(3, 72px) 84px 84px;
+  column-gap: 8px;
+  row-gap: 8px;
+  justify-content: center;
 }
 
 .keypad-key {
-  width: 72px;
+  width: 100%;
   height: 72px;
   border: 2px solid var(--g600);
   border-radius: 12px;
@@ -259,6 +230,31 @@
 }
 
 .keypad-key:active {
+  background: var(--g700);
+}
+
+.keypad-key--wide {
+  grid-column: span 2;
+}
+
+.keypad-key--unit {
+  width: calc(100% - 12px);
+  margin-left: 12px;
+  border-color: var(--g500, var(--g600));
+  background: var(--g750);
+  font-size: 22px;
+  text-transform: uppercase;
+}
+
+.keypad-key--fraction {
+  width: calc(100% - 4px);
+  margin-left: 4px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 20px;
+}
+
+.keypad-key--fraction[aria-pressed='true'] {
+  border-color: var(--hi);
   background: var(--g700);
 }
 
@@ -310,8 +306,17 @@
 
 .keypad-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
+}
+
+.keypad-actions > button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.keypad-actions > .keypad-commit {
+  flex-grow: 1.2;
 }
 
 .keypad-commit,
@@ -340,7 +345,9 @@
 }
 
 .keypad-chain {
-  min-height: 56px;
+  min-height: 64px;
+  line-height: 1.2;
+  text-align: center;
   border: 2px solid var(--g600);
   background: var(--g800);
   color: var(--g100);
@@ -355,4 +362,10 @@
 .keypad-chain:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* The sheet scrolls when the viewport is short; its parts never shrink (D135: a capped height used to
+   squash the value line behind the pad). */
+.keypad-sheet > * {
+  flex-shrink: 0;
 }

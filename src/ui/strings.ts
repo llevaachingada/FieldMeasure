@@ -47,6 +47,13 @@ export const STRINGS = {
     openExistingFolderEmpty: 'Open an existing folder…',
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §26)
     loading: 'Loading projects…',
+
+    // ⚠ PROPOSED (C14) — not approved copy: the «New project» name pop-up (owner request,
+    // 2026-09-23; D135). Cancel reuses the approved `editor.cancel`.
+    newProjectTitle: 'Name your project',
+    projectNameLabel: 'Project name',
+    projectNamePlaceholder: 'e.g. Smith kitchen remodel',
+    createProjectConfirm: 'Create project',
   },
 
   settings: {
@@ -224,6 +231,11 @@ export const STRINGS = {
     errorEnterLength: 'Enter a length',
     errorFractionTooBig: 'Fraction must be smaller than 1/16',
     errorTooLarge: 'Too large',
+
+    // ⚠ PROPOSED (C14) — not approved copy: the calculator-style pad (D135, owner request 2026-09-23).
+    errorDenominator: 'Denominator: 2, 4, 8, 16, 32 or 64',
+    fractionBar: 'Fraction bar',
+    clearEntry: 'Clear entry',
   },
 
   // APPROVED inventory (appendix-strings.md `## toasts`): `undoAction` is the template.
@@ -322,8 +334,6 @@ export const STRINGS = {
     importButton: 'Import',
     importAPhoto: 'Import a photo',
     close: 'Close',
-    resolutionHigh: 'High (device max)',
-    resolutionFast: 'Fast',
     aeAfLock: 'AE/AF LOCK',
     retake: 'Retake',
     usePhoto: 'Use photo',
@@ -349,7 +359,6 @@ export const STRINGS = {
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §14):
     // the viewfinder toggles and zoom chips. `capture.autoCapture` is deliberately
     // absent — auto-capture-on-level is not built in v1 (UI §10.1: off by default).
-    torch: 'Torch',
     grid: 'Grid',
     level: 'Level',
     flip: 'Flip camera',
@@ -517,7 +526,6 @@ export const STRINGS = {
     toolRail: 'Tools',
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §25):
     // the capture screen’s icon-only controls (slice 1.4).
-    torch: 'Torch',
     shutter: 'Take photo',
     grid: 'Grid',
     level: 'Level',

@@ -1952,6 +1952,8 @@ export default function SheetEditor({
           projectId,
           title: defaultSheetTitle(state.file),
           createdAt: exif.captureTime ?? now,
+          // The photo's own moment: EXIF, else the file's date (an import was not taken "now").
+          capturedAt: exif.captureTime ?? new Date(file.lastModified),
         },
       );
       state.file = nextFile;

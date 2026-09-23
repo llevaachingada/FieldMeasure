@@ -16,7 +16,7 @@
  * history snapshotting (§5.5/§5.8e), path helpers for the §3.1 layout,
  * `readProjectFile`/`readSheetMarkup` wrappers, `isPhotoDamaged` (§5.3), the
  * deterministic writer lease + BroadcastChannel (§5.8d/§5.4), `scanProjects`
- * (§5.6/§5.8c), and `createProject` (Home «New project»: an app-named subfolder).
+ * (§5.6/§5.8c), and `createProject` (Home «New project»: a subfolder named from the pop-up's project name).
  *
  * SPEC DELTAS (reported, not silently taken):
  *  - `pickRoot` persists through `src/settings/projectsRoot.ts` instead of the
@@ -47,6 +47,7 @@ import {
 // The new-project folder name is the APPROVED Home copy (`STRINGS.home.newProject`,
 // 'New project') — there is no new copy and no name prompt (§2.4).
 import { STRINGS } from '../ui/strings';
+import { sanitizeToken } from '../export/filenames';
 import { chooseBackend, ROOT_LOCK_SCOPE, type MovableFileHandle, type StorageBackend } from './backend';
 
 type MaybePromise<T> = T | Promise<T>;
@@ -853,10 +854,10 @@ export interface CreatedProject {
 
 /**
  * Create a new project as an APP-NAMED subfolder of the projects root (product
- * decision: «New project» creates a folder — no OS picker and no name prompt).
+ * decision: «New project» creates a folder — no OS picker; D135 later added the name pop-up).
  *
- * Naming: the approved Home copy `STRINGS.home.newProject` ('New project'), then
- * 'New project 2', 'New project 3', … A name is free when `getDirectoryHandle(name,
+ * Naming: the typed project name (sanitized), or with none the approved Home copy
+ * `STRINGS.home.newProject` ('New project'); then '<name> 2', '<name> 3', … A name is free when `getDirectoryHandle(name,
  * { create: false })` throws NotFoundError. An EXISTING folder is NEVER adopted by a
  * "new project" action (that would silently reopen old work). The probe is bounded by
  * `MAX_NEW_PROJECT_NAMES` and throws when exhausted.
@@ -869,6 +870,7 @@ export interface CreatedProject {
  * Callers (Home) treat a throw as a silent no-op — error surfacing is slice 1.10.
  */
 export async function createProject(options?: { title?: string }): Promise<CreatedProject> {
+  const typedTitle = options?.title?.trim() ? options.title.trim() : null;
   const root = await getRootDir();
   if (!root) throw new Error('no projects root is open');
   // §5.2 step 3. After a reload the projects-root handle is restored but its write grant is
@@ -880,7 +882,10 @@ export async function createProject(options?: { title?: string }): Promise<Creat
     throw new StorageWriteError('permission', new Error('projects-root write access was not granted'));
   }
 
-  const base = STRINGS.home.newProject; // 'New project' — approved copy
+  // The folder is named from what the user typed (D135: the «New project» pop-up), made safe for
+  // NTFS by the export filename sanitizer (illegal characters, reserved device names, trailing
+  // dots, a 48-character cap). With no name it is the approved «New project» as before.
+  const base = typedTitle ? sanitizeToken(typedTitle) : STRINGS.home.newProject;
   let folderName: string | null = null;
   for (let n = 1; n <= MAX_NEW_PROJECT_NAMES; n += 1) {
     const candidate = n === 1 ? base : `${base} ${n}`;
@@ -907,7 +912,8 @@ export async function createProject(options?: { title?: string }): Promise<Creat
     schemaVersion: CURRENT_SCHEMA_VERSION,
     project: {
       id,
-      title: options?.title ?? folderName,
+      // The title keeps exactly what the user typed (the folder name may be a sanitized form).
+      title: typedTitle ?? folderName,
       unitSystem: 'imperial',
       unitFormat: DEFAULT_UNIT_FORMAT,
       precisionDenominator: DEFAULT_PRECISION_DENOMINATOR,
