@@ -3684,3 +3684,52 @@ Real-Chromium behaviour of the persistent-grant prompt is **`[Surface]` row H26*
 that becomes denied switches recovery, a held grant shows nothing); `tests/cameraFlow.test.tsx` (+4: «Use photo»
 re-asks a lapsed grant and saves first time, a held grant is never re-prompted, a guarded re-pick refusal keeps the
 recovery, a cancelled re-pick restores it); `tests/settings.test.tsx` (+1: «Change folder…» adopts in place).
+
+### D137 - save-on-exit: the editor awaits its autosave before leaving; the shell owns project registration
+
+**Status: in progress (session 27, Wave 1 lane L1).** Session-27 review F1/F2, both reproduced on the built app: a markup
+edit made inside the 400 ms coalesce window before «Projects» never reached `markup.json` (the unmount cleanup fired
+`flush()` and then synchronously deregistered the project the write resolves through), and the grid showed «Couldn't read
+this project folder» after every editor visit (same deregistration). Decision: the editor's cleanup releases its lease and
+channel only after the flush settles and no longer calls `clearOpenProject`; `App` re-registers on every grid load and
+clears only on «Back to Projects»; `EditorLayout` awaits `editorSession().flush()` (8 s cap) before `onExit`, and a failed
+save stays in the editor with a warning, a second request leaving anyway. Full text at integration.
+
+### D138 - error boundaries at app and route level, a guarded chunk-load reload, a global rejection toast
+
+**Status: in progress (L2).** Review F3: no error boundary existed, so any render throw or lazy-chunk failure unmounted the
+app to a blank page. Local-only: errors go to `console.error`, never off-device (non-negotiable 8).
+
+### D139 - first run uses a real FieldMeasure folder, and says when it cannot
+
+**Status: in progress (L3).** Review F4: «Use Documents\FieldMeasure» only opened the picker (picking Documents itself made
+every Documents subfolder a Home card); a browser without `showDirectoryPicker` left step 2 silently dead; non-cancel picker
+errors were swallowed. Decision: that button creates or reuses a `FieldMeasure` child of the picked folder («Choose folder»
+is unchanged); an unsupported-browser notice replaces both steps; a picker failure shows a visible line.
+
+### D140 - the Home scan hides root subfolders that are not projects
+
+**Status: in progress (L4).** A root subfolder is listed only if it has `project.json` or `.history/_project/`; a folder
+with a corrupt `project.json` is still listed as unreadable. **Supersedes the `NotAProject` half of
+`tests/projectStore.test.ts` «reports an unreadable folder as a card instead of hiding it»**: a folder with neither file
+cannot be opened by the app today either, so a card for it is only noise (review F4b). The scan also reads folders with
+bounded concurrency (8).
+
+### D141 - Home hides unbuilt adoption controls; real card meta and a cover thumbnail
+
+**Status: in progress (L5 + L4's `readProjectCover`).** The disabled «Open existing folder…» card and the disabled
+empty-state button are removed rather than shown disabled; the meta reads «{N sheet(s)} · {time}» instead of two U+2014
+placeholders; the card shows its first sheet's `thumb.jpg`. **Supersedes `tests/projectList.test.tsx`'s two
+"disabled and inert" assertions** (empty-state button, secondary card): a permanently disabled control in the primary
+dashboard read as broken on first use (review F5).
+
+### D142 - the sheets grid's error state gets «Retry»; the sheet count is pluralized
+
+**Status: in progress (L5).** The error line had no recovery (review F2/F5) and the header read «1 sheets».
+
+### D143 - a headless journey e2e gate; both browser runners honour PW_CHROMIUM_PATH
+
+**Status: in progress (L6).** `tests/e2e/journey.spec.ts` covers screen-to-screen transitions (editor → grid → Home →
+reopen, and a save racing an exit) that 1,302 green unit tests missed. The clickthru stays an inspection tool, never a
+gate; this spec is separate from it. `PW_CHROMIUM_PATH` lets a container whose Playwright has no matching bundled browser
+use a local Chromium; unset, nothing changes.
