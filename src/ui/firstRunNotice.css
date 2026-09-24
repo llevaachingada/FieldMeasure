@@ -1,0 +1,23 @@
+/**
+ * D139 (L3): unsupported-browser notice and picker-failure line for first run.
+ * Colours reuse `--err` (defined in `src/styles.css`); the look matches
+ * `.project-error-line` in `src/ui/projectScreen.css`, the existing reference
+ * for an inline error banner.
+ */
+.first-run-error {
+  margin: 12px 0 0;
+  padding: 12px 16px;
+  border: 2px solid var(--err);
+  border-radius: 12px;
+  color: var(--err);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.first-run-notice-body {
+  margin: 12px 0 0;
+  /* Guidance, not a failure: the neutral secondary text colour, so it never reads as a crash. */
+  color: var(--g300);
+  font-size: 16px;
+  line-height: 1.4;
+}

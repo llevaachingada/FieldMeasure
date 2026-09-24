@@ -84,6 +84,11 @@ import './projectScreen.css';
 
 export type { ProjectSheetCard, TrashedSheet };
 
+/** D141/D142: «1 sheet» / «N sheets». The rule lives in `strings.ts` so Home can use it without
+ *  pulling this screen's module graph into its chunk; re-exported here for the grid's callers. */
+export { sheetCountLabel } from './strings';
+import { sheetCountLabel } from './strings';
+
 export interface ProjectScreenProps {
   projectTitle: string;
   sheetCount: number;
@@ -98,6 +103,8 @@ export interface ProjectScreenProps {
   onImport(): void;
   onExport(selectedIds: readonly string[]): void;
   onBack(): void;
+  /** D142: the error state's recovery; absent → no button, never a dead control. */
+  onRetry?(): void;
 
   // ---- sheet trash (UI §11.2:711; build spec §11.9:2029; UI §13.3:800) --------
   // Every prop is additive and optional. ABSENT means the affordance does not render
@@ -902,6 +909,7 @@ export default function ProjectScreen({
   onImport,
   onExport,
   onBack,
+  onRetry,
   onDeleteSheet,
   trash,
   trashRestoreFailed,
@@ -1464,7 +1472,9 @@ export default function ProjectScreen({
         </button>
 
         <h1 className="project-title">{projectTitle}</h1>
-        <span className="project-count mono">{t(STRINGS.project.sheetCount, { sheetCount })}</span>
+        {state !== 'error' ? (
+          <span className="project-count mono">{sheetCountLabel(sheetCount)}</span>
+        ) : null}
 
         {/* §11.4's storage chip. Only meaningful for a real, open project (D51 runtime key). */}
         {projectId ? <StorageChip projectId={projectId} refreshKey={refreshKey} /> : null}
@@ -1534,6 +1544,15 @@ export default function ProjectScreen({
           {state === 'error' ? (
             <p className="project-error-line" role="alert">
               {STRINGS.project.loadError}
+              {onRetry ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary hit-slop project-error-retry"
+                  onClick={onRetry}
+                >
+                  {STRINGS.errors.retry}
+                </button>
+              ) : null}
             </p>
           ) : null}
 

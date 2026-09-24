@@ -77,7 +77,6 @@ import {
 import {
   acquireWriterLease,
   cleanStaleTmp,
-  clearOpenProject,
   isPhotoDamaged,
   openProjectChannel,
   readProjectFile,
@@ -1630,8 +1629,17 @@ export default function SheetEditor({
       unsubscribeBusy();
       setPersistenceBusy(false);
       setEditorSession(null);
-      // Land any coalesced markup write before the scene is torn down.
-      void persist.flush();
+      // D137: land any coalesced markup write BEFORE the lease and channel go. The flush's write
+      // resolves the project directory after an await, so nothing it needs may be released
+      // synchronously here. The lease and channel are captured now and released once it settles.
+      const closingLease = leaseRef.current;
+      const closingChannel = channelRef.current;
+      leaseRef.current = null;
+      channelRef.current = null;
+      void persist.flush().finally(() => {
+        closingChannel?.close();
+        closingLease?.release();
+      });
       scene.onChange = null;
       persistRef.current = null;
       sheetIdRef.current = null;
@@ -1654,10 +1662,6 @@ export default function SheetEditor({
       insetAssetsRef.current.dispose();
       schedulerRef.current?.cancel();
       schedulerRef.current = null;
-      channelRef.current?.close();
-      channelRef.current = null;
-      leaseRef.current?.release();
-      leaseRef.current = null;
       bitmapRef.current?.close();
       bitmapRef.current = null;
       projectDirRef.current = null;
@@ -1677,7 +1681,6 @@ export default function SheetEditor({
       tool.dispose();
       loupe.destroy();
       canvas.destroy();
-      clearOpenProject(projectId);
     };
   }, [projectId, folderName, retryToken, sheetId]);
 

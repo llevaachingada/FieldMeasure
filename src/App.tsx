@@ -27,7 +27,8 @@ import NewProjectDialog from '@/ui/NewProjectDialog';
 import { emitToast } from '@/editor/session';
 import ProjectScreen from '@/ui/ProjectScreen';
 import { listProjectSheets, type ProjectSheetCard } from '@/fs/projectSheets';
-import { createProject, readProjectFile, registerOpenProject, resolveOpenProjectDir, writeJsonAtomic } from '@/fs/projectStore';
+import { clearOpenProject, createProject, readProjectCover, readProjectFile, registerOpenProject, resolveOpenProjectDir, writeJsonAtomic } from '@/fs/projectStore';
+import { AppErrorBoundary } from '@/ui/ErrorBoundary';
 import { deleteSheet, listTrash, pruneTrash, restoreSheet, type TrashedSheet } from '@/fs/sheetTrash';
 /**
  * The grid's remaining card actions (D111): reorder / rename / duplicate / the
@@ -293,6 +294,9 @@ export default function App() {
    */
   useEffect(() => {
     if (route !== 'project' || !editorTarget) return;
+    // D137: the shell owns the open-project registry. Re-registering is idempotent and makes the
+    // grid's reads independent of whatever an unmounting editor did.
+    registerOpenProject(editorTarget.projectId, editorTarget.folderName);
     // §11.9: the 14-day prune runs on project open. Deliberately non-fatal — a failed prune
     // must never hide the sheets — and it is the ONLY thing that ever removes a trash entry.
     void pruneTrash(editorTarget.projectId).catch(() => undefined);
@@ -450,8 +454,15 @@ export default function App() {
           onResolveReplace={(choice) => {
             void handleResolveReplace(choice);
           }}
+          onRetry={() => {
+            // D142: the error state's recovery. Re-register (idempotent) and reload the grid.
+            registerOpenProject(editorTarget.projectId, editorTarget.folderName);
+            setProjectRefresh((n) => n + 1);
+          }}
           onBack={() => {
             setSelectedSheetIds([]);
+            // D137: leaving the project is the one place its registration ends.
+            clearOpenProject(editorTarget.projectId);
             setRoute('home');
           }}
         />
@@ -488,6 +499,7 @@ export default function App() {
     return (
       <>
         <ProjectList
+          loadCover={readProjectCover}
           onOpenSettings={() => setRoute('settings')}
           onOpenProject={(id, folderName) => {
             // D51: key on id + folderName. A scan entry with no valid id (unreadable
@@ -510,7 +522,18 @@ export default function App() {
 
   return (
     <>
-      {renderRoute()}
+      {/* D138: a render crash in one route shows a recoverable fallback instead of unmounting the
+          whole app to a blank page. `key={route}` gives every navigation a fresh boundary. */}
+      <AppErrorBoundary
+        variant="route"
+        key={route}
+        onReset={() => {
+          setCaptureOpen(false);
+          setRoute('home');
+        }}
+      >
+        {renderRoute()}
+      </AppErrorBoundary>
       {/* §11.2:720's replace picker. Mounted at the shell root with the other app-level
           overlays: the grid hands the id over and gets a warned dialog if the dimensions
           differ — the picker itself is not a grid control. */}
@@ -550,24 +573,26 @@ export default function App() {
           returns — §11.8 sends a grid-launched capture back to the grid, with the new sheet
           announced. */}
       {captureOpen && editorTarget ? (
-        <Suspense fallback={null}>
-          <CameraFlow
-            projectId={editorTarget.projectId}
-            folderName={editorTarget.folderName}
-            onCaptured={(sheet) => {
-              setCaptureOpen(false);
-              if (captureOrigin === 'editor') {
-                setEditorSheetId(sheet.id);
-              } else {
-                setProjectRefresh((n) => n + 1);
-                // The «↶ Undo» half of §11.8's toast is owed: deleting a sheet has no path
-                // yet (it is its own slice, with `.trash/`).
-                emitToast(t(STRINGS.toasts.addedSheet, { sheetName: sheet.title }));
-              }
-            }}
-            onCancel={() => setCaptureOpen(false)}
-          />
-        </Suspense>
+        <AppErrorBoundary variant="route" onReset={() => setCaptureOpen(false)}>
+          <Suspense fallback={null}>
+            <CameraFlow
+              projectId={editorTarget.projectId}
+              folderName={editorTarget.folderName}
+              onCaptured={(sheet) => {
+                setCaptureOpen(false);
+                if (captureOrigin === 'editor') {
+                  setEditorSheetId(sheet.id);
+                } else {
+                  setProjectRefresh((n) => n + 1);
+                  // The «↶ Undo» half of §11.8's toast is owed: deleting a sheet has no path
+                  // yet (it is its own slice, with `.trash/`).
+                  emitToast(t(STRINGS.toasts.addedSheet, { sheetName: sheet.title }));
+                }
+              }}
+              onCancel={() => setCaptureOpen(false)}
+            />
+          </Suspense>
+        </AppErrorBoundary>
       ) : null}
     </>
   );

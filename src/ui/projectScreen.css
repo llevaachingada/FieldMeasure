@@ -526,6 +526,9 @@
 }
 
 .project-error-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 0 0 16px;
   padding: 12px 16px;
   border: 2px solid var(--err);
@@ -533,6 +536,12 @@
   color: var(--err);
   font-size: 15px;
   font-weight: 600;
+}
+
+/* D142: the error state's recovery — absent when `onRetry` is not injected (D102 honesty). */
+.project-error-retry {
+  margin-left: 12px;
+  min-height: 48px;
 }
 
 /* ---- selection bar (replaces the grid's bottom area, UI §11.2) ---------- */

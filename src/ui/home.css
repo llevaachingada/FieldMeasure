@@ -1,0 +1,29 @@
+/**
+ * `src/ui/home.css` — D141 (L5) Home card polish: the cover thumbnail and its honest
+ * placeholder icon. Staged alongside `ProjectList.tsx` rather than `styles.css`
+ * (contended): `.project-card-thumb`'s base rules stay in `styles.css`, this file only
+ * adds what the cover image and the fallback icon need.
+ */
+
+/* The thumb becomes the cover's frame: centred, so the fallback icon sits in the middle
+   of the 240 px well instead of the top-left (the `display: block` in `styles.css` never
+   centred anything). */
+.project-card-thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.project-card-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* The honest placeholder when a card has no cover yet (no `loadCover`, or a project with
+   no live sheet's `thumb.jpg`) — low-contrast, same muted tone as the meta text. */
+.project-card-cover-icon {
+  color: var(--g400);
+}

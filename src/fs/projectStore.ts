@@ -809,6 +809,25 @@ function cardPath(folderName: string): string {
   return `…\\${folderName}`;
 }
 
+/** D140: a root subfolder is a project candidate only if it has `project.json` or its
+ *  `.history/_project/` recovery folder. Anything else (Documents' "My Music", "Zoom", …) is not
+ *  ours and is not shown. A folder with a CORRUPT project.json is still a candidate. */
+async function isProjectCandidate(dir: FileSystemDirectoryHandle): Promise<boolean> {
+  try {
+    await dir.getFileHandle('project.json', { create: false });
+    return true;
+  } catch {
+    // fall through
+  }
+  try {
+    const history = await dir.getDirectoryHandle('.history', { create: false });
+    await history.getDirectoryHandle('_project', { create: false });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function scanOne(
   folderName: string,
   dir: FileSystemDirectoryHandle,
@@ -865,23 +884,64 @@ async function scanOne(
   }
 }
 
+/** Parallel folder reads during the Home scan: enough to hide per-folder latency on a large root,
+ *  small enough not to flood the File System Access backend (8). */
+export const SCAN_CONCURRENCY = 8;
+
 /**
  * §5.6: scan the ROOT folder, read every subfolder's `project.json`, and key projects by
  * the file's `id` — never by folder name (an Explorer rename is cosmetic). §5.8c: a group
  * of folders sharing one id is reported as-is (every folder its own card); nothing is ever
  * merged, and nothing is ever written into a folder the user did not open.
+ *
+ * D140: a root subfolder that is neither a project (`project.json`) nor recoverable
+ * (`.history/_project/`) is hidden entirely, as is any dot-folder. Candidates are scanned with
+ * bounded concurrency (`SCAN_CONCURRENCY`) instead of one at a time.
  */
 export async function scanProjects(): Promise<ScannedProject[]> {
   const root = await getRootDir();
   if (!root) return [];
-  const projects: ScannedProject[] = [];
+  const entries: Array<[string, FileSystemDirectoryHandle]> = [];
   for await (const [folderName, handle] of entriesOf(root)) {
     if (handle.kind !== 'directory') continue;
-    projects.push(await scanOne(folderName, handle as FileSystemDirectoryHandle));
+    if (folderName.startsWith('.')) continue;
+    entries.push([folderName, handle as FileSystemDirectoryHandle]);
+  }
+  const projects: ScannedProject[] = [];
+  for (let i = 0; i < entries.length; i += SCAN_CONCURRENCY) {
+    const chunk = entries.slice(i, i + SCAN_CONCURRENCY);
+    const results = await Promise.all(
+      chunk.map(async ([folderName, dir]) => {
+        if (!(await isProjectCandidate(dir))) return null;
+        return scanOne(folderName, dir);
+      }),
+    );
+    for (const result of results) if (result) projects.push(result);
   }
   annotateDuplicates(projects);
   projects.sort((a, b) => b.updatedAtMs - a.updatedAtMs || a.folderName.localeCompare(b.folderName));
   return projects;
+}
+
+/** D141: the Home card's cover, the `thumb.jpg` of the project's first live sheet by `sortIndex`.
+ *  Read-only, resolves by FOLDER NAME from the root (Home has no open project), and is `null` on
+ *  any failure: a missing cover is never an error. */
+export async function readProjectCover(folderName: string): Promise<Blob | null> {
+  try {
+    const root = await getRootDir();
+    if (!root) return null;
+    const dir = await root.getDirectoryHandle(folderName, { create: false });
+    const file = await readProjectFile(dir);
+    const first = [...file.sheets]
+      .filter((s) => !s.deletedAt)
+      .sort((a, b) => a.sortIndex - b.sortIndex)[0];
+    if (!first) return null;
+    const sheetDir = await resolveSheetDir(dir, first.id);
+    const handle = await sheetDir.getFileHandle('thumb.jpg', { create: false });
+    return await handle.getFile();
+  } catch {
+    return null;
+  }
 }
 
 /**

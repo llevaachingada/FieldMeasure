@@ -16,8 +16,14 @@
 import { useState } from 'react';
 import { STRINGS } from './strings';
 import { DEFAULT_HANDEDNESS, setHandedness, type Handedness } from '@/settings/handedness';
-import { SUGGESTED_PROJECTS_PATH, pickProjectsFolder } from '@/settings/projectsRoot';
+import {
+  SUGGESTED_PROJECTS_PATH,
+  PROJECTS_CHILD_FOLDER,
+  pickProjectsFolder,
+  supportsFolderPicker,
+} from '@/settings/projectsRoot';
 import { adoptProjectsRoot } from '@/fs/projectStore';
+import './firstRunNotice.css';
 
 export interface FirstRunProps {
   /** Called once step 2 has persisted a projects folder. */
@@ -29,6 +35,10 @@ export default function FirstRun({ onDone }: FirstRunProps) {
   const [hand, setHand] = useState<Handedness>(DEFAULT_HANDEDNESS);
   const [folderName, setFolderName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pickError, setPickError] = useState(false);
+
+  // Computed once per render; cheap, and File System Access support does not change mid-session.
+  const supported = supportsFolderPicker();
 
   async function chooseHand(next: Handedness): Promise<void> {
     setHand(next);
@@ -40,10 +50,13 @@ export default function FirstRun({ onDone }: FirstRunProps) {
     setStep(2);
   }
 
-  async function chooseFolder(): Promise<void> {
+  async function chooseFolder(useSuggested: boolean): Promise<void> {
     setBusy(true);
+    setPickError(false);
     try {
-      const handle = await pickProjectsFolder();
+      const handle = await pickProjectsFolder(
+        useSuggested ? { ensureChild: PROJECTS_CHILD_FOLDER } : undefined,
+      );
       if (handle) {
         setFolderName(handle.name);
         // Put the store on the new handle now (and ask for persistent storage) so Home reads
@@ -55,14 +68,33 @@ export default function FirstRun({ onDone }: FirstRunProps) {
         }
         onDone();
       }
+      // A cancel resolves with `null` and is not an error (F4c).
     } catch {
-      // Picker failure/cancel leaves the user on step 2 to retry.
+      // D139/F4c: a real picker failure is surfaced instead of swallowed.
+      setPickError(true);
     } finally {
       setBusy(false);
     }
   }
 
   const displayPath = `\u2026\\${folderName ?? SUGGESTED_PROJECTS_PATH}`;
+
+  if (!supported) {
+    return (
+      <main className="first-run">
+        <section
+          className="first-run-step first-run-unsupported"
+          role="alert"
+          aria-labelledby="first-run-title"
+        >
+          <h1 id="first-run-title" className="screen-title">
+            {STRINGS.firstRun.unsupportedTitle}
+          </h1>
+          <p className="first-run-notice-body">{STRINGS.firstRun.unsupportedBody}</p>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="first-run">
@@ -109,12 +141,17 @@ export default function FirstRun({ onDone }: FirstRunProps) {
             {STRINGS.firstRun.projectsFolderQuestion}
           </h1>
           <p className="path-readout mono">{displayPath}</p>
+          {pickError ? (
+            <p className="first-run-error" role="alert">
+              {STRINGS.firstRun.pickFailed}
+            </p>
+          ) : null}
           <div className="first-run-actions">
             <button
               type="button"
               className="btn btn-primary hit-slop"
               aria-label={STRINGS.firstRun.useDocumentsFolder}
-              onClick={() => void chooseFolder()}
+              onClick={() => void chooseFolder(true)}
               disabled={busy}
             >
               {STRINGS.firstRun.useDocumentsFolder}
@@ -123,7 +160,7 @@ export default function FirstRun({ onDone }: FirstRunProps) {
               type="button"
               className="btn btn-secondary hit-slop"
               aria-label={STRINGS.firstRun.chooseFolder}
-              onClick={() => void chooseFolder()}
+              onClick={() => void chooseFolder(false)}
               disabled={busy}
             >
               {STRINGS.firstRun.chooseFolder}

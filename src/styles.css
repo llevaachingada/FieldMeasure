@@ -105,8 +105,13 @@ pre,
   outline-offset: 2px;
 }
 
-/* Hit slop: visual target may be exceeded by up to 16px (UI §14.5; touch §7.2). */
-.hit-slop {
+/* Hit slop: visual target may be exceeded by up to 16px (UI §14.5; touch §7.2).
+   D142 (session 27): `:where()` gives this ZERO specificity. `styles.css` loads after the
+   component sheets, so a plain `.hit-slop { position: relative }` silently beat every component's
+   own `position: absolute` of equal specificity: the sheet card's select toggle and ⋯ menu fell
+   into normal flow over the card's meta line, and the camera's AE/AF lock chip lost its anchor.
+   A control that sets no position still gets `relative` for its `::after` hit area. */
+:where(.hit-slop) {
   position: relative;
 }
 .hit-slop::after {

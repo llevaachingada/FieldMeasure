@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ProjectList from '../src/ui/ProjectList';
+import ProjectList, { cardTimeLabel } from '../src/ui/ProjectList';
 import { STRINGS } from '../src/ui/strings';
 import type { ScannedProject } from '../src/fs/projectStore';
 
@@ -79,13 +79,9 @@ describe('Home states (§11.1)', () => {
 
     expect(await screen.findByText(STRINGS.home.emptyHeadline)).toBeTruthy();
     expect(screen.getByRole('button', { name: STRINGS.home.createProject })).toBeTruthy();
-    // Beta: adoption is unbuilt, so the empty-state variant is visible but honestly disabled —
-    // the first screen a tester sees must never carry a dead affordance.
-    const openFolder = screen.getByRole('button', {
-      name: STRINGS.home.openExistingFolderEmpty,
-    }) as HTMLButtonElement;
-    expect(openFolder.disabled).toBe(true);
-    expect(openFolder.getAttribute('aria-disabled')).toBe('true');
+    // D141: adoption is unbuilt, so the empty-state's secondary button is hidden rather than
+    // shown disabled — a permanently disabled control on the first screen read as broken.
+    expect(screen.queryByRole('button', { name: STRINGS.home.openExistingFolderEmpty })).toBeNull();
   });
 
   it('still accepts the slice-0.3 projects/state overrides', () => {
@@ -98,7 +94,9 @@ describe('project cards (§5.6 identity, §5.8c duplicates)', () => {
   it('renders one card per folder and keys them by id + folderName', async () => {
     render(<ProjectList scan={async () => [newest, olderCopy, solo]} />);
 
-    await waitFor(() => expect(document.querySelectorAll('.project-card')).toHaveLength(4)); // 3 + secondary
+    // D141: the disabled secondary «Open existing folder…» card is gone (adoption is unbuilt),
+    // so the count is exactly the scanned folders — no "+ secondary" any more.
+    await waitFor(() => expect(document.querySelectorAll('.project-card')).toHaveLength(3));
     const keys = [...document.querySelectorAll('[data-project-key]')].map((el) =>
       el.getAttribute('data-project-key'),
     );
@@ -170,25 +168,13 @@ describe('project cards (§5.6 identity, §5.8c duplicates)', () => {
     expect(screen.queryByRole('button', { name: /Make this a separate project/ })).toBeNull();
   });
 
-  it('renders the «Open existing folder…» card disabled and inert (beta: adoption unbuilt)', async () => {
-    // D88/§2.4: adopting an existing folder is NOT built; `App.onOpenFolder` is a
-    // no-op. The card must read as honestly unavailable, not as a live affordance.
-    const user = userEvent.setup();
-    const onOpenFolder = vi.fn();
-    render(<ProjectList scan={async () => [solo]} onOpenFolder={onOpenFolder} />);
+  it('does not render the unbuilt «Open existing folder…» card (D141)', async () => {
+    // D141: adopting an existing folder is NOT built; the disabled secondary card read as
+    // broken on first use (review F5), so it is hidden instead of shown disabled.
+    render(<ProjectList scan={async () => [solo]} onOpenFolder={vi.fn()} />);
 
-    const card = (await screen.findByRole('button', {
-      name: STRINGS.home.openExistingFolder,
-    })) as HTMLButtonElement;
-
-    expect(card.disabled).toBe(true);
-    expect(card.getAttribute('aria-disabled')).toBe('true');
-    // Still visible (not hidden) and still carries its approved copy.
-    expect(card.textContent).toBe(STRINGS.home.openExistingFolder);
-
-    // Not actionable: even asking userEvent for a real click fires nothing.
-    await user.click(card);
-    expect(onOpenFolder).not.toHaveBeenCalled();
+    await screen.findByText('Elm Street Footings');
+    expect(screen.queryByRole('button', { name: STRINGS.home.openExistingFolder })).toBeNull();
   });
 
   it('shows the missing-folder affordance for an unreadable folder', async () => {
@@ -226,6 +212,84 @@ describe('project cards (§5.6 identity, §5.8c duplicates)', () => {
         button.textContent?.trim() ||
         '';
       expect(named, `unnamed control: ${button.outerHTML}`).not.toBe('');
+    }
+  });
+});
+
+describe('card meta and cover (D141)', () => {
+  it('shows "1 sheet" for a single sheet and "3 sheets" for three', async () => {
+    const one: ScannedProject = {
+      ...solo,
+      key: 'one',
+      id: 'one',
+      folderName: 'One',
+      title: 'One Sheet',
+      sheetCount: 1,
+    };
+    const three: ScannedProject = {
+      ...solo,
+      key: 'three',
+      id: 'three',
+      folderName: 'Three',
+      title: 'Three Sheets',
+      sheetCount: 3,
+    };
+    render(<ProjectList scan={async () => [one, three]} />);
+
+    await screen.findByText('One Sheet');
+    expect(
+      document.querySelector('[data-project-key="one"] .project-card-meta')?.textContent,
+    ).toContain('1 sheet');
+    expect(
+      document.querySelector('[data-project-key="one"] .project-card-meta')?.textContent,
+    ).not.toContain('1 sheets');
+    expect(
+      document.querySelector('[data-project-key="three"] .project-card-meta')?.textContent,
+    ).toContain('3 sheets');
+  });
+
+  describe('cardTimeLabel', () => {
+    it('the same day renders the clock label', () => {
+      const now = new Date(2026, 8, 24, 14, 5);
+      const sameDay = new Date(2026, 8, 24, 9, 0).getTime();
+      expect(cardTimeLabel(sameDay, now)).toBe('9:00 AM');
+    });
+
+    it('another day renders a short date', () => {
+      const now = new Date(2026, 8, 24, 14, 5);
+      const earlier = new Date(2026, 8, 20, 9, 0).getTime();
+      expect(cardTimeLabel(earlier, now)).toBe('Sep 20');
+    });
+
+    it('0 renders an empty string', () => {
+      expect(cardTimeLabel(0)).toBe('');
+    });
+  });
+
+  it('a loadCover resolving a Blob renders the cover image, and unmount revokes its URL', async () => {
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const createObjectURL = vi.fn(() => 'blob:cover-1');
+    const revokeObjectURL = vi.fn();
+    URL.createObjectURL = createObjectURL as unknown as typeof URL.createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL as unknown as typeof URL.revokeObjectURL;
+    try {
+      const loadCover = vi.fn(async () => new Blob(['x']));
+      const { unmount } = render(<ProjectList scan={async () => [solo]} loadCover={loadCover} />);
+
+      const img = await waitFor(() => {
+        const found = document.querySelector('.project-card-cover');
+        if (!found) throw new Error('cover image not rendered');
+        return found as HTMLImageElement;
+      });
+      expect(img.getAttribute('src')).toBe('blob:cover-1');
+      expect(loadCover).toHaveBeenCalledWith('Elm Street');
+
+      unmount();
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:cover-1');
+    } finally {
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
     }
   });
 });

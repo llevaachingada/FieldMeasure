@@ -24,6 +24,7 @@ import {
   isPhotoDamaged,
   makeProjectSeparate,
   readJsonValidated,
+  readProjectCover,
   readProjectFile,
   readSheetMarkup,
   registerOpenProject,
@@ -498,7 +499,10 @@ describe('scanProjects — §5.6 identity + §5.8c duplicate ids', () => {
     expect(byFolder['Riverside'].key).not.toBe(byFolder['Riverside - Copy'].key);
   });
 
-  it('reports an unreadable folder as a card instead of hiding it', async () => {
+  it('reports a corrupt project as a card and hides non-project folders (D140)', async () => {
+    // D140 supersedes the NotAProject half: a folder with neither `project.json` nor
+    // `.history/_project/` cannot be opened by the app today either, so it is hidden rather
+    // than shown as an unreadable card.
     const root = new FakeDir('root');
     root.putFile('Broken/project.json', '{not json');
     root.mkdir('NotAProject');
@@ -506,14 +510,137 @@ describe('scanProjects — §5.6 identity + §5.8c duplicate ids', () => {
 
     const cards = await scanProjects();
 
-    expect(cards.map((c) => c.folderName).sort()).toEqual(['Broken', 'NotAProject']);
+    expect(cards.map((c) => c.folderName)).toEqual(['Broken']);
     expect(cards.every((c) => c.status === 'unreadable')).toBe(true);
+  });
+
+  it('a folder with only .history/_project/ (no project.json) is still listed (D140)', async () => {
+    const root = new FakeDir('root');
+    root.putFile(
+      'Recovered/.history/_project/100-project.json',
+      JSON.stringify(validProjectFile({ id: 'recovered-id' })),
+    );
+    await installRoot(root);
+
+    const cards = await scanProjects();
+
+    expect(cards.map((c) => c.folderName)).toEqual(['Recovered']);
+    expect(cards[0].status).toBe('ok');
+    expect(cards[0].id).toBe('recovered-id');
+  });
+
+  it('dot-folders are never scanned or shown (D140)', async () => {
+    const root = new FakeDir('root');
+    root.putFile('Riverside/project.json', JSON.stringify(validProjectFile({ id: 'p1' })));
+    root.mkdir('.trash');
+    root.mkdir('.fieldmeasure-tmp');
+    await installRoot(root);
+
+    const cards = await scanProjects();
+
+    expect(cards.map((c) => c.folderName)).toEqual(['Riverside']);
+  });
+
+  it('scans 20 project folders with bounded concurrency and returns them all, sorted', async () => {
+    const root = new FakeDir('root');
+    const names: string[] = [];
+    const base = 1_700_000_000_000; // well before the sheet's own (older) updatedAt is irrelevant: the file mtime dominates
+    for (let i = 0; i < 20; i += 1) {
+      const name = `Project ${String(i).padStart(2, '0')}`;
+      names.push(name);
+      root.putFile(
+        `${name}/project.json`,
+        JSON.stringify(validProjectFile({ id: `id-${i}`, updatedAt: '2000-01-01T00:00:00.000Z' })),
+        base + i * 1000, // increasing file mtime: index 19 is newest
+      );
+    }
+    await installRoot(root);
+
+    const cards = await scanProjects();
+
+    expect(cards).toHaveLength(20);
+    expect(cards.map((c) => c.folderName).sort()).toEqual(names.sort());
+    // Sorted newest-first by `updatedAtMs` (the fixtures' file mtime increases with i).
+    expect(cards[0].folderName).toBe('Project 19');
+    expect(cards[cards.length - 1].folderName).toBe('Project 00');
   });
 
   it('returns [] when no root folder has been chosen', async () => {
     restoreNavigator = installFakeNavigator({ storage: {} });
     await initStore();
     await expect(scanProjects()).resolves.toEqual([]);
+  });
+});
+
+describe('readProjectCover — D141 (Home card thumbnail)', () => {
+  function projectFileWithSheets(
+    sheets: Array<{ id: string; sortIndex: number; deletedAt?: string }>,
+  ): object {
+    return {
+      schemaVersion: 1,
+      project: {
+        id: 'p1',
+        title: 'Riverside',
+        unitSystem: 'imperial',
+        unitFormat: 'ft-in',
+        precisionDenominator: 16,
+      },
+      sheets: sheets.map((s) => ({
+        id: s.id,
+        title: s.id,
+        sortIndex: s.sortIndex,
+        imageWidth: 4096,
+        imageHeight: 3072,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        ...(s.deletedAt ? { deletedAt: s.deletedAt } : {}),
+      })),
+    };
+  }
+
+  it("returns the first-by-sortIndex LIVE sheet's thumb bytes, skipping a deleted lower-sortIndex sheet", async () => {
+    const root = new FakeDir('root');
+    root.putFile(
+      'Riverside/project.json',
+      JSON.stringify(
+        projectFileWithSheets([
+          { id: 'deleted-sheet', sortIndex: 5, deletedAt: '2026-01-02T00:00:00.000Z' },
+          { id: 'sheet-b', sortIndex: 10 },
+          { id: 'sheet-a', sortIndex: 20 },
+        ]),
+      ),
+    );
+    root.putFile('Riverside/sheets/sheet-b/thumb.jpg', 'THUMB-B');
+    root.putFile('Riverside/sheets/sheet-a/thumb.jpg', 'THUMB-A');
+    await installRoot(root);
+
+    const blob = await readProjectCover('Riverside');
+
+    expect(blob).not.toBeNull();
+    expect(await blob!.text()).toBe('THUMB-B');
+  });
+
+  it('returns null when the project has no sheets', async () => {
+    const root = new FakeDir('root');
+    root.putFile('Empty/project.json', JSON.stringify(projectFileWithSheets([])));
+    await installRoot(root);
+
+    expect(await readProjectCover('Empty')).toBeNull();
+  });
+
+  it('returns null when the first sheet has no thumb.jpg', async () => {
+    const root = new FakeDir('root');
+    root.putFile('NoThumb/project.json', JSON.stringify(projectFileWithSheets([{ id: 'sheet-1', sortIndex: 10 }])));
+    await installRoot(root);
+
+    expect(await readProjectCover('NoThumb')).toBeNull();
+  });
+
+  it('returns null when the folder does not exist', async () => {
+    const root = new FakeDir('root');
+    await installRoot(root);
+
+    expect(await readProjectCover('DoesNotExist')).toBeNull();
   });
 });
 

@@ -19,6 +19,7 @@
  * component can be tested in jsdom without the File System Access API.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { Image } from 'lucide-react';
 import type { ProjectSummary } from '@/state/appStore';
 import { useAppStore } from '@/state/appStore';
 import {
@@ -29,7 +30,9 @@ import {
   scanProjects,
   type ScannedProject,
 } from '@/fs/projectStore';
-import { STRINGS, t } from './strings';
+import { clockLabel } from '@/fs/projectSheets';
+import { STRINGS, sheetCountLabel, t } from './strings';
+import './home.css';
 
 /** The projects-root grant, as Home needs it (see `ProjectListProps.access`). */
 export interface RootAccess {
@@ -63,6 +66,9 @@ export interface ProjectListProps {
   /** `folderName` identifies WHICH folder on disk (duplicate ids share an id). */
   onOpenProject?: (id: string, folderName?: string) => void;
   onOpenSettings?: () => void;
+  /** D141: loads a card's cover image. The shell wires `projectStore.readProjectCover`;
+   *  absent → no image. */
+  loadCover?: (folderName: string) => Promise<Blob | null>;
 }
 
 /** Placeholder data for the card-layout states. */
@@ -107,6 +113,8 @@ interface CardModel {
   status: ProjectSummary['status'];
   /** A duplicate-id folder that is not the most recently modified one. */
   isCopy: boolean;
+  /** D141: the card's meta line's «time» half — 0 for a non-scanned (summary) card. */
+  updatedAtMs: number;
   entry?: ScannedProject;
 }
 
@@ -120,6 +128,7 @@ function fromSummary(project: ProjectSummary): CardModel {
     path: project.path,
     status: project.status,
     isCopy: false,
+    updatedAtMs: 0,
   };
 }
 
@@ -133,8 +142,81 @@ function fromScan(entry: ScannedProject): CardModel {
     path: entry.path,
     status: entry.status === 'ok' ? 'ok' : 'missing',
     isCopy: entry.isDuplicate && !entry.isMostRecent,
+    updatedAtMs: entry.updatedAtMs,
     entry,
   };
+}
+
+/** D141: today → the clock (`2:14 PM`, the grid's `clockLabel`); otherwise a short date
+ *  (`Sep 24`); 0 → ''. */
+export function cardTimeLabel(ms: number, now: Date = new Date()): string {
+  if (!ms) return '';
+  const at = new Date(ms);
+  const sameDay =
+    at.getFullYear() === now.getFullYear() &&
+    at.getMonth() === now.getMonth() &&
+    at.getDate() === now.getDate();
+  if (sameDay) return clockLabel(at.toISOString());
+  return at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/** D141: «{sheetCount} · {time}», or just the sheet count when there is no time to show
+ *  (a non-scanned summary card, `updatedAtMs === 0`) — never a trailing « · ». */
+function cardMetaLabel(card: CardModel): string {
+  const time = cardTimeLabel(card.updatedAtMs);
+  const sheets = sheetCountLabel(card.sheetCount);
+  return time === '' ? sheets : t(STRINGS.home.projectCardMetaShort, { sheetCount: sheets, time });
+}
+
+interface ProjectCoverProps {
+  folderName: string;
+  /** D141: loads a card's cover image. The shell wires `projectStore.readProjectCover`;
+   *  absent → no image. */
+  loadCover?: (folderName: string) => Promise<Blob | null>;
+}
+
+/** The card's cover — the project's first live sheet's `thumb.jpg`, or the honest
+ *  placeholder icon when there is none (no `loadCover`, or it resolves `null`). */
+function ProjectCover({ folderName, loadCover }: ProjectCoverProps) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loadCover) {
+      setUrl(null);
+      return;
+    }
+    let alive = true;
+    let created = '';
+    void loadCover(folderName).then((blob) => {
+      if (!alive || !blob) return;
+      try {
+        // jsdom has no `createObjectURL`; there the card simply shows the placeholder.
+        created = URL.createObjectURL(blob);
+      } catch {
+        created = '';
+      }
+      if (created) setUrl(created);
+    });
+    return () => {
+      alive = false;
+      if (!created) return;
+      try {
+        URL.revokeObjectURL(created);
+      } catch {
+        // Revoking is best-effort; a leaked URL is not worth a crash.
+      }
+    };
+  }, [folderName, loadCover]);
+
+  return (
+    <span className="project-card-thumb" aria-hidden="true">
+      {url ? (
+        <img className="project-card-cover" src={url} alt="" />
+      ) : (
+        <Image className="project-card-cover-icon" size={32} aria-hidden="true" />
+      )}
+    </span>
+  );
 }
 
 export default function ProjectList({
@@ -147,6 +229,7 @@ export default function ProjectList({
   onOpenFolder,
   onOpenProject,
   onOpenSettings,
+  loadCover,
 }: ProjectListProps) {
   const storeProjects = useAppStore((s) => s.projects);
   const [scanned, setScanned] = useState<ScannedProject[] | null>(null);
@@ -306,19 +389,9 @@ export default function ProjectList({
               <button type="button" className="btn btn-primary hit-slop" onClick={onNewProject}>
                 {STRINGS.home.createProject}
               </button>
-              {/* Beta: folder adoption is not built (`App.onOpenFolder` is a no-op), so this
-                  control is honestly disabled rather than a dead affordance — the same treatment
-                  as the secondary card below. The copy and the prop are kept for the slice that
-                  builds adoption; see the watch items in CONTINUITY. */}
-              <button
-                type="button"
-                className="btn btn-secondary hit-slop"
-                disabled
-                aria-disabled="true"
-                onClick={onOpenFolder}
-              >
-                {STRINGS.home.openExistingFolderEmpty}
-              </button>
+              {/* D141: adoption is unbuilt, so its controls are hidden rather than shown
+                  disabled — a permanently disabled control on the first screen a tester sees
+                  read as broken (review F5). */}
             </div>
           </section>
         ) : (
@@ -333,15 +406,9 @@ export default function ProjectList({
                     aria-label={card.title}
                     onClick={() => onOpenProject?.(card.id, card.folderName || undefined)}
                   >
-                    <span className="project-card-thumb" aria-hidden="true" />
+                    <ProjectCover folderName={card.folderName} loadCover={loadCover} />
                     <span className="project-card-title">{card.title}</span>
-                    <span className="project-card-meta mono">
-                      {t(STRINGS.home.projectCardMeta, {
-                        sheetCount: card.sheetCount,
-                        size: '—',
-                        time: '—',
-                      })}
-                    </span>
+                    <span className="project-card-meta mono">{cardMetaLabel(card)}</span>
                     <span className="project-card-path mono">
                       {t(STRINGS.home.projectCardPath, { path: card.path })}
                     </span>
@@ -363,8 +430,9 @@ export default function ProjectList({
                   {card.status !== 'ok' ? (
                     <p className="project-card-status">
                       {STRINGS.home.folderNotFound}{' '}
-                      {/* Same honesty rule as the secondary card: locating a moved folder is
-                          the unbuilt adoption path, so the link is disabled, not dead. */}
+                      {/* D141: locating a moved folder is the unbuilt adoption path, so the
+                          link is disabled, not dead — a moved folder is recovered in Explorer
+                          until adoption ships. */}
                       <button
                         type="button"
                         className="link-button hit-slop"
@@ -378,20 +446,8 @@ export default function ProjectList({
                   ) : null}
                 </article>
               ))}
-              {/* Beta: folder adoption is not built — `App` stubs `onOpenFolder` as a
-                  no-op. The card stays visible and keeps its copy, but is honestly
-                  disabled (`disabled` + `aria-disabled`, keyboard-skipped) so it never
-                  reads as a live affordance. `btn` reuses the `.btn:disabled` visual
-                  language (opacity + `not-allowed`); the dashed card look is unchanged. */}
-              <button
-                type="button"
-                className="btn project-card project-card-secondary hit-slop"
-                disabled
-                aria-disabled="true"
-                onClick={onOpenFolder}
-              >
-                {STRINGS.home.openExistingFolder}
-              </button>
+              {/* D141: adoption is unbuilt, so its controls are hidden rather than shown
+                  disabled — the same honesty call as the empty state's button above. */}
             </div>
           </section>
         )}

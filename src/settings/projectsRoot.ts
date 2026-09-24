@@ -17,6 +17,15 @@ export const PROJECTS_ROOT_KEY = 'fm:projects-root';
 /** Suggested default shown in first-run step 2 (UI §4.4). This is a PATH, not copy. */
 export const SUGGESTED_PROJECTS_PATH = 'Documents\\FieldMeasure';
 
+/** D139: the child folder «Use Documents\FieldMeasure» creates/reuses. Matches
+ *  `SUGGESTED_PROJECTS_PATH`'s leaf. */
+export const PROJECTS_CHILD_FOLDER = 'FieldMeasure';
+
+/** True when this browser can pick a folder (File System Access, Chromium-only). */
+export function supportsFolderPicker(): boolean {
+  return typeof globalThis.showDirectoryPicker === 'function';
+}
+
 export interface DirectoryPickerOptions {
   id?: string;
   mode?: 'read' | 'readwrite';
@@ -50,7 +59,9 @@ export async function setProjectsRoot(handle: FileSystemDirectoryHandle): Promis
  * Returns `null` when the user cancels or the browser has no File System Access
  * API (both are non-fatal — the screen stays on step 2).
  */
-export async function pickProjectsFolder(): Promise<FileSystemDirectoryHandle | null> {
+export async function pickProjectsFolder(
+  options?: { ensureChild?: string },
+): Promise<FileSystemDirectoryHandle | null> {
   const picker = globalThis.showDirectoryPicker;
   if (typeof picker !== 'function') return null;
   try {
@@ -59,8 +70,15 @@ export async function pickProjectsFolder(): Promise<FileSystemDirectoryHandle | 
       mode: 'readwrite',
       startIn: 'documents',
     });
-    await setProjectsRoot(handle);
-    return handle;
+    let root = handle;
+    // D139: «Use Documents\FieldMeasure» must really use a FieldMeasure folder. When the user picks
+    // its parent (the picker opens in Documents, so «Select Folder» picks Documents itself), create
+    // or reuse the named child instead of scanning every folder in Documents as a project.
+    if (options?.ensureChild && handle.name.toLowerCase() !== options.ensureChild.toLowerCase()) {
+      root = await handle.getDirectoryHandle(options.ensureChild, { create: true });
+    }
+    await setProjectsRoot(root);
+    return root;
   } catch (err) {
     if ((err as { name?: string } | undefined)?.name === 'AbortError') return null;
     throw err;

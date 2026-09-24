@@ -31,6 +31,13 @@ vi.mock('idb-keyval', () => ({
 beforeEach(() => {
   idbStore.clear();
   vi.unstubAllGlobals();
+  // D139: FirstRun shows an unsupported-browser notice when the File System Access picker is
+  // missing, and jsdom has none. The real target (Edge/Chromium) always does, so every case gets a
+  // cancelling picker by default; a case that needs a pick or the unsupported path overrides it.
+  // Scoped to this file, not tests/setup.ts: the storage layer picks its backend on the same probe.
+  vi.stubGlobal('showDirectoryPicker', vi.fn(async () => {
+    throw new DOMException('The user aborted a request.', 'AbortError');
+  }));
 });
 
 afterEach(() => {
@@ -121,5 +128,64 @@ describe('FirstRun', () => {
     });
     await waitFor(() => expect(idbStore.get('fm:projects-root')).toBe(handle));
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+  });
+
+  // D139 (L3): added cases only — the suite above is unchanged.
+
+  it('shows the unsupported-browser notice and no step buttons when showDirectoryPicker is undefined', () => {
+    // The file-level default picker (beforeEach) is removed here: this case IS the unsupported path.
+    vi.stubGlobal('showDirectoryPicker', undefined);
+    render(<FirstRun onDone={() => {}} />);
+
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(
+      screen.getByRole('heading', { name: "This browser can't save to folders" }),
+    ).toBeTruthy();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+  });
+
+  it('shows pickFailed and stays on step 2 when the picker rejects with a real error', async () => {
+    const picker = vi.fn(async () => {
+      throw new Error('disk error');
+    });
+    vi.stubGlobal('showDirectoryPicker', picker);
+    const onDone = vi.fn();
+
+    const user = userEvent.setup();
+    render(<FirstRun onDone={onDone} />);
+
+    await user.click(screen.getByRole('radio', { name: STRINGS.firstRun.handednessRight }));
+    const choose = await screen.findByRole('button', { name: STRINGS.firstRun.chooseFolder });
+    await user.click(choose);
+
+    expect(
+      await screen.findByText("Couldn't use that folder. Choose a different one."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('heading', { name: STRINGS.firstRun.projectsFolderQuestion }),
+    ).toBeTruthy();
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it('does not show pickFailed when the picker is cancelled (AbortError)', async () => {
+    const picker = vi.fn(async () => {
+      throw Object.assign(new Error('cancelled'), { name: 'AbortError' });
+    });
+    vi.stubGlobal('showDirectoryPicker', picker);
+    const onDone = vi.fn();
+
+    const user = userEvent.setup();
+    render(<FirstRun onDone={onDone} />);
+
+    await user.click(screen.getByRole('radio', { name: STRINGS.firstRun.handednessRight }));
+    const choose = await screen.findByRole('button', { name: STRINGS.firstRun.chooseFolder });
+    await user.click(choose);
+
+    await waitFor(() => expect(picker).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText("Couldn't use that folder. Choose a different one."),
+    ).toBeNull();
+    expect(onDone).not.toHaveBeenCalled();
   });
 });

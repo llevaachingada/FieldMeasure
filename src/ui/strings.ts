@@ -25,6 +25,12 @@ export const STRINGS = {
     handednessRight: 'Right',
     // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §21)
     handednessLeft: 'Left',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix): D139, the
+    // unsupported-browser notice and the visible picker-failure line (session 27, review F4).
+    unsupportedTitle: "This browser can't save to folders",
+    unsupportedBody: 'Open Field Measure in Microsoft Edge or Google Chrome on this PC to save projects to a folder.',
+    pickFailed: "Couldn't use that folder. Choose a different one.",
   },
 
   home: {
@@ -54,6 +60,10 @@ export const STRINGS = {
     projectNameLabel: 'Project name',
     projectNamePlaceholder: 'e.g. Smith kitchen remodel',
     createProjectConfirm: 'Create project',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix): D141, the card
+    // meta without the unmeasured size segment (review F5).
+    projectCardMetaShort: '{sheetCount} · {time}',
   },
 
   settings: {
@@ -327,6 +337,10 @@ export const STRINGS = {
     replacePhotoWarn: "The new photo is a different size. Markup saved in the old photo's coordinates may land in the wrong place.",
     replacePhotoKeep: 'Keep markup',
     replacePhotoRemove: 'Remove markup',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix): D142, the
+    // singular of `sheetCount` («1 sheets» was the review F5 finding).
+    sheetCountOne: '1 sheet',
   },
 
   // APPROVED inventory (appendix-strings.md `## capture`)
@@ -465,6 +479,10 @@ export const STRINGS = {
     undo: 'Undo',
     done: 'Done',
     highlighterBandMessage: 'Highlighter always sits under other markup',
+
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix): D137, a failed
+    // save-on-exit keeps the user in the editor; a second request leaves anyway (review F1).
+    exitSaveFailed: "Couldn't save your last change. Tap Projects again to leave anyway.",
   },
 
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §11): the 14
@@ -790,7 +808,22 @@ export const STRINGS = {
     actionReplace: 'Replace photo',
     recentsEmpty: 'No recent photos yet',
   },
+
+  errorBoundary: {
+    // ⚠ PROPOSED (C14) — not approved copy (beyond the gaps appendix): D138, the
+    // app/route crash fallback and the unhandled-rejection toast (review F3).
+    title: 'Something went wrong',
+    body: 'Work that was already saved is still in your projects folder.',
+    reload: 'Reload',
+    backToProjects: 'Back to Projects',
+    unexpected: 'Something went wrong. If it keeps happening, reload the app.',
+  },
 } as const;
+
+/** D141/D142: «1 sheet» / «N sheets», one rule for Home and the sheets grid. */
+export function sheetCountLabel(count: number): string {
+  return count === 1 ? STRINGS.project.sheetCountOne : t(STRINGS.project.sheetCount, { sheetCount: count });
+}
 
 /**
  * Minimal `{name}` interpolation. Missing keys resolve to an empty string rather

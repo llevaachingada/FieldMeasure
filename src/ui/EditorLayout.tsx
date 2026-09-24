@@ -578,6 +578,42 @@ export default function EditorLayout({
     if (cmd) showUndoToast(cmd.label);
   }, [showUndoToast]);
 
+  /** D137: how long an exit waits for autosave before treating it as failed (the persist queue's
+   *  longest single backoff step is 10 s; 8 s keeps a tap responsive while covering a normal
+   *  coalesced write, which lands in well under 1 s). */
+  const EXIT_SAVE_TIMEOUT_MS = 8000;
+  const exitingRef = useRef(false);
+  /** Set after one failed save-on-exit: the NEXT exit request leaves without waiting. */
+  const forceExitRef = useRef(false);
+  const exitAfterSave = useCallback(async (): Promise<void> => {
+    if (exitingRef.current) return;
+    if (forceExitRef.current) {
+      forceExitRef.current = false;
+      onExit();
+      return;
+    }
+    exitingRef.current = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const flush = editorSession()?.flush;
+      if (flush) {
+        await Promise.race([
+          flush(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('exit save timed out')), EXIT_SAVE_TIMEOUT_MS);
+          }),
+        ]);
+      }
+      onExit();
+    } catch {
+      forceExitRef.current = true;
+      emitToast({ text: STRINGS.editor.exitSaveFailed, urgent: true });
+    } finally {
+      clearTimeout(timer);
+      exitingRef.current = false;
+    }
+  }, [onExit]);
+
   // Esc ladder + §6.6 tool hotkeys. One window listener; never a keyboard trap.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -626,7 +662,7 @@ export default function EditorLayout({
           editorSession()?.cancelPending();
         } else if (step === 'deselect') store.clearSelection();
         else if (step === 'exitFocus') store.setFocusInsetId(null);
-        else onExit();
+        else void exitAfterSave();
         return;
       }
       const tool = TOOL_HOTKEYS[event.key.toUpperCase()];
@@ -634,7 +670,7 @@ export default function EditorLayout({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onExit, selectTool, undo, redo, openExport]);
+  }, [exitAfterSave, selectTool, undo, redo, openExport]);
 
   return (
     <div
@@ -660,7 +696,7 @@ export default function EditorLayout({
       <TopBar
         projectName={projectName ?? folderName}
         sheetName={sheetTitle || undefined}
-        onExit={onExit}
+        onExit={() => void exitAfterSave()}
         onAddSheet={onAddSheet}
         onImportFile={onImportFile ?? (() => importTriggerRef.current?.())}
         autosaveChip={autosaveChip ?? <AutosaveChip status={storageStatus} onRetry={retrySave} />}
@@ -683,7 +719,7 @@ export default function EditorLayout({
           <SheetEditor
             projectId={projectId}
             folderName={folderName}
-            onExit={onExit}
+            onExit={() => void exitAfterSave()}
             activeTool={sheetEditorToolFor(activeTool)}
             placementPending={pendingOp !== 'none'}
             onImportReady={onImportReady}

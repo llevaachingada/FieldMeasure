@@ -122,6 +122,27 @@ describe('states (UI §11.2)', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Elm Street Footings');
     expect(screen.getByText(t(STRINGS.project.sheetCount, { sheetCount: 12 }))).toBeTruthy();
   });
+
+  it('sheetCount={1} renders "1 sheet" (D142)', () => {
+    renderScreen({ sheetCount: 1 });
+    expect(screen.getByText('1 sheet')).toBeTruthy();
+  });
+
+  it('error + onRetry: renders «Retry», clicking it calls onRetry, and the header count is hidden (D142)', async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    renderScreen({ state: 'error', sheets: [], onRetry });
+
+    const retry = screen.getByRole('button', { name: STRINGS.errors.retry });
+    await user.click(retry);
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(t(STRINGS.project.sheetCount, { sheetCount: CARDS.length }))).toBeNull();
+  });
+
+  it('error without onRetry: no «Retry» button (D142)', () => {
+    renderScreen({ state: 'error', sheets: [] });
+    expect(screen.queryByRole('button', { name: STRINGS.errors.retry })).toBeNull();
+  });
 });
 
 describe('cards open and select', () => {
