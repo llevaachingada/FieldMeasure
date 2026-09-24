@@ -1779,7 +1779,7 @@ watermark/zoom-chip clearance on the real tablet).
 
 ## Fix (owner report) — the projects folder survives relaunches and captures (D136)
 
-**Date:** 2026-09-24 · **Commit:** (this commit)
+**Date:** 2026-09-24 · **Commit:** `f9736f9` (+ docs follow-up: README, CONTINUITY watch items, launcher tracked)
 
 **Built:** Home names a lapsed folder grant («Folder permission expired» + «Re-authorize» / «Re-pick folder») instead of
 showing a fake empty state; Settings «Change folder…» adopts the folder in place (no reload that dropped the fresh grant);

@@ -68,7 +68,8 @@ folders.
 | Decisions log (ADR) | ✅ |
 | Dependencies installed | ✅ (`package.json`, Node 24 LTS, React 19.3) |
 | Latest owner-request pass (D135) | ✅ calculator-style dimension keypad (postfix `FT`/`IN`, preset fractions), a project-name pop-up on «New project», photo date/time stamped above the export logo, larger VANGARDE marks on every page (Settings switch), camera at device-maximum resolution with working zoom. Hardware rows H23-H25 owed. See `docs/DECISIONS.md` D135. |
-| Application code | ✅ **nine slices** — input router, domain core, first-run/Settings/Home, storage core, media+canvas, capture flow, editor shell, dimension tool, markup tools (PARTIAL). **526 tests / 40 files**, build + e2e green. Slice 1.9 is step 1 of 5. |
+| Folder permission fix (D136) | ✅ the projects folder survives relaunches and captures: Home shows «Folder permission expired» + one-tap «Re-authorize» instead of a fake empty list, Settings «Change folder…» no longer reloads (which dropped the grant), the capture re-pick cannot replace the root with a project folder, «Use photo» re-asks a lapsed grant in the tap. Hardware row H26 owed. See `docs/DECISIONS.md` D136. |
+| Application code | ✅ slices 0.2–1.11 + the Project screen + the UI/GUI pass (§4.1/§4.2) + D135/D136. **1530 tests / 107 files** (node + jsdom + browser), build + clickthru green. Current state: `docs/CONTINUITY.md`. |
 
 ## Prerequisites
 
@@ -101,6 +102,20 @@ vite-plugin-pwa. Versions and rationale: [`docs/preflight-handoff-v0.3-hardened.
   **millimeters + the entered text**.
 - All disk writes go through `src/fs/projectStore.ts` (tmp → close → rename).
 - The UI spec's "do not simplify" list is binding.
+
+## Launching (Windows)
+
+`tools/launch-fieldmeasure.ps1` rebuilds, starts `vite preview` on port 4173 and opens Chrome (Edge fallback) in a
+dedicated profile. `-SkipBuild` reuses `dist`, `-Stop` stops everything, `-InstallShortcut` adds a Desktop shortcut.
+It closes the app browser gracefully before forcing it, so Chrome's saved site permissions are not lost.
+
+## Projects folder permission
+
+The chosen projects folder is saved once (first run or Settings) and is **never** reset by the app. Browsers do not keep
+the folder's *write permission* across a relaunch on their own, so after a relaunch Home may show
+**«Folder permission expired»** — tap **«Re-authorize»** (one browser prompt) and pick **"Allow on every visit"** if the
+browser offers it; after that no prompt should return. «Re-pick folder» appears only if the browser has blocked the
+folder. You never need to re-choose the folder in Settings. Details: `docs/DECISIONS.md` D136.
 
 ## Documentation
 

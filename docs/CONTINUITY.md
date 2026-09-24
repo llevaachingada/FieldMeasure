@@ -71,7 +71,7 @@ consumed by an insert. Both repaired - one section per number, in order, all 131
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **The hardware pass** (now including H23-H25 from D135) - the `[Surface]` rows in `docs/HARDWARE-TEST-CHECKLIST.md` (palm/sunlight/the 14-day trash clock/the SW update lifecycle/the real digitiser), which no emulation can promote. The machine half is now driven by `npm.cmd run clickthru` (20/20 on the Surface profile). Then the **Offset Nudge Pad** and the **History flyout**, the last two large owed items, and the two **owner decisions** (the mixed-selection chrome, the 14.9 handedness tab order) |
+| Next action | **The hardware pass** (now including H23-H25 from D135 and H26 from D136) - the `[Surface]` rows in `docs/HARDWARE-TEST-CHECKLIST.md` (palm/sunlight/the 14-day trash clock/the SW update lifecycle/the real digitiser), which no emulation can promote. The machine half is now driven by `npm.cmd run clickthru` (20/20 on the Surface profile). Then the **Offset Nudge Pad** and the **History flyout**, the last two large owed items, and the two **owner decisions** (the mixed-selection chrome, the 14.9 handedness tab order) |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -1511,6 +1511,20 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   D107 (chip/toast items), D101 (the on-screen label halo), the **History flyout** (`writeHistorySnapshot`
   still has no caller), the end-to-end **a11y audit**, the **arrow nudge**, and the content-owner items
   (the PDF caption placement and the two `Skip`-row strings).
+
+## Known drift / watch items (session 26) — folder permission (D136)
+
+- **FIXED (D136):** owner-reported "after taking pictures the folder permission/config is not kept; I re-choose the folder
+  in Settings every time". Root causes: Home rendered a lapsed grant as the empty state; Settings reloaded after a pick
+  (dropping the fresh grant); the capture «Re-pick folder» could persist the project folder as the root; «Use photo»
+  never re-asked the grant; a root-less backend was cached forever. All five fixed and covered by tests.
+- **OPEN — `[Surface]` H26:** confirm on the real tablet/browser that «Re-authorize» offers "Allow on every visit" and
+  that, once chosen, a relaunch shows no prompt. A web app cannot mint a grant without a gesture; one prompt after a
+  relaunch (without that browser option) is the floor, not a bug.
+- **WATCH:** `tools/launch-fieldmeasure.ps1` now closes the app browser gracefully (8 s grace) before `taskkill /F`; if a
+  launch ever hangs on a stuck window, that grace period is the place to look.
+- **WATCH:** the PWA update reload (`src/ui/updateReload.ts`) also drops the grant by design of the browser; after an
+  update Home will show the Re-authorize banner once. Expected.
 
 ## Known drift / watch items (session 22 — the beta wave)
 
