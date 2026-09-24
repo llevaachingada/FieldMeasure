@@ -32,6 +32,7 @@
  *    `writeTextAtomic` relative paths are relative to the ROOT (see backend.ts).
  */
 import { setProjectsRoot } from '../settings/projectsRoot';
+import { ensurePersistentStorage } from '../data/storage';
 import { newId } from '../domain/ids';
 import {
   CURRENT_SCHEMA_VERSION,
@@ -60,14 +61,65 @@ export async function initStore(): Promise<void> {
   await backend.init(); // QUERY permission only — requestAccess() is separate, gesture-driven
 }
 
-/** The lazily-initialised backend (imported by the UI/queue without a boot step). */
+/**
+ * The lazily-initialised backend (imported by the UI/queue without a boot step).
+ *
+ * A backend that initialised BEFORE a root existed (a scan during first run) cached `null`
+ * forever, so every later caller saw "no projects root" although one was persisted. A root-less
+ * backend therefore re-reads the persisted handle (one IndexedDB read) instead of trusting it.
+ */
 export async function ensureStoreReady(): Promise<StorageBackend> {
-  if (!backend) await initStore();
+  if (!backend || backend.getProjectDir() === null) await initStore();
   return backend;
 }
 
-/** §5.3 `pickRoot` — MUST be called from a user gesture (§5.2). */
-export async function pickRoot(): Promise<void> {
+/** A recovery re-pick landed on a folder that is not the projects root (see `pickRoot`). */
+export class RootMismatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RootMismatchError';
+  }
+}
+
+/**
+ * Adopt a freshly-picked projects root IN PLACE: persist it, re-init the backend on it, and ask
+ * for persistent storage so the persisted handle is never evicted with the origin's data.
+ *
+ * In place — never `location.reload()`. A picker hands back a handle that is GRANTED for this
+ * page; a reload restores the handle but not the grant (§5.2), so reloading to "adopt" a folder
+ * threw away the grant the user had just given and landed on a Home that could not read it —
+ * which looked exactly like "the folder setting did not save".
+ */
+export async function adoptProjectsRoot(handle: FileSystemDirectoryHandle): Promise<void> {
+  await setProjectsRoot(handle);
+  await initStore();
+  try {
+    await ensurePersistentStorage();
+  } catch {
+    // Best-effort: an unprotected origin still works; it is only evictable under pressure.
+  }
+}
+
+/** `a.isSameEntry(b)`; false when the API is missing or throws. */
+async function isSameFolder(a: FileSystemHandle, b: FileSystemHandle): Promise<boolean> {
+  try {
+    return typeof a.isSameEntry === 'function' && (await a.isSameEntry(b));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * §5.3 `pickRoot` — MUST be called from a user gesture (§5.2).
+ *
+ * `mustContain` guards a RECOVERY re-pick made from inside an open project (the capture
+ * overlay's «Re-pick folder»). There the natural mistake is to pick the PROJECT folder itself,
+ * and persisting that silently replaced the projects root: Home then listed the wrong folder and
+ * the user was back in Settings re-choosing it. A guarded re-pick is adopted only if it is the
+ * current root or a folder that contains the open project; anything else throws
+ * `RootMismatchError` and the persisted root is left untouched.
+ */
+export async function pickRoot(options?: { mustContain?: string }): Promise<void> {
   const picker = (
     globalThis as {
       showDirectoryPicker?: (options?: {
@@ -78,10 +130,25 @@ export async function pickRoot(): Promise<void> {
   ).showDirectoryPicker;
   if (typeof picker !== 'function') throw new Error('showDirectoryPicker is unavailable');
   const handle = await picker({ id: 'fieldmeasure-projects', mode: 'readwrite' });
+  const mustContain = options?.mustContain;
+  if (mustContain) {
+    const current = (await ensureStoreReady()).getProjectDir();
+    let ok = current !== null && (await isSameFolder(handle, current));
+    if (!ok) {
+      try {
+        await handle.getDirectoryHandle(mustContain, { create: false });
+        ok = true;
+      } catch {
+        ok = false;
+      }
+    }
+    if (!ok) {
+      throw new RootMismatchError(`the picked folder does not contain the project "${mustContain}"`);
+    }
+  }
   // §5.3 wrote `set('rootHandle', handle)`; slice 0.3's settings module already owns
   // this handle under `fm:projects-root` (FirstRun persists there) — one key, not two.
-  await setProjectsRoot(handle);
-  await initStore(); // re-init backend with the new handle
+  await adoptProjectsRoot(handle);
 }
 
 /** The root projects folder handle, or `null` before a root has been chosen. */
@@ -115,7 +182,11 @@ export async function ensureRootAccess(options?: { request?: boolean }): Promise
   if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') return true;
   if (options?.request !== true || typeof handle.requestPermission !== 'function') return false;
   try {
-    return (await handle.requestPermission({ mode: 'readwrite' })) === 'granted';
+    const granted = (await handle.requestPermission({ mode: 'readwrite' })) === 'granted';
+    // Still inside the gesture: protect the origin's storage (where the persisted root handle
+    // lives) for installs that chose their folder before `adoptProjectsRoot` asked. Best-effort.
+    if (granted) void ensurePersistentStorage().catch(() => false);
+    return granted;
   } catch {
     // No transient activation (a non-gesture caller) — Chromium rejects rather than
     // prompting. Not an error here: the caller's own filesystem call will surface it.

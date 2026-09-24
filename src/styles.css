@@ -365,6 +365,23 @@ pre,
   max-width: 520px;
   color: var(--g300);
 }
+/* A lapsed projects-folder grant: named, with its one-tap recovery (never a fake empty Home). */
+.home-access {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 24px;
+  padding: 16px;
+  border: 1px solid var(--g700);
+  border-radius: 12px;
+  background: var(--g800);
+}
+.home-access-message {
+  margin: 0;
+  font-weight: 600;
+}
 .home-empty-actions {
   display: flex;
   flex-wrap: wrap;

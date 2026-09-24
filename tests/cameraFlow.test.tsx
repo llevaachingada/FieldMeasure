@@ -32,7 +32,7 @@ import CameraFlow, {
   SAVE_TIMEOUT_MS,
   savingLabel,
 } from '../src/ui/CameraFlow';
-import { pickRoot, queryRootWritePermission } from '../src/fs/projectStore';
+import { pickRoot, queryRootWritePermission, RootMismatchError } from '../src/fs/projectStore';
 import { initStore } from '../src/fs/projectStore';
 import { parseProjectFile, type ProjectFile } from '../src/domain/schema';
 import {
@@ -581,6 +581,117 @@ describe('a DENIED folder grant offers a re-pick, not an impossible re-authorize
     await user.click(repick);
     await waitFor(() => expect(vi.mocked(pickRoot)).toHaveBeenCalledTimes(1));
     expect(vi.mocked(queryRootWritePermission)).toHaveBeenCalled();
+  });
+});
+
+describe('the folder grant after a reload / tab discard (the "after taking pictures" loop)', () => {
+  it('«Use photo» re-asks the lapsed grant inside the tap, so the first save just works', async () => {
+    // A restored handle whose grant lapsed (§5.2): writes refuse until the grant is re-given.
+    let granted = false;
+    const calls: string[] = [];
+    await setup({
+      beforeWrite: () => {
+        if (!granted) throw new DOMException('the write grant lapsed', 'NotAllowedError');
+      },
+    });
+    Object.assign(root, {
+      queryPermission: async (): Promise<PermissionState> => (granted ? 'granted' : 'prompt'),
+      requestPermission: async (): Promise<PermissionState> => {
+        calls.push('requestPermission');
+        granted = true;
+        return 'granted';
+      },
+    });
+    vi.mocked(queryRootWritePermission).mockResolvedValue('granted');
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    const { onCaptured } = renderFlow();
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+
+    await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+    expect(calls).toEqual(['requestPermission']);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a held grant is never re-prompted', async () => {
+    const calls: string[] = [];
+    await setup();
+    Object.assign(root, {
+      queryPermission: async (): Promise<PermissionState> => 'granted',
+      requestPermission: async (): Promise<PermissionState> => {
+        calls.push('requestPermission');
+        return 'granted';
+      },
+    });
+    vi.mocked(queryRootWritePermission).mockResolvedValue('granted');
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    const { onCaptured } = renderFlow();
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+
+    await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+    expect(calls).toEqual([]);
+  });
+
+  it('«Re-pick folder» is GUARDED to this project, and a wrong pick keeps the recovery on screen', async () => {
+    await setup({
+      beforeWrite: (file) => {
+        if (file.name === 'photo.jpg.tmp') {
+          throw new DOMException('the write grant was refused', 'NotAllowedError');
+        }
+      },
+    });
+    vi.mocked(queryRootWritePermission).mockResolvedValue('denied');
+    vi.mocked(pickRoot).mockClear();
+    vi.mocked(pickRoot).mockRejectedValueOnce(new RootMismatchError('picked the project folder'));
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    renderFlow();
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.storage.rePickFolder }));
+
+    await waitFor(() => expect(vi.mocked(pickRoot)).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(pickRoot)).toHaveBeenCalledWith({ mustContain: 'Riverside' });
+    // Refused, named, and still recoverable — never a bare «Retry» that re-asks a denied grant.
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(STRINGS.errors.projectUnavailable);
+    expect(screen.getByRole('button', { name: STRINGS.storage.rePickFolder })).toBeTruthy();
+  });
+
+  it('a CANCELLED re-pick puts the same «Re-pick folder» recovery back', async () => {
+    await setup({
+      beforeWrite: (file) => {
+        if (file.name === 'photo.jpg.tmp') {
+          throw new DOMException('the write grant was refused', 'NotAllowedError');
+        }
+      },
+    });
+    vi.mocked(queryRootWritePermission).mockResolvedValue('denied');
+    vi.mocked(pickRoot).mockClear();
+    vi.mocked(pickRoot).mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'));
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    renderFlow();
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.usePhoto }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.storage.rePickFolder }));
+
+    await waitFor(() => expect(vi.mocked(pickRoot)).toHaveBeenCalledTimes(1));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(STRINGS.errors.folderPermissionExpired);
+    expect(screen.getByRole('button', { name: STRINGS.storage.rePickFolder })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: STRINGS.errors.retry })).toBeNull();
   });
 });
 

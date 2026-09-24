@@ -21,8 +21,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ProjectSummary } from '@/state/appStore';
 import { useAppStore } from '@/state/appStore';
-import { makeProjectSeparate, scanProjects, type ScannedProject } from '@/fs/projectStore';
+import {
+  ensureRootAccess,
+  makeProjectSeparate,
+  pickRoot,
+  queryRootWritePermission,
+  scanProjects,
+  type ScannedProject,
+} from '@/fs/projectStore';
 import { STRINGS, t } from './strings';
+
+/** The projects-root grant, as Home needs it (see `ProjectListProps.access`). */
+export interface RootAccess {
+  query: () => Promise<'granted' | 'prompt' | 'denied' | 'unknown'>;
+  request: () => Promise<boolean>;
+  repick: () => Promise<void>;
+}
+
+const DEFAULT_ACCESS: RootAccess = {
+  query: queryRootWritePermission,
+  request: () => ensureRootAccess({ request: true }),
+  repick: () => pickRoot(),
+};
 
 export interface ProjectListProps {
   /** Override the store list (tests / placeholder) — bypasses the folder scan. */
@@ -33,6 +53,11 @@ export interface ProjectListProps {
   scan?: () => Promise<ScannedProject[]>;
   /** Injectable «Make this a separate project» (tests). */
   separate?: (entry: ScannedProject) => Promise<void>;
+  /**
+   * Injectable folder-grant plumbing (tests). Defaults to the real `projectStore` functions:
+   * report the root's write permission, ask for it inside a gesture, re-pick the root.
+   */
+  access?: RootAccess;
   onNewProject?: () => void;
   onOpenFolder?: () => void;
   /** `folderName` identifies WHICH folder on disk (duplicate ids share an id). */
@@ -117,6 +142,7 @@ export default function ProjectList({
   state = 'auto',
   scan,
   separate,
+  access,
   onNewProject,
   onOpenFolder,
   onOpenProject,
@@ -125,30 +151,82 @@ export default function ProjectList({
   const storeProjects = useAppStore((s) => s.projects);
   const [scanned, setScanned] = useState<ScannedProject[] | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  /**
+   * The projects root's grant when it needs the user: `prompt` (re-askable in a tap) or `denied`
+   * (only a re-pick can fix it). `null` = fine, or not a question this browser asks.
+   */
+  const [lapsed, setLapsed] = useState<'prompt' | 'denied' | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const scanning = projects === undefined && state === 'auto';
+  const rootAccess = access ?? DEFAULT_ACCESS;
 
   const runScan = useMemo(
     () => scan ?? (() => scanProjects()),
     [scan],
   );
 
+  /**
+   * Check the grant, then scan. The persisted folder HANDLE survives a reload but its grant does
+   * not (§5.2), and a scan without a grant throws. That throw used to fall through to the EMPTY
+   * state («Projects are just folders…») — Home looked as if the folder setting had been lost, so
+   * the owner re-chose the folder in Settings after every relaunch. Now a lapsed grant is named,
+   * with the one-tap recovery that can fix it, and the saved folder is never touched.
+   */
+  const load = useMemo(
+    () => async (isAlive: () => boolean) => {
+      // Both start now, in parallel: the grant check adds no latency to the scan.
+      const [grant, result] = await Promise.allSettled([rootAccess.query(), runScan()]);
+      if (!isAlive()) return;
+      let next: 'prompt' | 'denied' | null = null;
+      if (grant.status === 'fulfilled' && (grant.value === 'prompt' || grant.value === 'denied')) {
+        next = grant.value;
+      }
+      if (result.status === 'fulfilled') {
+        setScanned(result.value);
+      } else {
+        // A permission throw with no lapse reported (a browser that answered `granted` and then
+        // refused) is still a grant problem, never an empty folder.
+        const name = (result.reason as { name?: unknown } | null)?.name;
+        if (next === null && (name === 'NotAllowedError' || name === 'SecurityError')) next = 'prompt';
+        // Unreachable/unusable root: fall back to the honest empty state rather than a crash.
+        setScanned([]);
+      }
+      setLapsed(next);
+    },
+    [rootAccess, runScan],
+  );
+
   useEffect(() => {
     if (!scanning) return;
     let alive = true;
-    void (async () => {
-      try {
-        const entries = await runScan();
-        if (alive) setScanned(entries);
-      } catch {
-        // Unreachable/unusable root: fall back to the honest empty state rather than a crash.
-        if (alive) setScanned([]);
-      }
-    })();
+    void load(() => alive);
     return () => {
       alive = false;
     };
+    // `load` is rebuilt when an injected `access` object changes identity; the real default is
+    // a module constant, so this effect runs once per mount in the app.
   }, [scanning, runScan]);
+
+  /** The banner's button — a user gesture, so the browser may show its permission prompt. */
+  async function reconnect(): Promise<void> {
+    setReconnecting(true);
+    try {
+      if (lapsed === 'denied') {
+        await rootAccess.repick();
+      } else if (!(await rootAccess.request())) {
+        // Refused (or dismissed): ask the browser which recovery is left.
+        const now = await rootAccess.query().catch(() => 'unknown' as const);
+        setLapsed(now === 'denied' ? 'denied' : 'prompt');
+        return;
+      }
+      await load(() => true);
+    } catch {
+      // A cancelled re-pick changes nothing; the banner stays and can be tried again.
+    } finally {
+      setReconnecting(false);
+    }
+  }
 
   const cards: CardModel[] = useMemo(() => {
     if (projects !== undefined) return projects.map(fromSummary);
@@ -195,7 +273,23 @@ export default function ProjectList({
       </header>
 
       <div className="home-body">
-        {resolved === 'loading' ? (
+        {lapsed !== null ? (
+          <section className="home-access" role="alert">
+            {/* Approved copy only: the same cause line and the same two recoveries the capture
+                overlay already uses (appendix-strings.md:354/355, `storage.rePickFolder`). */}
+            <p className="home-access-message">{STRINGS.errors.folderPermissionExpired}</p>
+            <button
+              type="button"
+              className="btn btn-primary hit-slop"
+              disabled={reconnecting}
+              aria-busy={reconnecting}
+              onClick={() => void reconnect()}
+            >
+              {lapsed === 'denied' ? STRINGS.storage.rePickFolder : STRINGS.errors.reAuthorize}
+            </button>
+          </section>
+        ) : null}
+        {lapsed !== null && resolved === 'empty' ? null : resolved === 'loading' ? (
           <section className="home-section" aria-busy="true" aria-label={STRINGS.home.loading}>
             <h2 className="home-section-header">{STRINGS.home.recentHeader}</h2>
             <div className="project-grid">

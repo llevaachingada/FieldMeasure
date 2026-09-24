@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { STRINGS } from './strings';
 import { DEFAULT_HANDEDNESS, setHandedness, type Handedness } from '@/settings/handedness';
 import { SUGGESTED_PROJECTS_PATH, pickProjectsFolder } from '@/settings/projectsRoot';
+import { adoptProjectsRoot } from '@/fs/projectStore';
 
 export interface FirstRunProps {
   /** Called once step 2 has persisted a projects folder. */
@@ -45,6 +46,13 @@ export default function FirstRun({ onDone }: FirstRunProps) {
       const handle = await pickProjectsFolder();
       if (handle) {
         setFolderName(handle.name);
+        // Put the store on the new handle now (and ask for persistent storage) so Home reads
+        // the folder with the grant the picker just gave, not a backend that cached "no root".
+        try {
+          await adoptProjectsRoot(handle);
+        } catch {
+          // The handle is already persisted; Home re-reads it lazily.
+        }
         onDone();
       }
     } catch {

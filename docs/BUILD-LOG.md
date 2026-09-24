@@ -1775,3 +1775,20 @@ crop) and sit clear of the watermark. Full reasoning, the rewritten tests and th
 
 **Owed / `[Surface]`:** H23–H25 in `docs/HARDWARE-TEST-CHECKLIST.md` (the still-capture maximum, hardware vs digital zoom, the
 watermark/zoom-chip clearance on the real tablet).
+
+
+## Fix (owner report) — the projects folder survives relaunches and captures (D136)
+
+**Date:** 2026-09-24 · **Commit:** (this commit)
+
+**Built:** Home names a lapsed folder grant («Folder permission expired» + «Re-authorize» / «Re-pick folder») instead of
+showing a fake empty state; Settings «Change folder…» adopts the folder in place (no reload that dropped the fresh grant);
+the capture overlay's re-pick is guarded to folders that hold the open project (`RootMismatchError`) and a cancelled
+re-pick keeps its recovery; «Use photo» re-asks a lapsed grant inside the tap (bounded, non-throwing); a root-less backend
+re-reads the persisted handle; persistent storage is requested on adoption and on a re-given grant; the local launcher
+closes the app browser gracefully before forcing it. Full reasoning in **D136**.
+
+**Machine gates:** `tsc` 0 · vitest 107 files / 1530 tests (node + jsdom + browser) · `build` 0 (28 precache, 1644.44 KiB).
+`npm.cmd run clickthru` re-run on this tree: passed (it also discharges the D135/§4.1/§4.2 re-run owed on the same build).
+
+**Owed / `[Surface]`:** H26 in `docs/HARDWARE-TEST-CHECKLIST.md` (the real Chromium grant prompt and relaunch loop).

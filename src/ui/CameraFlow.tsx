@@ -450,6 +450,13 @@ export function savingLabel(stage: SaveStage): string {
 export const SAVE_TIMEOUT_MS = 30_000;
 
 /**
+ * How long «Use photo» waits on the browser's folder-permission prompt before going ahead with
+ * the write anyway (which then fails honestly and offers the recovery). 60 s = 2 × the save
+ * watchdog: reading a permission prompt is a person deciding, not a stuck disk.
+ */
+export const GRANT_PROMPT_TIMEOUT_MS = 60_000;
+
+/**
  * Arm the bounded-wait timer for a save. Returns the cancel function.
  *
  * Extracted so the mechanism is testable WITHOUT the camera flow: the first attempt to test it
@@ -921,6 +928,31 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
       inFlightRef.current = true;
       setInFlight(true);
 
+      // PRIMARY path: re-acquire the folder grant NOW, while the «Use photo» tap's activation
+      // window is still open. The grant does not survive a reload (§5.2) — and the camera is the
+      // heaviest thing this app does, so a tab discard or renderer restart after a capture is
+      // exactly when it gets lost. Before this, the first save after that always failed and the
+      // owner fell into «Re-authorize» / «Re-pick folder» (and from there into Settings). It
+      // queries first, so a held grant costs nothing and never prompts; it never throws, and a
+      // refusal is reported honestly by the write itself below. Asked BEFORE the watchdog so time
+      // spent reading the browser's prompt is not counted as a stuck folder.
+      if (options.repick !== true && options.askGrant !== true) {
+        // Bounded, so a prompt the browser never settles can still never trap the photo.
+        let timer = 0;
+        try {
+          await Promise.race([
+            ensureRootAccess({ request: true }),
+            new Promise<void>((resolve) => {
+              timer = window.setTimeout(resolve, GRANT_PROMPT_TIMEOUT_MS);
+            }),
+          ]);
+        } catch {
+          // Not fatal: the write below reports the real cause.
+        } finally {
+          window.clearTimeout(timer);
+        }
+      }
+
       // A save can HANG — a Web Lock held by an earlier stuck write, or an OS lock held by
       // another app — and a pending promise never reaches the `catch` below, so without this
       // the photo stays trapped behind a spinner forever (`navigator.locks.request` has no
@@ -938,21 +970,44 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
 
       try {
         // §5.2: the write grant does not survive a page load and can only be re-asked for
-        // inside a user gesture. ONLY the recovery path asks (`askGrant`) — the recovery is
-        // the gesture whose button reads «Re-authorize», so a prompt there is expected. The
-        // PRIMARY path must never block on it: a request the browser never answers would hang
-        // the save instead of reporting it, and the failure is honest either way (the write
-        // itself fails fast with `NotAllowedError`, and the overlay offers «Re-authorize»).
+        // inside a user gesture. The primary path asked above, bounded and non-throwing; the
+        // recovery buttons below are the stricter forms: «Re-authorize» (`askGrant`) treats a
+        // refusal as the failure, and «Re-pick folder» (`repick`) mints a fresh grant.
         if (options.repick === true) {
           // A `denied` grant cannot be re-asked for, so re-pick the folder: a fresh pick mints a
           // fresh grant (`pickRoot` persists the handle and re-inits the store). A cancelled
           // picker throws `AbortError` — nothing changed, so the failure goes back on screen.
+          //
+          // GUARDED: from inside a project the natural mistake is to pick the PROJECT folder, and
+          // adopting that silently replaced the projects root (Home then listed the wrong folder
+          // and the owner re-chose it in Settings). `mustContain` refuses any folder that is not
+          // the root and does not hold this project, and leaves the saved root untouched.
           try {
-            await pickRoot();
-          } catch {
+            await pickRoot({ mustContain: folderName ?? folderNameFromProjectId(projectId) });
+          } catch (e) {
+            if ((e as { name?: unknown } | null)?.name === 'RootMismatchError') {
+              setFailure({
+                message: STRINGS.errors.projectUnavailable,
+                needsGrant: false,
+                needsResolve: false,
+                needsRepick: true,
+              });
+            } else {
+              // Cancelled picker: the grant is still `denied`, so put the SAME recovery back. The
+              // failure was cleared at the top of this call; leaving it null here offered a plain
+              // «Retry» that re-asked a `denied` grant — a button that cannot work.
+              setFailure({
+                message: STRINGS.errors.folderPermissionExpired,
+                needsGrant: true,
+                needsResolve: false,
+                needsRepick: true,
+              });
+            }
             setWrite('failed');
             return;
           }
+          // The project handle resolved before the re-pick belongs to the old grant.
+          projectRef.current = null;
         } else if (options.askGrant === true) {
           if (!(await ensureRootAccess({ request: true }))) {
             throw new StorageWriteError('permission', new Error('the folder write grant was refused'));
@@ -1041,7 +1096,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         setStage('idle');
       }
     },
-    [onCaptured, projectId, resolveProject, rotation],
+    [folderName, onCaptured, projectId, resolveProject, rotation],
   );
 
   const usePhoto = (): void => {

@@ -3632,3 +3632,55 @@ forever) — a camera above 4096 px on the long edge is downscaled to that; ever
 (b) `takePhoto` may frame differently from the preview on some drivers; the still is centre-cropped to the preview's aspect when
 they differ by > 2%. Neither the still path nor hardware zoom can be exercised without a camera, so they are **`[Surface]` rows
 H23–H25**, not claimed.
+
+
+### D136 — the projects folder must survive a relaunch and a capture without a trip to Settings
+
+**Owner report:** after taking pictures the app "does not keep the project folder permission or configuration", and the
+folder has to be re-chosen in Settings every time. A senior review of the grant lifecycle found five defects that
+compound into exactly that loop. The persisted HANDLE (`fm:projects-root`) was never actually lost — the GRANT was,
+and every recovery path either hid that or overwrote the handle.
+
+1. **Home disguised a lapsed grant as "no projects".** Chromium restores the handle after a reload but not its grant
+   (§5.2), so `scanProjects()` throws `NotAllowedError`; `ProjectList` caught it and rendered the EMPTY state
+   («No projects yet»). It looked like the folder setting was gone. Now Home queries the grant in parallel with the
+   scan and, when it is `prompt`/`denied`, shows «Folder permission expired» with «Re-authorize» (`prompt`) or
+   «Re-pick folder» (`denied`) — approved copy already used by the capture overlay — and never the empty state.
+   «Re-authorize» calls `requestPermission` on the RESTORED handle inside the tap, which is the call that lets
+   current Chromium offer "Allow on every visit" (a grant that then survives relaunches).
+2. **Settings «Change folder…» threw away the grant it had just been given.** It persisted the pick and called
+   `location.reload()` — which restores the handle but drops the picker's grant — so Home came back unable to read
+   the new folder, and the owner went back to Settings. Adoption is now in place: `adoptProjectsRoot()` persists,
+   re-inits the backend and asks for persistent storage (FirstRun uses it too). No reload.
+3. **The capture overlay's «Re-pick folder» could replace the projects root with the wrong folder.** From inside a
+   project the natural pick is the PROJECT folder; `pickRoot()` persisted anything. `pickRoot({ mustContain })` now
+   adopts only the same root (`isSameEntry`) or a folder that contains the open project, else throws
+   `RootMismatchError` and leaves the saved root untouched; the overlay keeps «Re-pick folder» on screen. A
+   CANCELLED re-pick also used to clear the failure (offering a bare «Retry» that re-asked a `denied` grant); it now
+   restores the same recovery. After a successful re-pick the project handle is re-resolved from the new root.
+4. **«Use photo» never re-asked the grant on the primary path**, so the first save after any reload or tab discard (the
+   camera is this app's heaviest workload — the likeliest moment for a discard) always failed into the recovery
+   overlay. It now calls `ensureRootAccess({ request: true })` inside the tap's activation window, before the save
+   watchdog starts: it queries first (a held grant never prompts), never throws, and is bounded by
+   `GRANT_PROMPT_TIMEOUT_MS` = 60 000 ms (= 2 × `SAVE_TIMEOUT_MS` 30 000 ms; a person reading a prompt is not a stuck
+   disk) so a prompt that never settles still cannot trap the photo. This reverses the earlier "primary path must never
+   ask" note, whose only concern (a hang) the bound now covers.
+5. **`ensureStoreReady()` cached a root-less backend forever** (a scan during first run), so later callers saw "no
+   projects root" although one was persisted. A root-less backend now re-reads the handle.
+
+Also: a successful `requestPermission` (and every adoption) calls `ensurePersistentStorage()` so the IndexedDB entry
+holding the handle is not evictable; and the local launcher (`tools/launch-fieldmeasure.ps1`) now closes the app browser
+gracefully (`CloseMainWindow`, 8 s grace) before forcing it — a `taskkill /F` on every launch can drop Chrome's
+lazily-written profile Preferences, which is where a persistent folder grant lives.
+
+**What this cannot do:** a web app cannot mint a grant without a gesture. After a relaunch on a browser that has not
+been told "Allow on every visit", the first folder action (Home «Re-authorize», opening a project, «New project»,
+«Use photo») shows ONE browser prompt. That is the floor; the saved folder is never lost and never needs Settings.
+Real-Chromium behaviour of the persistent-grant prompt is **`[Surface]` row H26**, not claimed.
+
+**Tests:** `tests/rootAccess.test.ts` (new: re-read of a root-less backend, in-place adoption + persist, the
+`mustContain` guard refusing the project folder / accepting the same root / accepting a moved root, unguarded pick);
+`tests/projectList.test.tsx` (+4: prompt banner hides the empty state and rescans, denied → re-pick, a refused prompt
+that becomes denied switches recovery, a held grant shows nothing); `tests/cameraFlow.test.tsx` (+4: «Use photo»
+re-asks a lapsed grant and saves first time, a held grant is never re-prompted, a guarded re-pick refusal keeps the
+recovery, a cancelled re-pick restores it); `tests/settings.test.tsx` (+1: «Change folder…» adopts in place).

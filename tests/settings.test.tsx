@@ -181,3 +181,22 @@ describe('Settings', () => {
     expect(buildParts('')).toEqual({ version: 'dev', date: 'unknown' });
   });
 });
+
+describe('Settings — «Change folder…» keeps the fresh grant (no reload)', () => {
+  it('adopts the picked folder in place: persisted, shown, and live in the store', async () => {
+    // The old path persisted the handle and then called `location.reload()`, which restores the
+    // handle but DROPS the grant the picker had just given (§5.2) — Home came back unable to read
+    // the folder and the owner re-picked it here after every launch.
+    const picked = { kind: 'directory', name: 'Jobs 2026' } as unknown as FileSystemDirectoryHandle;
+    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => picked));
+    const user = userEvent.setup();
+    await renderSettings();
+
+    await user.click(screen.getByRole('button', { name: STRINGS.settings.changeFolder }));
+
+    await waitFor(() => expect(screen.getByText('Jobs 2026')).toBeTruthy());
+    expect(idbStore.get('fm:projects-root')).toBe(picked);
+    const { getRootDir } = await import('../src/fs/projectStore');
+    expect(await getRootDir()).toBe(picked);
+  });
+});

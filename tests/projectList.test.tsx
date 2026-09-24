@@ -229,3 +229,82 @@ describe('project cards (§5.6 identity, §5.8c duplicates)', () => {
     }
   });
 });
+
+describe('a lapsed projects-folder grant (the relaunch that looked like a lost setting)', () => {
+  // After a relaunch the saved folder HANDLE is intact but its grant is not (§5.2), so the scan
+  // throws. That used to render the EMPTY state — Home looked as if the folder had never been
+  // chosen, and the owner re-picked it in Settings every time. It is now named, with its fix.
+  const notAllowed = () => Promise.reject(new DOMException('no grant', 'NotAllowedError'));
+
+  it('`prompt`: names the lapse, hides the misleading empty state, and «Re-authorize» rescans', async () => {
+    let granted = false;
+    const access = {
+      query: vi.fn(async () => (granted ? ('granted' as const) : ('prompt' as const))),
+      request: vi.fn(async () => {
+        granted = true;
+        return true;
+      }),
+      repick: vi.fn(async () => {}),
+    };
+    const scan = vi.fn(() => (granted ? Promise.resolve([solo]) : notAllowed()));
+    render(<ProjectList scan={scan} access={access} />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(STRINGS.errors.folderPermissionExpired);
+    expect(screen.queryByText(STRINGS.home.emptyHeadline)).toBeNull();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: STRINGS.errors.reAuthorize }));
+
+    await waitFor(() => expect(screen.getByText('Elm Street Footings')).toBeTruthy());
+    expect(access.request).toHaveBeenCalledTimes(1);
+    expect(access.repick).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('`denied`: offers «Re-pick folder» (a denied grant cannot be re-asked for)', async () => {
+    let picked = false;
+    const access = {
+      query: vi.fn(async () => (picked ? ('granted' as const) : ('denied' as const))),
+      request: vi.fn(async () => false),
+      repick: vi.fn(async () => {
+        picked = true;
+      }),
+    };
+    const scan = vi.fn(() => (picked ? Promise.resolve([solo]) : notAllowed()));
+    render(<ProjectList scan={scan} access={access} />);
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: STRINGS.storage.rePickFolder }));
+
+    await waitFor(() => expect(screen.getByText('Elm Street Footings')).toBeTruthy());
+    expect(access.repick).toHaveBeenCalledTimes(1);
+    expect(access.request).not.toHaveBeenCalled();
+  });
+
+  it('a refused prompt that the browser now reports `denied` switches to «Re-pick folder»', async () => {
+    let refused = false;
+    const access = {
+      query: vi.fn(async () => (refused ? ('denied' as const) : ('prompt' as const))),
+      request: vi.fn(async () => {
+        refused = true;
+        return false;
+      }),
+      repick: vi.fn(async () => {}),
+    };
+    render(<ProjectList scan={notAllowed} access={access} />);
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: STRINGS.errors.reAuthorize }));
+
+    expect(await screen.findByRole('button', { name: STRINGS.storage.rePickFolder })).toBeTruthy();
+  });
+
+  it('a held grant shows no banner', async () => {
+    const access = {
+      query: vi.fn(async () => 'granted' as const),
+      request: vi.fn(async () => true),
+      repick: vi.fn(async () => {}),
+    };
+    render(<ProjectList scan={async () => [solo]} access={access} />);
+    await screen.findByText('Elm Street Footings');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});

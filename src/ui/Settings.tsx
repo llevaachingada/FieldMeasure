@@ -28,6 +28,7 @@ import { getTheme, setTheme, type Theme } from '@/settings/theme';
 import { getDensity, setDensity, type Density } from '@/settings/density';
 import { getWatermarkEnabled, setWatermarkEnabled } from '@/settings/watermark';
 import { getProjectsRoot, pickProjectsFolder, SUGGESTED_PROJECTS_PATH } from '@/settings/projectsRoot';
+import { adoptProjectsRoot } from '@/fs/projectStore';
 
 export interface SettingsProps {
   onBack?: () => void;
@@ -251,12 +252,16 @@ export default function Settings({ onBack }: SettingsProps) {
     try {
       const handle = await pickProjectsFolder();
       if (!handle) return; // cancelled, or the browser has no File System Access API
-      // The picked handle is already persisted, but the RUNNING app is still on the old one: the
-      // backend, the open-project registry and every mounted route hold the handle they resolved
-      // with — and the write grant is per HANDLE, so a `denied` folder stays denied until the new
-      // one is adopted. Reloading is the complete, honest adoption: without it «Change folder…»
-      // looks like it worked while writes keep failing against the old permission.
-      window.location.reload();
+      // Adopt IN PLACE (re-init the backend on the new handle) — never reload. The picker's
+      // handle is granted for THIS page only; the old `location.reload()` restored the handle
+      // but dropped its grant (§5.2), so Home came back unable to read the folder that had just
+      // been chosen, and the owner re-picked it in Settings on every launch. Every other route
+      // resolves the root through the backend when it mounts, and Settings is the only mounted
+      // route while this runs.
+      await adoptProjectsRoot(handle);
+      setFolder(handle.name);
+      const persisted = await navigator.storage?.persisted?.();
+      setStorage(persisted ? 'protected' : 'not-protected');
     } catch {
       /* picker failure leaves the current folder */
     }
