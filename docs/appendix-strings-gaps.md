@@ -65,3 +65,19 @@ inventory and is unchanged.
 | keypad.clearEntry | Clear entry | `aria-label` of the `C` key |
 
 Removed with the torch and the High/Fast toggle: `capture.resolutionHigh`, `capture.resolutionFast`, `capture.torch`, `a11y.torch`.
+
+## Wave 1 additions (session 27, D137-D142) — ⚠ PROPOSED, awaiting sign-off
+
+| Key | Proposed string | Where |
+|---|---|---|
+| firstRun.unsupportedTitle | This browser can't save to folders | first run, no File System Access (D139) |
+| firstRun.unsupportedBody | Open Field Measure in Microsoft Edge or Google Chrome on this PC to save projects to a folder. | same screen |
+| firstRun.pickFailed | Couldn't use that folder. Choose a different one. | first run step 2, a non-cancel picker failure |
+| home.projectCardMetaShort | {sheetCount} · {time} | Home card meta without the unmeasured size (D141) |
+| project.sheetCountOne | 1 sheet | singular of `project.sheetCount` (D142) |
+| editor.exitSaveFailed | Couldn't save your last change. Tap Projects again to leave anyway. | urgent toast, failed save-on-exit (D137) |
+| errorBoundary.title | Something went wrong | crash fallback (D138) |
+| errorBoundary.body | Work that was already saved is still in your projects folder. | crash fallback |
+| errorBoundary.reload | Reload | crash fallback button |
+| errorBoundary.backToProjects | Back to Projects | route crash fallback button |
+| errorBoundary.unexpected | Something went wrong. If it keeps happening, reload the app. | toast for an unhandled rejection |

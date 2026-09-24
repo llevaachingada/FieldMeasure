@@ -1792,3 +1792,48 @@ closes the app browser gracefully before forcing it. Full reasoning in **D136**.
 `npm.cmd run clickthru` re-run on this tree: passed (it also discharges the D135/§4.1/§4.2 re-run owed on the same build).
 
 **Owed / `[Surface]`:** H26 in `docs/HARDWARE-TEST-CHECKLIST.md` (the real Chromium grant prompt and relaunch loop).
+
+## Wave 1 (beta readiness, session 27) — save-on-exit, error boundaries, first run, Home/grid, journey gate (D137-D143)
+
+**Date:** 2026-09-24 · **Commit:** see `git log` (Wave 1 commits on `claude/quirky-ramanujan-4xn374`)
+
+**Built:** from `docs/beta-readiness-fix-plan.md`, six parallel lanes (L1-L6) plus integration. The editor now awaits its
+autosave before leaving and the shell owns the open-project registry (D137, the review's two Critical findings); route,
+app and capture error boundaries with a guarded chunk reload and a global rejection toast (D138); first run creates or
+uses a real `FieldMeasure` folder, names an unsupported browser, and shows picker failures (D139); the Home scan hides
+non-project folders and scans in parallel (D140); Home cards show a cover, «N sheet(s) · time» and no dead adoption
+controls (D141); the grid's error state has «Retry» and the count is pluralized (D142); a headless journey e2e gate and
+an env-selectable Chromium for both browser runners (D143).
+
+**Machine gates:** `tsc` 0 · vitest **524 suites / 1571 tests** (node + jsdom + browser, headless, `PW_CHROMIUM_PATH`)
+· `build` 0 (28 precache) · `playwright` **8 passed / 5 skipped** (the baseline 5/5 + the 3 journey cases). The journey
+spec was also run against the pre-fix tree: **3 failed** there, so it locks F1/F2. Baseline before the wave: tsc 0,
+node + jsdom 1302/1302.
+
+**Clickthru:** not run (it is headed and Windows-oriented; this session ran in a Linux container). Instead the built app
+was driven headlessly and screenshotted: Home (cover, «1 sheet · 6:46 PM», no disabled card), the grid after leaving the
+editor (no error line, 1 card), the unsupported-browser notice, and the sheet card after the `.hit-slop` fix. **Owed:**
+`npm.cmd run clickthru` on the Windows machine before claiming the whole path end to end.
+
+**Deferred to hardware:** H27-H29 in `docs/HARDWARE-TEST-CHECKLIST.md`.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** D137, D138, D139, D140, D141, D142, D143.
+
+**Surprises:**
+- **The plan's L3 brief was wrong about jsdom.** FirstRun's unsupported-browser early return fires in jsdom (no
+  `showDirectoryPicker`), breaking three existing FirstRun cases and the smoke test. A global picker default in
+  `tests/setup.ts` fixed those and broke 29 camera tests, because `initStore` chooses the folder backend vs OPFS on the
+  same probe. Reverted; the default picker is stubbed in the two affected files only (setup lines, no assertions changed).
+- **A layout bug older than this wave, found only by the screenshot:** `styles.css` loads after the component sheets, so
+  `.hit-slop { position: relative }` beat three components' `position: absolute` (sheet card select toggle and ⋯ menu,
+  camera AE/AF lock chip). L5 correctly found no overlap by reading the CSS; the computed style told the truth. Fixed with
+  `:where(.hit-slop)`; audit in D142.
+- L5's removal of the secondary card changed one more count (4 → 3 cards) than its brief named; accepted under D141.
+- L1 switched two of its test mocks to partial mocks because other lanes added cross-module imports mid-wave.
+- Commits are grouped (fixes, then the journey gate, then docs) rather than one per lane: `App.tsx` and `strings.ts`
+  carry several decisions' integration lines, and every commit must compile on its own.
+
+**Next:** Wave 2 of `docs/beta-readiness-fix-plan.md` (R1-R4 behaviour-preserving refactors), after the owed clickthru
+and the H27-H29 hardware rows.

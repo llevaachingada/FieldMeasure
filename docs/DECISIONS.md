@@ -3687,29 +3687,41 @@ recovery, a cancelled re-pick restores it); `tests/settings.test.tsx` (+1: «Cha
 
 ### D137 - save-on-exit: the editor awaits its autosave before leaving; the shell owns project registration
 
-**Status: in progress (session 27, Wave 1 lane L1).** Session-27 review F1/F2, both reproduced on the built app: a markup
+**Status: shipped (session 27, Wave 1 lane L1).** Session-27 review F1/F2, both reproduced on the built app: a markup
 edit made inside the 400 ms coalesce window before «Projects» never reached `markup.json` (the unmount cleanup fired
 `flush()` and then synchronously deregistered the project the write resolves through), and the grid showed «Couldn't read
 this project folder» after every editor visit (same deregistration). Decision: the editor's cleanup releases its lease and
 channel only after the flush settles and no longer calls `clearOpenProject`; `App` re-registers on every grid load and
 clears only on «Back to Projects»; `EditorLayout` awaits `editorSession().flush()` (8 s cap) before `onExit`, and a failed
-save stays in the editor with a warning, a second request leaving anyway. Full text at integration.
+save stays in the editor with a warning, a second request leaving anyway.
+**Evidence:** `tests/e2e/journey.spec.ts` (D143) fails all three cases on the pre-fix tree (grid error line, 0 sheet
+cards, 0 objects in `markup.json`) and passes on this one. Unit locks: `tests/editorExitSave.test.tsx` (waits, fails
+safe, double tap, no session) and `tests/appGridReturn.test.tsx` (the grid re-registers on every load; «Back to Projects»
+clears). Integration also clears the exit timer once the save settles.
 
 ### D138 - error boundaries at app and route level, a guarded chunk-load reload, a global rejection toast
 
-**Status: in progress (L2).** Review F3: no error boundary existed, so any render throw or lazy-chunk failure unmounted the
+**Status: shipped (session 27, Wave 1, L2).** Review F3: no error boundary existed, so any render throw or lazy-chunk failure unmounted the
 app to a blank page. Local-only: errors go to `console.error`, never off-device (non-negotiable 8).
+Shipped: `AppErrorBoundary` wraps `<App/>` (`main.tsx`, Reload only), every route (`App.tsx`, `key={route}`, adds «Back to
+Projects») and the capture overlay (resets by closing it). A chunk-load error reloads once per 60 s (sessionStorage
+guard). `installGlobalErrorHandlers` toasts an unhandled rejection (AbortError ignored, one toast per 5 s).
 
 ### D139 - first run uses a real FieldMeasure folder, and says when it cannot
 
-**Status: in progress (L3).** Review F4: «Use Documents\FieldMeasure» only opened the picker (picking Documents itself made
+**Status: shipped (session 27, Wave 1, L3).** Review F4: «Use Documents\FieldMeasure» only opened the picker (picking Documents itself made
 every Documents subfolder a Home card); a browser without `showDirectoryPicker` left step 2 silently dead; non-cancel picker
 errors were swallowed. Decision: that button creates or reuses a `FieldMeasure` child of the picked folder («Choose folder»
 is unchanged); an unsupported-browser notice replaces both steps; a picker failure shows a visible line.
+**Test scoping (integration):** jsdom has no `showDirectoryPicker`, so the notice fired in the three existing
+`firstRun.test.tsx` cases and `component.smoke.test.tsx`. A global default in `tests/setup.ts` was tried and reverted:
+the storage layer picks its backend (folder vs OPFS) on the same probe, and 29 camera tests broke. The fix is a
+cancelling picker stubbed in those two files only (setup lines; no assertion changed). The notice body uses the neutral
+`--g300`, not `--err`: it is guidance, not a failure.
 
 ### D140 - the Home scan hides root subfolders that are not projects
 
-**Status: in progress (L4).** A root subfolder is listed only if it has `project.json` or `.history/_project/`; a folder
+**Status: shipped (session 27, Wave 1, L4).** A root subfolder is listed only if it has `project.json` or `.history/_project/`; a folder
 with a corrupt `project.json` is still listed as unreadable. **Supersedes the `NotAProject` half of
 `tests/projectStore.test.ts` «reports an unreadable folder as a card instead of hiding it»**: a folder with neither file
 cannot be opened by the app today either, so a card for it is only noise (review F4b). The scan also reads folders with
@@ -3717,19 +3729,26 @@ bounded concurrency (8).
 
 ### D141 - Home hides unbuilt adoption controls; real card meta and a cover thumbnail
 
-**Status: in progress (L5 + L4's `readProjectCover`).** The disabled «Open existing folder…» card and the disabled
+**Status: shipped (session 27, Wave 1, L5 + L4's `readProjectCover`).** The disabled «Open existing folder…» card and the disabled
 empty-state button are removed rather than shown disabled; the meta reads «{N sheet(s)} · {time}» instead of two U+2014
-placeholders; the card shows its first sheet's `thumb.jpg`. **Supersedes `tests/projectList.test.tsx`'s two
+placeholders; the card shows its first sheet's `thumb.jpg` (`projectStore.readProjectCover`, read-only). **Supersedes `tests/projectList.test.tsx`'s two
 "disabled and inert" assertions** (empty-state button, secondary card): a permanently disabled control in the primary
-dashboard read as broken on first use (review F5).
+dashboard read as broken on first use (review F5). The same removal changed one more count, mechanically: «renders
+one card per folder» expected 4 `.project-card`s ("3 + secondary"), now 3. `sheetCountLabel` lives in `strings.ts` so
+Home does not pull the grid's module graph into its chunk.
 
 ### D142 - the sheets grid's error state gets «Retry»; the sheet count is pluralized
 
-**Status: in progress (L5).** The error line had no recovery (review F2/F5) and the header read «1 sheets».
+**Status: shipped (session 27, Wave 1, L5).** The error line had no recovery (review F2/F5) and the header read «1 sheets».
+**Also fixed here, found by the integration screenshot:** `.hit-slop { position: relative }` in `styles.css` loads AFTER
+the component sheets at equal specificity, so it silently overrode `position: absolute` on the sheet card's select toggle
+and ⋯ menu (both fell into normal flow over the meta line; the multi-select toggle was effectively missing) and on the
+camera's AE/AF lock chip. `.hit-slop` is now `:where(.hit-slop)` (zero specificity). An audit of every `hit-slop`
+element's own `position` found only `absolute` (three, now correct) and `relative` (two, unchanged).
 
 ### D143 - a headless journey e2e gate; both browser runners honour PW_CHROMIUM_PATH
 
-**Status: in progress (L6).** `tests/e2e/journey.spec.ts` covers screen-to-screen transitions (editor → grid → Home →
+**Status: shipped (session 27, Wave 1, L6).** `tests/e2e/journey.spec.ts` covers screen-to-screen transitions (editor → grid → Home →
 reopen, and a save racing an exit) that 1,302 green unit tests missed. The clickthru stays an inspection tool, never a
 gate; this spec is separate from it. `PW_CHROMIUM_PATH` lets a container whose Playwright has no matching bundled browser
-use a local Chromium; unset, nothing changes.
+use a local Chromium; unset, nothing changes. In a headless container add `--browser.headless` for Vitest.

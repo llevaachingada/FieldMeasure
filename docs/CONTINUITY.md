@@ -3,13 +3,24 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-22 (session 24, time-boxed close at the owner's request — token budget)
+**Last updated:** 2026-09-24 (session 27: beta readiness review + Wave 1 of `docs/beta-readiness-fix-plan.md`)
 
 **What this project has now that it did not before: a clickthru harness.** One command drives the *built*
 app end to end with real touch and pen input on the Surface geometry and screenshots every step, so an agent
 can *look* instead of trusting a green gate. `npm.cmd run clickthru` | `playwright.clickthru.config.ts` |
 `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc `docs/clickthru-harness.md`;
 a `clickthru` skill; an OMO orchestrator rule. It is **never a gate** and **never promotes a `[Surface]` row**.
+
+**Session 27 (beta readiness, D137-D143):** a readiness review drove the built app and found two Critical bugs every
+beta user would hit: an edit made just before tapping «Projects» was never saved, and the sheets grid showed «Couldn't
+read this project folder» after every editor visit (both from the editor deregistering the project on unmount). Wave 1 of
+`docs/beta-readiness-fix-plan.md` (six parallel lanes + integration) fixed them (**D137**) and shipped error boundaries
+(**D138**), first-run fixes (**D139**: a real `FieldMeasure` folder, an unsupported-browser notice), a Home scan that hides
+non-project folders (**D140**), Home covers/real meta/no dead controls (**D141**), grid «Retry» + a `.hit-slop` cascade fix
+that had knocked the sheet card's select toggle and ⋯ menu out of place (**D142**), and a **journey e2e gate** (**D143**,
+fails 3/3 on the pre-fix tree). Gates: `tsc` 0 | vitest **1571/1571** (node + jsdom + browser) | build 0 | playwright
+8 passed / 5 skipped. **Owed:** `npm.cmd run clickthru` on Windows (not run: Linux container), `[Surface]` H27-H29, then
+Wave 2 (R1-R4 refactors) of the plan.
 
 **Session 25 (owner request, D135):** a calculator-style dimension keypad (postfix `1 2 FT 6 IN 3 / 8`, preset fractions,
 a typed-entry line), a **project-name pop-up** on «New project», `Sheet.capturedAt` printed as a date/time stamp above the
