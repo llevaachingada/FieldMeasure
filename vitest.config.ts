@@ -67,7 +67,13 @@ export default defineConfig({
           name: 'browser',
           browser: {
             enabled: true,
-            provider: playwright(),
+            // D143: same escape hatch as playwright.config.ts (verified in session 27 with
+            // PW_CHROMIUM_PATH=/opt/pw-browsers/chromium plus --browser.headless).
+            provider: playwright(
+              process.env.PW_CHROMIUM_PATH
+                ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } }
+                : {},
+            ),
             instances: [{ browser: 'chromium' }],
           },
           include: ['tests/**/*.browser.test.ts'],

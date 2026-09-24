@@ -16,6 +16,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'on-first-retry',
+    // D143: a container whose Playwright build has no matching bundled browser can point at a local
+    // Chromium. Unset (the Windows build machine), nothing changes.
+    ...(process.env.PW_CHROMIUM_PATH ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } } : {}),
   },
   projects: [
     {
