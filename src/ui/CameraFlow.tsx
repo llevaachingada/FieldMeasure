@@ -74,6 +74,15 @@ import {
   writeAtomic,
 } from '@/fs/projectStore';
 import { addSheetFromPhoto, defaultSheetTitle } from '@/fs/sheetIntake';
+import {
+  CameraSession,
+  MAX_IDEAL,
+  cropRectFor,
+  needsCrop,
+  snapshotVideoFrame,
+  zoomPlan,
+  type ExtendedConstraintSet,
+} from '@/media/cameraSession';
 import { STRINGS } from './strings';
 import './camera.css';
 
@@ -108,125 +117,16 @@ const LONG_PRESS_SLOP = 8;
 /** Horizon turns `--ok` within ±1.5° (UI §10.1). */
 const LEVEL_TOLERANCE_DEG = 1.5;
 
-/**
- * The opening request: far above any webcam, so the browser's "closest to ideal" rule lands on
- * the largest mode the device offers (a 4096×2160 ask used to cap 4:3 sensors below their max).
- * `startCamera` then reads the track's capabilities and asks for the exact reported maximum.
- */
-const MAX_IDEAL = { width: { ideal: 7680 }, height: { ideal: 4320 } } as const;
-
 /** Zoom chips (UI §10.1: 0.5× / 1× / 2×). 0.5× only exists when the hardware can go wider. */
 const ZOOM_STEPS = [0.5, 1, 2] as const;
 type ZoomStep = (typeof ZOOM_STEPS)[number];
 
-/** Within this ratio a still's aspect is "the same framing as the preview" (no crop needed). */
-const ASPECT_TOLERANCE = 0.02;
-
 /* ------------------------------------------------------------------ *
- * Exported pure helpers (unit-testable, no DOM)
+ * Re-exported pure helpers — moved to `src/media/cameraSession.ts` (R4). Kept as
+ * re-exports because `tests/cameraFallback.test.tsx` imports them from this module
+ * and must stay unmodified.
  * ------------------------------------------------------------------ */
-
-export interface CropRect {
-  sx: number;
-  sy: number;
-  sw: number;
-  sh: number;
-}
-
-/**
- * The centre crop of a `srcW × srcH` frame that shows what the viewfinder shows: the preview's
- * aspect (`viewAspect`, width / height) at a digital `zoom` (≥ 1). Digital zoom is a real crop —
- * it costs pixels, and the photo has exactly the pixels the user framed. Pure.
- */
-export function cropRectFor(srcW: number, srcH: number, viewAspect: number, zoom: number): CropRect {
-  // Largest viewAspect-shaped rectangle inside the source…
-  let w = srcW;
-  let h = srcW / viewAspect;
-  if (h > srcH) {
-    h = srcH;
-    w = srcH * viewAspect;
-  }
-  // …then shrunk by the digital zoom.
-  const z = Math.max(1, zoom);
-  const sw = Math.max(1, Math.round(w / z));
-  const sh = Math.max(1, Math.round(h / z));
-  return { sx: Math.round((srcW - sw) / 2), sy: Math.round((srcH - sh) / 2), sw, sh };
-}
-
-/** Whether a still needs cropping at all (same framing as the preview, and no digital zoom). */
-export function needsCrop(srcW: number, srcH: number, viewAspect: number, zoom: number): boolean {
-  if (zoom > 1) return true;
-  return Math.abs(srcW / srcH / viewAspect - 1) > ASPECT_TOLERANCE;
-}
-
-/**
- * How a chip is served. Hardware zoom when the track's reported range covers the step; a digital
- * crop for any step ≥ 1 otherwise; and 0.5× only when the hardware can genuinely go wider.
- * `null` = the step is not offered (a chip that could not do what it says is not drawn).
- */
-export function zoomPlan(
-  step: number,
-  range: { min?: number; max?: number } | undefined,
-): { hardware: number | null; digital: number } | null {
-  const min = range?.min;
-  const max = range?.max;
-  const hardwareOk = min !== undefined && max !== undefined && step >= min && step <= max;
-  if (hardwareOk) return { hardware: step, digital: 1 };
-  if (step < 1) return null;
-  return { hardware: null, digital: step };
-}
-
-/**
- * The largest photo the camera will give. `ImageCapture.takePhoto` returns the still-capture
- * resolution, which on most cameras exceeds the video stream's; where it is missing or throws
- * (jsdom, Firefox, a driver that refuses), the caller falls back to a frame of the preview.
- */
-async function takeStillAtMax(track: MediaStreamTrack): Promise<Blob | null> {
-  const Ctor = (globalThis as { ImageCapture?: new (t: MediaStreamTrack) => ImageCaptureLike }).ImageCapture;
-  if (!Ctor) return null;
-  try {
-    const capture = new Ctor(track);
-    const caps = await capture.getPhotoCapabilities?.();
-    const width = caps?.imageWidth?.max;
-    const height = caps?.imageHeight?.max;
-    return await capture.takePhoto(width && height ? { imageWidth: width, imageHeight: height } : undefined);
-  } catch {
-    return null;
-  }
-}
-
-interface ImageCaptureLike {
-  getPhotoCapabilities?: () => Promise<{ imageWidth?: { max?: number }; imageHeight?: { max?: number } }>;
-  takePhoto: (settings?: { imageWidth: number; imageHeight: number }) => Promise<Blob>;
-}
-
-/** Crop a still to the preview's framing at a digital zoom, re-encoded as a high-quality JPEG. */
-async function cropStill(
-  blob: Blob,
-  viewAspect: number,
-  zoom: number,
-): Promise<{ blob: Blob; width: number; height: number }> {
-  const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
-  try {
-    if (!needsCrop(bitmap.width, bitmap.height, viewAspect, zoom)) {
-      return { blob, width: bitmap.width, height: bitmap.height };
-    }
-    const rect = cropRectFor(bitmap.width, bitmap.height, viewAspect, zoom);
-    const canvas = document.createElement('canvas');
-    canvas.width = rect.sw;
-    canvas.height = rect.sh;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('2D canvas context unavailable');
-    ctx.drawImage(bitmap, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, rect.sw, rect.sh);
-    const out = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.95),
-    );
-    if (!out) throw new Error('JPEG encode failed');
-    return { blob: out, width: rect.sw, height: rect.sh };
-  } finally {
-    bitmap.close();
-  }
-}
+export { cropRectFor, needsCrop, zoomPlan, type CropRect } from '@/media/cameraSession';
 
 /**
  * C3 (§21.7 provisional). The build machine reports **no usable camera**
@@ -266,33 +166,6 @@ export function fallbackCopyForDeviceMax(maxHeightPx: number | null): {
     body: STRINGS.capture.embeddedFallback,
     promoted,
   };
-}
-
-/**
- * Grab one frame from the live `<video>` as a JPEG. The real size comes from the
- * element (`videoWidth`/`videoHeight`); the fallback is the track's reported settings
- * (a not-yet-painted video element reports 0×0).
- */
-export async function snapshotVideoFrame(
-  video: HTMLVideoElement,
-  fallback: { width: number; height: number },
-  digitalZoom = 1,
-): Promise<{ blob: Blob; width: number; height: number }> {
-  const width = Math.max(1, Math.round(video.videoWidth || fallback.width));
-  const height = Math.max(1, Math.round(video.videoHeight || fallback.height));
-  // Digital zoom is a centre crop of the frame — the photo is what the preview showed.
-  const rect = cropRectFor(width, height, width / height, digitalZoom);
-  const canvas = document.createElement('canvas');
-  canvas.width = rect.sw;
-  canvas.height = rect.sh;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('2D canvas context unavailable');
-  ctx.drawImage(video, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.95),
-  );
-  if (!blob) throw new Error('JPEG encode failed');
-  return { blob, width: canvas.width, height: canvas.height };
 }
 
 /**
@@ -354,14 +227,6 @@ interface ProjectState {
   dir: FileSystemDirectoryHandle;
   file: ProjectFile;
 }
-
-/** `MediaTrackConstraintSet` plus the Chromium-only members we probe best-effort. */
-type ExtendedConstraintSet = MediaTrackConstraintSet & {
-  zoom?: number;
-  pointsOfInterest?: Array<{ x: number; y: number }>;
-  focusMode?: string;
-  exposureMode?: string;
-};
 
 function safeObjectUrl(blob: Blob): string {
   try {
@@ -525,8 +390,10 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const generationRef = useRef(0);
+  /** R4: one `CameraSession` per mount — owns acquisition, zoom and capture (`src/media/cameraSession.ts`). */
+  const sessionRef = useRef<CameraSession | null>(null);
+  if (sessionRef.current === null) sessionRef.current = new CameraSession();
+  const session = sessionRef.current;
   const projectRef = useRef<ProjectState | null>(null);
   /** The armed bounded-wait timer for an in-flight save (cleared on unmount, not left behind). */
   const watchdogRef = useRef<(() => void) | null>(null);
@@ -607,9 +474,8 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   /* ---- camera lifecycle -------------------------------------------------- */
 
   const stopStream = useCallback((): void => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-  }, []);
+    session.stop();
+  }, [session]);
 
   const refreshDevices = useCallback(async (): Promise<void> => {
     const media = navigator.mediaDevices;
@@ -624,66 +490,38 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
 
   const startCamera = useCallback(
     async (nextDeviceId: string | null): Promise<void> => {
-      const generation = generationRef.current + 1;
-      generationRef.current = generation;
-      stopStream();
       setDelivered(null);
       try {
-        const media = navigator.mediaDevices;
-        if (!media?.getUserMedia) throw new Error('getUserMedia is unavailable');
-        const stream = await media.getUserMedia({
+        const result = await session.start(videoRef.current, {
           audio: false,
           video: {
             ...(nextDeviceId ? { deviceId: { exact: nextDeviceId } } : {}),
             ...MAX_IDEAL,
           },
         });
-        if (generation !== generationRef.current) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        const video = videoRef.current;
-        if (video) video.srcObject = stream;
-
-        const track = stream.getVideoTracks()[0] ?? null;
-        if (track) {
-          const capabilities = (track.getCapabilities?.() ?? {}) as unknown as CameraCaps;
-          // Highest resolution the camera offers: if the opening request landed below the
-          // capability maximum (a browser may weigh aspect over size), ask for the maximum outright.
-          const first = track.getSettings();
-          const capW = capabilities.width?.max ?? 0;
-          const capH = capabilities.height?.max ?? 0;
-          if (capW > 0 && capH > 0 && ((first.width ?? 0) < capW || (first.height ?? 0) < capH)) {
-            try {
-              await track.applyConstraints({ width: { ideal: capW }, height: { ideal: capH } });
-            } catch {
-              // Keep whatever the camera settled on: a hint must never break the viewfinder.
-            }
-          }
-          const settings = track.getSettings();
-          const width = settings.width ?? 0;
-          const height = settings.height ?? 0;
+        if (result.superseded) return;
+        if (result.track) {
           // The HONEST size: what the track actually delivers (only the snapshot fallback reads it).
-          setDelivered(width > 0 && height > 0 ? { width, height } : null);
-          setCaps({ zoom: capabilities.zoom });
+          setDelivered(result.delivered);
+          setCaps({ zoom: result.capabilities.zoom });
           setZoom(1);
           setDigitalZoom(1);
-          if (!nextDeviceId && settings.deviceId) setDeviceId(settings.deviceId);
+          if (!nextDeviceId && result.deviceId) setDeviceId(result.deviceId);
         }
         setView('viewfinder');
         await refreshDevices();
       } catch {
-        if (generation === generationRef.current) setView('unavailable');
+        // `session.start` only throws when this attempt is still the current one (an older,
+        // superseded attempt resolves instead of throwing) — see `CameraSession.start`.
+        setView('unavailable');
       }
     },
-    [refreshDevices, stopStream],
+    [refreshDevices, session],
   );
 
   useEffect(() => {
     void startCamera(null);
     return () => {
-      generationRef.current += 1;
       stopStream();
     };
   }, [startCamera, stopStream]);
@@ -728,25 +566,15 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
 
   /* ---- best-effort hardware hints --------------------------------------- */
 
-  const track = (): MediaStreamTrack | null => streamRef.current?.getVideoTracks()[0] ?? null;
-
   /**
-   * Best-effort hardware hint. Returns whether the device actually ACCEPTED it. A rejected or
-   * unsupported constraint must never break the viewfinder (the catch stays), but a control that
-   * reports success when the hardware refused is a lie — see D108. Callers that only want the
-   * hint ignore the return value.
+   * Best-effort hardware hint (D108: a control must never report success when the hardware
+   * refused). Delegates to `CameraSession.applyAdvanced`, which keeps the same never-throw
+   * contract.
    */
-  const applyAdvanced = useCallback(async (set: ExtendedConstraintSet): Promise<boolean> => {
-    const active = track();
-    if (!active?.applyConstraints) return false;
-    try {
-      await active.applyConstraints({ advanced: [set] });
-      return true;
-    } catch {
-      // Unsupported constraints reject — the viewfinder must never break over a hint.
-      return false;
-    }
-  }, []);
+  const applyAdvanced = useCallback(
+    (set: ExtendedConstraintSet): Promise<boolean> => session.applyAdvanced(set),
+    [session],
+  );
 
   const clearReticle = useCallback((): void => {
     if (reticleTimerRef.current !== null) window.clearTimeout(reticleTimerRef.current);
@@ -836,25 +664,13 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
    * from what actually applied, never from the intent (D108's lesson).
    */
   const chooseZoom = async (value: ZoomStep): Promise<void> => {
-    const plan = zoomPlan(value, caps.zoom);
-    if (!plan) return;
-    if (plan.hardware !== null) {
-      const applied = await applyAdvanced({ zoom: plan.hardware });
-      if (applied) {
-        setZoom(value);
-        setDigitalZoom(1);
-        return;
-      }
-      // The hardware refused (the range was advertised, the driver disagreed): crop instead.
-      if (value < 1) return;
-      setZoom(value);
-      setDigitalZoom(value);
-      return;
-    }
-    // A digital step: hand the hardware back to its minimum first, or the crop would compound.
-    if (caps.zoom?.min !== undefined) void applyAdvanced({ zoom: caps.zoom.min });
+    // `CameraSession.setZoom` runs the exact plan this used to compute inline (hardware when the
+    // range covers the step, else a digital crop) and returns `null` for the two "leave state
+    // alone" cases: a step not offered at all, or a hardware range that the driver refused below 1×.
+    const result = await session.setZoom(value);
+    if (!result) return;
     setZoom(value);
-    setDigitalZoom(plan.digital);
+    setDigitalZoom(result.digitalZoom);
   };
 
   const visibleZoomSteps = ZOOM_STEPS.filter((step) => zoomPlan(step, caps.zoom) !== null);
@@ -868,20 +684,9 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
     setFlash(true);
     try {
       const fallbackSize = delivered ?? { width: 1280, height: 720 };
-      const active = track();
-      // The still-capture path first (the camera's true maximum), then a frame of the preview.
-      let shot: { blob: Blob; width: number; height: number } | null = null;
-      const still = active ? await takeStillAtMax(active) : null;
-      if (still) {
-        try {
-          const viewAspect =
-            (video.videoWidth || fallbackSize.width) / (video.videoHeight || fallbackSize.height);
-          shot = await cropStill(still, viewAspect, digitalZoom);
-        } catch {
-          shot = null;
-        }
-      }
-      if (!shot) shot = await snapshotVideoFrame(video, fallbackSize, digitalZoom);
+      // The still-capture path first (the camera's true maximum), then a frame of the preview —
+      // `CameraSession.capture` runs both at the session's current digital zoom.
+      const shot = await session.capture(video, fallbackSize);
       const url = safeObjectUrl(shot.blob);
       const next: Captured = { at: shutterAt, blob: shot.blob, url, width: shot.width, height: shot.height };
       capturedRef.current = next;
