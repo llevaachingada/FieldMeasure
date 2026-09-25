@@ -67,6 +67,7 @@ import { createPortal } from 'react-dom';
 import { Camera, Check, ChevronLeft, MoreHorizontal, Share2, Upload } from 'lucide-react';
 import { emitToast } from '@/editor/session';
 import type { ProjectSheetCard } from '@/fs/projectSheets';
+import TopBarLogo from './TopBarLogo';
 import HelpButton from './HelpButton';
 import { STRINGS, t } from './strings';
 import StorageChip from './StorageChip';
@@ -1129,6 +1130,7 @@ export default function ProjectScreen({
   return (
     <main className="project-screen" data-state={state}>
       <header className="project-bar">
+        <TopBarLogo />
         <button
           type="button"
           className="crumb crumb-back hit-slop"

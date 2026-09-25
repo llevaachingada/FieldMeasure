@@ -16,6 +16,7 @@
  */
 import type { JSX } from 'react';
 import { useAppStore } from '@/state/appStore';
+import { VANGARDE_MARK_SRC } from './TopBarLogo';
 
 export default function WatermarkOverlay(): JSX.Element | null {
   const enabled = useAppStore((s) => s.watermarkEnabled);
@@ -23,7 +24,7 @@ export default function WatermarkOverlay(): JSX.Element | null {
 
   return (
     <div className="watermark-overlay" aria-hidden="true">
-      <img className="watermark-overlay-mark" src="/branding/vangarde-mark-light.png" alt="" />
+      <img className="watermark-overlay-mark" src={VANGARDE_MARK_SRC} alt="" />
     </div>
   );
 }

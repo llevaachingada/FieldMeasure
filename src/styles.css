@@ -1536,5 +1536,39 @@ button.crumb:hover {
      top of the clamp it is 260 x 122 px. The camera's zoom chips clear that height. */
   width: clamp(140px, 14vw, 260px);
   height: auto;
-  opacity: 0.14;
+  /* Owner (session 29): a little less transparent. Was 0.14. */
+  opacity: 0.24;
+}
+
+/* D157: the small VANGARDE mark centred in each top bar (editor, project, Home). Decorative and
+   click-through; hidden where the bar is too narrow for it to clear the breadcrumb and actions. */
+.editor-topbar,
+.project-bar,
+.home-bar {
+  position: relative;
+}
+.topbar-logo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  height: 28px;
+  width: auto;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.editor-topbar[data-compact='true'] .topbar-logo {
+  display: none;
+}
+@media (max-width: 1100px) {
+  .topbar-logo {
+    display: none;
+  }
+}
+/* D157: the centre belongs to the logo; the autosave chip sits just right of it when the logo shows. */
+@media (min-width: 1101px) {
+  .editor-topbar:not([data-compact='true']) .topbar-autosave {
+    justify-content: flex-end;
+    padding-right: 16px;
+  }
 }

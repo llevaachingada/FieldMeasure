@@ -17,6 +17,9 @@
 .camera {
   position: fixed;
   inset: 0;
+  /* Above the project grid under it: without a stacking level the grid cards' own ⋯ menu
+     buttons (z-index 2-5) painted through the capture surface as stray tiles (owner, session 29). */
+  z-index: 50;
   background: var(--g900);
   color: var(--g100);
   overflow: hidden;
@@ -372,7 +375,7 @@
 }
 .camera-review-image {
   max-width: min(100%, 90vw);
-  max-height: 68vh;
+  max-height: 60vh;
   object-fit: contain;
   border-radius: 14px;
 }
@@ -394,6 +397,25 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
+}
+.camera-review-room {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 2px solid var(--g600);
+  background: var(--g750);
+  color: var(--g000);
+  font: inherit;
+  font-size: 16px;
+}
+.camera-review-room:focus-visible {
+  outline: 2px solid var(--sel);
+  outline-offset: 2px;
 }
 .camera-review-primary {
   display: inline-flex;

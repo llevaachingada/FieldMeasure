@@ -569,7 +569,12 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
 
     // Each sheet's photo date/time, printed above the watermark (only when the watermark is on).
     const stampBySheet = new Map<string, string | null>(
-      projectFile.sheets.map((row) => [row.id, formatCaptureStamp(row.capturedAt)]),
+      projectFile.sheets.map((row) => {
+        // D156: the room typed at capture leads the stamp («Kitchen · Sep 25, 2026 · 12:17 PM»).
+        const stamp = formatCaptureStamp(row.capturedAt);
+        const room = row.roomName?.trim();
+        return [row.id, room ? (stamp ? `${room} · ${stamp}` : room) : stamp];
+      }),
     );
 
     const files: ExportFileResult[] = [];

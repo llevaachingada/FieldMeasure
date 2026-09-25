@@ -359,6 +359,10 @@ export const STRINGS = {
     aeAfLock: 'AE/AF LOCK',
     retake: 'Retake',
     usePhoto: 'Use photo',
+    // ⚠ PROPOSED (C14) — D156 room name on the review screen.
+    roomNameLabel: 'Room name',
+    roomNamePlaceholder: 'Room name (optional)',
+
     discardConfirm: 'Discard this photo? The sheet\'s markup will be kept if the new photo is the same size.',
     adding: 'Adding…',
     openWindowsCamera: 'Open Windows Camera',

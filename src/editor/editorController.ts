@@ -36,10 +36,13 @@ import {
   cleanStaleTmp,
   readProjectFile,
   resolveOpenProjectDir,
+  resolveSheetDir,
+  writeAtomic,
   type ProjectChannel,
   type WriterLease,
 } from '@/fs/projectStore';
 import { useAppStore } from '@/state/appStore';
+import { createSheetThumbWriter } from '@/editor/sheetThumb';
 import { InsetTool, type InsetAssetInput } from '@/editor/tools/InsetTool';
 import { InsetAssetRegistry, createFocusAwareScene } from '@/ui/insetWiring';
 import { STRINGS, t } from '@/ui/strings';
@@ -268,6 +271,24 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
   // state, where the status — and so the subscription — does not fire.
   const unsubscribeBusy = persist.subscribe(() => setPersistenceBusy(persist.inFlight));
   setPersistenceBusy(persist.inFlight);
+  // D155: the grid card previews the saved state (photo + markup), re-snapshotted 3 s after
+  // the last edit and flushed before a sheet switch or teardown.
+  const thumbs = createSheetThumbWriter({
+    canvas: () => canvasRef.current,
+    target: (sid) => {
+      const state = projectDirRef.current;
+      const s = state?.file.sheets.find((x) => x.id === sid);
+      if (!state || !s || readOnlyRef.current) return null;
+      return {
+        width: s.imageWidth,
+        height: s.imageHeight,
+        write: async (blob) => {
+          const dir = await resolveSheetDir(state.dir, sid);
+          await writeAtomic(dir, 'thumb.jpg', blob, projectId);
+        },
+      };
+    },
+  });
   scene.onChange = () => {
     // A style edit, an undo/redo or any other mutation may change the selection's
     // shared style — refresh the mirror BEFORE the early return (the shell's panel must
@@ -277,6 +298,7 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
     if (!sid) return;
     persist.queueSheet(projectId, sid, scene.markupFile(sid, 1));
     setPersistenceBusy(persist.inFlight);
+    thumbs.schedule(sid);
     // Re-derive the Layers rows only while the flyout is open (avoids a full
     // SheetEditor re-render on every drag/property tick otherwise).
     if (useEditorStore.getState().layersOpen) setSceneTick((n) => n + 1);
@@ -887,6 +909,7 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
     // The open failed (the error panel and its Retry own that) or never finished.
     if (!state) return;
     loadedSheetId = id;
+    void thumbs.flush();
     sheetIdRef.current = null;
     cancelActiveMarkup();
     history.clear();
@@ -935,6 +958,7 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
   }
 
   const teardown = (): void => {
+    void thumbs.flush();
     alive = false;
     resizeObserver.disconnect();
     host.removeEventListener('pointerdown', onPointerDown);

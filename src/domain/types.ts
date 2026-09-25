@@ -90,6 +90,8 @@ export interface Sheet {
   deletedAt?: string | null;
   /** When the photo was taken (ISO 8601). Printed on exports as the date/time stamp. */
   capturedAt?: string | null;
+  /** D156: the room typed at capture («Kitchen»). Also the sheet's title; printed on exports. */
+  roomName?: string | null;
 }
 
 export type UnitFormat = 'ft-in' | 'in' | 'ft-decimal';

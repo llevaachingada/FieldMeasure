@@ -38,6 +38,8 @@ export interface SheetIntakeOptions {
   createdAt: Date;
   /** When the photo was TAKEN (shutter / EXIF / file date). Stored as `Sheet.capturedAt`. */
   capturedAt?: Date;
+  /** D156: the room typed on the review screen. When set it is also the sheet's title. */
+  roomName?: string | null;
 }
 
 export interface SheetIntakeResult {
@@ -69,7 +71,9 @@ export async function addSheetFromPhoto(
   photo: { blob: Blob; width: number; height: number },
   options: SheetIntakeOptions,
 ): Promise<SheetIntakeResult> {
-  const { projectDir, projectFile, projectId, title, createdAt } = options;
+  const { projectDir, projectFile, projectId, createdAt } = options;
+  const roomName = options.roomName?.trim() || null;
+  const title = roomName ?? options.title;
   const now = new Date();
   const sheet: SheetFile = {
     id: newId(),
@@ -84,6 +88,7 @@ export async function addSheetFromPhoto(
     createdAt: createdAt.toISOString(),
     updatedAt: now.toISOString(),
     capturedAt: (options.capturedAt ?? createdAt).toISOString(),
+    ...(roomName ? { roomName } : {}),
   };
   const sheetDir = await resolveSheetDir(projectDir, sheet.id, { create: true });
   await writeAtomic(sheetDir, 'photo.jpg', photo.blob, projectId);

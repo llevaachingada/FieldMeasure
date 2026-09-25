@@ -250,3 +250,38 @@ describe('defaultSheetTitle — zero-padded, never renumbered, never minted twic
     expect(defaultSheetTitle(withTrash)).toBe('Sheet 04');
   });
 });
+
+describe('D156 — the room name typed on the review screen', () => {
+  it('names the sheet and is stored for the export stamp', async () => {
+    const { root, projectDir } = freshRoot();
+    locks();
+    const result = await addSheetFromPhoto(PHOTO, {
+      projectDir,
+      projectFile: validProjectFile({ sheetCount: 0 }),
+      projectId: PROJECT_ID,
+      title: 'Sheet 01',
+      createdAt: CAPTURED_AT,
+      roomName: '  Kitchen ',
+    });
+    expect(result.sheet.title).toBe('Kitchen');
+    const parsed = readProject(root.textAt('Riverside/project.json'));
+    expect(parsed.sheets[0].title).toBe('Kitchen');
+    expect(parsed.sheets[0].roomName).toBe('Kitchen');
+  });
+
+  it('a blank room name keeps the default title and stores nothing', async () => {
+    const { root, projectDir } = freshRoot();
+    locks();
+    await addSheetFromPhoto(PHOTO, {
+      projectDir,
+      projectFile: validProjectFile({ sheetCount: 0 }),
+      projectId: PROJECT_ID,
+      title: 'Sheet 01',
+      createdAt: CAPTURED_AT,
+      roomName: '   ',
+    });
+    const parsed = readProject(root.textAt('Riverside/project.json'));
+    expect(parsed.sheets[0].title).toBe('Sheet 01');
+    expect(parsed.sheets[0].roomName).toBeUndefined();
+  });
+});

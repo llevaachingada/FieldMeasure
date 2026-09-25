@@ -931,6 +931,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
             title: defaultSheetTitle(state.file),
             createdAt: exif.captureTime ?? new Date(),
             capturedAt: options.capturedAt ?? exif.captureTime ?? new Date(),
+            roomName: roomNameRef.current,
           },
         );
         state.file = nextFile;
@@ -981,6 +982,12 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
     },
     [folderName, onCaptured, projectId, resolveProject, rotation],
   );
+
+  // D156: the optional room name typed on the review screen names the sheet and is printed on
+  // its exports. A ref, so `commit` (a stable callback) reads the latest value.
+  const [roomName, setRoomName] = useState('');
+  const roomNameRef = useRef('');
+  roomNameRef.current = roomName;
 
   const usePhoto = (): void => {
     const current = capturedRef.current;
@@ -1121,6 +1128,19 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
           src={captured.url || undefined}
           alt=""
           data-rotation={rotation}
+        />
+        <input
+          className="camera-review-room"
+          type="text"
+          value={roomName}
+          maxLength={60}
+          aria-label={STRINGS.capture.roomNameLabel}
+          placeholder={STRINGS.capture.roomNamePlaceholder}
+          enterKeyHint="done"
+          onChange={(e) => setRoomName(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && write !== 'saving') usePhoto();
+          }}
         />
         <div className="camera-review-actions">
           <button type="button" className="btn btn-secondary hit-slop" onClick={retake}>

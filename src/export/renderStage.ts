@@ -192,6 +192,20 @@ export function exportInkSize(strokeWidthMu: number): number {
  */
 const EXPORT_INK_SCALE = 1;
 
+/**
+ * D154 (owner, session 29): «exports must look like what is rendered in the app». On screen a
+ * label is `mu` CSS px at every zoom, so at the fitted view a 4000 px photo shows it about three
+ * times larger, relative to the photo, than a literal `mu` image px. The export therefore draws
+ * every mark at `mu × k` image units, where `k` is the photo's long edge over the editor's
+ * reference fitted width. `k` never depends on M, so the §4.2 invariance across M still holds;
+ * photos no larger than the reference keep `k = 1` (the old behaviour, and every existing test).
+ */
+export const EXPORT_REFERENCE_VIEW_PX = 1280;
+
+export function exportMarkupScale(imageWidthPx: number, imageHeightPx: number): number {
+  return Math.max(1, Math.max(imageWidthPx, imageHeightPx) / EXPORT_REFERENCE_VIEW_PX);
+}
+
 /** §9.2: page pt = working-image px × 0.75 (96 dpi photo). Independent of M. */
 export function pagePtFromImagePx(imagePx: number): number {
   return imagePx * 0.75;
@@ -238,13 +252,13 @@ interface StrokeNode {
  * regenerated at `size = mu`. Node-for-node the mirror of `applyScreenRules`, reading
  * the same attrs. Never call `applyScreenRules` on an export tree.
  */
-export function applyExportRules(root: Konva.Container, m: number): void {
+export function applyExportRules(root: Konva.Container, m: number, k = 1): void {
   for (const node of root.getChildren()) {
     const className = classOf(node);
 
     if (className === 'Text') {
       const mu = node.getAttr('fontSizeMu');
-      if (typeof mu === 'number') (node as unknown as TextNode).fontSize(exportFontSize(mu));
+      if (typeof mu === 'number') (node as unknown as TextNode).fontSize(exportFontSize(mu) * k);
       // Mirrors applyScreenRules' F7 re-centring: a centred label's offset is a function
       // of its CURRENT glyph box, and the box just changed with the fontSize.
       if (node.getAttr('centerAnchor') === true) {
@@ -260,19 +274,19 @@ export function applyExportRules(root: Konva.Container, m: number): void {
       // `strokeScaleEnabled:false` is KEPT (same as screen): the width below is already
       // in bitmap px, so the layer's `scale = M` must NOT multiply it a second time.
       if (shape.strokeScaleEnabled() === false) {
-        shape.strokeWidth(exportStrokeWidth(strokeWidthMu, m));
+        shape.strokeWidth(exportStrokeWidth(strokeWidthMu, m) * k);
       }
     }
 
     if (LINE_CLASSES.has(className)) {
       // D150: a dimension arrowhead at export is `mu` image px, the same as ink (scale 1).
       const head = node.getAttr('arrowHead') as ArrowHeadSpec | undefined;
-      if (head) (node as unknown as InkLineNode).points(arrowHeadPoints(head, EXPORT_INK_SCALE));
+      if (head) (node as unknown as InkLineNode).points(arrowHeadPoints(head, EXPORT_INK_SCALE / k));
       const inkPoints = node.getAttr('inkPoints');
       if (Array.isArray(inkPoints) && typeof strokeWidthMu === 'number') {
         // `size = mu / EXPORT_INK_SCALE = mu` — the live-draw ink shape (Konva.Line).
         (node as unknown as InkLineNode).points(
-          inkOutlinePointsRef(inkPoints as Px[], strokeWidthMu, EXPORT_INK_SCALE),
+          inkOutlinePointsRef(inkPoints as Px[], strokeWidthMu, EXPORT_INK_SCALE / k),
         );
       }
     }
@@ -280,11 +294,11 @@ export function applyExportRules(root: Konva.Container, m: number): void {
     if (className === 'Path' && typeof node.getAttr('strokeWidthMu') === 'number') {
       // Committed freehand / highlighter ink is a FILLED Konva.Path: a fill ignores
       // `strokeScaleEnabled`, so the outline itself is regenerated at `size = mu`.
-      regenerateInkNodeRef(node as unknown as Konva.Path, EXPORT_INK_SCALE);
+      regenerateInkNodeRef(node as unknown as Konva.Path, EXPORT_INK_SCALE / k);
     }
 
     if (className === 'Group') {
-      applyExportRules(node as Konva.Container, m);
+      applyExportRules(node as Konva.Container, m, k);
       // Mirrors applyScreenRules: re-fit a text note's background box AFTER the glyphs'
       // fontSize has been re-applied. Screen divides the pad by the zoom so it renders
       // at `textPadPx` CSS px; export leaves it in image units (`/ 1`) so the layer's
@@ -294,7 +308,7 @@ export function applyExportRules(root: Konva.Container, m: number): void {
         const glyphs = fit.glyphs as Konva.Text;
         const box = fit.box as Konva.Rect;
         const padPx = node.getAttr('textPadPx');
-        const pad = (typeof padPx === 'number' ? padPx : 0) / EXPORT_INK_SCALE;
+        const pad = (typeof padPx === 'number' ? padPx : 0) / (EXPORT_INK_SCALE / k);
         box.x(glyphs.x() - pad);
         box.y(glyphs.y() - pad);
         box.width(glyphs.width() + pad * 2);
@@ -421,8 +435,12 @@ export async function renderSheet(
   // Labels are DERIVED here and now from `valueMm` + the project context (AGENTS #2).
   // `setScale` is the SCREEN path and is never called on an export tree.
   scene.setContext(input.ctx);
+  // D154: lay the dimension labels out for the `mu × k` glyphs (the label gap and collision
+  // push are functions of the drawn size). This is the scene's label layout, not the screen rules.
+  const k = exportMarkupScale(w, h);
+  if (k !== 1) scene.setScale(1 / k);
 
-  for (const layer of layers) applyExportRules(layer, m);
+  for (const layer of layers) applyExportRules(layer, m, k);
 
   // Draw and composite one layer at a time, releasing each layer's bitmap as soon as it
   // has been merged — the peak is the destination plus one layer.

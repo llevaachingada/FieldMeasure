@@ -132,6 +132,8 @@ export const ProjectFileZ = z.object({
     // import, or its file date. Distinct from `createdAt` (when the sheet row was made, which a
     // duplicate resets). `.nullish()` so every existing project file still parses unchanged.
     capturedAt: z.string().nullish(),
+    // D156: the room typed on the capture review screen. Printed with the date on exports.
+    roomName: z.string().nullish(),
   })),
 });
 

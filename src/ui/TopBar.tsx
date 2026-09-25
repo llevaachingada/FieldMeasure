@@ -22,6 +22,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, Layers, MoreHorizontal, Share2 } from 'lucide-react';
+import TopBarLogo from './TopBarLogo';
 import HelpButton from './HelpButton';
 import { STRINGS } from './strings';
 
@@ -141,6 +142,7 @@ export default function TopBar({
 
   return (
     <header className="editor-topbar" data-testid="editor-topbar" data-compact={compact ? 'true' : 'false'}>
+      <TopBarLogo />
       <nav className="topbar-breadcrumb" aria-label={STRINGS.a11y.breadcrumb} data-compact={compact ? 'true' : 'false'}>
         <button
           type="button"
