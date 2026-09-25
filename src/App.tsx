@@ -33,7 +33,7 @@ import { pruneTrash } from '@/fs/sheetTrash';
 import { acquireProjectSession } from '@/fs/projectSession';
 import { appRouteReducer } from '@/ui/appRoute';
 import { useProjectActions } from '@/ui/useProjectActions';
-import { STRINGS, t } from '@/ui/strings';
+import { STRINGS } from '@/ui/strings';
 import { getProjectsRoot } from '@/settings/projectsRoot';
 
 /**
@@ -69,11 +69,6 @@ export default function App() {
   const [projectTitle, setProjectTitle] = useState('');
   const [projectLoad, setProjectLoad] = useState<'loading' | 'ready' | 'empty' | 'error'>('loading');
   const [projectRefresh, setProjectRefresh] = useState(0);
-  /**
-   * Which surface opened the capture overlay. §11.8: a capture launched from the grid
-   * returns **to the grid**; one launched from the editor opens the sheet it wrote.
-   */
-  const [captureOrigin, setCaptureOrigin] = useState<'grid' | 'editor'>('editor');
   /** The grid's batch-export selection (empty = every sheet). */
   const [selectedSheetIds, setSelectedSheetIds] = useState<readonly string[]>([]);
   /** A grid «Export» hand-off: the selection the wizard must open already scoped to. */
@@ -200,7 +195,6 @@ export default function App() {
       registerOpenProject(projectId, created.folderName);
       setSelectedSheetIds([]);
       setProjectLoad('loading');
-      setCaptureOrigin('grid');
       setCaptureOpen(true);
       dispatch({ type: 'openProject', project: { projectId, folderName: created.folderName } });
     } catch {
@@ -267,7 +261,6 @@ export default function App() {
             dispatch({ type: 'openSheet', sheetId: id });
           }}
           onTakePhoto={() => {
-            setCaptureOrigin('grid');
             setCaptureOpen(true);
           }}
           onImport={() => {
@@ -337,7 +330,6 @@ export default function App() {
             initialExportSelection={pendingExportSelection ?? undefined}
             onInitialExportConsumed={() => setPendingExportSelection(null)}
             onAddSheet={() => {
-              setCaptureOrigin('editor');
               setCaptureOpen(true);
             }}
             onExit={() => {
@@ -424,9 +416,7 @@ export default function App() {
       <ToastHost />
       {/* Slice 1.4/1.10: the capture flow is a full-bleed overlay, mounted at the shell root
           so it works over the grid as well as the editor. It writes through the same
-          `addSheetFromPhoto` path either way; `captureOrigin` decides where «Use photo»
-          returns — §11.8 sends a grid-launched capture back to the grid, with the new sheet
-          announced. */}
+          `addSheetFromPhoto` path either way, and «Use photo» opens the new sheet (D148). */}
       {captureOpen && editorTarget ? (
         <AppErrorBoundary variant="route" onReset={() => setCaptureOpen(false)}>
           <Suspense fallback={null}>
@@ -435,14 +425,11 @@ export default function App() {
               folderName={editorTarget.folderName}
               onCaptured={(sheet) => {
                 setCaptureOpen(false);
-                if (captureOrigin === 'editor') {
-                  dispatch({ type: 'openSheet', sheetId: sheet.id });
-                } else {
-                  setProjectRefresh((n) => n + 1);
-                  // The «↶ Undo» half of §11.8's toast is owed: deleting a sheet has no path
-                  // yet (it is its own slice, with `.trash/`).
-                  emitToast(t(STRINGS.toasts.addedSheet, { sheetName: sheet.title }));
-                }
+                // D148 (owner request): «Use photo» opens the new sheet for markup from either
+                // origin. From the grid that is an editor route change; in the editor it is a sheet
+                // switch. The grid refreshes so the card is there on the way back.
+                setProjectRefresh((n) => n + 1);
+                dispatch({ type: 'openSheet', sheetId: sheet.id });
               }}
               onCancel={() => setCaptureOpen(false)}
             />

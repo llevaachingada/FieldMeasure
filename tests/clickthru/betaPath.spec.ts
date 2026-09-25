@@ -255,6 +255,15 @@ test('beta-critical path + gesture lab on the Surface profile', async ({ page, c
         );
         await page.locator('.camera-review-primary').click();
         await waitHidden(page.locator('.camera-shutter'), 'capture overlay after «Use photo»', 60_000);
+        // D148: «Use photo» opens the new sheet in the editor directly (owner request).
+        await waitVisible(page.locator('.editor-canvas'), 'editor canvas after «Use photo»', 60_000);
+        return 'photo saved; the editor opened on the new sheet';
+      },
+    },
+    {
+      name: 'editor -> Projects -> grid card -> reopen sheet -> editor',
+      run: async () => {
+        await page.getByRole('button', { name: 'Projects', exact: true }).first().click();
         await waitVisible(
           page.locator('[data-sheet-id] .sheet-card-open'),
           'new sheet card on the sheets grid',
@@ -263,14 +272,6 @@ test('beta-critical path + gesture lab on the Surface profile', async ({ page, c
         await page.waitForTimeout(3000);
         const title = await page.locator('[data-sheet-id] .sheet-card-open').first().getAttribute('aria-label');
         const thumbRendered = await page.locator('[data-sheet-id] .sheet-card-image').count();
-        return `photo saved; sheet "${title ?? '?'}" shown on the grid; card thumbnail rendered: ${
-          thumbRendered > 0
-        }`;
-      },
-    },
-    {
-      name: 'sheets grid -> open sheet -> editor',
-      run: async () => {
         await page.locator('[data-sheet-id] .sheet-card-open').first().click();
         await waitVisible(page.locator('.editor-canvas'), 'editor canvas (.editor-canvas)', 40_000);
         await waitVisible(page.locator('[data-testid="tool-rail"]'), 'editor tool rail', 20_000);
@@ -278,7 +279,7 @@ test('beta-critical path + gesture lab on the Surface profile', async ({ page, c
           page.locator('[data-testid="tool-rail"] [data-tool="dimension"]'),
           'dimension tool in the rail',
         );
-        return 'editor mounted with the sheet photo canvas';
+        return `grid showed sheet "${title ?? '?'}" (card thumbnail rendered: ${thumbRendered > 0}); editor re-mounted with the sheet photo canvas`;
       },
     },
     {
