@@ -330,10 +330,10 @@ describe('ExportWizard — scope', () => {
 // ---------------------------------------------------------------------------
 
 describe('ExportWizard — format', () => {
-  it('defaults to 2×, and only 2×', () => {
+  it('D158: defaults to 1×, and only 1×', () => {
     openWizard();
-    expect(screen.getByTestId('export-wizard-multiplier-2').getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByTestId('export-wizard-multiplier-1').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('export-wizard-multiplier-1').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('export-wizard-multiplier-2').getAttribute('aria-pressed')).toBe('false');
     expect(screen.getByTestId('export-wizard-multiplier-3').getAttribute('aria-pressed')).toBe('false');
   });
 
@@ -346,14 +346,14 @@ describe('ExportWizard — format', () => {
     expect(screen.queryByTestId('export-wizard-3x-warning')).toBeNull();
   });
 
-  it('offers the PDF option set by default and the PNG set on switch, with zip ON', () => {
+  it('offers the PDF option set by default and the PNG set on switch, with zip OFF', () => {
     openWizard();
     expect(screen.getByTestId('export-wizard-include-sheet-names')).toBeTruthy();
     expect(screen.queryByTestId('export-wizard-zip')).toBeNull();
 
     click('export-wizard-format-png');
     const zip = screen.getByTestId('export-wizard-zip') as HTMLInputElement;
-    expect(zip.checked).toBe(true); // `Zip into a single .zip` — default ON (UI §12:717)
+    expect(zip.checked).toBe(false); // D158 (owner): no zip by default (was ON, UI §12:717)
     expect(screen.queryByTestId('export-wizard-include-sheet-names')).toBeNull();
   });
 
@@ -460,7 +460,7 @@ describe('ExportWizard — happy path', () => {
       sheetIds: ['s1', 's2', 's3'],
       format: 'png',
       multiplier: 3,
-      zip: false,
+      zip: true, // D158: default OFF, so the one click turns it on
       includeSheetNames: false, // PDF-only, normalised away on a PNG plan
       conflictPolicy: 'overwrite',
       rememberDestination: true,

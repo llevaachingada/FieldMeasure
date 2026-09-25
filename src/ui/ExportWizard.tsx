@@ -158,7 +158,8 @@ export type WizardStep = 'form' | 'running' | 'result';
 const MULTIPLIERS: readonly ExportMultiplier[] = [1, 2, 3];
 
 /** §11.10 / plan step 5: **2× is the default**, at every entry point. */
-export const DEFAULT_MULTIPLIER: ExportMultiplier = 2;
+// Owner (session 29, D158): 1x by default. Was 2.
+export const DEFAULT_MULTIPLIER: ExportMultiplier = 1;
 
 const CONFLICT_POLICIES: ReadonlyArray<{ policy: ConflictPolicy; label: string }> = [
   { policy: 'add', label: C.conflictAdd },
@@ -247,7 +248,13 @@ function ExportWizardDialog({
 
   // ---- scope ---------------------------------------------------------------
   const allIds = useMemo(() => sheets.map((s) => s.id), [sheets]);
-  const selectedIds = useMemo(() => [...(selectedSheetIds ?? [])], [selectedSheetIds]);
+  // D158: never default to every sheet. With no selection and no open sheet (the grid), the
+  // first sheet stands in as the selection, so the default export is ONE sheet, ONE file.
+  const selectedIds = useMemo(() => {
+    const given = [...(selectedSheetIds ?? [])];
+    if (given.length === 0 && currentSheetId === null && sheets.length > 0) return [sheets[0].id];
+    return given;
+  }, [selectedSheetIds, currentSheetId, sheets]);
 
   const idsFor = useCallback(
     (next: ExportScope): string[] => {
@@ -284,7 +291,8 @@ function ExportWizardDialog({
   // ---- format / options ----------------------------------------------------
   const [format, setFormat] = useState<ExportFormat>('pdf');
   const [multiplier, setMultiplier] = useState<ExportMultiplier>(DEFAULT_MULTIPLIER);
-  const [zip, setZip] = useState(true); // `Zip into a single .zip` — default ON (UI §12:717)
+  // Owner (session 29, D158): no zip by default (was ON per UI §12:717).
+  const [zip, setZip] = useState(false);
   const [includeSheetNames, setIncludeSheetNames] = useState(false);
 
   // ---- destination ---------------------------------------------------------
