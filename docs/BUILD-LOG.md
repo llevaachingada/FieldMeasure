@@ -1978,3 +1978,21 @@ old sheet comes back.
   `Map<ToolId, Tool>` with only the shared `{ onToolChange, dispose }` cannot serve them. The map drives teardown; the
   refs stay (D145).
 - An extraction script's unused-import pruner treated `...DEFAULT_STYLE` (a spread) as a member access; `tsc` caught it.
+
+## Session 28 (continued): owner requests D146-D152
+
+**Handoff: [`docs/handoff-session-28.md`](handoff-session-28.md)** has the commits, gates, the test changes the
+requests forced, and the owed list. Two Sonnet lanes built the camera (D146) and the export (D147) changes; the
+orchestrator built the rest and integrated.
+
+**Gates (final tree):** tsc 0 | vitest 1670/1671 (the 1 is the `layersReorder` load flake; it passes alone) | build 0 |
+playwright 8/5 | clickthru 20/20.
+
+**Surprises:**
+- **The clickthru screenshot caught a bug the tests missed:** committed dimensions had no arrowheads, because the scene
+  built every new dimension from `DEFAULT_STYLE` and never read the per-tool style. Fixed for dimensions
+  (`scene.dimensionStyle`). Shapes, ink and text have the same pre-existing gap; it is owed.
+- The first one-column rail used 44 px buttons to fit 1916x960, and `editorA11y` rejected them (48 px floor). The
+  fix was 48 px buttons with tighter gaps. The floor held and the test was not edited.
+- The new "no sideways overflow" assertion immediately found four real overflows in the narrow panel.
+- «Remember this destination» persists nothing (pre-existing; owed).

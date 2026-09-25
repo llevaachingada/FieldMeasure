@@ -3788,3 +3788,22 @@ and a superseded request is skipped. A repeat of the loaded sheet is a no-op. Th
 `Map<ToolId, Tool>` (`Tool = { onToolChange, dispose }`, the methods every tool already has) that drives teardown. The refs
 themselves stay, because the React-side handlers call tool-specific methods. Pinned by
 `tests/editorController.browser.test.ts` (same Konva stage after a switch; project re-read; no-op on a repeat).
+
+### D146-D152 - owner requests, session 28
+
+**Status: shipped (session 28).** All requested by the owner directly; details in `docs/handoff-session-28.md`.
+- **D146:** the camera opens on the rear camera (picked by device label, with `facingMode: environment` only as a hint
+  before labels exist). Long-press AE/AF lock only happens when Settings › Camera enables it (default off).
+- **D147:** the export dialog is one page (Scope, Format, Destination together). The default destination follows
+  Settings › Export (`<project>/exports/<stamp>/` or the project folder). The result view offers «Copy folder path»,
+  with a selectable fallback, and a per-file «Open». A browser cannot reveal a folder in File Explorer.
+- **D148:** «Use photo» opens the new sheet in the editor, from the grid or the editor.
+- **D149:** the tool rail is one 48 px column ordered Measure, Annotate, Mark, Insert, Erase, Move. The style dock is
+  176 px (three swatch tiles) and scrolls vertically, never sideways. This supersedes UI §6.2's two-column rail and
+  §7.2's 280 px panel.
+- **D150:** dimensions draw slim filled arrowheads per their `arrowheads` style, sized in markup units. New dimensions
+  default to both ends and take the Dimension tool's panel style. Saved dimensions keep their style.
+- **D151:** with one dimension selected, dragging its text sets `labelOffset` (perpendicular, image px). One undo step
+  per drag.
+- **D152:** a persistent «Help» button (editor top bar left of Export, the sheets grid, Home) opens the user guide.
+  The copy is in `STRINGS.help`, mirrored by `docs/USER-GUIDE.md`.

@@ -3,13 +3,20 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-25 (session 28: Waves 2 and 3 of `docs/beta-readiness-fix-plan.md`, R1-R6)
+**Last updated:** 2026-09-25 (session 28: Waves 2-3 + owner requests D146-D152)
 
 **What this project has now that it did not before: a clickthru harness.** One command drives the *built*
 app end to end with real touch and pen input on the Surface geometry and screenshots every step, so an agent
 can *look* instead of trusting a green gate. `npm.cmd run clickthru` | `playwright.clickthru.config.ts` |
 `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc `docs/clickthru-harness.md`;
 a `clickthru` skill; an OMO orchestrator rule. It is **never a gate** and **never promotes a `[Surface]` row**.
+
+**Session 28, owner requests (D146-D152), CURRENT HANDOFF: [`docs/handoff-session-28.md`](handoff-session-28.md).**
+Shipped: rear camera by default, the AE/AF lock off by default (Settings), a one-page export with a default location
+setting plus «Copy folder path» and «Open», «Use photo» → editor, a one-column rail (Measure on top), a three-swatch style
+dock, slim dimension arrowheads, a draggable dimension text offset, and a persistent Help button + `docs/USER-GUIDE.md`.
+Gates: tsc 0 | vitest 1670/1671 (the 1 is a load flake) | build 0 | playwright 8/5 | clickthru 20/20. **Next:** the owed
+list in the handoff (copy sign-off, `[Surface]`, flake fixes, per-tool styles for non-dimension marks, Wave 4 approval).
 
 **Session 28, Wave 3 (R5-R6, D144-D145):** `ProjectSession` (`src/fs/projectSession.ts`) is now the one refcounted owner of a
 project's queue, lease, channel and registration: the shell holds it while the project is open, so leaving or switching
