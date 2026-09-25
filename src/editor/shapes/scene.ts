@@ -148,6 +148,8 @@ export function geometryBounds(geometry: Geometry): { x: number; y: number; widt
 
 export interface MarkupSceneOptions {
   layer: Konva.Layer;
+  /** D150: the style a NEW dimension takes (the Dimension tool's panel style). Default: `style`. */
+  dimensionStyle?: () => AnnotationStyle;
   /**
    * Slice 1.7: the layer image insets render into. Per §8.1/§20.2 insets sit BELOW the
    * markup layer, so every object created outside Focus renders above all insets.
@@ -193,6 +195,8 @@ export class MarkupScene {
   private scale = 1;
   private objects: Annotation[] = [];
   private groups = new Map<string, Konva.Group>();
+  private readonly dimensionStyle: (() => AnnotationStyle) | null;
+
   /** Fired after every document mutation (the persistence seam). */
   onChange: (() => void) | null = null;
 
@@ -202,6 +206,7 @@ export class MarkupScene {
     this.ctx = options.ctx;
     this.ghostText = options.ghostText;
     this.style = options.style ?? DEFAULT_STYLE;
+    this.dimensionStyle = options.dimensionStyle ?? null;
     this.newId = options.newId ?? (() => crypto.randomUUID());
     this.luminanceSampler = options.sampleLuminance ?? (() => null);
     this.assetProvider = options.assetProvider ?? (() => null);
@@ -272,7 +277,7 @@ export class MarkupScene {
       geometry: { kind: 'dimension', a: { ...a }, b: { ...b } },
       valueMm: null,
       enteredText: null,
-      style: { ...this.style },
+      style: { ...(this.dimensionStyle?.() ?? this.style) },
       zIndex: this.nextZIndex('dimension'),
       source: 'manual',
       assetId: null,

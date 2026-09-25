@@ -648,22 +648,19 @@ test('beta-critical path + gesture lab on the Surface profile', async ({ page, c
     /* ---- export / reload / read-out ---- */
 
     {
-      name: 'export wizard: Scope -> Format -> Destination -> Result',
+      name: 'export (one page, D147): Scope + Format + Destination -> Result',
       run: async () => {
         await page.locator('[data-testid="editor-topbar"] button[aria-label="Export"]').click({ timeout: 5_000 });
-        await waitVisible(page.locator('[data-testid="export-wizard"]'), 'export wizard dialog', 10_000);
+        await waitVisible(page.locator('[data-testid="export-wizard"]'), 'export dialog', 10_000);
 
-        await waitVisible(page.locator('[data-testid="export-wizard-step-scope"]'), 'wizard Scope step');
-        await page.locator('[data-testid="export-wizard-primary"]').click();
-
-        await waitVisible(page.locator('[data-testid="export-wizard-step-format"]'), 'wizard Format step');
-        await page.locator('[data-testid="export-wizard-format-pdf"]').click();
-        await page.locator('[data-testid="export-wizard-primary"]').click();
-
+        // D147: all three sections on ONE page, no step navigation.
+        await waitVisible(page.locator('[data-testid="export-wizard-step-scope"]'), 'Scope section');
+        await waitVisible(page.locator('[data-testid="export-wizard-step-format"]'), 'Format section (same page)');
         await waitVisible(
           page.locator('[data-testid="export-wizard-step-destination"]'),
-          'wizard Destination step',
+          'Destination section (same page)',
         );
+        await page.locator('[data-testid="export-wizard-format-pdf"]').click();
         const destination = await page
           .locator('[data-testid="export-wizard-destination-path"]')
           .textContent()
@@ -672,11 +669,15 @@ test('beta-critical path + gesture lab on the Surface profile', async ({ page, c
 
         await waitVisible(
           page.locator('[data-testid="export-wizard-step-result"]'),
-          'wizard Result step (export finished)',
+          'Result (export finished)',
           180_000,
         );
         const summary = await page.locator('[data-testid="export-wizard-result-summary"]').textContent();
-        return `Scope -> Format(PDF) -> Destination(${destination ?? '?'}) -> Result: ${summary ?? '?'}`;
+        const copyPath = await page.locator('[data-testid="export-wizard-copy-path"]').count();
+        const openButtons = await page
+          .locator('[data-testid="export-wizard-file-list"] button')
+          .count();
+        return `one page: Scope + Format(PDF) + Destination(${destination ?? '?'}) -> Result: ${summary ?? '?'}; «Copy folder path» shown: ${copyPath > 0}; per-file Open buttons: ${openButtons}`;
       },
     },
     {

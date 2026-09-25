@@ -24,7 +24,7 @@ import { SelectTool } from '@/editor/tools/SelectTool';
 import { setEditorSession, emitToast, setPersistenceBusy, type EditorSession } from '@/editor/session';
 import type { PersistQueue } from '@/state/persistQueue';
 import { acquireProjectSession } from '@/fs/projectSession';
-import { selectionScope, selectionStyleState } from '@/state/styleByTool';
+import { selectionScope, selectionStyleState, styleForTool, useStyleByTool } from '@/state/styleByTool';
 import {
   applyProjectPrecision as applyProjectPrecisionFn,
   applyProjectUnitFormat as applyProjectUnitFormatFn,
@@ -197,6 +197,8 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
   historyRef.current = history;
   const scene = new MarkupScene({
     layer: canvas.markupLayer,
+    // D150: a new dimension takes the Dimension tool's style (slim arrowheads by default).
+    dimensionStyle: () => styleForTool(useStyleByTool.getState(), 'dimension'),
     // §8.1/§20.2: insets render BELOW markup, so every object created outside Focus
     // renders above all insets. Without this the layering rule is not guaranteed.
     insetLayer: canvas.insetLayer,
