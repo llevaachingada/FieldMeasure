@@ -1,6 +1,6 @@
 # Documentation & File Index
 
-A map of everything in this repository. Last updated **2026-09-22 (session 17 — slice 1.9 wired end to end, 1.10 themes, plus the torch/capture investigation record)**.
+A map of everything in this repository. Last updated **2026-09-25 (session 28: user guide added)**.
 
 ## Root
 
@@ -20,6 +20,7 @@ A map of everything in this repository. Last updated **2026-09-22 (session 17 �
 | File | What it is |
 |---|---|
 | `docs/INDEX.md` | This file. |
+| `docs/USER-GUIDE.md` | **User guide** for people using the app: getting started, photos, dimensions, markup, export, troubleshooting. The in-app **Help** pop-up shows the same content (`STRINGS.help`); keep them in step. |
 | `docs/CONTINUITY.md` | **Project continuity log** — live state, session timeline, next steps, open questions. Read first when resuming. |
 | `docs/preflight-handoff-v0.3-hardened.md` | **PRIMARY BUILD SPEC (canonical).** Hardened after adversarial review rounds 1, 2 and **4**. Its **§2.4 v1 scope table is the single authority on what ships in v1.** Round 2 executed the keypad reference code and fixed a wrong committed test expectation (`12 6` = 150 in, not 148); **round 4 executed it again and found another one** (§6.1's unicode row), plus a silent sign flip, zero/oversized commits, an unlocked "locked" write, and tmp cleanup that never entered the directories tmp files live in. Session-4 additions: changelog rows 21–38, **§5.8** (failure states) and **§19** (origin, SW updates, asset addressing, export guards). Session-4b additions: **§20** (implementation contracts) and **§21** (resolved decisions — nothing left open). |
 | `docs/ui-spec-field-measure-v2-hardened.md` | **UI/UX SPEC (canonical), v2.1 touch-first.** Authoritative on look & feel; v1 scope markers `〔v1 scope: …〕` defer to the build spec §2.4; the changelog appendix maps every change to its review finding. **Session 5 inverted the input principle to touch-primary** (tap-tap placement, one-finger drag, touch loupe, nudge pad) and applied C11/C12/C14. |

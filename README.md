@@ -23,6 +23,12 @@ self-contained, and the user drags the exported folder into Dropbox to share.
 > [`docs/handoff-session-12.md`](docs/handoff-session-12.md) for the current handoff. The origin
 > question ([`DECISIONS.md`](docs/DECISIONS.md) D24) is resolved in build spec **§21.1**.
 
+## Using the app
+
+New to Field Measure? Read the **[User Guide](docs/USER-GUIDE.md)**: take a photo, add dimensions,
+mark it up, and export, in a few short steps. The same guide opens in the app from the **Help** button
+at the top of every screen.
+
 ## Why
 
 Paper sketches get lost, and photos without dimensions lose their meaning by the time they reach the

@@ -22,6 +22,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, Layers, MoreHorizontal, Share2 } from 'lucide-react';
+import HelpButton from './HelpButton';
 import { STRINGS } from './strings';
 
 export interface TopBarProps {
@@ -180,6 +181,8 @@ export default function TopBar({
           <Layers aria-hidden="true" />
           <span className="topbar-action-label">{STRINGS.a11y.layers}</span>
         </button>
+        {/* D152 (owner request): Help, smaller and just left of Export, on every editor screen. */}
+        <HelpButton className="topbar-help" />
         <button
           type="button"
           className="topbar-action"

@@ -832,6 +832,70 @@ export const STRINGS = {
     backToProjects: 'Back to Projects',
     unexpected: 'Something went wrong. If it keeps happening, reload the app.',
   },
+  help: {
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): owner request (session 28),
+    // the in-app Help pop-up. `docs/USER-GUIDE.md` mirrors these sections; change both together.
+    button: 'Help',
+    title: 'Field Measure help',
+    close: 'Close help',
+    sections: {
+      start: {
+        heading: 'Getting started',
+        steps: {
+          s1: 'The first time you open the app, pick your hand (left or right) and choose where projects are saved. The suggested folder is Documents\\FieldMeasure.',
+          s2: 'Each project is a folder on this Surface. To share it, drag the folder (or its exports) into Dropbox or email it.',
+        },
+      },
+      photos: {
+        heading: 'Take photos',
+        steps: {
+          s1: 'On Home, tap New project and type a name. The camera opens using the rear camera.',
+          s2: 'Line up the shot and tap the round shutter button. Use the zoom chips to zoom in.',
+          s3: 'Check the photo, then tap Use photo. The photo opens straight away, ready for dimensions. Tap Retake to try again.',
+          s4: 'To add another photo later, use Take photo on the project page, or Add sheet in the editor’s More actions (…) menu.',
+        },
+      },
+      dimensions: {
+        heading: 'Add dimensions',
+        steps: {
+          s1: 'In the tool bar on the right, tap Dimension (at the top, under Measure).',
+          s2: 'Tap where the measurement starts, then tap where it ends. The keypad opens.',
+          s3: 'Type the size (for example 12 FT 6 IN 3/8) and tap the check mark.',
+          s4: 'To move the numbers off the line, tap Select, tap the dimension, then drag its numbers.',
+          s5: 'Undo and Redo are at the bottom of the tool bar.',
+        },
+      },
+      markup: {
+        heading: 'Mark up the photo',
+        steps: {
+          s1: 'Annotate: freehand pen, highlighter and text notes.',
+          s2: 'Mark: lines, arrows, rectangles, ellipses and shapes.',
+          s3: 'Change color, line width and arrowheads in the style panel on the left before or after you draw.',
+          s4: 'Use Select to move, rotate, lock or delete a mark. The Layers button (top bar) lists every mark.',
+          s5: 'Everything saves automatically as you work.',
+        },
+      },
+      export: {
+        heading: 'Export',
+        steps: {
+          s1: 'Tap Export (top bar). Choose which sheets, the format (PDF or image) and where to save, all on one page.',
+          s2: 'By default, exports go into a dated folder inside the project (exports, then the date and time). Settings > Export can send them straight to the project folder instead.',
+          s3: 'When the export finishes, tap Copy folder path and paste it into File Explorer, or tap Open next to a file to view it.',
+        },
+      },
+      troubleshooting: {
+        heading: 'Troubleshooting',
+        steps: {
+          s1: 'Camera will not start: close other apps that use the camera, then check Windows Settings > Privacy & security > Camera and allow your browser.',
+          s2: 'Wrong camera: tap Flip camera on the capture screen.',
+          s3: 'Focus or exposure keeps locking: long-press locking is off by default. Check Settings > Camera.',
+          s4: 'A project folder cannot be read: tap Retry. If it still fails, check the folder still exists in your projects folder.',
+          s5: 'Read-only: the project is open in another window or tab. Close the other one, then reopen the project.',
+          s6: 'Something went wrong: tap Reload. Work that was already saved stays in your projects folder.',
+        },
+      },
+    },
+  },
 } as const;
 
 /** D141/D142: «1 sheet» / «N sheets», one rule for Home and the sheets grid. */

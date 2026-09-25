@@ -67,6 +67,7 @@ import { createPortal } from 'react-dom';
 import { Camera, Check, ChevronLeft, MoreHorizontal, Share2, Upload } from 'lucide-react';
 import { emitToast } from '@/editor/session';
 import type { ProjectSheetCard } from '@/fs/projectSheets';
+import HelpButton from './HelpButton';
 import { STRINGS, t } from './strings';
 import StorageChip from './StorageChip';
 import TrashPanel, { type TrashedSheet } from './TrashPanel';
@@ -1154,6 +1155,8 @@ export default function ProjectScreen({
 
         <div className="project-bar-spacer" />
 
+        {/* D152: Help, just left of Export. */}
+        <HelpButton />
         <button
           type="button"
           className="btn btn-primary project-export hit-slop"
