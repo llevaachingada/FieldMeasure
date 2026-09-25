@@ -12,7 +12,7 @@
  * once (including a second, idempotent call).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CameraSession } from '../src/media/cameraSession';
+import { CameraSession, pickRearDeviceId } from '../src/media/cameraSession';
 
 /* ------------------------------------------------------------------ *
  * Fakes — only the members CameraSession reads
@@ -220,6 +220,41 @@ describe('CameraSession.stop', () => {
 
     expect(first.stopCount).toBe(1);
     expect(second.stopCount).toBe(0);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * pickRearDeviceId — rear camera by default (owner request, D146)
+ * ------------------------------------------------------------------ */
+
+describe('pickRearDeviceId', () => {
+  it('picks the device whose label matches back/rear/environment/world (case-insensitive)', () => {
+    expect(
+      pickRearDeviceId([
+        { deviceId: 'cam-front', label: 'Front Camera' },
+        { deviceId: 'cam-back', label: 'Back Camera' },
+      ]),
+    ).toBe('cam-back');
+    expect(pickRearDeviceId([{ deviceId: 'x', label: 'REAR facing camera' }])).toBe('x');
+    expect(pickRearDeviceId([{ deviceId: 'x', label: 'World Facing 0' }])).toBe('x');
+    expect(pickRearDeviceId([{ deviceId: 'x', label: 'camera2 0, facing environment' }])).toBe(
+      'x',
+    );
+  });
+
+  it('returns the first match when more than one label matches', () => {
+    expect(
+      pickRearDeviceId([
+        { deviceId: 'a', label: 'Rear camera 1' },
+        { deviceId: 'b', label: 'Rear camera 2' },
+      ]),
+    ).toBe('a');
+  });
+
+  it('returns null when no label matches (including empty labels — no permission yet)', () => {
+    expect(pickRearDeviceId([])).toBeNull();
+    expect(pickRearDeviceId([{ deviceId: 'a', label: '' }])).toBeNull();
+    expect(pickRearDeviceId([{ deviceId: 'a', label: 'Integrated Webcam' }])).toBeNull();
   });
 });
 

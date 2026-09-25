@@ -79,10 +79,13 @@ import {
   MAX_IDEAL,
   cropRectFor,
   needsCrop,
+  pickRearDeviceId,
   snapshotVideoFrame,
   zoomPlan,
   type ExtendedConstraintSet,
 } from '@/media/cameraSession';
+import { getAeAfLockEnabled } from '@/settings/capture';
+import { useAppStore } from '@/state/appStore';
 import { STRINGS } from './strings';
 import './camera.css';
 
@@ -428,6 +431,31 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   const [captured, setCaptured] = useState<Captured | null>(null);
   const [rotation, setRotation] = useState(0);
 
+  /**
+   * D146: AE/AF lock default off (owner request). The store may already know the answer
+   * (`aeAfLockEnabled` — set elsewhere in the session, e.g. Settings just toggled it); the
+   * persisted value is also read on mount in case the store hasn't hydrated yet. Either
+   * source turning it on is enough — a long-press does nothing until one does.
+   */
+  const storeAeAfLockEnabled = useAppStore((s) => s.aeAfLockEnabled);
+  const [persistedAeAfLockEnabled, setPersistedAeAfLockEnabled] = useState(false);
+  const aeAfLockEnabled = storeAeAfLockEnabled || persistedAeAfLockEnabled;
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const enabled = await getAeAfLockEnabled();
+        if (alive && enabled) setPersistedAeAfLockEnabled(true);
+      } catch {
+        // No IndexedDB (or a read failure): keep the safe default (off).
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   /* ---- project resolution (once per project) ----------------------------- */
 
   /**
@@ -492,10 +520,37 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
     async (nextDeviceId: string | null): Promise<void> => {
       setDelivered(null);
       try {
+        // D146: rear camera by default. `nextDeviceId` is only `null` on the initial mount
+        // (a flip or the device picker always passes an explicit id, which is "honour the
+        // remembered device" — unchanged below). `facingMode` is never used for selection
+        // (unreliable on Windows, §11.8) — `enumerateDevices()` labels decide.
+        let requestDeviceId = nextDeviceId;
+        let useFacingHint = false;
+        if (!nextDeviceId) {
+          const media = navigator.mediaDevices;
+          let candidates: MediaDeviceInfo[] = [];
+          if (media?.enumerateDevices) {
+            try {
+              candidates = (await media.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+            } catch {
+              candidates = [];
+            }
+          }
+          const rearId = pickRearDeviceId(candidates);
+          if (rearId) {
+            requestDeviceId = rearId;
+          } else {
+            // No label matched (most likely no permission yet, so labels are empty): pass
+            // `facingMode` only as a HINT for the opening request, then re-select by label
+            // once real labels exist below.
+            useFacingHint = true;
+          }
+        }
         const result = await session.start(videoRef.current, {
           audio: false,
           video: {
-            ...(nextDeviceId ? { deviceId: { exact: nextDeviceId } } : {}),
+            ...(requestDeviceId ? { deviceId: { exact: requestDeviceId } } : {}),
+            ...(useFacingHint ? { facingMode: { ideal: 'environment' } } : {}),
             ...MAX_IDEAL,
           },
         });
@@ -510,6 +565,24 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
         }
         setView('viewfinder');
         await refreshDevices();
+        // Labels may only exist now that permission was just granted: if the opening request
+        // could only use the facingMode hint, re-check by label and switch to the rear device
+        // if the hint didn't land on it.
+        if (!nextDeviceId && useFacingHint) {
+          const media = navigator.mediaDevices;
+          if (media?.enumerateDevices) {
+            try {
+              const after = (await media.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+              const rearId = pickRearDeviceId(after);
+              if (rearId && rearId !== result.deviceId) {
+                await startCamera(rearId);
+                return;
+              }
+            } catch {
+              // Best-effort re-select: keep whatever the facingMode hint delivered.
+            }
+          }
+        }
       } catch {
         // `session.start` only throws when this attempt is still the current one (an older,
         // superseded attempt resolves instead of throwing) — see `CameraSession.start`.
@@ -620,10 +693,15 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
 
   const onSurfacePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const point = surfacePoint(event.clientX, event.clientY);
-    const timer = window.setTimeout(() => {
-      longPressRef.current = null;
-      lockFocusExposure(point.x, point.y);
-    }, LONG_PRESS_MS);
+    // D146: AE/AF lock default off (owner request). With the setting off, no timer is armed
+    // to lock — no lock, no chip, no announcement — but `longPressRef` still tracks the point
+    // so a quick tap still reaches `onSurfacePointerUp`'s tap-to-focus below.
+    const timer = aeAfLockEnabled
+      ? window.setTimeout(() => {
+          longPressRef.current = null;
+          lockFocusExposure(point.x, point.y);
+        }, LONG_PRESS_MS)
+      : -1;
     longPressRef.current = { timer, x: point.x, y: point.y };
   };
 

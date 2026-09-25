@@ -47,6 +47,26 @@ interface ImageCaptureLike {
 /** Within this ratio a still's aspect is "the same framing as the preview" (no crop needed). */
 const ASPECT_TOLERANCE = 0.02;
 
+/**
+ * Matches a device label that names the rear/back/environment/world-facing camera. D146:
+ * `facingMode` is never used for selection (unreliable on Windows, see file header) —
+ * `enumerateDevices()` labels are the only source of truth, so the default device is chosen
+ * by matching this against the label.
+ */
+const REAR_LABEL_RE = /back|rear|environment|world/i;
+
+/**
+ * D146: which device to open when nothing is remembered. Pure so the choice is
+ * unit-testable without a camera. Returns `null` when no candidate's label matches — either
+ * because labels are empty (no permission granted yet) or because none of the reported
+ * devices names itself as rear-facing; the caller falls back to a `facingMode` hint in the
+ * first `getUserMedia` call and re-picks by label once permission grants real labels.
+ */
+export function pickRearDeviceId(devices: Array<{ deviceId: string; label: string }>): string | null {
+  const match = devices.find((d) => REAR_LABEL_RE.test(d.label));
+  return match ? match.deviceId : null;
+}
+
 /* ------------------------------------------------------------------ *
  * Exported pure helpers (unit-testable, no DOM) — moved verbatim
  * ------------------------------------------------------------------ */
