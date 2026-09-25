@@ -991,3 +991,19 @@
   text-decoration: underline;
 }
 
+
+/* ---- D149 (owner request): the side dock is three swatch tiles wide (164 px) ----------
+   Rows that were laid out for 280 px wrap instead of pushing the body sideways. The body
+   scrolls vertically (it always could); it must never scroll horizontally. */
+.style-dock[data-orientation='vertical'] .style-panel-section-head,
+.style-dock[data-orientation='vertical'] .style-panel-row {
+  flex-wrap: wrap;
+}
+.style-dock[data-orientation='vertical'] .style-panel-body {
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+.style-dock[data-orientation='vertical'] .style-panel-button {
+  max-width: 100%;
+  white-space: normal;
+}

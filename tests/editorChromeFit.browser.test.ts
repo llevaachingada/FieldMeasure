@@ -109,6 +109,8 @@ interface Measurement {
   panelBottom: number;
   bodyClient: number;
   bodyScroll: number;
+  bodyClientW: number;
+  bodyScrollW: number;
   bodyOverflowY: string;
   sections: Array<{ title: string; height: number; bottom: number }>;
 }
@@ -178,6 +180,8 @@ function measure(
     panelBottom: Math.round(panel.getBoundingClientRect().bottom),
     bodyClient: body.clientHeight,
     bodyScroll: body.scrollHeight,
+    bodyClientW: body.clientWidth,
+    bodyScrollW: body.scrollWidth,
     bodyOverflowY: getComputedStyle(body).overflowY,
     sections,
   };
@@ -207,33 +211,34 @@ const TARGETS: Array<{ w: number; h: number; name: string }> = [
 
 describe.each(TARGETS)('editor chrome fits $w x $h ($name)', ({ w, h }) => {
   for (const tool of TOOLS) {
-    it(`the style panel has no internal scroll for the ${tool} tool`, async () => {
+    // D149 (owner request): at three swatches wide the panel cannot hold every section without
+    // scrolling, so the contract is now "scrolls inside its own body, never sideways".
+    it(`the style panel scrolls only vertically, inside its body, for the ${tool} tool`, async () => {
       await page.viewport(w, h);
       const m = measure(tool, { w, h });
 
       // The gate: `scrollHeight <= clientHeight` means the body does not scroll at all.
+      expect(m.bodyOverflowY, `${tool}: the body is the scroll region`).toBe('auto');
       expect(
-        m.bodyScroll,
-        `${tool}: panel body overflows by ${m.bodyScroll - m.bodyClient}px at ${w}x${h} ` +
-          `(body ${m.bodyScroll} > ${m.bodyClient})`,
-      ).toBeLessThanOrEqual(m.bodyClient);
+        m.bodyScrollW,
+        `${tool}: panel body overflows SIDEWAYS by ${m.bodyScrollW - m.bodyClientW}px at ${w}x${h}`,
+      ).toBeLessThanOrEqual(m.bodyClientW);
 
       // Non-triviality: the panel really rendered this tool's sections, at full height.
       expect(m.sections.map((s) => s.title)).toEqual(EXPECTED_SECTIONS[tool]);
       expect(m.sections.every((s) => s.height > 0)).toBe(true);
 
-      // …and the last section is on screen, so nothing is clipped mid-row.
-      expect(m.sections[m.sections.length - 1].bottom).toBeLessThanOrEqual(m.panelBottom);
 
-      // §7.2: the expanded landscape style container is 280 px and the rail is 128 px
-      // (§6.2). The panel itself is the container minus its 2 px rail-facing divider.
-      expect(m.dockWidth).toBe(280);
+      // D149 (owner request): the style container is three swatch tiles wide (176 px, was 280
+      // per §7.2) and the rail is one column (52 px, was 128 per §6.2). The panel itself is the
+      // container minus its 2 px rail-facing divider.
+      expect(m.dockWidth).toBe(176);
       expect(m.panelWidth).toBe(m.dockWidth - 2);
-      expect(m.railWidth).toBe(128);
+      expect(m.railWidth).toBe(52);
     });
   }
 
-  it('the style panel has no internal scroll with an object selected', async () => {
+  it('the style panel scrolls only vertically with an object selected (D149)', async () => {
     await page.viewport(1920, 1120);
     // A homogeneous selection is a normal editing state, not an edge case: the §7.4
     // selection bar appears and the panel must still fit.
@@ -261,10 +266,11 @@ describe.each(TARGETS)('editor chrome fits $w x $h ($name)', ({ w, h }) => {
     );
     const body = view.container.querySelector('.style-panel-body') as HTMLElement;
     expect(document.querySelector('[data-testid="style-selection-bar"]')).not.toBeNull();
+    expect(getComputedStyle(body).overflowY).toBe('auto');
     expect(
-      body.scrollHeight,
-      `selected: panel body overflows by ${body.scrollHeight - body.clientHeight}px`,
-    ).toBeLessThanOrEqual(body.clientHeight);
+      body.scrollWidth,
+      `selected: panel body overflows SIDEWAYS by ${body.scrollWidth - body.clientWidth}px`,
+    ).toBeLessThanOrEqual(body.clientWidth);
     cleanup();
     host.remove();
   });
@@ -286,12 +292,10 @@ describe.each(TARGETS)('editor chrome fits $w x $h ($name)', ({ w, h }) => {
     expect(m.lastGroupBottom, "the rail's last group is not clipped").toBeLessThanOrEqual(
       m.railBottom,
     );
-    // The same panel gate as above, but through the production chain rather than a host.
-    expect(
-      m.bodyScroll,
-      `dimension: panel body overflows by ${m.bodyScroll - m.bodyClient}px at ${w}x${h} ` +
-        `(body ${m.bodyScroll} > ${m.bodyClient})`,
-    ).toBeLessThanOrEqual(m.bodyClient);
+    // The same panel gate as above (D149: vertical scroll inside the body, never sideways),
+    // but through the production chain rather than a host.
+    expect(m.bodyOverflowY).toBe('auto');
+    expect(m.bodyScrollW).toBeLessThanOrEqual(m.bodyClientW);
   });
 });
 
@@ -306,15 +310,17 @@ describe('1366 x 768 stays usable (scrolls rather than clipping)', () => {
     expect(m.bodyScroll).toBeGreaterThanOrEqual(m.bodyClient);
   });
 
-  it('Desk density makes the tool rail FIT at 1366x768 (UI §3.5)', async () => {
+  // D149: one column cannot fit 14 tools at 768 px in either density. Desk still earns its
+  // keep by needing less of a scroll than Field (was: "Desk makes the rail fit", UI §3.5).
+  it('Desk density shortens the one-column tool rail at 1366x768 (UI §3.5, D149)', async () => {
     await page.viewport(1366, 768);
     const field = measure('rect', { w: 1366, h: 768 }, 'field');
     const desk = measure('rect', { w: 1366, h: 768 }, 'desk');
 
     // Field cannot fit the rail at this height …
     expect(field.railScroll).toBeGreaterThan(field.railClient);
-    // … and Desk, the spec's compact density, does.
-    expect(desk.railScroll).toBeLessThanOrEqual(desk.railClient);
+    // … and Desk, the compact density, overflows less.
+    expect(desk.railScroll - desk.railClient).toBeLessThan(field.railScroll - field.railClient);
   });
 });
 

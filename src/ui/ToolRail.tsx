@@ -2,7 +2,7 @@
  * `src/ui/ToolRail.tsx` — the vertical tool rail (implementation plan slice 1.4.5,
  * build order step 2; build spec §11.4, UI spec §5.1 / §6.1–§6.6).
  *
- * 14 tools in 6 fixed groups, 2-column grid, bottom-anchored, undo/redo at the very
+ * 14 tools in 6 fixed groups, ONE column (D149; was a 2-column grid), bottom-anchored, undo/redo at the very
  * bottom (UI §5.1: they live under the drawing hand and are NOT duplicated in the
  * top bar — this is why this slice does not render them in `TopBar`).
  *
@@ -147,8 +147,11 @@ export interface ToolRailProps {
 
 const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
 
-/** Visual top→bottom = group 6 → group 1 (UI §6.2: bottom-anchored, reading upward). */
-const RAIL_GROUP_ORDER: readonly ToolDef['group'][] = [6, 5, 4, 3, 2, 1];
+/**
+ * Visual top→bottom (D149, owner request): Measure, Annotate, Mark, then Insert, Erase, and
+ * Move at the bottom by the thumb. Was 6 → 1 (UI §6.2).
+ */
+export const RAIL_GROUP_ORDER: readonly ToolDef['group'][] = [2, 4, 3, 5, 6, 1];
 
 export default function ToolRail({
   activeTool,
@@ -207,7 +210,6 @@ export default function ToolRail({
       >
         {RAIL_GROUP_ORDER.map((group) => {
           const tools = TOOL_DEFS.filter((def) => def.group === group);
-          const needsWell = tools.length % 2 === 1;
           return (
             <section className="tool-group" key={group} data-group={group}>
               <h2 className="tool-group-header">{GROUP_HEADERS[group]}</h2>
@@ -242,8 +244,6 @@ export default function ToolRail({
                     </button>
                   );
                 })}
-                {/* Empty cell = a flat well (UI §6.2), never a disabled button. */}
-                {needsWell ? <span className="tool-well" aria-hidden="true" /> : null}
               </div>
             </section>
           );

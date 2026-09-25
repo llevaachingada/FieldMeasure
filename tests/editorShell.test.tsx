@@ -204,12 +204,13 @@ describe('ToolRail', () => {
     expect(container.querySelectorAll('[data-tool]')).toHaveLength(14);
     expect(screen.getByRole('toolbar')).toBeTruthy();
     const headers = Array.from(container.querySelectorAll('.tool-group-header')).map((h) => h.textContent);
+    // D149 (owner request): Measure at the top, then Annotate and Mark.
     expect(headers).toEqual([
-      STRINGS.toolRail.groupErase,
-      STRINGS.toolRail.groupInsert,
+      STRINGS.toolRail.groupMeasure,
       STRINGS.toolRail.groupAnnotate,
       STRINGS.toolRail.groupMark,
-      STRINGS.toolRail.groupMeasure,
+      STRINGS.toolRail.groupInsert,
+      STRINGS.toolRail.groupErase,
       STRINGS.toolRail.groupMove,
     ]);
   });
