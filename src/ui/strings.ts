@@ -892,6 +892,7 @@ export const STRINGS = {
           s4: 'A project folder cannot be read: tap Retry. If it still fails, check the folder still exists in your projects folder.',
           s5: 'Read-only: the project is open in another window or tab. Close the other one, then reopen the project.',
           s6: 'Something went wrong: tap Reload. Work that was already saved stays in your projects folder.',
+          s7: 'Folder permission keeps expiring: when the browser asks to let Field Measure edit your projects folder, choose Allow on every visit. Installing the app (Install in the address bar) also helps the browser remember. The app asks once when you open a project, so the camera never has to.',
         },
       },
     },

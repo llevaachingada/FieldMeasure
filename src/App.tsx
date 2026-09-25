@@ -27,7 +27,7 @@ import NewProjectDialog from '@/ui/NewProjectDialog';
 import { emitToast } from '@/editor/session';
 import ProjectScreen from '@/ui/ProjectScreen';
 import { listProjectSheets, type ProjectSheetCard } from '@/fs/projectSheets';
-import { clearOpenProject, createProject, readProjectCover, readProjectFile, registerOpenProject, resolveOpenProjectDir } from '@/fs/projectStore';
+import { clearOpenProject, createProject, ensureRootAccess, readProjectCover, readProjectFile, registerOpenProject, resolveOpenProjectDir } from '@/fs/projectStore';
 import { AppErrorBoundary } from '@/ui/ErrorBoundary';
 import { pruneTrash } from '@/fs/sheetTrash';
 import { acquireProjectSession } from '@/fs/projectSession';
@@ -51,6 +51,20 @@ const EditorLayout = lazy(() => import('@/ui/EditorLayout'));
  */
 const CameraFlow = lazy(() => import('@/ui/CameraFlow'));
 
+
+/**
+ * D153 (owner report: «Folder permission expired» when taking new photos, over and over).
+ * Chromium keeps the projects-folder HANDLE across restarts but drops its WRITE grant, and a
+ * grant can only be re-asked for inside a tap. The camera used to ask first at «Use photo», after
+ * the shot, and a missed or slow prompt failed the save. Asking here, at the taps that START work
+ * (open a project, Take photo, Add sheet; New project asks in `createProject`), puts the one
+ * prompt per browser session before the camera, so the save finds the grant already held.
+ * Fire-and-forget on purpose: it queries first (free and silent while the grant is held), never
+ * throws, and the camera's own ask at «Use photo» stays as the fallback.
+ */
+function requestFolderAccess(): void {
+  void ensureRootAccess({ request: true }).catch(() => false);
+}
 
 export default function App() {
   // Display theme (slice 1.10): applies `<html data-theme="…">` and hydrates the
@@ -117,6 +131,7 @@ export default function App() {
    */
   function openProject(id: string, folderName: string): void {
     if (!id || !folderName) return;
+    requestFolderAccess();
     // D51: the registry — and therefore every resolver — is keyed by the FULL runtime key.
     // Registering the bare id leaves `resolveOpenProjectDir` unable to find the folder.
     const projectId = `${id}:${folderName}`;
@@ -271,6 +286,7 @@ export default function App() {
             dispatch({ type: 'openSheet', sheetId: id });
           }}
           onTakePhoto={() => {
+            requestFolderAccess();
             setCaptureOpen(true);
           }}
           onImport={() => {
@@ -340,6 +356,7 @@ export default function App() {
             initialExportSelection={pendingExportSelection ?? undefined}
             onInitialExportConsumed={() => setPendingExportSelection(null)}
             onAddSheet={() => {
+              requestFolderAccess();
               setCaptureOpen(true);
             }}
             onExit={() => {

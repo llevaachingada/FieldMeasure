@@ -59,4 +59,5 @@ app: tap **Help** at the top of any screen (Home, a project's sheets, or the pho
 | Focus or exposure keeps locking | Long-press locking is off by default. Check **Settings > Camera**. |
 | A project folder cannot be read | Tap **Retry**. If it still fails, check that the folder still exists in your projects folder. |
 | Read-only | The project is open in another window or tab. Close the other one, then reopen the project. |
+| «Folder permission expired» keeps coming back | When the browser asks to let Field Measure edit your projects folder, choose **Allow on every visit**. Installing the app (the **Install** icon in the address bar) also helps the browser remember. The app asks once when you open a project, so the camera never has to. |
 | Something went wrong | Tap **Reload**. Work that was already saved stays in your projects folder. |

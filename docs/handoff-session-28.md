@@ -48,6 +48,7 @@ one-page export.
 6. The dimension's **provisional** preview (while placing) still draws without arrowheads (`DimensionTool` uses
    `DEFAULT_STYLE` for the preview).
 7. Wave 4 (docs diet, plan §9): **needs owner approval** before anything is done.
-8. Still open from before: the Offset Nudge Pad, the History flyout (`writeHistorySnapshot` has no caller), the editor
+8. D153 `[Surface]` check: restart the browser, open a project, take photos, expect no «Folder permission expired».
+9. Still open from before: the Offset Nudge Pad, the History flyout (`writeHistorySnapshot` has no caller), the editor
    replace dialog (13.3:808), `aria-pressed` on the hold, the export owed list, D101's label halo, PDF captions, and the
    two owner decisions (mixed-selection chrome, 14.9 handedness tab order).

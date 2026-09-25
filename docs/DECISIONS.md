@@ -3807,3 +3807,14 @@ themselves stay, because the React-side handlers call tool-specific methods. Pin
   per drag.
 - **D152:** a persistent «Help» button (editor top bar left of Export, the sheets grid, Home) opens the user guide.
   The copy is in `STRINGS.help`, mirrored by `docs/USER-GUIDE.md`.
+
+### D153 - ask for the folder write grant when work starts, not after the shot
+
+**Status: shipped (session 28, owner report: «Folder permission expired» over and over when taking photos).** Chromium
+keeps the projects-folder handle across restarts but drops its write grant, and re-grants only inside a tap. The camera's
+first ask was at «Use photo», after the shot, where a missed or slow prompt failed the save. `App.requestFolderAccess()`
+now asks at the taps that start work: opening a project, Take photo, and Add sheet (New project already asks in
+`createProject`). That puts the one prompt per browser session before the camera. It queries first, so it is silent
+while the grant is held. The camera's own ask stays as the fallback. The browser remembers across restarts only if
+the user picks «Allow on every visit» (Chrome/Edge 122+), which installing the app encourages. That is now in Help and
+`docs/USER-GUIDE.md`. `[Surface]` check owed: restart the browser, open a project, take two photos, and expect no failure.
