@@ -1941,3 +1941,40 @@ instead.
   (D63, F6 undo, and two F4 coalesce-window tests, all ~570 ms near the 600 ms `STYLE_COALESCE_MS` window). The file
   passed 12/12 alone, and the next full run passed 228/228. It joins the `insetWire` flake on the watch list. If it
   recurs, give those tests fake timers rather than more slack.
+
+## Wave 3 (beta readiness, session 28): R5 `ProjectSession` (D144) and R6 `EditorController` (D145)
+
+**Commits:** `5d1d862` R5 · `bc7fa39` R6 step 1 (mount effect → `EditorController`) · `db1f6fd` R6 step 2 (tool
+registry, no remount on a sheet switch) · the R6 step 3 commit (scene and inset actions out). Serial, orchestrator
+in-session.
+
+**Results:** `SheetEditor.tsx` **2943 → 1186 lines** across R1 and R6 (target under 1,200). The mount effect is about 35
+lines (target under 150). New modules: `src/fs/projectSession.ts`, `src/editor/editorController.ts`,
+`src/editor/sceneActions.ts`, `src/ui/insetActions.ts`. New tests: `tests/projectSession.test.ts` (5, node) and
+`tests/editorController.browser.test.ts` (2).
+
+**Gates (Windows, final tree):** `tsc` 0 | vitest **1649/1651** (the 2 are the F4 flake below; the same file passed
+230/230 in the preceding browser run) | build 0 (28 precache, 1660.74 KiB) | playwright 8 passed / 5 skipped | **clickthru
+20 PASS / 0 FAIL / 0 UNREACHED**. Evidence read: pans leave geometry unchanged, pinch zooms, and reload → project → sheet
+persists. The R5 tree separately passed the full gate with 1649/1649.
+
+**Deferred to hardware:** unchanged (H1-H29). The sheet switch without a remount (D145) is worth a look on the Surface
+during the next `[Surface]` pass: switch sheets from the editor after a capture, then undo, and confirm nothing from the
+old sheet comes back.
+
+**Decisions recorded:** D144, D145.
+
+**Surprises:**
+- **The dimension-suite flake is pre-existing, not a refactor regression, and is currently frequent.**
+  `sheetEditor.dimension.browser.test.ts` (D63, F6, F4) failed 3/3 in isolation on the R6 step 1 commit. **On the Wave 1
+  baseline `c322bf4` it failed 4, 3, then 0**, so it predates Wave 2. The tests use `sleep(10)` and a real 600 ms coalesce
+  window, so they are machine-load sensitive. Recommended fix (not done; it would edit test timing, which needs a
+  brief): fake timers for the F4 block, and `waitFor` instead of fixed sleeps around the drag assertions.
+- **The R5 plan's `ProjectSessionContext` was not needed.** Refcounting by key gives the editor the shell's session
+  without a provider, and bare-mount test suites keep the old lifecycle unmodified (see D144).
+- **`appGridReturn.test.tsx` pins `App`'s synchronous `clearOpenProject` on «Back»**, so the session's writes had to stop
+  depending on the registry (a dir cached once per session) rather than moving the clear into the session.
+- **R6's registry does not replace the nine refs.** React-side handlers call tool-specific methods, so a
+  `Map<ToolId, Tool>` with only the shared `{ onToolChange, dispose }` cannot serve them. The map drives teardown; the
+  refs stay (D145).
+- An extraction script's unused-import pruner treated `...DEFAULT_STYLE` (a spread) as a member access; `tsc` caught it.

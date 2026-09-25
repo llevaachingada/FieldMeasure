@@ -3,7 +3,7 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-25 (session 28: Wave 2 of `docs/beta-readiness-fix-plan.md`, R1-R4 refactors)
+**Last updated:** 2026-09-25 (session 28: Waves 2 and 3 of `docs/beta-readiness-fix-plan.md`, R1-R6)
 
 **What this project has now that it did not before: a clickthru harness.** One command drives the *built*
 app end to end with real touch and pen input on the Surface geometry and screenshots every step, so an agent
@@ -11,12 +11,18 @@ can *look* instead of trusting a green gate. `npm.cmd run clickthru` | `playwrig
 `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc `docs/clickthru-harness.md`;
 a `clickthru` skill; an OMO orchestrator rule. It is **never a gate** and **never promotes a `[Surface]` row**.
 
+**Session 28, Wave 3 (R5-R6, D144-D145):** `ProjectSession` (`src/fs/projectSession.ts`) is now the one refcounted owner of a
+project's queue, lease, channel and registration: the shell holds it while the project is open, so leaving or switching
+in the editor can no longer orphan a write (the F1/F2 root). `EditorController` owns the canvas, and **a sheet switch no longer
+remounts it** (`loadSheet`, undo history cleared per sheet). `SheetEditor.tsx` is 1186 lines. Gates: tsc 0 | vitest 1649/1651
+(2 = a pre-existing dimension-suite timing flake, which also fails on `c322bf4`) | build 0 | playwright 8/5 | clickthru 20/20. **Next:** Wave 4
+(docs diet) needs the owner's approval first. The owed list below is unchanged.
+
 **Session 28 (beta readiness Wave 2, R1-R4):** four behaviour-preserving refactors, one commit each: the gesture engine
 out of `SheetEditor` (`src/editor/gestureArbiter.ts`, 2943 → 2380 lines), the app route as a reducer plus `useProjectActions`
 (`App.tsx` 599 → 437), `useSheetReorderDrag` (`ProjectScreen.tsx` 1707 → 1374), and `CameraSession` (`CameraFlow.tsx` 1432 →
 1237). Gates: `tsc` 0 | vitest **1644/1644** (all projects) | build 0 | playwright 8 passed / 5 skipped | **clickthru 20/20**.
-Interface deviations and a load-sensitive browser flake are in BUILD-LOG "Wave 2". **Next:** Wave 3, R5 (`ProjectSession`)
-then R6 (`EditorController`), serial.
+Interface deviations and a load-sensitive browser flake are in BUILD-LOG "Wave 2". Wave 3 followed (above).
 
 **Session 27 (beta readiness, D137-D143):** a readiness review drove the built app and found two Critical bugs every
 beta user would hit: an edit made just before tapping «Projects» was never saved, and the sheets grid showed «Couldn't
