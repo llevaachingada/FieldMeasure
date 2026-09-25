@@ -13,8 +13,9 @@
 
 /** Bottom-right corner, 24% of the sheet width (owner: larger; was 16%), 3% margin, capped so
  *  a very wide/narrow source image never grows past 18% (was 12%) of the sheet HEIGHT either. */
-const WIDTH_FRACTION = 0.24;
-const MAX_HEIGHT_FRACTION = 0.18;
+// Owner (session 29, D159): 25% smaller. Were 0.24 / 0.18 / 0.013.
+const WIDTH_FRACTION = 0.18;
+const MAX_HEIGHT_FRACTION = 0.135;
 const MARGIN_FRACTION = 0.03;
 
 /** How present the mark reads on an exported (usually light) photo — subtle, not a
@@ -61,7 +62,7 @@ export function watermarkRect(
 
 /** The capture stamp's text height, as a fraction of the bitmap width: small (owner: "a small
  *  watermark"), but 1.3% of a 4096 px sheet is ~53 px, legible on a printed page. */
-const STAMP_FONT_FRACTION = 0.013;
+const STAMP_FONT_FRACTION = 0.00975;
 /** Padding round the text inside its backing pill, and the gap between pill and logo, in em. */
 const STAMP_PAD_EM = 0.45;
 const STAMP_GAP_EM = 0.5;
