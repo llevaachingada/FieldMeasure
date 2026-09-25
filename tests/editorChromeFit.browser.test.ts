@@ -230,11 +230,11 @@ describe.each(TARGETS)('editor chrome fits $w x $h ($name)', ({ w, h }) => {
 
 
       // D149 (owner request): the style container is three swatch tiles wide (176 px, was 280
-      // per §7.2) and the rail is one column (52 px, was 128 per §6.2). The panel itself is the
+      // per §7.2) and the rail is one column (56 px, was 128 per §6.2). The panel itself is the
       // container minus its 2 px rail-facing divider.
       expect(m.dockWidth).toBe(176);
       expect(m.panelWidth).toBe(m.dockWidth - 2);
-      expect(m.railWidth).toBe(52);
+      expect(m.railWidth).toBe(56);
     });
   }
 

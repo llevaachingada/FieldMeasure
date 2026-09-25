@@ -855,12 +855,12 @@ button.crumb:hover {
   display: none;
 }
 
-/* ---- tool rail (52 px = 4 + 44 + 4: ONE column, owner request D149; was 128 px, UI §6.2) ----
-   44 px is the app's sanctioned sub-48 target (the swatch grid's). It is what lets 14 tools, six
-   group headers and Undo/Redo fit one column at 1916x960 without the rail scrolling. */
+/* ---- tool rail (56 px = 4 + 48 + 4: ONE column, owner request D149; was 128 px, UI §6.2) ----
+   48 px keeps the touch floor every chrome control meets (editorA11y). The gaps below are
+   tightened so 14 tools, six group headers and Undo/Redo still fit at 1916x960. */
 
 .tool-rail {
-  flex: 0 0 52px;
+  flex: 0 0 56px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -878,7 +878,7 @@ button.crumb:hover {
 .tool-rail-groups {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   /* Bottom-anchored: `auto` pushes the groups down when there is room and reaches
      for the scroll when there is not (which `justify-content: flex-end` cannot do). */
   margin-top: auto;
@@ -886,8 +886,8 @@ button.crumb:hover {
 .tool-group {
   display: flex;
   flex-direction: column;
-  /* D149: 2 px (was 4) - part of fitting one column at 1916x960. */
-  gap: 2px;
+  /* D149: 1 px (was 4), part of fitting one column at 1916x960. */
+  gap: 1px;
 }
 /* Full-width hairline between groups (UI §6.2). Group 6 (ERASE) is additionally
    isolated: hairline + 16 px of extra gap from its neighbour. */
@@ -900,9 +900,9 @@ button.crumb:hover {
 .tool-group-header {
   margin: 0;
   padding: 0;
-  /* D149: 9 px so the longest header («ANNOTATE») fits the 44 px column. */
+  /* D149: 9 px so the longest header («ANNOTATE») fits the 48 px column. */
   font-size: 9px;
-  line-height: 11px;
+  line-height: 10px;
   text-align: center;
   overflow: hidden;
   font-weight: 700;
@@ -912,15 +912,15 @@ button.crumb:hover {
 }
 .tool-grid {
   display: grid;
-  grid-template-columns: 44px;
-  /* D149: 4 px between stacked tools (was 8 between grid cells). */
-  gap: 4px;
+  grid-template-columns: 48px;
+  /* D149: 2 px between stacked tools (was 8 between grid cells). */
+  gap: 2px;
   justify-content: center;
 }
 .tool-button {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -977,8 +977,8 @@ button.crumb:hover {
 
 .tool-rail-history {
   display: grid;
-  grid-template-columns: 44px;
-  gap: 4px;
+  grid-template-columns: 48px;
+  gap: 2px;
   justify-content: center;
   padding-top: 4px;
   border-top: 2px solid var(--g700);
@@ -988,8 +988,8 @@ button.crumb:hover {
      mark shows through everywhere around them. */
   position: relative;
   z-index: 81;
-  width: 44px;
-  min-height: 44px;
+  width: 48px;
+  min-height: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;

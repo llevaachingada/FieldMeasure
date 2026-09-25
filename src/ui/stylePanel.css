@@ -1007,3 +1007,8 @@
   max-width: 100%;
   white-space: normal;
 }
+/* D149: in the narrow dock a wrapping row must never squeeze a chip below the 48 px touch floor. */
+.style-dock[data-orientation='vertical'] .style-panel-chip {
+  flex-shrink: 0;
+  min-width: 48px;
+}
