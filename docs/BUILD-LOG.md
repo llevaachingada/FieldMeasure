@@ -1893,3 +1893,51 @@ the `.finally` releases only the handles the first mount captured. **This is not
   **1571 tests**.
 - The «1 dimensions» wording is approved copy, not a D142 leftover — worth the content owner's eye, but not a
   builder fix.
+
+## Wave 2 (beta readiness, session 28): R1-R4 behaviour-preserving refactors
+
+**Lanes:** R1 (orchestrator, in-session) and R2 (orchestrator), plus R3 and R4 (two parallel sub-agent lanes). All
+four worked in one tree with disjoint files (plan §6); `git diff --name-only` per lane matched the ownership
+table. There is one commit per refactor: `6fcdcea` R1, `81b8c65` R2, `f8a4e4f` R3, and the R4 commit after it.
+
+| Lane | Moved | File before → after | New tests |
+|---|---|---|---|
+| R1 | pointer gesture engine → `src/editor/gestureArbiter.ts` (`GestureArbiter`, `GestureDeps`) | `SheetEditor.tsx` 2943 → 2380 | `tests/gestureArbiter.test.ts` (6) |
+| R2 | route → `src/ui/appRoute.ts` reducer; card actions → `src/ui/useProjectActions.ts` | `App.tsx` 599 → 437 | `tests/appRoute.test.ts` (56) |
+| R3 | drag-reorder and autoscroll → `src/ui/useSheetReorderDrag.ts` | `ProjectScreen.tsx` 1707 → 1374 | none (gate is the unchanged grid browser tests) |
+| R4 | camera acquisition/zoom/capture/teardown → `src/media/cameraSession.ts` (`CameraSession`) | `CameraFlow.tsx` 1432 → 1237 | `tests/cameraSession.test.ts` (11) |
+
+**Gates (Windows build machine, after integration):** `tsc` 0 | vitest **115 files / 1644 tests** (node + jsdom +
+browser) | build 0 (28 precache, 1654.95 KiB) | playwright 8 passed / 5 skipped (journey gate green) | **clickthru 20 PASS /
+0 FAIL / 0 UNREACHED**. The gesture-lab evidence was read, not only the statuses: a one-finger pan and a two-finger pan
+leave the geometry unchanged, pinch zooms 97% → 254%, palm + tap changes nothing, and the pen barrel draws nothing.
+No existing test was edited.
+
+**Deferred to hardware:** unchanged (H1-H29). A refactor promotes no `[Surface]` row.
+
+**Decisions recorded:** none. These are behaviour-preserving refactors. The interface deviations below are recorded here
+instead.
+
+**Surprises:**
+- **R1: `history` resolved to `window.history`.** Once the handlers were cut out of the effect, the effect-local `history`
+  (the undo `History`) silently bound to the DOM global in the new module. `tsc` caught it only because `.exec` doesn't
+  exist on the DOM type. Any future closure extraction should check effect-local names that shadow browser globals
+  (`history`, `status`, `name`, `open`, `close`).
+- **R1 passes refs as ref objects** (`{ current }`), not the plan's `getFoo()` getters. That keeps the pasted bodies
+  byte-identical, and a read still sees the live `.current`. `GestureArbiter.dispose()` is a no-op on purpose: the old
+  cleanup never cleared in-flight contacts or their long-press timers either. R6 is the place to change that, as a decision.
+- **R2: `useProjectActions` takes a third callback, `onSheetDeleted`.** The delete handler also filtered the batch
+  selection, which `App` still owns. `goHome` is legal from every route, because the route error boundary's reset used
+  to `setRoute('home')` from anywhere. The boundary is keyed on `route.name`, so switching sheets inside the editor
+  keeps the same boundary, as before.
+- **R3: the hook takes `bodyRef` and `renamingId` too.** The plan's signature omitted them: the autoscroll container is
+  `.project-body`, not the grid, and a focused rename field must suppress the press-start.
+- **R4: `start(video, constraints)` and `capture(video, fallbackSize) → {blob, width, height}`.** The review screen,
+  the write and the thumbnail need the captured size, and the session assigns `srcObject` itself. The one outer
+  `startCamera` catch became two: `CameraSession.start` marks the session `unavailable` (only when a newer start has
+  not superseded it, preserving the old generation guard), and a thin wrapper in `CameraFlow` sets the view. Same
+  behaviour; `cameraFallback.test.tsx` passes unmodified.
+- **A load-sensitive browser flake.** The first full browser run failed 4 tests in `sheetEditor.dimension.browser.test.ts`
+  (D63, F6 undo, and two F4 coalesce-window tests, all ~570 ms near the 600 ms `STYLE_COALESCE_MS` window). The file
+  passed 12/12 alone, and the next full run passed 228/228. It joins the `insetWire` flake on the watch list. If it
+  recurs, give those tests fake timers rather than more slack.
