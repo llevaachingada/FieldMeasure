@@ -3775,3 +3775,16 @@ its reference, a sheet switch no longer tears anything down, and a parked write 
   `pending` when the editor remounts. This is the only observable change, and it is a correction.
 - A re-open racing a close waits for that close before requesting the lease, and the old close does not deregister a key a
   newer session owns. `writerLease.browser.test.ts` passes unmodified: two-tab semantics are unchanged.
+
+### D145 - a sheet switch is `EditorController.loadSheet`, not a remount; undo history is per sheet
+
+**Status: shipped (session 28, Wave 3, R6).** `SheetEditor`'s mount effect no longer depends on `sheetId`. A change calls
+`controller.loadSheet(id)` on the same canvas, scene, tools and persist queue. The switch replays what the old remount's
+cleanup reset: markup ops cancelled, the keypad/Layers/Focus/mini-toolbar/inset picker closed, the selection and its
+style cleared, the thumbnail scheduler cancelled. It clears the undo history **explicitly** (`history.clear()`); the
+remount used to clear it as a side effect, and one sheet's steps must never undo another's. It also re-reads
+`project.json`, because a capture from the editor writes the new sheet outside the controller. Switches run one at a time,
+and a superseded request is skipped. A repeat of the loaded sheet is a no-op. The nine tool refs are also held in a
+`Map<ToolId, Tool>` (`Tool = { onToolChange, dispose }`, the methods every tool already has) that drives teardown. The refs
+themselves stay, because the React-side handlers call tool-specific methods. Pinned by
+`tests/editorController.browser.test.ts` (same Konva stage after a switch; project re-read; no-op on a repeat).

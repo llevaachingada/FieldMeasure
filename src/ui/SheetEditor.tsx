@@ -291,6 +291,7 @@ export default function SheetEditor({
   }, [onExportSource, exportSheets, exportSheetId]);
 
   // ---- canvas lifecycle + input routing + project open (R6: `EditorController`) ----
+  const controllerRef = useRef<EditorController | null>(null);
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -313,8 +314,20 @@ export default function SheetEditor({
         setInputKind,
       },
     });
-    return () => controller.dispose();
-  }, [projectId, folderName, retryToken, sheetId]);
+    controllerRef.current = controller;
+    return () => {
+      controllerRef.current = null;
+      controller.dispose();
+    };
+    // D145: `sheetId` is deliberately NOT a dependency. The mount reads it once for the first
+    // sheet; later changes go through `controller.loadSheet` below, on the same canvas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, folderName, retryToken]);
+
+  // D145: a sheet change is a load on the live controller, not a remount.
+  useEffect(() => {
+    if (sheetId) void controllerRef.current?.loadSheet(sheetId);
+  }, [sheetId]);
 
   // --- keypad focus management (a11y §19.6) -------------------------------------
   const keypadOpen = keypadRequest !== null;

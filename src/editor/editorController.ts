@@ -109,23 +109,46 @@ export interface EditorControllerDeps {
   };
 }
 
+/** Every editor tool, keyed. The shape kinds are their own ids. */
+export type ToolId =
+  | ShapeKind
+  | 'angle'
+  | 'freehand'
+  | 'highlight'
+  | 'text'
+  | 'erase'
+  | 'select'
+  | 'inset'
+  | 'dimension';
+
+/** The methods every tool already has, and all the lifecycle loops need. */
+export interface Tool {
+  onToolChange(): void;
+  dispose(): void;
+}
+
 /**
- * Owns the canvas, scene, history, loupe, tools, input routing and project open for one mount.
- * `dispose()` is the old effect cleanup, unchanged.
+ * Owns the canvas, scene, history, loupe, tools, input routing and project open for one project
+ * mount. A sheet switch is `loadSheet(id)` on the same objects (D145), not a remount.
  */
 export class EditorController {
-  private readonly teardown: () => void;
+  private readonly m: ReturnType<typeof mount>;
 
   constructor(host: HTMLDivElement, deps: EditorControllerDeps) {
-    this.teardown = mount(host, deps);
+    this.m = mount(host, deps);
+  }
+
+  /** Switch to another sheet on the same canvas. A repeat of the loaded sheet is a no-op. */
+  loadSheet(id: string): Promise<void> {
+    return this.m.switchSheet(id);
   }
 
   dispose(): void {
-    this.teardown();
+    this.m.teardown();
   }
 }
 
-function mount(host: HTMLDivElement, deps: EditorControllerDeps): () => void {
+function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
   const { projectId, folderName, sheetId, onSceneReady, loadSheet } = deps;
   const {
     angleRef, bitmapRef, canvasRef, channelRef, dimRef, eraseRef, freehandRef, highlightRef,
@@ -487,6 +510,19 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps): () => void {
   });
 
   // Track the real tool id (the prop is the coarse seam) and cancel on switch.
+  // R6: the tool registry. Teardown goes through it instead of nine hand-written ref calls.
+  // Insertion order is the old disposal order (shapes, angle, ink, text, erase, select, inset).
+  const tools = new Map<ToolId, Tool>();
+  for (const [kind, shape] of shapeToolsRef.current) tools.set(kind, shape);
+  tools.set('angle', angleRef.current);
+  tools.set('freehand', freehandRef.current);
+  tools.set('highlight', highlightRef.current);
+  tools.set('text', textRef.current);
+  tools.set('erase', eraseRef.current);
+  tools.set('select', selectRef.current);
+  tools.set('inset', insetRef.current);
+  tools.set('dimension', tool);
+
   toolIdRef.current = useEditorStore.getState().activeTool;
   const unsubscribeTool = useEditorStore.subscribe((state, prev) => {
     if (state.activeTool === prev.activeTool) return;
@@ -770,7 +806,11 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps): () => void {
   host.addEventListener('pointercancel', cancelContact);
   window.addEventListener('keydown', onKeyDown);
 
-  void (async () => {
+  /** The sheet the shell asked for most recently, and the one this canvas last loaded. */
+  let requestedSheetId = sheetId;
+  let loadedSheetId: string | null = null;
+
+  const opened = (async () => {
     try {
       await projectSession.ready;
       // The session owns the lease; an unmounted editor simply stops here.
@@ -805,9 +845,11 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps): () => void {
         setStatus('empty');
         return;
       }
-      const sheet = (sheetId ? sheets.find((s) => s.id === sheetId) : undefined) ?? sheets[0];
+      const sheet =
+        (requestedSheetId ? sheets.find((s) => s.id === requestedSheetId) : undefined) ?? sheets[0];
       setSheetTitle(sheet.title);
       setExportSheetId(sheet.id);
+      loadedSheetId = sheet.id;
       const loaded = await loadSheet(canvas, projectDir, sheet);
       if (!alive) return;
       setStatus(loaded);
@@ -821,7 +863,76 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps): () => void {
     }
   })();
 
-  return () => {
+  /** Switches run one at a time; a request superseded while it waited is skipped. */
+  let switching: Promise<void> = opened;
+
+  /**
+   * D145: open another sheet on the SAME canvas, scene, tools and persist queue. Before R6 a
+   * sheet change remounted all of it. What that remount reset is replayed here, and the undo
+   * history is cleared explicitly (one sheet's steps must never undo another's). The project
+   * file is re-read, because a capture launched from the editor wrote the new sheet behind
+   * this controller's back, exactly as the remount's fresh open used to pick up.
+   */
+  function switchSheet(id: string): Promise<void> {
+    requestedSheetId = id;
+    switching = switching.then(() => doSwitch(id));
+    return switching;
+  }
+
+  async function doSwitch(id: string): Promise<void> {
+    if (!alive || requestedSheetId !== id || loadedSheetId === id) return;
+    const state = projectDirRef.current;
+    // The open failed (the error panel and its Retry own that) or never finished.
+    if (!state) return;
+    loadedSheetId = id;
+    sheetIdRef.current = null;
+    cancelActiveMarkup();
+    history.clear();
+    useEditorStore.getState().clearSelection();
+    useEditorStore.getState().setKeypadOpen(false);
+    useEditorStore.getState().setLayersOpen(false);
+    useEditorStore.getState().setFocusInsetId(null);
+    useEditorStore.getState().setSelectionStyle(createInitialSelectionStyle());
+    useEditorStore.getState().setPendingOp('none');
+    setPinnedToolbar(false);
+    setInsetPickerOpen(false);
+    setReplacePrompt(null);
+    schedulerRef.current?.cancel();
+    schedulerRef.current = null;
+    setStatus('loading');
+    try {
+      const file = await readProjectFile(state.dir);
+      if (!alive) return;
+      projectDirRef.current = { dir: state.dir, file };
+      const sheets = file.sheets.filter((s) => !s.deletedAt);
+      setSheetCount(sheets.length);
+      setExportSheets(
+        sheets.map((s) => ({
+          id: s.id,
+          title: s.title,
+          imageWidthPx: s.imageWidth,
+          imageHeightPx: s.imageHeight,
+        })),
+      );
+      const sheet = sheets.find((s) => s.id === id) ?? sheets[0];
+      if (!sheet) {
+        setStatus('empty');
+        return;
+      }
+      setSheetTitle(sheet.title);
+      setExportSheetId(sheet.id);
+      const loaded = await loadSheet(canvas, state.dir, sheet);
+      if (!alive) return;
+      setStatus(loaded);
+    } catch {
+      if (alive) {
+        setStatus('error');
+        emitToast({ text: STRINGS.errors.projectUnavailable, urgent: true });
+      }
+    }
+  }
+
+  const teardown = (): void => {
     alive = false;
     resizeObserver.disconnect();
     host.removeEventListener('pointerdown', onPointerDown);
@@ -847,21 +958,16 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps): () => void {
     scene.onChange = null;
     persistRef.current = null;
     sheetIdRef.current = null;
-    for (const shape of shapeToolsRef.current.values()) shape.dispose();
+    // The dimension tool keeps its old place at the very end of the teardown.
+    for (const [id, t] of tools) if (id !== 'dimension') t.dispose();
+    tools.clear();
     shapeToolsRef.current.clear();
-    angleRef.current?.dispose();
     angleRef.current = null;
-    freehandRef.current?.dispose();
     freehandRef.current = null;
-    highlightRef.current?.dispose();
     highlightRef.current = null;
-    textRef.current?.dispose();
     textRef.current = null;
-    eraseRef.current?.dispose();
     eraseRef.current = null;
-    selectRef.current?.dispose();
     selectRef.current = null;
-    insetRef.current?.dispose();
     insetRef.current = null;
     insetAssetsRef.current.dispose();
     schedulerRef.current?.cancel();
@@ -886,6 +992,8 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps): () => void {
     loupe.destroy();
     canvas.destroy();
   };
+
+  return { teardown, switchSheet };
 }
 
 /**
