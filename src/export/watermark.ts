@@ -156,7 +156,7 @@ export function drawWatermark(
  *  page is expected to be light (the photo, or the §19.4a white damaged-photo page),
  *  unlike the app's own always-dark chrome (`WatermarkOverlay.tsx` uses the light-ink
  *  compact mark instead). Traced from the client-supplied vector PDF at 600 dpi. */
-export const EXPORT_WATERMARK_SRC = '/branding/vangarde-full.png';
+export const EXPORT_WATERMARK_SRC = `${import.meta.env.BASE_URL}branding/vangarde-full.png`;
 /** `vangarde-full.png` is 1911×1039 px (measured at build time from the source PNG). */
 export const EXPORT_WATERMARK_ASPECT_RATIO = 1911 / 1039;
 
