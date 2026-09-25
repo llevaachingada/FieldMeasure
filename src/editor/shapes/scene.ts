@@ -750,6 +750,7 @@ export class MarkupScene {
           id: ann.id,
           a: ann.geometry.a,
           b: ann.geometry.b,
+          labelOffset: ann.geometry.labelOffset,
           valueMm: ann.valueMm ?? null,
           enteredText: ann.enteredText ?? null,
           style: ann.style,

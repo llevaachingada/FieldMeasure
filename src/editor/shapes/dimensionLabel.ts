@@ -49,12 +49,31 @@ export interface LabelLayout {
  * midpoint is within `LABEL_COLLISION_PX` of it on screen, push perpendicular away
  * from the tip by `LABEL_PUSH_PX` screen px (÷ `scale` to image px).
  */
-export function labelLayout(a: Px, b: Px, tip: Px, scale: number): LabelLayout {
+/** The signed perpendicular distance of `p` from the line a→b (image px, left-hand normal positive). */
+export function perpendicularOffset(a: Px, b: Px, p: Px): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return 0;
+  return ((p.x - a.x) * -dy + (p.y - a.y) * dx) / len;
+}
+
+export function labelLayout(a: Px, b: Px, tip: Px, scale: number, offset = 0): LabelLayout {
   const mid = midpoint(a, b);
   const rotationDeg = readableAngleDeg(a, b);
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len = Math.hypot(dx, dy);
+  // D151 (owner request): a user-dragged label sits `offset` image px off the line, along the
+  // left-hand normal (-dy, dx). The user placed it, so the collision push does not apply.
+  if (offset !== 0 && len > 0) {
+    return {
+      at: { x: mid.x + (-dy / len) * offset, y: mid.y + (dx / len) * offset },
+      pushed: false,
+      leaderFrom: null,
+      rotationDeg,
+    };
+  }
   const tooClose = Math.hypot(mid.x - tip.x, mid.y - tip.y) * scale < LABEL_COLLISION_PX;
   if (!tooClose || len === 0) {
     return { at: mid, pushed: false, leaderFrom: null, rotationDeg };

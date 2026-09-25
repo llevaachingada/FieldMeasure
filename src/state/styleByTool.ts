@@ -284,7 +284,7 @@ export interface StyleByToolActions {
   setToolStyle(tool: ToolId, patch: Partial<AnnotationStyle>): void;
   /** Replace one tool's style wholesale (applying a preset / a selection style). Records a recent. */
   replaceToolStyle(tool: ToolId, style: AnnotationStyle): void;
-  /** Back to `DEFAULT_STYLE` for one tool (the sheet's `Reset to defaults`). Does not record. */
+  /** Back to the tool's default style (`toolDefaultStyle`) for one tool (the sheet's `Reset to defaults`). Does not record. */
   resetToolStyle(tool: ToolId): void;
   /** Record a style as used (the shell calls this after applying a style to a selection). */
   recordRecent(style: AnnotationStyle): void;
@@ -294,9 +294,17 @@ export interface StyleByToolActions {
 
 export type StyleByToolStore = StyleByToolState & StyleByToolActions;
 
+/**
+ * A tool's fresh style. D150 (owner request): a dimension starts with slim arrowheads at
+ * both ends; every other tool starts from `DEFAULT_STYLE`.
+ */
+export function toolDefaultStyle(tool: ToolId): AnnotationStyle {
+  return tool === 'dimension' ? { ...DEFAULT_STYLE, arrowheads: 'both' } : { ...DEFAULT_STYLE };
+}
+
 function defaultRecord(): Record<ToolId, AnnotationStyle> {
   const record = {} as Record<ToolId, AnnotationStyle>;
-  for (const tool of TOOL_IDS) record[tool] = { ...DEFAULT_STYLE };
+  for (const tool of TOOL_IDS) record[tool] = toolDefaultStyle(tool);
   return record;
 }
 
@@ -307,7 +315,7 @@ export function createInitialStyleState(): StyleByToolState {
 
 /** The style the next mark from `tool` will use (per-tool memory, §7.4 #6). */
 export function styleForTool(state: Pick<StyleByToolState, 'styleByTool'>, tool: ToolId): AnnotationStyle {
-  return state.styleByTool[tool] ?? DEFAULT_STYLE;
+  return state.styleByTool[tool] ?? toolDefaultStyle(tool);
 }
 
 export const useStyleByTool = create<StyleByToolStore>()(
@@ -330,7 +338,7 @@ export const useStyleByTool = create<StyleByToolStore>()(
 
     resetToolStyle: (tool) =>
       set((state) => {
-        state.styleByTool[tool] = { ...DEFAULT_STYLE };
+        state.styleByTool[tool] = toolDefaultStyle(tool);
       }),
 
     recordRecent: (style) =>

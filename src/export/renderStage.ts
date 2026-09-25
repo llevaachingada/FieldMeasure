@@ -63,6 +63,7 @@ import type { LabelContext } from '@/editor/shapes/dimensionLabel';
 import type { InsetAssetImage } from '@/editor/inset/renderInset';
 import type { SheetExport } from './pdf';
 import { drawWatermark } from './watermark';
+import { arrowHeadPoints, type ArrowHeadSpec } from '@/editor/shapes/arrowHead';
 
 /** §4.2 / §9.3: the only three export multipliers. */
 export type ExportMultiplier = 1 | 2 | 3;
@@ -264,6 +265,9 @@ export function applyExportRules(root: Konva.Container, m: number): void {
     }
 
     if (LINE_CLASSES.has(className)) {
+      // D150: a dimension arrowhead at export is `mu` image px, the same as ink (scale 1).
+      const head = node.getAttr('arrowHead') as ArrowHeadSpec | undefined;
+      if (head) (node as unknown as InkLineNode).points(arrowHeadPoints(head, EXPORT_INK_SCALE));
       const inkPoints = node.getAttr('inkPoints');
       if (Array.isArray(inkPoints) && typeof strokeWidthMu === 'number') {
         // `size = mu / EXPORT_INK_SCALE = mu` — the live-draw ink shape (Konva.Line).

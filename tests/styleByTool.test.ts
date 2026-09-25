@@ -38,8 +38,9 @@ describe('styleByTool — per-tool memory (§7.4 #6)', () => {
     setToolStyle('line', { strokeColor: '#2FD4E0' });
 
     const afterSwap = useStyleByTool.getState();
+    // D150 (owner request): a dimension's fresh style has arrowheads at both ends.
     expect(styleForTool(afterSwap, 'dimension')).toEqual(
-      style({ strokeColor: '#FFD400', strokeWidthMu: 8 }),
+      style({ strokeColor: '#FFD400', strokeWidthMu: 8, arrowheads: 'both' }),
     );
     expect(styleForTool(afterSwap, 'line')).toEqual(style({ strokeColor: '#2FD4E0' }));
 

@@ -14,6 +14,7 @@
 import Konva from 'konva';
 import type { AnnotationStyle, Px } from '@/domain/types';
 import { screenFontSize } from '@/editor/EditorCanvas';
+import { arrowHeadPoints, arrowHeadSpec } from './arrowHead';
 import {
   derivedDimensionLabel,
   labelLayout,
@@ -30,6 +31,8 @@ export interface DimensionRenderInput {
   a: Px;
   b: Px;
   valueMm: number | null;
+  /** D151: the user-dragged label offset from the line (image px, signed). */
+  labelOffset?: number;
   /** Set when the user typed a value — the raw text, stored verbatim (§3.3). */
   enteredText?: string | null;
   style: AnnotationStyle;
@@ -112,6 +115,26 @@ export function buildDimensionGroup(input: DimensionRenderInput): Konva.Group {
     group.add(tick);
   }
 
+  const ends = style.arrowheads;
+  for (const which of ['a', 'b'] as const) {
+    const wanted = ends === 'both' || (which === 'a' ? ends === 'start' : ends === 'end');
+    if (!wanted) continue;
+    const spec = arrowHeadSpec(which === 'a' ? a : b, which === 'a' ? b : a, style.strokeWidthMu);
+    const head = new Konva.Line({
+      points: arrowHeadPoints(spec, 1 / scale),
+      closed: true,
+      fill: style.strokeColor,
+      stroke: style.strokeColor,
+      strokeWidth: 1,
+      strokeScaleEnabled: false,
+      lineJoin: 'miter',
+      listening: false,
+    });
+    // Re-sized on every zoom (applyScreenRules) and at export (applyExportRules).
+    head.setAttr('arrowHead', spec);
+    group.add(head);
+  }
+
   const fontSize = screenFontSize(style.fontSizeMu, scale);
   const fontStyle = style.bold ? '700' : '400';
   const text = dimensionText(input);
@@ -151,7 +174,7 @@ export function buildDimensionGroup(input: DimensionRenderInput): Konva.Group {
   // Same reasoning for the --sel hairline: tagged so export scales it to 1 x M.
   main.setAttr('strokeWidthMu', 1);
 
-  const layout = labelLayout(a, b, b, scale);
+  const layout = labelLayout(a, b, b, scale, input.labelOffset ?? 0);
   placeText(halo, layout.at, layout.rotationDeg);
   placeText(main, layout.at, layout.rotationDeg);
   group.add(halo, main);

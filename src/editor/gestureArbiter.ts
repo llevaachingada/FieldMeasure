@@ -30,6 +30,11 @@ import type { InsetTool } from '@/editor/tools/InsetTool';
 import { emitToast } from '@/editor/session';
 import { useEditorStore } from '@/state/editorStore';
 import { STRINGS } from '@/ui/strings';
+import { labelLayout, perpendicularOffset } from '@/editor/shapes/dimensionLabel';
+
+/** D151: how close (screen px) a press must land to a selected dimension's text to drag it.
+ *  28 px is the select tool's touch handle visual size (touch model §3.3). */
+const LABEL_GRAB_PX = 28;
 
 /** Double-tap window for fit↔100%: 320 ms, 24 px (UI §5.4 "double tap"). */
 const DOUBLE_TAP_MS = 320;
@@ -155,6 +160,22 @@ function buildHandlers(deps: GestureDeps) {
   } = deps;
 
   const contacts = new Map<number, Contact>();
+  /** D151: pointerId → the dimension whose label this contact is dragging. */
+  const labelDrags = new Map<number, { key: string; before: Geometry }>();
+
+  /** The selected dimension whose label sits under `point` (screen), or null. */
+  const labelUnder = (point: ScreenPoint): { key: string; geometry: Geometry } | null => {
+    const keys = useEditorStore.getState().selection;
+    if (keys.length !== 1) return null;
+    const key = keys[0];
+    const ann = scene.get(key);
+    if (!ann || ann.locked || ann.geometry.kind !== 'dimension') return null;
+    const g = ann.geometry;
+    const at = labelLayout(g.a, g.b, g.b, canvas.scale, g.labelOffset ?? 0).at;
+    const s = canvas.imageToScreen(at);
+    if (Math.hypot(s.x - point.x, s.y - point.y) > LABEL_GRAB_PX) return null;
+    return { key, geometry: { ...g } };
+  };
   const objectDrags = new Map<number, ObjectDrag>();
   let lastTap: { point: ScreenPoint; at: number } | null = null;
 
@@ -330,6 +351,21 @@ function buildHandlers(deps: GestureDeps) {
       contact.marqueeCandidate = true;
     }
 
+    // D151: select tool + a press on the selected dimension's text drags the text only.
+    const label = intent !== 'ignore' && !keypadOpen && toolIdRef.current === 'select' ? labelUnder(point) : null;
+    if (label) {
+      labelDrags.set(e.pointerId, { key: label.key, before: label.geometry });
+      window.clearTimeout(contact.longPressTimer ?? undefined);
+      contact.longPressTimer = null;
+      contact.marqueeCandidate = false;
+      try {
+        host.setPointerCapture(e.pointerId);
+      } catch {
+        // Pointer capture is a nicety; the handlers still work without it.
+      }
+      return;
+    }
+
     // Keypad-open (touch model §5.1): pan + pinch only; taps do nothing.
     if (keypadOpen) {
       contact.forcePan = true;
@@ -417,6 +453,16 @@ function buildHandlers(deps: GestureDeps) {
     const imagePoint = canvas.screenToImage(point);
     const moved = Math.hypot(point.x - contact.start.x, point.y - contact.start.y) > TAP_SLOP;
 
+    const labelDrag = labelDrags.get(e.pointerId);
+    if (labelDrag) {
+      const g = labelDrag.before;
+      if (g.kind === 'dimension') {
+        scene.setGeometry(labelDrag.key, { ...g, labelOffset: perpendicularOffset(g.a, g.b, imagePoint) });
+      }
+      contact.last = point;
+      return;
+    }
+
     if (contact.freehandKind) {
       const ink = contact.freehandKind === 'freehand' ? freehandRef.current! : highlightRef.current!;
       ink.extend(imagePoint, e.pressure);
@@ -503,6 +549,21 @@ function buildHandlers(deps: GestureDeps) {
     const duration = performance.now() - contact.startAt;
     const tapped = isTap(point.x - contact.start.x, point.y - contact.start.y, duration);
     contacts.delete(e.pointerId);
+    const labelDrag = labelDrags.get(e.pointerId);
+    if (labelDrag) {
+      labelDrags.delete(e.pointerId);
+      const after = scene.geometryCopy(labelDrag.key);
+      const before = labelDrag.before;
+      // One undo step per label drag; a tap on the text changes nothing and records nothing.
+      if (after && JSON.stringify(after) !== JSON.stringify(before)) {
+        history.exec({
+          label: STRINGS.toasts.actionMoveDimension,
+          do: () => scene.setGeometry(labelDrag.key, after),
+          undo: () => scene.setGeometry(labelDrag.key, before),
+        });
+      }
+      return;
+    }
     if (e.pointerType === 'pen') router.penStrokeEnd();
     if (e.pointerType === 'touch') router.noteTouchUp(e.pointerId);
 
@@ -616,6 +677,13 @@ function buildHandlers(deps: GestureDeps) {
     const contact = contacts.get(e.pointerId);
     if (!contact) return;
     contacts.delete(e.pointerId);
+    const labelDrag = labelDrags.get(e.pointerId);
+    if (labelDrag) {
+      // Interrupted (palm rejection, browser cancel): put the text back, as an object drag does.
+      labelDrags.delete(e.pointerId);
+      scene.setGeometry(labelDrag.key, labelDrag.before);
+      return;
+    }
     // An interrupted object-first drag RESTORES the pre-drag geometry — the same rule
     // the D63 second-finger cancel above follows. `onPointerMove` has been writing every
     // intermediate position through `scene.setGeometry` (persisted via `scene.onChange`),

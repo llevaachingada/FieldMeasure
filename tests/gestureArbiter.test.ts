@@ -187,3 +187,42 @@ describe('GestureArbiter (R1 characterization)', () => {
     expect(canvas.toggleFitOrFull).not.toHaveBeenCalled();
   });
 });
+
+describe('D151: dragging a selected dimension\'s text', () => {
+  it('moves only the label (labelOffset), records one undo step, and a cancel puts it back', async () => {
+    const { useEditorStore } = await import('@/state/editorStore');
+    // Long enough that the label is not collision-pushed off its midpoint (300, 100).
+    const dim = { kind: 'dimension', a: { x: 0, y: 100 }, b: { x: 600, y: 100 } };
+    const { deps, scene } = makeDeps();
+    const d = deps as unknown as {
+      canvas: { scale: number };
+      history: { exec: ReturnType<typeof vi.fn> };
+    };
+    d.canvas.scale = 1;
+    let current: Record<string, unknown> = { ...dim };
+    scene.get.mockImplementation(() => ({ id: 'd1', type: 'dimension', locked: false, geometry: current }) as never);
+    scene.setGeometry.mockImplementation((_k: string, g: Record<string, unknown>) => {
+      current = g;
+    });
+    scene.geometryCopy.mockImplementation(() => ({ ...current }) as never);
+    useEditorStore.getState().setSelection(['k1']);
+
+    const a = new GestureArbiter(deps);
+    // The label sits at the midpoint (300, 100). Drag it 30 px up off the line.
+    a.onPointerDown(ptr(1, 300, 100));
+    a.onPointerMove(ptr(1, 300, 70));
+    a.onPointerUp(ptr(1, 300, 70));
+    // The endpoints never moved; only the offset changed (the left-hand normal of a→b points +y, so 30 px up is −30).
+    expect(current.a).toEqual(dim.a);
+    expect(current.b).toEqual(dim.b);
+    expect(current.labelOffset).toBeCloseTo(-30);
+    expect(d.history.exec).toHaveBeenCalledTimes(1);
+
+    // A cancelled drag restores the geometry it started from.
+    a.onPointerDown(ptr(2, 300, 70));
+    a.onPointerMove(ptr(2, 300, 20));
+    a.onPointerCancel(ptr(2, 300, 20));
+    expect(current.labelOffset).toBeCloseTo(-30);
+    useEditorStore.getState().setSelection([]);
+  });
+});
