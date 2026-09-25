@@ -35,6 +35,8 @@ import { appRouteReducer } from '@/ui/appRoute';
 import { useProjectActions } from '@/ui/useProjectActions';
 import { STRINGS } from '@/ui/strings';
 import { getProjectsRoot } from '@/settings/projectsRoot';
+import { getExportLocation } from '@/settings/exportLocation';
+import { useAppStore } from '@/state/appStore';
 
 /**
  * The editor shell (top bar, tool rail, dock and the Konva canvas behind it) is
@@ -222,6 +224,14 @@ export default function App() {
         root = undefined;
       }
       if (alive) dispatch({ type: 'booted', hasRoot: Boolean(root) });
+      // The export session reads the default export location from the store synchronously,
+      // so it must be hydrated at boot, not only when Settings is opened.
+      try {
+        const exportLocation = await getExportLocation();
+        if (alive) useAppStore.getState().setExportLocation(exportLocation);
+      } catch {
+        // Keep the default ('dated'); a storage failure must not block boot.
+      }
     })();
     return () => {
       alive = false;

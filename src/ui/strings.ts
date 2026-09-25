@@ -566,6 +566,12 @@ export const STRINGS = {
 
   // ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §17)
   export: {
+    // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): D147, the result list's
+    // per-file «Open», its accessible name, and the «Copy folder path» clipboard fallback.
+    open: 'Open',
+    openFile: 'Open {name}',
+    copyPathFallback: 'Clipboard unavailable — select the path and copy it yourself:',
+    copyPathFallbackFieldLabel: 'Destination path',
     back: 'Back',
 
     // ── APPROVED inventory (docs/appendix-strings.md `## export`) ──────────────

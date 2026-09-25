@@ -3,12 +3,15 @@
  * Build spec §11.10; UI spec §12; implementation plan §1.9 build-order step 5.
  *
  * WHAT THIS IS
- *   The four-view modal that collects an `ExportPlan` and reports the result:
- *   **Scope → Format → Destination → (progress) → Result**, with a `Back` / `Next` footer
- *   and a left step rail. It owns NO engine work. It never imports `src/export/**`:
- *   rendering, PDF/PNG building, filename conflicts, the §19.4b memory budget and the
- *   destination handle all arrive as injected props, so this file stays testable in jsdom
- *   and the export lanes can move underneath it.
+ *   D147 (owner request, session 28): a ONE-PAGE modal — Scope, Format and Destination all
+ *   show together as three stacked, scrollable sections, each with its own heading, with
+ *   the export action at the bottom. There is no step rail and no step-by-step navigation
+ *   any more (the previous four-view wizard — Scope → Format → Destination → Result — is
+ *   gone; `running` and `result` are still separate views, since there is nothing to show
+ *   underneath them). It owns NO engine work. It never imports `src/export/**`: rendering,
+ *   PDF/PNG building, filename conflicts, the §19.4b memory budget and the destination
+ *   handle all arrive as injected props, so this file stays testable in jsdom and the
+ *   export lanes can move underneath it.
  *
  * PINNED INTERFACE — `ExportWizardProps` below is verbatim from the lane brief. Do not
  *   rename a prop; the orchestrator wires the real implementations against exactly this
@@ -127,22 +130,30 @@ export interface ExportWizardProps {
   runExport(plan: ExportPlan, onProgress: (p: ExportProgress) => void): Promise<ExportResult>;
   retryFile(name: string): Promise<ExportFileResult>;
   revealFolder(): Promise<void>;
+  /**
+   * D147 item 3: copies `path` to the clipboard. MUST REJECT (never resolve-and-swallow)
+   * when the clipboard is unavailable or refuses — the result view falls back to a
+   * selectable read-only field rather than claiming a copy that did not happen.
+   */
   copyPath(path: string): Promise<void>;
+  /**
+   * D147 item 3, added by this lane (not in the original pinned shape — a browser cannot
+   * open Windows Explorer, so the owner accepted this in its place): opens one exported
+   * file, by name, in a new tab. Optional so an integrator wiring an older session does
+   * not fail to type-check; the result row's `Open` button is omitted without it.
+   */
+  openFile?(name: string): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
 // Local model
 // ---------------------------------------------------------------------------
 
-/** The four views of §11.10, plus the progress view the run lives in. */
-export type WizardStep = 'scope' | 'format' | 'destination' | 'running' | 'result';
-
-/** The rail's three navigable steps (the run and the result are not rail rows). */
-const RAIL_STEPS: ReadonlyArray<{ step: WizardStep; label: string }> = [
-  { step: 'scope', label: C.stepScope },
-  { step: 'format', label: C.stepFormat },
-  { step: 'destination', label: C.stepDestination },
-];
+/**
+ * D147: the three views left after the step rail's removal. `form` shows Scope, Format
+ * and Destination stacked in one scrollable page; `running` and `result` are unchanged.
+ */
+export type WizardStep = 'form' | 'running' | 'result';
 
 const MULTIPLIERS: readonly ExportMultiplier[] = [1, 2, 3];
 
@@ -229,6 +240,7 @@ function ExportWizardDialog({
   retryFile,
   revealFolder,
   copyPath,
+  openFile,
 }: ExportWizardProps): JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
@@ -283,7 +295,7 @@ function ExportWizardDialog({
   const [conflictPolicy, setConflictPolicy] = useState<ConflictPolicy>('add');
 
   // ---- run -----------------------------------------------------------------
-  const [step, setStep] = useState<WizardStep>('scope');
+  const [step, setStep] = useState<WizardStep>('form');
   const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [files, setFiles] = useState<readonly ExportFileResult[]>([]);
@@ -387,11 +399,11 @@ function ExportWizardDialog({
       })
       .catch(() => {
         // Nothing is faked: the wizard says the run failed and returns the user to the
-        // step they can act on. Per-file causes are reported by `runExport` resolving
+        // page they can act on. Per-file causes are reported by `runExport` resolving
         // with failed rows; a REJECTION is the whole-run failure, which has no per-file
         // detail to show.
         setRunFailed(true);
-        setStep('destination');
+        setStep('form');
       });
   }, [blocked, emptyScope, destination, plan, runExport, sheetIds.length]);
 
@@ -415,38 +427,18 @@ function ExportWizardDialog({
     setResult(null);
     setFiles([]);
     setProgress(null);
-    setStep('scope');
+    setStep('form');
   };
 
-  // ---- step navigation -----------------------------------------------------
-  const canLeaveScope = !emptyScope;
-  const canLeaveFormat = !blocked;
-  const railReachable = (target: WizardStep): boolean => {
-    if (step === 'running') return false;
-    if (target === 'scope') return true;
-    if (target === 'format') return canLeaveScope;
-    return canLeaveScope && canLeaveFormat;
-  };
-
-  const goNext = (): void => {
-    if (step === 'scope' && canLeaveScope) setStep('format');
-    else if (step === 'format' && canLeaveFormat) setStep('destination');
-    else if (step === 'destination') startExport();
-  };
-  const goBack = (): void => {
-    if (step === 'format') setStep('scope');
-    else if (step === 'destination') setStep('format');
-    else if (step === 'result') setStep('destination');
-  };
-
-  const primaryLabel = step === 'destination' || step === 'running' ? C.button : C.next;
-  const primaryDisabled =
-    step === 'running' ||
-    (step === 'scope' && emptyScope) ||
-    (step === 'format' && (emptyScope || blocked)) ||
-    (step === 'destination' && (emptyScope || blocked || destination === null));
+  // ---- D147: one page, no step navigation -----------------------------------
+  // The primary button is always the export action; it is the ONLY way forward from
+  // `form`, so the guard that used to gate `Next` between steps now gates it directly.
+  const primaryLabel = C.button;
+  const primaryDisabled = step === 'running' || emptyScope || blocked || destination === null;
 
   // ---- the one polite live region -----------------------------------------
+  // `form` has no per-step transition left to announce; the live region only has
+  // something new to say once the run starts.
   const announcement =
     step === 'running' && progress !== null
       ? t(C.progress, { done: progress.done, total: progress.total })
@@ -455,11 +447,7 @@ function ExportWizardDialog({
             fileCount: writtenFileCount(result.files),
             size: formatBytes(result.totalBytes),
           })
-        : step === 'scope'
-          ? C.stepScope
-          : step === 'format'
-            ? C.stepFormat
-            : C.stepDestination;
+        : '';
 
   return (
     <div className="export-wizard-scrim">
@@ -499,70 +487,49 @@ function ExportWizardDialog({
         </div>
 
         <div className="export-wizard-body">
-          <nav className="export-wizard-rail" aria-label={C.stepRail}>
-            {RAIL_STEPS.map((row, index) => (
-              <button
-                key={row.step}
-                type="button"
-                className="export-wizard-rail-row export-wizard-slop"
-                data-testid={`export-wizard-rail-${row.step}`}
-                aria-label={row.label}
-                aria-current={step === row.step ? 'step' : undefined}
-                data-current={step === row.step ? 'true' : 'false'}
-                disabled={!railReachable(row.step)}
-                onClick={() => setStep(row.step)}
-              >
-                <span className="export-wizard-rail-index mono">{index + 1}</span>
-                <span className="export-wizard-rail-label">{row.label}</span>
-              </button>
-            ))}
-          </nav>
-
           <div className="export-wizard-panel">
-            {step === 'scope' ? (
-              <ScopeStep
-                sheets={sheets}
-                scope={scope}
-                scopeIds={scopeIds}
-                sheetIds={sheetIds}
-                selectedCount={selectedIds.length}
-                allCount={allIds.length}
-                hasCurrentSheet={currentSheetId !== null}
-                onChangeScope={changeScope}
-                onToggleSheet={toggleSheet}
-                onSelectAll={() => setSheetIds(scopeIds)}
-                onSelectNone={() => setSheetIds([])}
-              />
-            ) : null}
+            {step === 'form' ? (
+              <>
+                <ScopeStep
+                  sheets={sheets}
+                  scope={scope}
+                  scopeIds={scopeIds}
+                  sheetIds={sheetIds}
+                  selectedCount={selectedIds.length}
+                  allCount={allIds.length}
+                  hasCurrentSheet={currentSheetId !== null}
+                  onChangeScope={changeScope}
+                  onToggleSheet={toggleSheet}
+                  onSelectAll={() => setSheetIds(scopeIds)}
+                  onSelectNone={() => setSheetIds([])}
+                />
 
-            {step === 'format' ? (
-              <FormatStep
-                format={format}
-                multiplier={multiplier}
-                zip={zip}
-                includeSheetNames={includeSheetNames}
-                checks={multiplierChecks}
-                blocked={blocked}
-                largestAllowed={largestAllowed}
-                onFormat={setFormat}
-                onMultiplier={setMultiplier}
-                onZip={setZip}
-                onIncludeSheetNames={setIncludeSheetNames}
-              />
-            ) : null}
+                <FormatStep
+                  format={format}
+                  multiplier={multiplier}
+                  zip={zip}
+                  includeSheetNames={includeSheetNames}
+                  checks={multiplierChecks}
+                  blocked={blocked}
+                  largestAllowed={largestAllowed}
+                  onFormat={setFormat}
+                  onMultiplier={setMultiplier}
+                  onZip={setZip}
+                  onIncludeSheetNames={setIncludeSheetNames}
+                />
 
-            {step === 'destination' ? (
-              <DestinationStep
-                destination={destination}
-                remember={rememberDestination}
-                conflictPolicy={conflictPolicy}
-                fileCount={estimated.fileCount}
-                bytes={estimated.bytes}
-                runFailed={runFailed}
-                onChoose={pickDestination}
-                onRemember={setRememberDestination}
-                onConflictPolicy={setConflictPolicy}
-              />
+                <DestinationStep
+                  destination={destination}
+                  remember={rememberDestination}
+                  conflictPolicy={conflictPolicy}
+                  fileCount={estimated.fileCount}
+                  bytes={estimated.bytes}
+                  runFailed={runFailed}
+                  onChoose={pickDestination}
+                  onRemember={setRememberDestination}
+                  onConflictPolicy={setConflictPolicy}
+                />
+              </>
             ) : null}
 
             {step === 'running' ? <RunningStep progress={progress} /> : null}
@@ -573,25 +540,16 @@ function ExportWizardDialog({
                 files={files}
                 retrying={retrying}
                 onRetry={onRetry}
-                onCopyPath={() => void copyPath(result.path)}
+                copyPath={copyPath}
                 onRevealFolder={() => void revealFolder()}
                 onExportAgain={exportAgain}
+                openFile={openFile}
               />
             ) : null}
           </div>
         </div>
 
         <footer className="export-wizard-footer">
-          <button
-            type="button"
-            className="export-wizard-back export-wizard-slop"
-            data-testid="export-wizard-back"
-            aria-label={C.back}
-            disabled={step === 'scope' || step === 'running'}
-            onClick={goBack}
-          >
-            {C.back}
-          </button>
           {step === 'result' ? (
             <button
               type="button"
@@ -610,7 +568,7 @@ function ExportWizardDialog({
               aria-label={primaryLabel}
               aria-busy={step === 'running'}
               disabled={primaryDisabled}
-              onClick={goNext}
+              onClick={startExport}
             >
               {primaryLabel}
             </button>
@@ -1016,18 +974,42 @@ function ResultStep({
   files,
   retrying,
   onRetry,
-  onCopyPath,
+  copyPath,
   onRevealFolder,
   onExportAgain,
+  openFile,
 }: {
   result: ExportResult;
   files: readonly ExportFileResult[];
   retrying: readonly string[];
   onRetry(name: string): void;
-  onCopyPath(): void;
+  copyPath(path: string): Promise<void>;
   onRevealFolder(): void;
   onExportAgain(): void;
+  openFile?(name: string): Promise<void>;
 }): JSX.Element {
+  // D147 item 3: "Copy folder path" never fails silently. `copyPath` REJECTS when the
+  // clipboard is unavailable or refuses (see `runExport.ts`'s `copyPath`); this is the
+  // fallback for that case — a selectable read-only field, not a swallowed error.
+  const [copyFailed, setCopyFailed] = useState(false);
+  const fallbackRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (copyFailed) fallbackRef.current?.select();
+  }, [copyFailed]);
+
+  const onCopyPath = (): void => {
+    void copyPath(result.path)
+      .then(() => setCopyFailed(false))
+      .catch(() => setCopyFailed(true));
+  };
+
+  const [openingFile, setOpeningFile] = useState<string | null>(null);
+  const onOpenFile = (name: string): void => {
+    if (!openFile) return;
+    setOpeningFile(name);
+    void openFile(name).finally(() => setOpeningFile((current) => (current === name ? null : current)));
+  };
+
   return (
     <section className="export-wizard-step" data-testid="export-wizard-step-result">
       <p className="export-wizard-result-summary" data-testid="export-wizard-result-summary">
@@ -1073,6 +1055,22 @@ function ResultStep({
           {C.exportAgain}
         </button>
       </div>
+
+      {copyFailed ? (
+        <div className="export-wizard-copy-fallback" data-testid="export-wizard-copy-fallback">
+          <p className="export-wizard-note">{STRINGS.export.copyPathFallback}</p>
+          <input
+            ref={fallbackRef}
+            type="text"
+            readOnly
+            className="export-wizard-copy-fallback-field mono"
+            data-testid="export-wizard-copy-fallback-field"
+            aria-label={STRINGS.export.copyPathFallbackFieldLabel}
+            value={result.path}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        </div>
+      ) : null}
 
       {result.sheetsWithoutPhoto > 0 ? (
         // §19.4a: a damaged-photo sheet exports as markup on a white page and is COUNTED
@@ -1150,7 +1148,21 @@ function ResultStep({
                 {STRINGS.export.skipped}
               </span>
             ) : (
-              <span className="export-wizard-file-size mono">{formatBytes(file.bytes)}</span>
+              <>
+                <span className="export-wizard-file-size mono">{formatBytes(file.bytes)}</span>
+                {openFile ? (
+                  <button
+                    type="button"
+                    className="export-wizard-text-button export-wizard-slop"
+                    data-testid={`export-wizard-open-${file.name}`}
+                    aria-label={t(STRINGS.export.openFile, { name: file.name })}
+                    disabled={openingFile === file.name}
+                    onClick={() => onOpenFile(file.name)}
+                  >
+                    {STRINGS.export.open}
+                  </button>
+                ) : null}
+              </>
             )}
           </li>
         ))}

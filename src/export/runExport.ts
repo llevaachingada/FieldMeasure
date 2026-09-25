@@ -79,6 +79,8 @@ import {
   loadExportWatermarkImage,
 } from './watermark';
 import { getWatermarkEnabled } from '@/settings/watermark';
+import { DEFAULT_EXPORT_LOCATION, type ExportLocation } from '@/settings/exportLocation';
+import { useAppStore } from '@/state/appStore';
 import type {
   ConflictPolicy,
   ExportFileResult,
@@ -116,6 +118,22 @@ export function exportTimestamp(date: Date): string {
     `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}` +
     `_${p(date.getHours())}${p(date.getMinutes())}`
   );
+}
+
+/**
+ * Owner request D147 item 2: the session's default destination follows
+ * `src/settings/exportLocation.ts`'s `ExportLocation`.
+ *   - `'dated'`   → `<project>/exports/<stamp>/` (the original default, unchanged).
+ *   - `'project'` → straight into `<project>/` — no `exports/<stamp>` subfolder at all.
+ * The PWA cannot show an absolute path (File System Access exposes names only), so both
+ * forms keep the existing `…\<folderName>\…` display convention.
+ */
+export function defaultDestinationPath(
+  location: ExportLocation,
+  folderName: string,
+  stamp: string,
+): string {
+  return location === 'project' ? `…\\${folderName}\\` : `…\\${folderName}\\exports\\${stamp}\\`;
 }
 
 /** `part-01.pdf`, `part-02.pdf`, … (implementation plan §1.9 step 3b). */
@@ -309,6 +327,11 @@ export interface ExportSessionDeps {
   ghostText: string;
   /** Injectable clock so the default destination is deterministic in tests. */
   now?: () => Date;
+  /**
+   * Injectable override for `useAppStore.getState().exportLocation` (D147 item 2), so a
+   * node test can pin `'dated'` / `'project'` without a DOM or a live store.
+   */
+  getExportLocation?: () => ExportLocation;
 }
 
 export interface ExportSession {
@@ -320,6 +343,8 @@ export interface ExportSession {
   retryFile(name: string): Promise<ExportFileResult>;
   revealFolder(): Promise<void>;
   copyPath(path: string): Promise<void>;
+  /** D147 item 3: open one exported file, by name, in a new browser tab. */
+  openFile(name: string): Promise<void>;
 }
 
 /* ------------------------------------------------------------------ *
@@ -431,12 +456,18 @@ function toFileError(e: unknown): NonNullable<ExportFileResult['error']> {
 export function createExportSession(deps: ExportSessionDeps): ExportSession {
   const now = deps.now ?? (() => new Date());
   const stamp = exportTimestamp(now());
+  // D147 item 2: read once at session creation (the wizard's mount reads this same
+  // instant), from the LIVE app store rather than `getExportLocation()`'s idb-keyval
+  // promise — `createExportSession` must stay synchronous for `EditorLayout` to hand the
+  // wizard an `initialDestination` on the render that opens it. `Settings.tsx` keeps this
+  // store field current on every change, so it is never stale by more than one render.
+  const location: ExportLocation = deps.getExportLocation
+    ? deps.getExportLocation()
+    : (useAppStore.getState().exportLocation ?? DEFAULT_EXPORT_LOCATION);
 
   let destination: ExportDestination = {
-    name: 'exports',
-    // The PWA cannot know the absolute path (File System Access exposes names only), so the
-    // display path is project-relative — the honest maximum.
-    path: `…\\${deps.folderName}\\exports\\${stamp}\\`,
+    name: location === 'project' ? deps.folderName : 'exports',
+    path: defaultDestinationPath(location, deps.folderName, stamp),
     handle: null,
   };
 
@@ -446,8 +477,15 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
   async function ensureDestination(): Promise<ExportDestination> {
     if (destination.handle) return destination;
     const projectDir = await resolveOpenProjectDir(deps.projectId);
-    const exportsDir = await projectDir.getDirectoryHandle('exports', { create: true });
-    const handle = await exportsDir.getDirectoryHandle(stamp, { create: true });
+    // 'project' writes straight into the project folder — no `exports/<stamp>` subfolder
+    // to create (D147 item 2). 'dated' is the original behaviour, unchanged.
+    const handle =
+      location === 'project'
+        ? projectDir
+        : await (await projectDir.getDirectoryHandle('exports', { create: true })).getDirectoryHandle(
+            stamp,
+            { create: true },
+          );
     destination = { ...destination, handle };
     return destination;
   }
@@ -734,11 +772,44 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
     }
   }
 
+  /**
+   * D147 item 3: never fails silently. `navigator.clipboard` missing (no secure context,
+   * an older WebView) or `writeText` rejecting (permission refused) both REJECT this
+   * promise — never swallowed — so the wizard's caller can fall back to a selectable
+   * read-only field instead of reporting a false success.
+   */
   async function copyPath(path: string): Promise<void> {
+    const clipboard = navigator.clipboard;
+    if (!clipboard || typeof clipboard.writeText !== 'function') {
+      throw new Error('export: clipboard is unavailable');
+    }
+    await clipboard.writeText(path);
+  }
+
+  /**
+   * D147 item 3: "Open" on a result row. A browser cannot open Windows Explorer, so the
+   * accepted alternative is opening the file itself in a new tab —
+   * `FileSystemFileHandle` → `getFile()` → `URL.createObjectURL` → `window.open`. The
+   * object URL is revoked after a delay long enough for the new tab to have loaded it
+   * (immediately if the tab never opened — e.g. a blocked popup — since nothing will read
+   * the URL in that case).
+   */
+  async function openFile(name: string): Promise<void> {
+    const dest = await ensureDestination();
+    if (!dest.handle) return;
     try {
-      await navigator.clipboard?.writeText(path);
+      const handle = await dest.handle.getFileHandle(name, { create: false });
+      const file = await handle.getFile();
+      const url = URL.createObjectURL(file);
+      const opened = globalThis.open?.(url, '_blank');
+      if (opened) {
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } else {
+        URL.revokeObjectURL(url);
+      }
     } catch {
-      // Clipboard permission refused — nothing to recover from here.
+      // The file may have moved or been renamed since the run finished — nothing to
+      // recover from here; the row itself is the record that it was written.
     }
   }
 
@@ -751,5 +822,6 @@ export function createExportSession(deps: ExportSessionDeps): ExportSession {
     retryFile,
     revealFolder,
     copyPath,
+    openFile,
   };
 }

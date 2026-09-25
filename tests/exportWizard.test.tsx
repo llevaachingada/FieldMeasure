@@ -2,6 +2,13 @@
  * `tests/exportWizard.test.tsx` — slice 1.9 (lane C) machine gates for the export wizard
  * (UI spec §12; build spec §11.10; implementation plan §1.9 step 5; a11y §19.6).
  *
+ * D147 (owner request, session 28): the wizard is now ONE PAGE — Scope, Format and
+ * Destination render together as three stacked sections instead of three navigable
+ * views behind a step rail. The tests below were rewritten for that shape: every test
+ * that used to click `export-wizard-primary` to advance between Scope/Format/Destination
+ * now finds all three sections already mounted. Tests renamed or restructured for the
+ * behaviour change (decision D147) are marked inline.
+ *
  * The point of these tests: the wizard is entirely props-driven — every unit of real work
  * (the folder picker, the estimate, the §19.4b memory budget, the run, the per-file retry)
  * is an injected spy. So each assertion drives the REAL component through the REAL DOM and
@@ -108,6 +115,7 @@ function baseProps(overrides: Partial<ExportWizardProps> = {}): ExportWizardProp
     retryFile: vi.fn(),
     revealFolder: vi.fn().mockResolvedValue(undefined),
     copyPath: vi.fn().mockResolvedValue(undefined),
+    openFile: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -169,6 +177,13 @@ const click = (testId: string): void => {
   fireEvent.click(screen.getByTestId(testId));
 };
 
+/** D147: Scope, Format and Destination are all mounted at once — pick a folder to clear
+ *  the `destination === null` gate and land on the exportable state. */
+async function chooseFolder(): Promise<void> {
+  click('export-wizard-choose-folder');
+  await flush();
+}
+
 // ---------------------------------------------------------------------------
 // The dialog contract (§19.6)
 // ---------------------------------------------------------------------------
@@ -228,20 +243,34 @@ describe('ExportWizard — dialog contract', () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
   });
 
-  it('announces each step change through one polite live region', () => {
+  // D147: replaces the old "announces each step change" test — there is no step change
+  // left to announce (one page, no rail). The live region still exists and still speaks
+  // for the run and the result (renamed; behaviour change per D147).
+  it('the one polite live region is silent on the page and speaks for the run and the result', async () => {
     openWizard();
     const live = screen.getByTestId('export-wizard-live');
     expect(live.getAttribute('aria-live')).toBe('polite');
-    expect(live.textContent).toBe('Scope'); // appendix-strings-gaps.md §17
+    expect(live.textContent).toBe('');
+
+    await chooseFolder();
     click('export-wizard-primary');
-    expect(live.textContent).toBe('Format');
-    click('export-wizard-primary');
-    expect(live.textContent).toBe('Destination');
+    await flush();
+    expect(live.textContent).toBe(resultSummary(1, '18.4 MB'));
+  });
+
+  // D147: Scope, Format and Destination are all visible without any navigation.
+  it('renders Scope, Format and Destination together, with no step rail', () => {
+    openWizard();
+    expect(screen.getByTestId('export-wizard-step-scope')).toBeTruthy();
+    expect(screen.getByTestId('export-wizard-step-format')).toBeTruthy();
+    expect(screen.getByTestId('export-wizard-step-destination')).toBeTruthy();
+    expect(screen.queryByTestId('export-wizard-rail-scope')).toBeNull();
+    expect(screen.queryByTestId('export-wizard-back')).toBeNull();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Step 1 — Scope
+// Scope
 // ---------------------------------------------------------------------------
 
 describe('ExportWizard — scope', () => {
@@ -262,8 +291,9 @@ describe('ExportWizard — scope', () => {
     expect(screen.getByTestId('export-wizard-scope-sheet').textContent).toBe(COPY.scopeThisSheet);
   });
 
-  it('empty scope shows the exact copy and disables the primary button', () => {
+  it('empty scope shows the exact copy and disables the primary button', async () => {
     openWizard();
+    await chooseFolder(); // clear the OTHER gate so this test isolates the scope one
     // Start non-empty, so this proves the DISABLING, not a component that never enables.
     expect(screen.getByTestId('export-wizard-primary').hasAttribute('disabled')).toBe(false);
     expect(screen.queryByTestId('export-wizard-empty-scope')).toBeNull();
@@ -278,14 +308,6 @@ describe('ExportWizard — scope', () => {
     openWizard({ sheets: [], currentSheetId: null });
     expect(screen.getByTestId('export-wizard-empty-scope').textContent).toBe(COPY.selectAtLeastOne);
     expect(screen.getByTestId('export-wizard-primary').hasAttribute('disabled')).toBe(true);
-  });
-
-  it('an empty scope cannot advance to Format', () => {
-    openWizard();
-    click('export-wizard-select-none');
-    click('export-wizard-primary'); // disabled — a no-op
-    expect(screen.getByTestId('export-wizard-step-scope')).toBeTruthy();
-    expect(screen.queryByTestId('export-wizard-step-format')).toBeNull();
   });
 
   it('per-sheet checkboxes narrow the scope and keep the scope order', () => {
@@ -304,25 +326,19 @@ describe('ExportWizard — scope', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Step 2 — Format, the 2× default and the 3× warning
+// Format — the 2× default and the 3× warning
 // ---------------------------------------------------------------------------
 
 describe('ExportWizard — format', () => {
-  function toFormat(overrides: Partial<ExportWizardProps> = {}): ExportWizardProps {
-    const spies = openWizard(overrides);
-    click('export-wizard-primary');
-    return spies;
-  }
-
   it('defaults to 2×, and only 2×', () => {
-    toFormat();
+    openWizard();
     expect(screen.getByTestId('export-wizard-multiplier-2').getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByTestId('export-wizard-multiplier-1').getAttribute('aria-pressed')).toBe('false');
     expect(screen.getByTestId('export-wizard-multiplier-3').getAttribute('aria-pressed')).toBe('false');
   });
 
   it('shows the slow warning only at 3×', () => {
-    toFormat();
+    openWizard();
     expect(screen.queryByTestId('export-wizard-3x-warning')).toBeNull();
     click('export-wizard-multiplier-3');
     expect(screen.getByTestId('export-wizard-3x-warning').textContent).toBe(COPY.quality3xWarning);
@@ -331,7 +347,7 @@ describe('ExportWizard — format', () => {
   });
 
   it('offers the PDF option set by default and the PNG set on switch, with zip ON', () => {
-    toFormat();
+    openWizard();
     expect(screen.getByTestId('export-wizard-include-sheet-names')).toBeTruthy();
     expect(screen.queryByTestId('export-wizard-zip')).toBeNull();
 
@@ -344,7 +360,7 @@ describe('ExportWizard — format', () => {
   it('«Include sheet names in pages» is disabled, never a dead live control (review F1)', () => {
     // v1 is flatten-only and nothing consumes `includeSheetNames`, so the spec's checkbox
     // is honestly disabled (the D102 beta-honesty rule) rather than looking live.
-    toFormat();
+    openWizard();
     const checkbox = screen.getByTestId('export-wizard-include-sheet-names') as HTMLInputElement;
     expect(checkbox.disabled).toBe(true);
     expect(checkbox.getAttribute('aria-disabled')).toBe('true');
@@ -353,7 +369,7 @@ describe('ExportWizard — format', () => {
   });
 
   it('never renders the v1-CUT checkboxes or the impossible Open folder action', () => {
-    toFormat();
+    openWizard();
     const body = document.body.textContent ?? '';
     expect(body).not.toContain(COPY.cutFlatten);
     expect(body).not.toContain(COPY.cutSummaryPage);
@@ -374,21 +390,14 @@ describe('ExportWizard — §19.4b multiplier refusal', () => {
   it('shows the device message and BLOCKS the run — runExport is never called', async () => {
     const { runExport, checkMultiplier } = openWizard({ checkMultiplier: refuse3x });
     expect(checkMultiplier).toHaveBeenCalled();
-    click('export-wizard-primary'); // → Format
 
     click('export-wizard-multiplier-3');
     expect(screen.getByTestId('export-wizard-too-large').textContent).toContain(COPY.tooLargeFor3x);
 
-    // The refusal bites on the footer: Format cannot be left…
+    // The refusal bites on the footer's primary button…
     const primary = screen.getByTestId('export-wizard-primary');
     expect(primary.hasAttribute('disabled')).toBe(true);
     fireEvent.click(primary);
-    expect(screen.getByTestId('export-wizard-step-format')).toBeTruthy();
-
-    // …and the rail cannot jump past it either.
-    expect(screen.getByTestId('export-wizard-rail-destination').hasAttribute('disabled')).toBe(true);
-    fireEvent.click(screen.getByTestId('export-wizard-rail-destination'));
-    expect(screen.queryByTestId('export-wizard-step-destination')).toBeNull();
 
     await flush();
     // THE assertion: refused means not attempted. A message alone would not be enough.
@@ -397,7 +406,6 @@ describe('ExportWizard — §19.4b multiplier refusal', () => {
 
   it('offers the returned largest multiplier, which clears the refusal', () => {
     openWizard({ checkMultiplier: refuse3x });
-    click('export-wizard-primary');
     click('export-wizard-multiplier-3');
 
     const offer = screen.getByTestId('export-wizard-use-largest');
@@ -406,12 +414,10 @@ describe('ExportWizard — §19.4b multiplier refusal', () => {
 
     expect(screen.queryByTestId('export-wizard-too-large')).toBeNull();
     expect(screen.getByTestId('export-wizard-multiplier-2').getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByTestId('export-wizard-primary').hasAttribute('disabled')).toBe(false);
   });
 
   it('a refused multiplier stays selectable so the refusal can explain itself', () => {
     openWizard({ checkMultiplier: refuse3x });
-    click('export-wizard-primary');
     const three = screen.getByTestId('export-wizard-multiplier-3');
     expect(three.hasAttribute('disabled')).toBe(false);
     expect(three.getAttribute('data-refused')).toBe('true');
@@ -428,17 +434,14 @@ describe('ExportWizard — happy path', () => {
 
     // Scope: all three sheets.
     click('export-wizard-scope-all');
-    click('export-wizard-primary');
 
     // Format: PNG at 3×, zip OFF (so a hard-coded default cannot pass this test).
     click('export-wizard-format-png');
     click('export-wizard-multiplier-3');
     fireEvent.click(screen.getByTestId('export-wizard-zip'));
-    click('export-wizard-primary');
 
     // Destination: pick a folder, remember it, overwrite on conflict.
-    click('export-wizard-choose-folder');
-    await flush();
+    await chooseFolder();
     fireEvent.click(screen.getByTestId('export-wizard-remember'));
     click('export-wizard-conflict-overwrite');
 
@@ -469,10 +472,7 @@ describe('ExportWizard — happy path', () => {
 
   it('shows the destination summary with the approved double space after `to:`', async () => {
     openWizard();
-    click('export-wizard-primary');
-    click('export-wizard-primary');
-    click('export-wizard-choose-folder');
-    await flush();
+    await chooseFolder();
     expect(screen.getByTestId('export-wizard-write-summary').textContent).toBe(
       writeSummary(3, '18.4 MB', DESTINATION.path),
     );
@@ -480,8 +480,6 @@ describe('ExportWizard — happy path', () => {
 
   it('cannot export before a destination is chosen', async () => {
     const { runExport } = openWizard();
-    click('export-wizard-primary');
-    click('export-wizard-primary');
     const primary = screen.getByTestId('export-wizard-primary');
     expect(primary.hasAttribute('disabled')).toBe(true);
     fireEvent.click(primary);
@@ -500,10 +498,7 @@ describe('ExportWizard — happy path', () => {
       },
     );
     openWizard({ runExport: runExport as unknown as ExportWizardProps['runExport'] });
-    click('export-wizard-primary');
-    click('export-wizard-primary');
-    click('export-wizard-choose-folder');
-    await flush();
+    await chooseFolder();
     click('export-wizard-primary');
     await flush();
 
@@ -524,10 +519,7 @@ describe('ExportWizard — happy path', () => {
 /** Drives the wizard to the result view with the supplied `ExportResult`. */
 async function toResult(result: ExportResult, overrides: Partial<ExportWizardProps> = {}) {
   const spies = openWizard({ runExport: vi.fn().mockResolvedValue(result), ...overrides });
-  click('export-wizard-primary'); // → Format
-  click('export-wizard-primary'); // → Destination
-  click('export-wizard-choose-folder');
-  await flush();
+  await chooseFolder();
   click('export-wizard-primary'); // Export
   await flush();
   return spies;
@@ -550,13 +542,44 @@ describe('ExportWizard — result view', () => {
   it('wires Copy path and Reveal folder, and never offers Open folder', async () => {
     const { copyPath, revealFolder } = await toResult(emptyResult());
     click('export-wizard-copy-path');
+    await flush();
     expect(copyPath).toHaveBeenCalledWith(DESTINATION.path);
+    // The clipboard spy resolved, so no fallback field is needed (D147 item 3).
+    expect(screen.queryByTestId('export-wizard-copy-fallback')).toBeNull();
     click('export-wizard-reveal-folder');
     expect(revealFolder).toHaveBeenCalledTimes(1);
     expect(document.body.textContent ?? '').not.toContain(COPY.cutOpenFolder);
   });
 
-  it('Export again returns to Scope with the wizard reusable', async () => {
+  // D147 item 3: new behaviour — a rejecting `copyPath` (clipboard unavailable or
+  // refused) must never fail silently. It falls back to a selectable read-only field.
+  it('falls back to a selectable read-only field when the clipboard copy fails (D147)', async () => {
+    const copyPath = vi.fn().mockRejectedValue(new Error('clipboard unavailable'));
+    await toResult(emptyResult(), { copyPath });
+    expect(screen.queryByTestId('export-wizard-copy-fallback')).toBeNull();
+    click('export-wizard-copy-path');
+    await flush();
+    const field = screen.getByTestId('export-wizard-copy-fallback-field') as HTMLInputElement;
+    expect(field.readOnly).toBe(true);
+    expect(field.value).toBe(DESTINATION.path);
+  });
+
+  // D147 item 3: each successfully-written row offers an `Open` button that opens the
+  // file in a new tab via the injected `openFile` prop.
+  it('offers Open on a written file and calls openFile with its name (D147)', async () => {
+    const { openFile } = await toResult(emptyResult());
+    const button = screen.getByTestId('export-wizard-open-Riverside_01-North wall.png');
+    fireEvent.click(button);
+    await flush();
+    expect(openFile).toHaveBeenCalledWith('Riverside_01-North wall.png');
+  });
+
+  it('omits Open entirely when no openFile prop is supplied', async () => {
+    await toResult(emptyResult(), { openFile: undefined });
+    expect(screen.queryByTestId('export-wizard-open-Riverside_01-North wall.png')).toBeNull();
+  });
+
+  it('Export again returns to the page with the wizard reusable', async () => {
     await toResult(emptyResult());
     click('export-wizard-export-again');
     expect(screen.getByTestId('export-wizard-step-scope')).toBeTruthy();
@@ -597,6 +620,8 @@ describe('ExportWizard — result view', () => {
     );
     // …not offered a Retry (it is not a failure)…
     expect(screen.queryByTestId('export-wizard-retry-Riverside.zip')).toBeNull();
+    // …not offered Open (nothing was written to open)…
+    expect(screen.queryByTestId('export-wizard-open-Riverside.zip')).toBeNull();
     // …and it does not inflate «Exported {n} files» — zero files were actually written.
     expect(screen.getByTestId('export-wizard-result-summary').textContent).toBe(
       resultSummary(0, '0 B'),
@@ -634,6 +659,8 @@ describe('ExportWizard — per-file errors', () => {
     // A permission failure offers Re-authorize; the others offer Retry (UI §12:728).
     expect(screen.getByTestId('export-wizard-retry-c.png').textContent).toBe(COPY.reAuthorize);
     expect(screen.getByTestId('export-wizard-retry-b.png').textContent).toBe(COPY.retry);
+    // A failed row has nothing written to open.
+    expect(screen.queryByTestId('export-wizard-open-b.png')).toBeNull();
   });
 
   it('Retry calls retryFile with THAT file name and updates only that row', async () => {
@@ -682,8 +709,6 @@ describe('ExportWizard — CSP and accessible names', () => {
     openWizard();
     const dialog = screen.getByTestId('export-wizard');
     expect(dialog.querySelectorAll('[style]').length).toBe(0);
-    click('export-wizard-primary'); // Format
-    expect(dialog.querySelectorAll('[style]').length).toBe(0);
     cleanup();
 
     await toResult(
@@ -697,18 +722,17 @@ describe('ExportWizard — CSP and accessible names', () => {
     expect(document.querySelectorAll('[style]').length).toBe(0);
   });
 
-  it('names every control on every step', () => {
+  // D147: every control on the ONE page must be named — there is no longer a per-step
+  // loop, since there is no longer more than one reachable step before the run.
+  it('names every control on the page', () => {
     openWizard();
     const dialog = screen.getByTestId('export-wizard');
-    for (const step of [0, 1, 2]) {
-      if (step > 0) click('export-wizard-primary');
-      const controls = dialog.querySelectorAll<HTMLElement>('button, input, [role="group"]');
-      expect(controls.length).toBeGreaterThan(3);
-      for (const control of Array.from(controls)) {
-        const named =
-          control.getAttribute('aria-label') !== null || (control.textContent ?? '').trim() !== '';
-        expect(named, `${control.tagName}.${control.className} has no accessible name`).toBe(true);
-      }
+    const controls = dialog.querySelectorAll<HTMLElement>('button, input, [role="group"]');
+    expect(controls.length).toBeGreaterThan(3);
+    for (const control of Array.from(controls)) {
+      const named =
+        control.getAttribute('aria-label') !== null || (control.textContent ?? '').trim() !== '';
+      expect(named, `${control.tagName}.${control.className} has no accessible name`).toBe(true);
     }
   });
 });

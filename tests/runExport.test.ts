@@ -23,6 +23,8 @@ import {
   applyConflictPolicy,
   checkMultiplierFor,
   collectAssetIds,
+  createExportSession,
+  defaultDestinationPath,
   estimatePlan,
   exportTimestamp,
   ESTIMATED_JPEG_BYTES_PER_PX,
@@ -201,6 +203,57 @@ describe('part names and the timestamp', () => {
     // Month is 0-based: 8 = September.
     expect(exportTimestamp(new Date(2026, 8, 21, 14, 12))).toBe('2026-09-21_1412');
     expect(exportTimestamp(new Date(2026, 0, 3, 9, 5))).toBe('2026-01-03_0905');
+  });
+});
+
+describe('defaultDestinationPath — D147 item 2: the export-location setting', () => {
+  it('"dated": the original `<project>/exports/<stamp>/` default, unchanged', () => {
+    expect(defaultDestinationPath('dated', 'Riverside', '2026-09-21_1412')).toBe(
+      '…\\Riverside\\exports\\2026-09-21_1412\\',
+    );
+  });
+
+  it('"project": straight into the project folder — no `exports/<stamp>` subfolder', () => {
+    expect(defaultDestinationPath('project', 'Riverside', '2026-09-21_1412')).toBe('…\\Riverside\\');
+  });
+
+  it('the stamp only ever appears in the "dated" form', () => {
+    const stamp = '2026-01-03_0905';
+    expect(defaultDestinationPath('project', 'Jobs', stamp)).not.toContain(stamp);
+    expect(defaultDestinationPath('dated', 'Jobs', stamp)).toContain(stamp);
+  });
+});
+
+describe('createExportSession — the default destination follows the setting (D147 item 2)', () => {
+  const now = () => new Date(2026, 8, 21, 14, 12); // exportTimestamp → 2026-09-21_1412
+
+  it('"dated" (the default): initialDestination is the exports/<stamp> folder', () => {
+    const session = createExportSession({
+      projectId: 'p:Riverside',
+      folderName: 'Riverside',
+      getSource: () => null,
+      getContext: () => ({ unitSystem: 'imperial', unitFormat: 'ft-in', precisionDenominator: 16 }),
+      ghostText: '',
+      now,
+      getExportLocation: () => 'dated',
+    });
+    expect(session.initialDestination).toEqual({
+      name: 'exports',
+      path: '…\\Riverside\\exports\\2026-09-21_1412\\',
+    });
+  });
+
+  it('"project": initialDestination writes straight into the project folder', () => {
+    const session = createExportSession({
+      projectId: 'p:Riverside',
+      folderName: 'Riverside',
+      getSource: () => null,
+      getContext: () => ({ unitSystem: 'imperial', unitFormat: 'ft-in', precisionDenominator: 16 }),
+      ghostText: '',
+      now,
+      getExportLocation: () => 'project',
+    });
+    expect(session.initialDestination).toEqual({ name: 'Riverside', path: '…\\Riverside\\' });
   });
 });
 
