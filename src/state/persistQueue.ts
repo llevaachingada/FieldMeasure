@@ -115,7 +115,15 @@ function keyFor(target: PersistTarget): string {
 }
 
 async function defaultWrite(target: PersistTarget, data: unknown): Promise<void> {
-  const projectDir = await resolveOpenProjectDir(target.projectId);
+  await writeToProjectDir(await resolveOpenProjectDir(target.projectId), target, data);
+}
+
+/** Write one target into an already-resolved project directory (a `ProjectSession` resolves it once). */
+export async function writeToProjectDir(
+  projectDir: FileSystemDirectoryHandle,
+  target: PersistTarget,
+  data: unknown,
+): Promise<void> {
   if (target.kind === 'project') {
     await writeJsonAtomic(projectDir, 'project.json', data, target.projectId);
     return;

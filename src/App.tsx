@@ -30,6 +30,7 @@ import { listProjectSheets, type ProjectSheetCard } from '@/fs/projectSheets';
 import { clearOpenProject, createProject, readProjectCover, readProjectFile, registerOpenProject, resolveOpenProjectDir } from '@/fs/projectStore';
 import { AppErrorBoundary } from '@/ui/ErrorBoundary';
 import { pruneTrash } from '@/fs/sheetTrash';
+import { acquireProjectSession } from '@/fs/projectSession';
 import { appRouteReducer } from '@/ui/appRoute';
 import { useProjectActions } from '@/ui/useProjectActions';
 import { STRINGS, t } from '@/ui/strings';
@@ -129,6 +130,22 @@ export default function App() {
     dispatch({ type: 'openProject', project: { projectId, folderName } });
   }
 
+
+  /**
+   * R5 (D144): the shell holds the open project's session (its persist queue, writer lease and
+   * channel) for as long as the project is open, across the grid and every editor mount. Whatever
+   * way the project closes («Back», the route error boundary, a switch to another project), this
+   * cleanup releases the reference, and the last reference flushes before it lets go.
+   */
+  const openKey = editorTarget?.projectId;
+  const openFolder = editorTarget?.folderName;
+  useEffect(() => {
+    if (!openKey || !openFolder) return;
+    const session = acquireProjectSession(openKey, openFolder);
+    return () => {
+      void session.close();
+    };
+  }, [openKey, openFolder]);
 
   /**
    * Load the grid's model whenever the screen is shown, or after a capture/import wrote a

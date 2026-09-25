@@ -3752,3 +3752,26 @@ element's own `position` found only `absolute` (three, now correct) and `relativ
 reopen, and a save racing an exit) that 1,302 green unit tests missed. The clickthru stays an inspection tool, never a
 gate; this spec is separate from it. `PW_CHROMIUM_PATH` lets a container whose Playwright has no matching bundled browser
 use a local Chromium; unset, nothing changes. In a headless container add `--browser.headless` for Vitest.
+
+### D144 - `ProjectSession`: one refcounted owner per open project for the queue, lease, channel and registration
+
+**Status: shipped (session 28, Wave 3, R5).** `src/fs/projectSession.ts` removes the class of bug behind F1 and F2 at its
+root. Before, every `SheetEditor` mount built its own persist queue, took its own lease and deregistered on unmount. Now a
+session per D51 key owns all four, and it is **refcounted**: the shell (`App`) holds a reference while a project is open
+(the grid and the editor alike, released by an effect cleanup on every exit path), and each editor mount holds one too.
+Only the **last** release runs the D137 order: flush → close channel → release lease → deregister. With the shell holding
+its reference, a sheet switch no longer tears anything down, and a parked write survives it. Deviations from the plan text:
+- **No `ProjectSessionContext`.** Refcounting by key makes it unnecessary: the editor calls `acquireProjectSession(key, folder)`
+  and gets the shell's session. A bare `SheetEditor` (the browser suites) holds the only reference and keeps the old
+  per-mount lifecycle, so those suites pass unmodified.
+- **`acquireProjectSession` is synchronous** (the queue must exist before the mount effect's closures run). The lease
+  arrives with `session.ready`. The plan's async `openProjectSession` is kept as `acquire + await ready`.
+- **Writes resolve the directory through the session, once, and cache it** (a failed resolve is not cached). The first
+  resolve still goes through `resolveOpenProjectDir` (the gesture re-grant, and the seam six browser suites mock). After
+  that, no write depends on the registry, so `App`'s synchronous `clearOpenProject` on «Back» can no longer race the
+  final flush. `App` keeps its explicit register (every grid load) and clear («Back») calls because
+  `tests/appGridReturn.test.tsx` pins them (D137). They are now redundant with the session's own, and harmless.
+- **The autosave chip starts from the queue's real status**, not a hard-coded `saved`. A shared queue may still be
+  `pending` when the editor remounts. This is the only observable change, and it is a correction.
+- A re-open racing a close waits for that close before requesting the lease, and the old close does not deregister a key a
+  newer session owns. `writerLease.browser.test.ts` passes unmodified: two-tab semantics are unchanged.

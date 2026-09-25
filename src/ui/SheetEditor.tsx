@@ -49,7 +49,8 @@ import {
   setPersistenceBusy,
   type EditorSession,
 } from '@/editor/session';
-import { createPersistQueue, type PersistQueue } from '@/state/persistQueue';
+import type { PersistQueue } from '@/state/persistQueue';
+import { acquireProjectSession } from '@/fs/projectSession';
 import { selectionScope, selectionStyleState } from '@/state/styleByTool';
 import {
   applyProjectPrecision as applyProjectPrecisionFn,
@@ -67,13 +68,10 @@ import {
   type ThumbnailScheduler,
 } from '@/media/thumbnails';
 import {
-  acquireWriterLease,
   cleanStaleTmp,
   isPhotoDamaged,
-  openProjectChannel,
   readProjectFile,
   readSheetMarkup,
-  registerOpenProject,
   resolveOpenProjectDir,
   resolveSheetDir,
   writeAtomic,
@@ -454,14 +452,20 @@ export default function SheetEditor({
     // Slice 1.10: the queue OWNS the autosave chip's status and the app store is its
     // mirror. A fresh editor starts `saved` (nothing pending — the chip still renders
     // nothing until a write resolves), so a previous project's status cannot leak in.
-    useAppStore.getState().setStorageStatus('saved');
-    const persist = createPersistQueue({
-      onStatus: (status) => {
-        // A read-only project is not a write failure: keep the chip's `Read-only` state
-        // instead of letting a queue transition speak for the app (§11.2:688).
-        if (readOnlyRef.current) return;
-        useAppStore.getState().setStorageStatus(status);
-      },
+    //
+    // R5 (D144): the queue, the lease and the channel belong to the project's session, not to
+    // this mount. The shell holds the session open for as long as the project is, so a sheet
+    // switch (a remount) keeps the same queue and a pending write is never orphaned. A bare
+    // mount (no shell) holds the only reference and gets the old per-mount lifecycle.
+    // The chip starts from the queue's REAL status: a shared queue may still be `pending`.
+    const projectSession = acquireProjectSession(projectId, folderName);
+    const persist = projectSession.persist;
+    useAppStore.getState().setStorageStatus(persist.status);
+    const unsubscribeStatus = persist.subscribe((status) => {
+      // A read-only project is not a write failure: keep the chip's `Read-only` state
+      // instead of letting a queue transition speak for the app (§11.2:688).
+      if (readOnlyRef.current) return;
+      useAppStore.getState().setStorageStatus(status);
     });
     persistRef.current = persist;
     // Slice 1.11: bridge the queue's busy flag onto the session signal that suppresses
@@ -999,19 +1003,17 @@ export default function SheetEditor({
 
     void (async () => {
       try {
-        registerOpenProject(projectId, folderName);
-        const lease = await acquireWriterLease(projectId);
-        if (!alive) {
-          lease?.release();
-          return;
-        }
+        await projectSession.ready;
+        // The session owns the lease; an unmounted editor simply stops here.
+        if (!alive) return;
+        const lease = projectSession.lease();
         leaseRef.current = lease;
         setReadOnly(!lease);
         readOnlyRef.current = !lease;
         // Slice 1.10: the read-only project case is the chip's `Read-only` state, not a
         // failure — and no later queue transition may overwrite it (see `onStatus`).
         if (!lease) useAppStore.getState().setStorageStatus('readonly');
-        channelRef.current = openProjectChannel(projectId);
+        channelRef.current = projectSession.channel();
 
         const projectDir = await resolveOpenProjectDir(projectId);
         await cleanStaleTmp(projectDir, projectId);
@@ -1066,17 +1068,13 @@ export default function SheetEditor({
       unsubscribeBusy();
       setPersistenceBusy(false);
       setEditorSession(null);
-      // D137: land any coalesced markup write BEFORE the lease and channel go. The flush's write
-      // resolves the project directory after an await, so nothing it needs may be released
-      // synchronously here. The lease and channel are captured now and released once it settles.
-      const closingLease = leaseRef.current;
-      const closingChannel = channelRef.current;
+      // R5 (D144): release this mount's reference. Only the LAST reference (the shell's, when the
+      // project closes, or this one for a bare mount) flushes, then releases the lease and channel,
+      // then deregisters, in that order (the D137 ordering now lives in `projectSession.ts`).
+      unsubscribeStatus();
       leaseRef.current = null;
       channelRef.current = null;
-      void persist.flush().finally(() => {
-        closingChannel?.close();
-        closingLease?.release();
-      });
+      void projectSession.close();
       scene.onChange = null;
       persistRef.current = null;
       sheetIdRef.current = null;
