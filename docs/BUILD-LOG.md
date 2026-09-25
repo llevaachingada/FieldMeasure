@@ -1837,3 +1837,59 @@ editor (no error line, 1 card), the unsupported-browser notice, and the sheet ca
 
 **Next:** Wave 2 of `docs/beta-readiness-fix-plan.md` (R1-R4 behaviour-preserving refactors), after the owed clickthru
 and the H27-H29 hardware rows.
+
+## Wave 1 verification on the Windows build machine (session 27 continued) — merge, gate, clickthru
+
+**Date:** 2026-09-25 · **Commit:** fast-forward of `claude/quirky-ramanujan-4xn374` into `main`
+
+**Built:** nothing new — this entry discharges the verification the cloud session owed. Wave 1 was brought into the
+local clone, re-run on Windows, merged to `main` and pushed. `main` sat exactly at the branch's merge-base
+(`246c97a`), so the merge was a clean fast-forward with **no conflict resolution** and the lockfile was never
+regenerated or hand-edited. PR #4 was merged by the owner as a fast-forward to the same commit
+(`merge_commit_sha` = `aeac3eb`), so no separate close was needed.
+
+**Machine gates (this machine, Windows; `PW_CHROMIUM_PATH` unset, real browser):**
+- `tsc` 0
+- vitest **112 files / 1571 tests** (node + jsdom + browser) — agrees with the cloud count
+- `build` 0 (28 precache, 1650.68 KiB)
+- `playwright` **8 passed / 5 skipped** (the baseline 5/5 + the 3 journey cases)
+- **clickthru 20 PASS / 0 FAIL / 0 UNREACHED** — the owed run: real Chrome, `surfaceLandscape` 1440x960 DPR2,
+  started 2026-09-25T11:43:51Z. Discharges §5 step 6 of the plan's integration list.
+
+**Clickthru observations (contact sheet and `run.json` evidence read, not only the statuses):** first run step 1 →
+step 2 → Home; the sheet's `thumb.jpg` (4971 B) is present in the OPFS evidence from the capture step onward; the
+grid after leaving the editor shows the sheet card and **no `.project-error-line`** (F2's fix visible in the pixels,
+not only in the journey test); the export writes a real `%PDF` (331966 B) with 2 objects; reload → Home → project →
+sheet persists. Two notes, neither a defect:
+- the harness **asserts nothing** about the old «1 sheets» text, the removed disabled card, or the unsupported
+  notice, so **no harness step needed fixing** (the plan's §5 step 6 flagged this as the first thing to check);
+- the grid card's meta still reads «1 dimensions». That is **approved copy** (`appendix-strings.md:61`,
+  `project.sheetMeta`), pre-existing and untouched by Wave 1 — D142's pluralization covered
+  `project.sheetCount` («1 sheet»), not `sheetMeta`. Logged as a watch item; approved copy is never changed silently.
+
+**The D137 review (a substitution, and weaker for it).** The independent `@oracle` lane could not run
+(`Insufficient Balance` — delegation was unavailable this whole session), so the save-on-exit review was done
+in-session. What was traced, by reading the code paths, and found sound: `persistQueue.flush()` resolves **even when
+a write fails** (`attempt()` catches and parks instead of throwing — `src/state/persistQueue.ts:186-221`), so a
+naive `await flush()` would leave the editor on a failed save. D137 does not have that bug, because the session's
+`flush` (`src/ui/SheetEditor.tsx:847`) awaits the queue's flush, waits for `!inFlight`, then **throws** when the
+status settled `full` / `pending` / `error`; `EditorLayout.exitAfterSave` therefore rejects, the app stays and
+toasts, and a second tap leaves (`forceExitRef`). The `SheetEditor` cleanup captures the lease and channel and
+releases them in `flush().finally()`, so nothing the write needs is released synchronously, and under StrictMode
+the `.finally` releases only the handles the first mount captured. **This is not an independent verification** — a
+`@oracle` pass over D137 is still owed.
+
+**Deferred to hardware:** unchanged — H27-H29, and H1-H26 before them. A green clickthru **never** promotes a
+`[Surface]` row.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** none (verification only).
+
+**Surprises:**
+- The plan expected `main` to have moved and asked for conflicts to be resolved keeping both sides; it had not, so
+  that step was a no-op. Nothing was hand-merged.
+- The cloud session's "524 suites" is a *suite* count (112 files × the vitest projects). Both machines agree at
+  **1571 tests**.
+- The «1 dimensions» wording is approved copy, not a D142 leftover — worth the content owner's eye, but not a
+  builder fix.
