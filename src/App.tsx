@@ -14,7 +14,7 @@
  * `onOpenProject(id, folderName)`. Passing the bare `id` would let two same-id
  * folders collide in the Web Lock / open-project registry / persistQueue.
  */
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useReducer, useRef, useState } from 'react';
 import FirstRun from '@/ui/FirstRun';
 import ProjectList from '@/ui/ProjectList';
 import Settings from '@/ui/Settings';
@@ -27,18 +27,11 @@ import NewProjectDialog from '@/ui/NewProjectDialog';
 import { emitToast } from '@/editor/session';
 import ProjectScreen from '@/ui/ProjectScreen';
 import { listProjectSheets, type ProjectSheetCard } from '@/fs/projectSheets';
-import { clearOpenProject, createProject, readProjectCover, readProjectFile, registerOpenProject, resolveOpenProjectDir, writeJsonAtomic } from '@/fs/projectStore';
+import { clearOpenProject, createProject, readProjectCover, readProjectFile, registerOpenProject, resolveOpenProjectDir } from '@/fs/projectStore';
 import { AppErrorBoundary } from '@/ui/ErrorBoundary';
-import { deleteSheet, listTrash, pruneTrash, restoreSheet, type TrashedSheet } from '@/fs/sheetTrash';
-/**
- * The grid's remaining card actions (D111): reorder / rename / duplicate / the
- * constrained replace-photo. `reorderSheetRows` is pure and re-validates the permutation
- * in the shell, so a stale screen (a sheet added in another tab) cannot scramble the file.
- */
-import { duplicateSheet, renameSheet, replaceSheetPhoto, reorderSheetRows } from '@/fs/sheetOps';
-import { defaultSheetTitle } from '@/fs/sheetIntake';
-/** Type-only: the normalizer itself is imported lazily inside the replace handler. */
-import type { NormalizedImage } from '@/media/normalizeImage';
+import { pruneTrash } from '@/fs/sheetTrash';
+import { appRouteReducer } from '@/ui/appRoute';
+import { useProjectActions } from '@/ui/useProjectActions';
 import { STRINGS, t } from '@/ui/strings';
 import { getProjectsRoot } from '@/settings/projectsRoot';
 
@@ -55,13 +48,6 @@ const EditorLayout = lazy(() => import('@/ui/EditorLayout'));
  */
 const CameraFlow = lazy(() => import('@/ui/CameraFlow'));
 
-type Route = 'loading' | 'first-run' | 'home' | 'settings' | 'project' | 'editor';
-
-interface EditorTarget {
-  /** D51 runtime key: `${id}:${folderName}`. */
-  projectId: string;
-  folderName: string;
-}
 
 export default function App() {
   // Display theme (slice 1.10): applies `<html data-theme="…">` and hydrates the
@@ -69,12 +55,11 @@ export default function App() {
   useThemeRuntime();
   useWatermarkRuntime();
 
-  const [route, setRoute] = useState<Route>('loading');
-  const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
+  /** R2: one route value; the project travels inside it (see `appRoute.ts`). */
+  const [route, dispatch] = useReducer(appRouteReducer, { name: 'loading' });
+  const editorTarget = route.name === 'project' || route.name === 'editor' ? route.project : null;
   /** Slice 1.4: the editor's «Add sheet» opens the capture flow over the editor. */
   const [captureOpen, setCaptureOpen] = useState(false);
-  /** The sheet the editor should open — set to the sheet a capture just wrote. */
-  const [editorSheetId, setEditorSheetId] = useState<string | undefined>(undefined);
   /**
    * Slice 1.10: the Project screen (the sheets grid, UI §11.2) — its loaded model, its
    * state, and a refresh counter bumped after a capture/import writes a new sheet.
@@ -90,25 +75,29 @@ export default function App() {
   const [captureOrigin, setCaptureOrigin] = useState<'grid' | 'editor'>('editor');
   /** The grid's batch-export selection (empty = every sheet). */
   const [selectedSheetIds, setSelectedSheetIds] = useState<readonly string[]>([]);
-  /** «Import» from the grid opens the editor with its file picker already armed. */
-  const [importOnOpen, setImportOnOpen] = useState(false);
-  /** Slice 1.10: the 14-day trash — the panel's list (`undefined` = not loaded yet) and the
-   *  shell-reported restore failure the panel renders honestly. */
-  const [trashItems, setTrashItems] = useState<readonly TrashedSheet[] | undefined>(undefined);
-  const [trashRestoreFailed, setTrashRestoreFailed] = useState(false);
   /** A grid «Export» hand-off: the selection the wizard must open already scoped to. */
   const [pendingExportSelection, setPendingExportSelection] = useState<readonly string[] | null>(null);
-  /**
-   * §11.2:720's constrained replace. The SHELL owns the file picker and the dimension
-   * decision; the grid owns only the warned dialog. `replacePrompt` is the warned state
-   * (the new photo's working-image dimensions differ from the sheet's), and
-   * `pendingReplace` holds the normalized photo until the user answers — «Cancel» must
-   * leave the sheet exactly as it was.
-   */
-  const [replacePrompt, setReplacePrompt] = useState<{ sheetId: string; title: string } | null>(null);
-  const replaceInputRef = useRef<HTMLInputElement | null>(null);
-  const replaceTargetRef = useRef<string | null>(null);
-  const pendingReplaceRef = useRef<NormalizedImage | null>(null);
+  /** R2: the grid's card actions and the trash / replace state they own. */
+  const {
+    trashItems,
+    trashRestoreFailed,
+    setTrashRestoreFailed,
+    replacePrompt,
+    replaceInputRef,
+    loadTrash,
+    handleDeleteSheet,
+    handleRestoreSheet,
+    handleReorderSheets,
+    handleRenameSheet,
+    handleDuplicateSheet,
+    handleReplacePhoto,
+    onReplacePhotoPicked,
+    handleResolveReplace,
+  } = useProjectActions(
+    editorTarget,
+    () => setProjectRefresh((n) => n + 1),
+    (id) => setSelectedSheetIds((ids) => ids.filter((x) => x !== id)),
+  );
   /**
    * «New project» runs an async folder create. The flag makes a double-tap a no-op
    * (two clicks before the first create resolves must not mint two projects); the
@@ -134,166 +123,19 @@ export default function App() {
     // Registering the bare id leaves `resolveOpenProjectDir` unable to find the folder.
     const projectId = `${id}:${folderName}`;
     registerOpenProject(projectId, folderName);
-    setEditorTarget({ projectId, folderName });
-    setEditorSheetId(undefined);
     setSelectedSheetIds([]);
-    setImportOnOpen(false);
     setCaptureOpen(false);
     setProjectLoad('loading');
-    setRoute('project');
+    dispatch({ type: 'openProject', project: { projectId, folderName } });
   }
 
-  /** Load (or refresh) the project's 14-day trash for the grid's panel. */
-  async function loadTrash(projectId: string): Promise<void> {
-    try {
-      setTrashItems(await listTrash(projectId));
-    } catch {
-      // An unreadable trash must not take the grid down with it; an empty list is the honest
-      // fallback because the panel distinguishes "not loaded" (`undefined`) from "empty".
-      setTrashItems([]);
-    }
-  }
-
-  /**
-   * Delete a sheet into `.trash/` (UI §13.3 — recoverable, never a silent no-op). It RESOLVES
-   * only once the write has landed: the screen announces «Sheet deleted · Undo» on success and
-   * an honest failure line otherwise, so the toast can never claim a deletion that did not
-   * happen (D113).
-   */
-  async function handleDeleteSheet(id: string): Promise<void> {
-    if (!editorTarget) return;
-    await deleteSheet(editorTarget.projectId, id);
-    setSelectedSheetIds((ids) => ids.filter((x) => x !== id));
-    setProjectRefresh((n) => n + 1);
-    await loadTrash(editorTarget.projectId);
-  }
-
-  /** Restore a trashed sheet (§11.9). A failure is reported to the panel, never swallowed. */
-  async function handleRestoreSheet(id: string): Promise<void> {
-    if (!editorTarget) return;
-    try {
-      await restoreSheet(editorTarget.projectId, id);
-      setTrashRestoreFailed(false);
-      setProjectRefresh((n) => n + 1);
-      await loadTrash(editorTarget.projectId);
-    } catch {
-      setTrashRestoreFailed(true);
-      // Review F5: this catch used to be silent for the user — `trashRestoreFailed` surfaces
-      // only inside the trash panel, which is CLOSED when the delete toast's Undo fires. A
-      // failed restore must be visible wherever it was triggered.
-      emitToast({ text: STRINGS.trash.restoreFailed, urgent: true });
-    }
-  }
-
-  // ---- the grid's remaining card actions (D111) ------------------------------
-
-  /**
-   * Persist a new sheet order (§20.6: `10 × position`). The screen has already applied the
-   * order locally — that IS the drag's live renumber — so a rejection is what makes it walk
-   * the order back and say so. The write goes through `projectStore.writeJsonAtomic`, the
-   * only atomic JSON path (AGENTS #3).
-   */
-  async function handleReorderSheets(orderedIds: readonly string[]): Promise<void> {
-    if (!editorTarget) throw new Error('no project open');
-    const dir = await resolveOpenProjectDir(editorTarget.projectId);
-    const file = await readProjectFile(dir);
-    const next = reorderSheetRows(file, orderedIds);
-    await writeJsonAtomic(dir, 'project.json', next, editorTarget.projectId);
-    setProjectRefresh((n) => n + 1);
-  }
-
-  /** Rename a sheet's TITLE. Its folder is never renamed — names are labels (§20.6). */
-  async function handleRenameSheet(id: string, title: string): Promise<void> {
-    if (!editorTarget) throw new Error('no project open');
-    await renameSheet(editorTarget.projectId, id, title);
-    setProjectRefresh((n) => n + 1);
-  }
-
-  /**
-   * Duplicate a sheet. The copy is the storage layer's (copy → verify → then the row); the
-   * title is the next `Sheet NN`, the same rule a capture uses, so there is one naming
-   * convention and not two.
-   */
-  async function handleDuplicateSheet(id: string): Promise<{ id: string }> {
-    if (!editorTarget) throw new Error('no project open');
-    const dir = await resolveOpenProjectDir(editorTarget.projectId);
-    const file = await readProjectFile(dir);
-    const copy = await duplicateSheet(editorTarget.projectId, id, defaultSheetTitle(file));
-    setProjectRefresh((n) => n + 1);
-    return copy;
-  }
-
-  /** «Replace photo» starts here: the picker is a shell control, not the grid's. */
-  function handleReplacePhoto(id: string): void {
-    replaceTargetRef.current = id;
-    const input = replaceInputRef.current;
-    if (!input) return;
-    // A second pick of the SAME file must still fire `change`.
-    input.value = '';
-    input.click();
-  }
-
-  /**
-   * The chosen file, normalized. §2.4's constrained replace: identical working-image
-   * dimensions → a **silent** swap with the markup kept; different dimensions → the warned
-   * dialog, whose answer the screen collects (a different photo is a different coordinate
-   * space, so the markup may land in the wrong place — that is the user's call, not ours).
-   */
-  async function onReplacePhotoPicked(file: File): Promise<void> {
-    const id = replaceTargetRef.current;
-    replaceTargetRef.current = null;
-    if (!id || !editorTarget) return;
-    try {
-      // Canvas work: imported only when a replace actually happens, so the Home route's
-      // bundle keeps the media pipeline out (the `CameraFlow` precedent).
-      const { normalizeImage } = await import('@/media/normalizeImage');
-      const photo = await normalizeImage(file);
-      const dir = await resolveOpenProjectDir(editorTarget.projectId);
-      const current = await readProjectFile(dir);
-      const row = current.sheets.find((sheet) => sheet.id === id);
-      if (!row) throw new Error(`sheet ${id} is not in project.json`);
-      if (photo.width === row.imageWidth && photo.height === row.imageHeight) {
-        await replaceSheetPhoto(editorTarget.projectId, id, photo, 'keep');
-        setProjectRefresh((n) => n + 1);
-        return;
-      }
-      pendingReplaceRef.current = photo;
-      setReplacePrompt({ sheetId: id, title: row.title });
-    } catch {
-      // Never a silent no-op: a decode failure, an unknown sheet and a failed write all
-      // surface the same honest line (there is no per-cause copy for this action).
-      emitToast({ text: STRINGS.sheetMenu.replaceFailed, urgent: true });
-    }
-  }
-
-  /** The warned dialog's answer. «Cancel» leaves the sheet exactly as it was. */
-  async function handleResolveReplace(choice: 'keep' | 'remove' | 'cancel'): Promise<void> {
-    const photo = pendingReplaceRef.current;
-    const prompt = replacePrompt;
-    pendingReplaceRef.current = null;
-    setReplacePrompt(null);
-    if (choice === 'cancel' || !photo || !prompt || !editorTarget) return;
-    try {
-      const result = await replaceSheetPhoto(editorTarget.projectId, prompt.sheetId, photo, choice);
-      setProjectRefresh((n) => n + 1);
-      // Review F1: by the time this resolves, the photo, the dimensions and the thumbnail are
-      // all consistently new — the ONLY step that can still have failed is the markup clear,
-      // so naming that is the honest report. «Couldn't replace that photo» would claim a
-      // failure the system did not have (the inverse of the D110/D114 family).
-      if (!result.markupCleared) {
-        emitToast({ text: STRINGS.sheetMenu.markupNotRemoved, urgent: true });
-      }
-    } catch {
-      emitToast({ text: STRINGS.sheetMenu.replaceFailed, urgent: true });
-    }
-  }
 
   /**
    * Load the grid's model whenever the screen is shown, or after a capture/import wrote a
    * sheet. A read failure is an honest `error` state — never a silently empty grid.
    */
   useEffect(() => {
-    if (route !== 'project' || !editorTarget) return;
+    if (route.name !== 'project' || !editorTarget) return;
     // D137: the shell owns the open-project registry. Re-registering is idempotent and makes the
     // grid's reads independent of whatever an unmounting editor did.
     registerOpenProject(editorTarget.projectId, editorTarget.folderName);
@@ -318,7 +160,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, [route, editorTarget, projectRefresh]);
+  }, [route.name, editorTarget, projectRefresh]);
 
   /**
    * Home «New project»: create an app-named subfolder of the projects root, then land on
@@ -339,13 +181,11 @@ export default function App() {
       // D51: register under the full runtime key, exactly as the editor's load path does.
       const projectId = `${created.id}:${created.folderName}`;
       registerOpenProject(projectId, created.folderName);
-      setEditorTarget({ projectId, folderName: created.folderName });
-      setEditorSheetId(undefined);
       setSelectedSheetIds([]);
       setProjectLoad('loading');
       setCaptureOrigin('grid');
       setCaptureOpen(true);
-      setRoute('project');
+      dispatch({ type: 'openProject', project: { projectId, folderName: created.folderName } });
     } catch {
       // Slice 1.10: the failure is no longer invisible (D103's owed half). There is exactly
       // ONE `ToastHost`, mounted at the shell root (App's return), so every route — Home,
@@ -370,7 +210,7 @@ export default function App() {
         // No IndexedDB / storage denied → treat as first run rather than crash.
         root = undefined;
       }
-      if (alive) setRoute(root ? 'home' : 'first-run');
+      if (alive) dispatch({ type: 'booted', hasRoot: Boolean(root) });
     })();
     return () => {
       alive = false;
@@ -378,19 +218,20 @@ export default function App() {
   }, []);
 
   const renderRoute = () => {
-    if (route === 'loading') {
+    if (route.name === 'loading') {
       return <main className="app-boot" aria-busy="true" />;
     }
 
-    if (route === 'first-run') {
-      return <FirstRun onDone={() => setRoute('home')} />;
+    if (route.name === 'first-run') {
+      return <FirstRun onDone={() => dispatch({ type: 'firstRunDone' })} />;
     }
 
-    if (route === 'settings') {
-      return <Settings onBack={() => setRoute('home')} />;
+    if (route.name === 'settings') {
+      return <Settings onBack={() => dispatch({ type: 'goHome' })} />;
     }
 
-    if (route === 'project' && editorTarget) {
+    if (route.name === 'project') {
+      const editorTarget = route.project;
       return (
         <ProjectScreen
           projectTitle={projectTitle || editorTarget.folderName}
@@ -406,8 +247,7 @@ export default function App() {
           onClearSelection={() => setSelectedSheetIds([])}
           onOpenSheet={(id) => {
             setCaptureOpen(false);
-            setEditorSheetId(id);
-            setRoute('editor');
+            dispatch({ type: 'openSheet', sheetId: id });
           }}
           onTakePhoto={() => {
             setCaptureOrigin('grid');
@@ -417,8 +257,7 @@ export default function App() {
             // Import is the editor's path — one write path, already covered there. The grid
             // hands off and the editor arms its picker; returning to the grid afterwards is
             // owed (recorded in D111).
-            setImportOnOpen(true);
-            setRoute('editor');
+            dispatch({ type: 'openImport' });
           }}
           onExport={(ids) => {
             // Export lives in the editor's wizard, which owns the destination and every write.
@@ -432,7 +271,7 @@ export default function App() {
             if (scope.length === 0) return; // nothing to export — stay on the grid
             setSelectedSheetIds(scope);
             setPendingExportSelection(scope);
-            setRoute('editor');
+            dispatch({ type: 'openExport' });
           }}
           onDeleteSheet={handleDeleteSheet}
           trash={trashItems}
@@ -463,20 +302,21 @@ export default function App() {
             setSelectedSheetIds([]);
             // D137: leaving the project is the one place its registration ends.
             clearOpenProject(editorTarget.projectId);
-            setRoute('home');
+            dispatch({ type: 'goHome' });
           }}
         />
       );
     }
 
-    if (route === 'editor' && editorTarget) {
+    if (route.name === 'editor') {
+      const editorTarget = route.project;
       return (
         <Suspense fallback={<main className="app-boot" aria-busy="true" />}>
           <EditorLayout
             projectId={editorTarget.projectId}
             folderName={editorTarget.folderName}
-            sheetId={editorSheetId}
-            autoImport={importOnOpen}
+            sheetId={route.sheetId}
+            autoImport={route.intent === 'import'}
             initialExportSelection={pendingExportSelection ?? undefined}
             onInitialExportConsumed={() => setPendingExportSelection(null)}
             onAddSheet={() => {
@@ -486,10 +326,8 @@ export default function App() {
             onExit={() => {
               // The editor's `‹ Projects` returns to the sheet grid it belongs to.
               setCaptureOpen(false);
-              setEditorSheetId(undefined);
-              setImportOnOpen(false);
               setProjectRefresh((n) => n + 1);
-              setRoute('project');
+              dispatch({ type: 'exitEditor' });
             }}
           />
         </Suspense>
@@ -500,7 +338,7 @@ export default function App() {
       <>
         <ProjectList
           loadCover={readProjectCover}
-          onOpenSettings={() => setRoute('settings')}
+          onOpenSettings={() => dispatch({ type: 'openSettings' })}
           onOpenProject={(id, folderName) => {
             // D51: key on id + folderName. A scan entry with no valid id (unreadable
             // folder) is not openable; ProjectList still renders it with a Locate action.
@@ -526,10 +364,10 @@ export default function App() {
           whole app to a blank page. `key={route}` gives every navigation a fresh boundary. */}
       <AppErrorBoundary
         variant="route"
-        key={route}
+        key={route.name}
         onReset={() => {
           setCaptureOpen(false);
-          setRoute('home');
+          dispatch({ type: 'goHome' });
         }}
       >
         {renderRoute()}
@@ -581,7 +419,7 @@ export default function App() {
               onCaptured={(sheet) => {
                 setCaptureOpen(false);
                 if (captureOrigin === 'editor') {
-                  setEditorSheetId(sheet.id);
+                  dispatch({ type: 'openSheet', sheetId: sheet.id });
                 } else {
                   setProjectRefresh((n) => n + 1);
                   // The «↶ Undo» half of §11.8's toast is owed: deleting a sheet has no path
