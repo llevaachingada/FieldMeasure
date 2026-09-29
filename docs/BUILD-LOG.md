@@ -2022,3 +2022,21 @@ with `listening: false`. Konva hit-tests shapes, never bare groups, so `hitObjec
 drag or long-press could start on one. **Fix:** the glyphs and box listen. The new `markupTools.browser` D162 test
 creates a note, switches to Select, drags it 120x60 and undoes. It fails on the old renderer and passes on the fix.
 Gates: tsc 0 | vitest 1688/1689. The one failure is `appNewProject` under load; it passes alone (7/7).
+
+### Session 29 (continued): D163, folder re-authorize keeps breaking / not saving
+
+Owner report: re-authorizing the folder kept breaking, and saves did not land. **Causes:**
+1. `ProjectSession.dir()` cached the project folder handle for the whole session. After a re-pick, the new root handle
+   had the grant but autosave kept writing through the old handle, whose permission had lapsed, so every save failed
+   silently.
+2. The autosave chip's «Retry» only re-ran `flush()` and never re-asked for the grant, so it could not succeed.
+3. A sheet switch re-read `project.json` through the editor's handle from open time.
+
+**Fix:**
+- `projectStore.projectsRootGeneration()` is bumped on every `adoptProjectsRoot`, and `dir()` re-resolves when it
+  changes.
+- «Retry» calls `ensureRootAccess({ request: true })` inside the tap, then flushes.
+- `doSwitch` re-resolves the folder.
+
+The new test in `projectSession.test.ts` fails without the fix (the save lands in the old folder).
+Gates: tsc 0 | vitest 1690/1690 | build 0. Clickthru stalled on this run and was not re-run.

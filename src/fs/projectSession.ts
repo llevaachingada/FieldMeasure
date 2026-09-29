@@ -18,6 +18,7 @@ import {
   openProjectChannel,
   registerOpenProject,
   resolveOpenProjectDir,
+  projectsRootGeneration,
   type ProjectChannel,
   type WriterLease,
 } from '@/fs/projectStore';
@@ -60,6 +61,8 @@ export interface ProjectSessionDeps {
   resolveOpenProjectDir: typeof resolveOpenProjectDir;
   registerOpenProject: typeof registerOpenProject;
   clearOpenProject: typeof clearOpenProject;
+  /** D163: the projects-root generation; a change means cached folder handles are stale. */
+  rootGeneration?: () => number;
   /** Queue options other than `write` (the session owns the write). */
   queue?: Partial<Omit<PersistQueueDeps, 'write'>>;
 }
@@ -72,6 +75,14 @@ const defaultDeps = (): ProjectSessionDeps => ({
   resolveOpenProjectDir,
   registerOpenProject,
   clearOpenProject,
+  rootGeneration: () => {
+    // A test's `vi.mock` factory may omit this export; reading it then throws. Treat as 0.
+    try {
+      return projectsRootGeneration();
+    } catch {
+      return 0;
+    }
+  },
 });
 
 interface Core {
@@ -95,6 +106,8 @@ const closing = new Map<string, Promise<void>>();
 function createCore(key: string, folderName: string, deps: ProjectSessionDeps): Core {
   deps.registerOpenProject(key, folderName);
   let cachedDir: FileSystemDirectoryHandle | null = null;
+  // D163: the root generation `cachedDir` was resolved under; a re-pick invalidates it.
+  let cachedGen = -1;
   const core: Core = {
     key,
     folderName,
@@ -107,9 +120,11 @@ function createCore(key: string, folderName: string, deps: ProjectSessionDeps): 
     // next write retries it, as the per-write resolve did before.
     async dir() {
       if (core.closed) throw new SessionClosedError(key);
-      if (cachedDir) return cachedDir;
+      const gen = deps.rootGeneration?.() ?? 0;
+      if (cachedDir && cachedGen === gen) return cachedDir;
       const dir = await deps.resolveOpenProjectDir(key);
       cachedDir = dir;
+      cachedGen = gen;
       return dir;
     },
     persist: null as unknown as PersistQueue,

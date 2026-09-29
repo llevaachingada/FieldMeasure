@@ -35,6 +35,7 @@ import { type ThumbnailScheduler } from '@/media/thumbnails';
 import {
   cleanStaleTmp,
   readProjectFile,
+  ensureRootAccess,
   resolveOpenProjectDir,
   resolveSheetDir,
   writeAtomic,
@@ -629,7 +630,12 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
     // flag and re-attempts at once (§5.4). It does not touch `storageStatus` — the
     // queue reports the outcome, and only the queue ever sets that value.
     retrySave: () => {
-      void persistRef.current?.flush();
+      // D163: a save that failed on a lapsed folder grant can only succeed once the grant is
+      // re-asked, and only a tap may ask. This IS the tap, so ask first (silent while the grant
+      // is held), then retry. Before, «Retry» re-ran the same refused write forever.
+      void ensureRootAccess({ request: true })
+        .catch(() => false)
+        .then(() => persistRef.current?.flush());
     },
     // Slice 1.11: the update prompt's flush-first reload. `persistQueue.flush()`
     // resolves even when a write failed (the queue parks instead of throwing), so wait
@@ -937,9 +943,11 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
     schedulerRef.current = null;
     setStatus('loading');
     try {
-      const file = await readProjectFile(state.dir);
+      // D163: re-resolve the folder (a re-pick since open left `state.dir` on the old grant).
+      const dir = await resolveOpenProjectDir(projectId).catch(() => state.dir);
+      const file = await readProjectFile(dir);
       if (!alive) return;
-      projectDirRef.current = { dir: state.dir, file };
+      projectDirRef.current = { dir, file };
       const sheets = file.sheets.filter((s) => !s.deletedAt);
       setSheetCount(sheets.length);
       setExportSheets(
@@ -957,7 +965,7 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
       }
       setSheetTitle(sheet.title);
       setExportSheetId(sheet.id);
-      const loaded = await loadSheet(canvas, state.dir, sheet);
+      const loaded = await loadSheet(canvas, projectDirRef.current?.dir ?? state.dir, sheet);
       if (!alive) return;
       setStatus(loaded);
     } catch {

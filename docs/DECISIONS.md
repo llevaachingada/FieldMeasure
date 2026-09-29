@@ -3852,3 +3852,5 @@ the user picks «Allow on every visit» (Chrome/Edge 122+), which installing the
   `[Surface]` check owed: drag ends and text with a finger and a pen.
 - **D162:** text-note shapes are hit-testable (`listening: true`), so a note can be selected, dragged and long-pressed.
   Before this, a created note could never be moved.
+- **D163:** after a folder re-pick, cached project folder handles are re-resolved (`projectsRootGeneration`). Autosave
+  «Retry» re-asks the folder grant inside the tap. A sheet switch re-resolves the folder.

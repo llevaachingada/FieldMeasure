@@ -105,3 +105,27 @@ describe('ProjectSession (R5)', () => {
     expect(log.filter((e) => e === 'lease.release')).toHaveLength(1);
   });
 });
+
+describe('D163 — a folder re-pick refreshes the cached project folder', () => {
+  it('dir() re-resolves when the projects-root generation changes, so saves use the new grant', async () => {
+    const log: string[] = [];
+    const oldDir = new FakeDir('Folder');
+    const newDir = new FakeDir('Folder');
+    const key = nextKey();
+    let gen = 1;
+    const deps = makeDeps(log, oldDir);
+    deps.rootGeneration = () => gen;
+    const session = await openProjectSession(key, 'Folder', deps);
+    expect(await session.dir()).toBe(asDir(oldDir));
+    expect(await session.dir()).toBe(asDir(oldDir)); // cached while the root is unchanged
+    expect(deps.resolveOpenProjectDir).toHaveBeenCalledTimes(1);
+
+    // The user re-picks the folder: a new root handle with a fresh grant.
+    (deps.resolveOpenProjectDir as ReturnType<typeof vi.fn>).mockImplementation(async () => asDir(newDir));
+    gen = 2;
+    session.persist.queueProject(key, validProjectFile());
+    await session.close();
+    expect(newDir.has('project.json')).toBe(true);
+    expect(oldDir.has('project.json')).toBe(false);
+  });
+});
