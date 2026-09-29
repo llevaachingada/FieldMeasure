@@ -2014,3 +2014,11 @@ playwright 8/5 | clickthru 20/20.
 - The Dimension tool's refine snapped to the dragged dimension's own old end (a self-stick). D161 excludes the edited
   mark.
 - Before D160, `TextTool.commit` was called without a style, so the style panel never applied to text.
+
+### Session 29 (continued): D162, text boxes could not be dragged
+
+Owner report: once a text box was created, it could not be moved. **Cause:** `renderText` built the note's glyphs and box
+with `listening: false`. Konva hit-tests shapes, never bare groups, so `hitObject` never found a note, and no select,
+drag or long-press could start on one. **Fix:** the glyphs and box listen. The new `markupTools.browser` D162 test
+creates a note, switches to Select, drags it 120x60 and undoes. It fails on the old renderer and passes on the fix.
+Gates: tsc 0 | vitest 1688/1689. The one failure is `appNewProject` under load; it passes alone (7/7).

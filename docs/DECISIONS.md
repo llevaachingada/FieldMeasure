@@ -3850,3 +3850,5 @@ the user picks «Allow on every visit» (Chrome/Edge 122+), which installing the
   - A selected text box shows an outline, not handles.
 
   `[Surface]` check owed: drag ends and text with a finger and a pen.
+- **D162:** text-note shapes are hit-testable (`listening: true`), so a note can be selected, dragged and long-pressed.
+  Before this, a created note could never be moved.

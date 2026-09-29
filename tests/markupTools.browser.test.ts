@@ -78,17 +78,18 @@ function pointer(type: string, target: Element, x: number, y: number, pointerId 
   );
 }
 
-async function mountEditor(): Promise<{
+async function mountEditor(coarse: 'place' | 'select' = 'place'): Promise<{
   host: HTMLDivElement;
   stage: Konva.Stage;
   at: { x: number; y: number };
+  view: ReturnType<typeof render>;
 }> {
   const view = render(
     createElement(SheetEditor, {
       projectId: 'p:f',
       folderName: 'f',
       onExit: () => {},
-      activeTool: 'place',
+      activeTool: coarse,
     }),
   );
   await screen.findByText(STRINGS.project.noSheetsEmpty);
@@ -102,7 +103,7 @@ async function mountEditor(): Promise<{
   );
   const rect = host.getBoundingClientRect();
   const stage = Konva.stages[Konva.stages.length - 1];
-  return { host, stage, at: { x: rect.left + 300, y: rect.top + 200 } };
+  return { host, stage, at: { x: rect.left + 300, y: rect.top + 200 }, view };
 }
 
 function tap(host: HTMLDivElement, p: { x: number; y: number }): void {
@@ -257,5 +258,36 @@ describe('D160 — the text box: create with a look, tap it to edit, undo the ed
     editorSession()?.undo();
     await waitFor(() => expect(glyphsOf(stage).text()).toBe('Kitchen\nwall A'));
     expect(boxOf(stage)!.fill()).toBe('rgba(18,59,107,0.5)');
+  });
+});
+
+describe('D162 — a text box can be selected and dragged', () => {
+  it('Select: one-finger drag on a note moves it, as one undo step', async () => {
+    useEditorStore.getState().setActiveTool('text');
+    const { host, stage, at, view } = await mountEditor();
+    tap(host, at);
+    const input = (await screen.findByRole('textbox')) as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Move me' } });
+    fireEvent.click(screen.getByTestId('text-box-done'));
+    await waitFor(() => expect(markupChildren(stage)).toHaveLength(1));
+    const group = markupChildren(stage)[0] as Konva.Group;
+    const before = group.position();
+    stage.getLayers()[2].draw(); // build the hit graph
+
+    // The shell maps the Select tool to the coarse 'select' prop (EditorLayout.sheetEditorToolFor).
+    useEditorStore.getState().setActiveTool('select');
+    view.rerender(createElement(SheetEditor, { projectId: 'p:f', folderName: 'f', onExit: () => {}, activeTool: 'select' }));
+    const grab = { x: at.x + 8, y: at.y + 6 };
+    pointer('pointerdown', host, grab.x, grab.y);
+    for (let i = 1; i <= 6; i += 1) pointer('pointermove', host, grab.x + i * 20, grab.y + i * 10);
+    pointer('pointerup', host, grab.x + 120, grab.y + 60);
+
+    await waitFor(() => {
+      const after = (markupChildren(stage)[0] as Konva.Group).position();
+      expect(after.x - before.x).toBeCloseTo(120, 0);
+      expect(after.y - before.y).toBeCloseTo(60, 0);
+    });
+    editorSession()?.undo();
+    await waitFor(() => expect((markupChildren(stage)[0] as Konva.Group).position()).toEqual(before));
   });
 });

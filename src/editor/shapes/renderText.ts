@@ -102,7 +102,9 @@ export function buildTextGroup(input: TextRenderInput): Konva.Group {
     fontStyle: input.style.bold ? '700' : '400',
     fill: treatment.text,
     lineHeight: 1.2,
-    listening: false,
+    // D162: the note must be hittable, or no touch can select or drag it (Konva hit-tests
+    // shapes, never bare groups). A Text's hit region is its whole glyph box.
+    listening: true,
   });
   glyphs.setAttr('fontSizeMu', input.style.fontSizeMu);
 
@@ -114,7 +116,7 @@ export function buildTextGroup(input: TextRenderInput): Konva.Group {
       height: glyphs.height() + pad * 2,
       cornerRadius: input.background === 'pill' ? glyphs.height() / 2 + pad : 4,
       fill: treatment.background,
-      listening: false,
+      listening: true,
     });
     group.add(box);
     // F7: the box is sized once here, then re-fitted in `applyScreenRules` whenever the
