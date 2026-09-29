@@ -129,9 +129,11 @@ describe('D77/F4 — Chain locks at the refined B', () => {
     const key = ctx.tool.pendingAnnotationKey!;
 
     // Refine B (300,100) → (300,200) through the working 40 px-contact path.
+    // D161: the end moves WITH the finger (grab offset kept): grabbed 10 px below B, so the
+    // finger travels to (300,210) to put B at (300,200).
     expect(ctx.tool.onPointerDown({ x: 300, y: 110 }, 'touch')).toBe('consume');
-    ctx.tool.onPointerMove({ x: 300, y: 200 }, true);
-    ctx.tool.onPointerUp({ x: 300, y: 200 }, false, 'touch');
+    ctx.tool.onPointerMove({ x: 300, y: 210 }, true);
+    ctx.tool.onPointerUp({ x: 300, y: 210 }, false, 'touch');
     expect(ctx.scene.geometryAt(key)!.b).toEqual({ x: 300, y: 200 });
 
     // Commit with Chain. Pre-fix `commitValue` read the stale `this.b` = (300,100).

@@ -882,7 +882,9 @@ export const STRINGS = {
           s2: 'Tap where the measurement starts, then tap where it ends. The keypad opens.',
           s3: 'Type the size (for example 12 FT 6 IN 3/8) and tap the check mark.',
           s4: 'To move the numbers off the line, tap Select, tap the dimension, then drag its numbers.',
-          s5: 'Undo and Redo are at the bottom of the tool bar.',
+          s5: 'To fix an end, tap Select, tap the dimension, then drag one of its round end grips. The end follows your finger and the magnifier shows it. It snaps to the ends of other dimensions and marks (a green ring).',
+          s6: 'Text: tap Text, then tap the photo to type. Choose size, colors and background in the box. To change a note, tap it again.',
+          s7: 'Undo and Redo are at the bottom of the tool bar.',
         },
       },
       markup: {

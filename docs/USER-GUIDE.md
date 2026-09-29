@@ -30,7 +30,13 @@ app: tap **Help** at the top of any screen (Home, a project's sheets, or the pho
 2. Tap where the measurement starts, then tap where it ends. The keypad opens.
 3. Type the size (for example `12 FT 6 IN 3/8`) and tap the check mark.
 4. To move the numbers off the line, tap **Select**, tap the dimension, then drag its numbers.
-5. **Undo** and **Redo** are at the bottom of the tool bar.
+5. To fix an end, tap **Select**, tap the dimension, then drag one of its round end grips. The
+   end follows your finger (it is never hidden under it) and the magnifier shows it, with your
+   other dimensions and marks. It snaps to their ends and corners; a green ring means it snapped.
+6. **Text**: tap **Text**, then tap the photo to type. Choose size, bold, text color, background
+   color and background opacity in the box. To change a note, tap it again (or select it and tap
+   it a second time).
+7. **Undo** and **Redo** are at the bottom of the tool bar.
 
 ## 4. Mark up the photo
 

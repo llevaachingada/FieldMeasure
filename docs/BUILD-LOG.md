@@ -1996,3 +1996,21 @@ playwright 8/5 | clickthru 20/20.
   fix was 48 px buttons with tighter gaps. The floor held and the test was not edited.
 - The new "no sideways overflow" assertion immediately found four real overflows in the narrow panel.
 - «Remember this destination» persists nothing (pre-existing; owed).
+
+## Session 29: owner requests D154-D161, and GitHub Pages
+
+**Handoff: [`docs/handoff-session-29.md`](handoff-session-29.md).** Commits on `beta-readiness-wave-2`:
+`4bdec6c` (D154-D157), `9d6c2d6` (D158), `6278750` (D159), `fac8309` (Pages workflow and base-relative assets),
+`fe108a1` (D160), and the D161 commit.
+
+**Gates (final tree):** tsc 0 | vitest 1688/1688 | build 0 | playwright 8/5 | clickthru 20/20.
+
+**Surprises:**
+- The first Pages deploy was overwritten by a leftover "Deploy from a branch" run that published the raw source.
+  Source is now GitHub Actions. An empty commit redeployed it.
+- Git Bash rewrites `FM_BASE=/FieldMeasure/` into a Windows path. Build locally with `MSYS_NO_PATHCONV=1`. CI is
+  unaffected.
+- The camera screen had no z-index, so the grid cards' ⋯ buttons painted through it as stray tiles.
+- The Dimension tool's refine snapped to the dragged dimension's own old end (a self-stick). D161 excludes the edited
+  mark.
+- Before D160, `TextTool.commit` was called without a style, so the style panel never applied to text.

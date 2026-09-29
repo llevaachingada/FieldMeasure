@@ -20,7 +20,8 @@ A map of everything in this repository. Last updated **2026-09-25 (session 28: W
 | File | What it is |
 |---|---|
 | `docs/INDEX.md` | This file. |
-| `docs/handoff-session-28.md` | **Current handoff**: what session 28 shipped, what is owed, and the next steps. |
+| `docs/handoff-session-29.md` | **Current handoff**: session 29 (D154-D161, GitHub Pages): what shipped, what is owed, and the next steps. |
+| `docs/handoff-session-28.md` | Session 28 handoff (Waves 2-3, D144-D153). |
 | `docs/USER-GUIDE.md` | **User guide** for people using the app: getting started, photos, dimensions, markup, export, troubleshooting. The in-app **Help** pop-up shows the same content (`STRINGS.help`); keep them in step. |
 | `docs/CONTINUITY.md` | **Project continuity log** — live state, session timeline, next steps, open questions. Read first when resuming. |
 | `docs/preflight-handoff-v0.3-hardened.md` | **PRIMARY BUILD SPEC (canonical).** Hardened after adversarial review rounds 1, 2 and **4**. Its **§2.4 v1 scope table is the single authority on what ships in v1.** Round 2 executed the keypad reference code and fixed a wrong committed test expectation (`12 6` = 150 in, not 148); **round 4 executed it again and found another one** (§6.1's unicode row), plus a silent sign flip, zero/oversized commits, an unlocked "locked" write, and tmp cleanup that never entered the directories tmp files live in. Session-4 additions: changelog rows 21–38, **§5.8** (failure states) and **§19** (origin, SW updates, asset addressing, export guards). Session-4b additions: **§20** (implementation contracts) and **§21** (resolved decisions — nothing left open). |
@@ -71,7 +72,7 @@ A map of everything in this repository. Last updated **2026-09-25 (session 28: W
 | `src/App.tsx`, `src/main.tsx`, `src/styles.css` | App shell (route reducer, project session, capture overlay), entry point, global styles. |
 | `src/data/` | `storage.ts`, `originGuard.ts`. |
 | `src/domain/` | `types.ts`, `schema.ts` (zod), `units.ts`, `geometry.ts`, `snapping.ts`, `ids.ts`, `migrate.ts`. |
-| `src/editor/` | `EditorCanvas.ts` (Konva canvas + the §4.2 screen-scaling seam), `editorController.ts` (R6: canvas/scene/tools lifecycle, `loadSheet` without remount), `gestureArbiter.ts` (R1: pointer gestures, D151 label drag), `sceneActions.ts` (Layers/mini-toolbar actions), `history.ts`, `Loupe.ts`, `inputRouter.ts`, `session.ts`. |
+| `src/editor/` | `EditorCanvas.ts` (Konva canvas + the §4.2 screen-scaling seam), `editorController.ts` (R6: canvas/scene/tools lifecycle, `loadSheet` without remount), `gestureArbiter.ts` (R1: pointer gestures, D151 label drag), `sceneActions.ts` (Layers/mini-toolbar actions), `history.ts`, `Loupe.ts` (D161 markup overlay), `snapTargets.ts` (D161 snapping), `sheetThumb.ts` (D155 grid thumbnails), `inputRouter.ts`, `session.ts`. |
 | `src/editor/inset/` | `InsetFocus.ts`, `insetAssets.ts`, `insetGeometry.ts`, `renderInset.ts`. |
 | `src/editor/shapes/` | `scene.ts` (the `Annotation[]` document), `renderDimension.ts`, `arrowHead.ts` (D150), `dimensionLabel.ts` (D151 offset), `renderShape.ts`, `renderInk.ts`, `renderText.ts`, `styleCommand.ts`, `svgPath.ts`. |
 | `src/editor/tools/` | `DimensionTool`, `AngleTool`, `ShapeTool`, `FreehandTool`, `TextTool`, `EraseTool`, `SelectTool`, `InsetTool`, `toolTypes.ts`. |
@@ -80,7 +81,7 @@ A map of everything in this repository. Last updated **2026-09-25 (session 28: W
 | `src/media/` | `cameraSession.ts` (R4; D146 rear-camera pick), `normalizeImage.ts`, `exif.ts`, `thumbnails.ts`, `decodeWorker.ts`. |
 | `src/settings/` | `capture.ts` (AE/AF lock, default off), `exportLocation.ts` (dated or project folder), `density.ts`, `handedness.ts`, `input.ts`, `projectsRoot.ts`, `theme.ts`, `units.ts`, `watermark.ts`. |
 | `src/state/` | `appStore.ts`, `editorStore.ts`, `persistQueue.ts`, `projectMeasure.ts`, `styleByTool.ts`. |
-| `src/ui/` | Screens and chrome: `ProjectList` (Home), `ProjectScreen` (+ `useSheetReorderDrag`), `EditorLayout`, `SheetEditor`, `TopBar`, `ToolRail`, `StylePanel`, `ExportWizard`, `CameraFlow`, `Settings`, `FirstRun`, `HelpButton` (D152), dialogs and sheets, `appRoute.ts` / `useProjectActions.ts` (R2), `insetActions.ts`, `strings.ts` (all copy). `icons/tools/` holds the 14 rail glyphs. |
+| `src/ui/` | Screens and chrome: `ProjectList` (Home), `ProjectScreen` (+ `useSheetReorderDrag`), `EditorLayout`, `SheetEditor`, `TopBar`, `ToolRail`, `StylePanel`, `ExportWizard`, `CameraFlow`, `Settings`, `FirstRun`, `HelpButton` (D152), `TextBoxSheet` (D160), `TopBarLogo` (D157), dialogs and sheets, `appRoute.ts` / `useProjectActions.ts` (R2), `insetActions.ts`, `strings.ts` (all copy). `icons/tools/` holds the 14 rail glyphs. |
 
 ## Reading order for a new contributor or AI
 

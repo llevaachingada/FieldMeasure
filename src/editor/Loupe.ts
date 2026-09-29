@@ -33,6 +33,7 @@
 import Konva from 'konva';
 import type { Px } from '@/domain/types';
 import type { ScreenPoint } from './EditorCanvas';
+import type { LoupeOverlay } from './snapTargets';
 
 /* ------------------------------------------------------------------ *
  * Specs
@@ -198,7 +199,16 @@ export interface LoupeOptions {
   getAnchorScreen?: () => ScreenPoint | null;
   getViewport: () => { width: number; height: number };
   getHandedness: () => 'left' | 'right';
+  /**
+   * D161: the marks to draw over the magnified photo (thin vector paths + snap rings), and the
+   * live segment of a mark being placed. Omitted = photo only (the old behaviour).
+   */
+  getOverlay?: (excludeKey: string | null) => LoupeOverlay | null;
 }
+
+/** D161: the snap ring (green, like a confirmed hit) and the target dots. */
+const SNAP_COLOR = '#2ECC71';
+const TARGET_COLOR = 'rgba(255,255,255,0.9)';
 
 const RING_COLOR = '#2FD4E0';
 
@@ -221,6 +231,9 @@ export class Loupe {
   private visible = false;
   private frozenUntil = 0;
   private fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  private snapped: Px | null = null;
+  private live: Px[] | null = null;
+  private excludeKey: string | null = null;
 
   constructor(options: LoupeOptions) {
     this.layer = options.layer;
@@ -260,8 +273,21 @@ export class Loupe {
     this.render();
   }
 
+  /**
+   * D161: the point the contact is snapped to (drawn as a green ring), or `null`; and the live
+   * segment of the mark being placed or dragged. Both redraw the window if it is showing.
+   */
+  setSnap(point: Px | null, live: Px[] | null = null, excludeKey: string | null = null): void {
+    this.excludeKey = excludeKey;
+    this.snapped = point ? { ...point } : null;
+    this.live = live ? live.map((q) => ({ ...q })) : null;
+  }
+
   /** Pen lift: the loupe disappears (the pen can hover). */
   hide(): void {
+    this.snapped = null;
+    this.live = null;
+    this.excludeKey = null;
     this.visible = false;
     this.frozenUntil = 0;
     this.clearFadeTimer();
@@ -426,16 +452,73 @@ export class Loupe {
   private drawCrop(): void {
     const image = this.options.getImage();
     const ctx = this.source?.getContext('2d');
-    if (!image || !this.source || !ctx) return;
+    if (!this.source || !ctx) return;
     const d = this.spec.diameterPx;
     const s = this.spec.sourcePx;
     const centre = this.options.screenToImage(this.point);
     ctx.clearRect(0, 0, d, d);
     try {
-      ctx.drawImage(image, centre.x - s / 2, centre.y - s / 2, s, s, 0, 0, d, d);
+      // No photo yet (still decoding) still shows the marks (D161).
+      if (image) ctx.drawImage(image, centre.x - s / 2, centre.y - s / 2, s, s, 0, 0, d, d);
     } catch {
       // A detached/closed bitmap can throw; the ring still renders.
     }
+    this.drawOverlay(ctx, centre, s, d);
     this.image?.image(this.source);
+  }
+
+  /**
+   * D161: the marks, the snap targets and the snapped ring, drawn in the loupe's own pixels
+   * (image point → `(p - origin) × d / s`), so lines stay thin and crisp at any zoom.
+   */
+  private drawOverlay(ctx: CanvasRenderingContext2D, centre: Px, s: number, d: number): void {
+    const overlay = this.options.getOverlay?.(this.excludeKey) ?? null;
+    if (!overlay && !this.snapped && !this.live) return;
+    const k = d / s;
+    const ox = centre.x - s / 2;
+    const oy = centre.y - s / 2;
+    const map = (p: Px): [number, number] => [(p.x - ox) * k, (p.y - oy) * k];
+    const inView = (p: Px): boolean => Math.abs(p.x - centre.x) <= s && Math.abs(p.y - centre.y) <= s;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const stroke = (points: Px[], closed: boolean, color: string, width: number): void => {
+      if (points.length < 2) return;
+      ctx.beginPath();
+      const [x0, y0] = map(points[0]);
+      ctx.moveTo(x0, y0);
+      for (let i = 1; i < points.length; i += 1) {
+        const [x, y] = map(points[i]);
+        ctx.lineTo(x, y);
+      }
+      if (closed) ctx.closePath();
+      // A dark under-stroke keeps a light colour readable on a light photo.
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = width + 2;
+      ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    };
+    for (const path of overlay?.paths ?? []) stroke(path.points, path.closed, path.color, 2);
+    if (this.live) stroke(this.live, false, RING_COLOR, 2);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = TARGET_COLOR;
+    for (const t of overlay?.targets ?? []) {
+      if (!inView(t)) continue;
+      const [x, y] = map(t);
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (this.snapped) {
+      const [x, y] = map(this.snapped);
+      ctx.strokeStyle = SNAP_COLOR;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, 11, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }

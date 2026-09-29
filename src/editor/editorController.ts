@@ -43,6 +43,7 @@ import {
 } from '@/fs/projectStore';
 import { useAppStore } from '@/state/appStore';
 import { createSheetThumbWriter } from '@/editor/sheetThumb';
+import { loupeOverlayFor } from '@/editor/snapTargets';
 import { InsetTool, type InsetAssetInput } from '@/editor/tools/InsetTool';
 import { InsetAssetRegistry, createFocusAwareScene } from '@/ui/insetWiring';
 import { STRINGS, t } from '@/ui/strings';
@@ -311,6 +312,8 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
     screenToImage: (p) => canvas.screenToImage(p),
     getViewport: () => ({ width: host.clientWidth, height: host.clientHeight }),
     getHandedness: () => useAppStore.getState().handedness,
+    // D161: the loupe shows every visible mark and its snap points, not just the photo.
+    getOverlay: (excludeKey) => loupeOverlayFor(scene.list(), excludeKey),
   });
   const tool = new DimensionTool({
     canvas,
@@ -496,6 +499,9 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
       selectRef.current?.refresh();
     },
     onPinnedToolbar: (pinned) => setPinnedToolbar(pinned),
+    // D161: dragging a dimension / line / arrow end shows the loupe and snaps.
+    loupe,
+    glovedTouch: () => useAppStore.getState().glovedTouch,
     labels: {
       move: STRINGS.toasts.actionMoveDimension,
       rotate: STRINGS.a11y.rotate,

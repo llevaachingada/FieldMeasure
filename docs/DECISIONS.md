@@ -3818,3 +3818,35 @@ now asks at the taps that start work: opening a project, Take photo, and Add she
 while the grant is held. The camera's own ask stays as the fallback. The browser remembers across restarts only if
 the user picks «Allow on every visit» (Chrome/Edge 122+), which installing the app encourages. That is now in Help and
 `docs/USER-GUIDE.md`. `[Surface]` check owed: restart the browser, open a project, take two photos, and expect no failure.
+
+### D154-D161 - owner requests, session 29
+
+**Status: shipped (session 29).** Each item is from the owner.
+
+- **D154:** exports draw marks at `mu × k` image units, `k = max(1, longEdge / 1280)`
+  (`exportMarkupScale`), so an export matches the fitted editor view. `k` does not depend on M, so the §4.2 invariance
+  across M holds. Photos up to 1280 px keep `k = 1`.
+- **D155:** the grid card thumbnail is a snapshot of the editor's photo, inset and markup layers (`sheetThumb.ts`). It
+  is taken 3 s after an edit and flushed on a sheet switch or teardown.
+- **D156:** there is an optional «Room name» field on the capture review screen. When filled, it becomes the sheet
+  title and `Sheet.roomName`, and it leads the export stamp («Kitchen · date · time»).
+- **D157:** the corner mark's opacity is 0.24 (was 0.14). A small centred VANGARDE mark appears in the editor, project
+  and Home bars and hides under 1100 px. Asset paths are relative to `BASE_URL`.
+- **D158:** export defaults are one sheet (the first sheet when nothing is selected in the grid), 1x, and no zip.
+- **D159:** the export watermark and stamp are 25% smaller: 0.18 of the width, capped at 0.135 of the height, and the
+  stamp font is 0.00975 of the width.
+- **D160:** a text-box editor (`TextBoxSheet`) with multi-line text, size, bold, text color, background color and
+  opacity, and a preview. New notes use background `box`: text is `strokeColor`, the box is `fillColor` at
+  `fillAlpha`, and a null fill means no box. The text tool's default is white on `#0B0E12` at 85%. Tapping a note with
+  the Text tool, «Edit text», or a second Select tap edits the note as one undo step. The text tool applies to Fill and
+  Transparency.
+- **D161:** MyMeasures-style editing:
+  - A single selected dimension, line or arrow shows two end grips in place of the box handles.
+  - A dragged end keeps the finger's grab offset, in both Select and Dimension refine.
+  - Ends snap to the ends and corners of every other visible mark (`snapTargets.ts`); the mark being edited is
+    excluded, which fixes the refine self-stick.
+  - The loupe draws the marks as thin vectors, plus snap rings, the live segment and a green snapped ring. It centres
+    on the dragged end.
+  - A selected text box shows an outline, not handles.
+
+  `[Surface]` check owed: drag ends and text with a finger and a pen.

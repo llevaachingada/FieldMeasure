@@ -3,7 +3,19 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-25 (session 28: Waves 2-3 + owner requests D146-D152)
+**Last updated:** 2026-09-29 (session 29: owner requests D154-D161, GitHub Pages live)
+
+**Session 29 (D154-D161), CURRENT HANDOFF: [`docs/handoff-session-29.md`](handoff-session-29.md).** The app is live
+at https://llevaachingada.github.io/FieldMeasure/ (`.github/workflows/pages.yml`; every push to `main` or
+`beta-readiness-wave-2` redeploys it). Shipped:
+- exports match the editor's mark sizes;
+- grid thumbnails show the markup;
+- a «Room name» field at capture;
+- the top-bar logo;
+- export defaults of one file, 1x and no zip;
+- a smaller export watermark;
+- a text-box editor;
+- MyMeasures-style end grips, snapping to every mark, and a loupe that shows the markup.
 
 **What this project has now that it did not before: a clickthru harness.** One command drives the *built*
 app end to end with real touch and pen input on the Surface geometry and screenshots every step, so an agent

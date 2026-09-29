@@ -632,7 +632,9 @@ function buildHandlers(deps: GestureDeps) {
           // A second tap on an already-selected object opens its actions (A2). For an
           // inset it enters Focus (UI §9:588/627).
           if (selectRef.current?.tapObject(drag.key) === 'action') {
-            if (sceneRef.current?.get(drag.key)?.type === 'image') insetRef.current?.enterFocus(drag.key);
+            const kind = sceneRef.current?.get(drag.key)?.type;
+            if (kind === 'image') insetRef.current?.enterFocus(drag.key);
+            else if (kind === 'text') textRef.current?.requestEdit(drag.key); // D161
             else setPinnedToolbar(true);
           }
         }
@@ -651,7 +653,9 @@ function buildHandlers(deps: GestureDeps) {
         // A locked object already toasted on pointerdown (touch model §3.3 shake);
         // selecting it is still allowed so it can be unlocked in Layers.
         if (selectRef.current?.tapObject(key) === 'action') {
-          if (sceneRef.current?.get(key)?.type === 'image') insetRef.current?.enterFocus(key);
+          const kind = sceneRef.current?.get(key)?.type;
+          if (kind === 'image') insetRef.current?.enterFocus(key);
+          else if (kind === 'text') textRef.current?.requestEdit(key); // D161
           else setPinnedToolbar(true);
         }
         return;

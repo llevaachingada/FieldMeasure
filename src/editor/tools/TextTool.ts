@@ -106,6 +106,11 @@ export class TextTool implements MarkupTool {
     this.deps.onSnapshot(false);
   }
 
+  /** D161: open an existing note in the text-box editor (the Select tool's second tap). */
+  requestEdit(id: string): void {
+    this.deps.onRequestEdit?.(id);
+  }
+
   /** D160: change an existing note's words and look as ONE undo step. */
   edit(id: string, text: string, style: AnnotationStyle): void {
     const scene = this.deps.scene;
