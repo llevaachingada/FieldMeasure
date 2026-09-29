@@ -74,7 +74,7 @@ export const GeometryZ = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('polygon'), points: z.array(Px), closed: z.boolean() }),
   z.object({ kind: z.literal('freehand'), points: z.array(Px), pressure: z.array(z.number()) }),
   z.object({ kind: z.literal('highlight'), points: z.array(Px), pressure: z.array(z.number()) }),
-  z.object({ kind: z.literal('text'), at: Px, text: z.string(), background: z.enum(['none', 'pill', 'solid', 'auto']) }),
+  z.object({ kind: z.literal('text'), at: Px, text: z.string(), background: z.enum(['none', 'pill', 'solid', 'auto', 'box']) }),
   z.object({ kind: z.literal('image'), x: z.number(), y: z.number(), width: z.number(), height: z.number(), rotation: z.number(),
     crop: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional(),
     flipX: z.boolean().optional(), flipY: z.boolean().optional(), opacity: z.number().optional() }),

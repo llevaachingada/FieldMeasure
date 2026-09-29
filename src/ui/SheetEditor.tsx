@@ -45,6 +45,7 @@ import DimensionKeypadSheet from '@/ui/DimensionKeypadSheet';
 import LayersPanel from '@/ui/LayersPanel';
 import { annotationName, buildLayerRows } from '@/ui/layersRows';
 import { useEditorStore } from '@/state/editorStore';
+import { styleForTool, useStyleByTool } from '@/state/styleByTool';
 import { readExifInfo } from '@/media/exif';
 import { normalizeImage } from '@/media/normalizeImage';
 import { createThumbnailScheduler, type ThumbnailScheduler } from '@/media/thumbnails';
@@ -62,6 +63,7 @@ import { InsetTool, type InsetAssetInput } from '@/editor/tools/InsetTool';
 import { storeInsetAsset } from '@/editor/inset/insetAssets';
 import type { InsetAssetImage } from '@/editor/inset/renderInset';
 import ImageInsetPickerSheet from '@/ui/ImageInsetPickerSheet';
+import TextBoxSheet, { textBoxStyleFor } from '@/ui/TextBoxSheet';
 import { InsetAssetRegistry } from '@/ui/insetWiring';
 import './insetWire.css';
 import { STRINGS, t } from './strings';
@@ -199,7 +201,7 @@ export default function SheetEditor({
   const [polygon, setPolygon] = useState<{ count: number } | null>(null);
   const [angleSheet, setAngleSheet] = useState<AngleSheetRequest | null>(null);
   const [textAnchor, setTextAnchor] = useState<Px | null>(null);
-  const [textDraft, setTextDraft] = useState('');
+  const [textEditId, setTextEditId] = useState<string | null>(null);
   const [eraseMode, setEraseMode] = useState<EraseMode>('object');
   /** Select tool: the mini-toolbar was pinned by a 600 ms long-press. */
   const [pinnedToolbar, setPinnedToolbar] = useState(false);
@@ -307,7 +309,7 @@ export default function SheetEditor({
       set: {
         setAngleSheet, setExportSheetId, setExportSheets, setInsetPickerOpen, setKeypadRequest,
         setPinnedToolbar, setPlacement, setPolygon, setReadOnly, setReplacePrompt, setSceneTick,
-        setSheetCount, setSheetTitle, setStatus, setTextAnchor, setTextDraft, setZoomPercent,
+        setSheetCount, setSheetTitle, setStatus, setTextAnchor, setTextEditId, setZoomPercent,
         setInputKind,
       },
     });
@@ -498,18 +500,22 @@ export default function SheetEditor({
   };
 
   // ---- slice 1.6 sheet/HUD handlers ------------------------------------------
-  const commitText = (): void => {
-    if (textAnchor) textRef.current?.commit(textDraft);
+  // D160: the text-box editor commits a new note or an edit, and remembers the look it used.
+  const commitText = (text: string, style: AnnotationStyle): void => {
+    if (textEditId) textRef.current?.edit(textEditId, text, style);
+    else if (textAnchor) textRef.current?.commit(text, style);
+    useStyleByTool.getState().replaceToolStyle('text', style);
     setTextAnchor(null);
-    setTextDraft('');
+    setTextEditId(null);
     useEditorStore.getState().setPendingOp('none');
   };
   const cancelText = (): void => {
-    textRef.current?.cancel();
+    if (!textEditId) textRef.current?.cancel();
     setTextAnchor(null);
-    setTextDraft('');
+    setTextEditId(null);
     useEditorStore.getState().setPendingOp('none');
   };
+  const editingNote = textEditId ? sceneRef.current?.get(textEditId) ?? null : null;
   const commitAngle = (chain: boolean): void => {
     const request = angleSheet;
     if (!request) return;
@@ -877,6 +883,16 @@ export default function SheetEditor({
             >
               {STRINGS.select.duplicate}
             </button>
+            {selection.length === 1 && sceneRef.current?.get(selection[0])?.geometry.kind === 'text' ? (
+              <button
+                type="button"
+                className="placement-hud-button"
+                data-testid="mini-toolbar-edit-text"
+                onClick={() => setTextEditId(selection[0])}
+              >
+                {STRINGS.select.editText}
+              </button>
+            ) : null}
             {ROTATE_STOPS.filter((deg) => deg !== 0).map((deg) => (
               <button
                 key={deg}
@@ -1084,34 +1100,16 @@ export default function SheetEditor({
         </div>
       ) : null}
 
-      {/* Text entry sheet (plan step 4): tap-to-type at the anchor. */}
-      {textAnchor ? (
-        <div className="keypad-sheet-mount" data-testid="text-entry">
-          <div className="text-entry" role="dialog" aria-modal="true" aria-label={STRINGS.tool.textNote}>
-            <label className="visually-hidden" htmlFor="text-note-input">
-              {STRINGS.tool.textNote}
-            </label>
-            <input
-              id="text-note-input"
-              className="text-entry-input"
-              autoFocus
-              value={textDraft}
-              onChange={(e) => setTextDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitText();
-                else if (e.key === 'Escape') cancelText();
-              }}
-            />
-            <div className="text-entry-actions">
-              <button type="button" className="btn btn-secondary hit-slop" onClick={cancelText}>
-                {STRINGS.editor.cancel}
-              </button>
-              <button type="button" className="btn btn-primary hit-slop" onClick={commitText}>
-                {STRINGS.editor.done}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* D160: the text-box editor (a new note at the tap, or an existing note). */}
+      {textAnchor || editingNote ? (
+        <TextBoxSheet
+          key={textEditId ?? 'new'}
+          mode={editingNote ? 'edit' : 'new'}
+          initialText={editingNote?.geometry.kind === 'text' ? editingNote.geometry.text : ''}
+          initialStyle={editingNote ? textBoxStyleFor(editingNote) : styleForTool(useStyleByTool.getState(), 'text')}
+          onCommit={commitText}
+          onCancel={cancelText}
+        />
       ) : null}
 
       {/* Image-inset picker (slice 1.7). Positioning wrapper ONLY — the sheet supplies its

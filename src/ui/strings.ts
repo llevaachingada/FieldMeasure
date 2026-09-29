@@ -836,6 +836,22 @@ export const STRINGS = {
     backToProjects: 'Back to Projects',
     unexpected: 'Something went wrong. If it keeps happening, reload the app.',
   },
+  // ⚠ PROPOSED (C14) — not approved copy: D160, the text-box editor.
+  textBox: {
+    titleNew: 'Add text',
+    titleEdit: 'Edit text',
+    placeholder: 'Type your note',
+    size: 'Size',
+    smaller: 'Smaller text',
+    larger: 'Larger text',
+    bold: 'Bold',
+    textColor: 'Text color',
+    background: 'Background',
+    none: 'No background',
+    opacity: 'Background opacity',
+    preview: 'Preview',
+  },
+
   help: {
     // ⚠ PROPOSED (C14) — not approved copy (beyond both appendices): owner request (session 28),
     // the in-app Help pop-up. `docs/USER-GUIDE.md` mirrors these sections; change both together.

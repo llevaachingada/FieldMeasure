@@ -1,0 +1,175 @@
+/**
+ * `src/ui/textBoxSheet.css`: the text-box editor (D160). External stylesheet (CSP). Every control
+ * meets the 48 px touch floor.
+ */
+.text-box-sheet {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(920px, calc(100vw - 16px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  padding: 16px;
+  border-radius: 16px 16px 0 0;
+  background: rgba(14, 19, 24, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--g100);
+}
+
+.text-box-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.text-box-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.text-box-left {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.text-box-controls {
+  flex: 0 1 380px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.text-box-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--g100);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1.3;
+  resize: vertical;
+}
+.text-box-input:focus-visible {
+  outline: 2px solid var(--sel);
+  outline-offset: 2px;
+}
+
+/* A checkerboard behind the preview so the background opacity is visible. */
+.text-box-preview {
+  min-height: 72px;
+  padding: 12px;
+  border-radius: 10px;
+  overflow: hidden;
+  background-color: #6b7580;
+  background-image:
+    linear-gradient(45deg, #58616b 25%, transparent 25%),
+    linear-gradient(-45deg, #58616b 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #58616b 75%),
+    linear-gradient(-45deg, transparent 75%, #58616b 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+.text-box-preview svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.text-box-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.text-box-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--g300, #9aa6b2);
+}
+.text-box-row > .text-box-label {
+  margin: 0 6px 0 0;
+}
+
+.text-box-pct {
+  font-size: 13px;
+  text-transform: none;
+  color: var(--g100);
+}
+
+.text-box-icon,
+.text-box-chip,
+.text-box-swatch {
+  display: inline-grid;
+  place-items: center;
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--g100);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.text-box-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.text-box-icon[aria-pressed='true'],
+.text-box-chip[aria-pressed='true'],
+.text-box-swatch[aria-pressed='true'] {
+  border: 2px solid var(--sel);
+  background: rgba(255, 255, 255, 0.14);
+}
+.text-box-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.text-box-size {
+  min-width: 40px;
+  text-align: center;
+  font-size: 18px;
+}
+
+.text-box-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 48px);
+  gap: 6px;
+}
+.text-box-swatch {
+  padding: 0;
+}
+.text-box-swatch svg {
+  width: 32px;
+  height: 32px;
+}
+.text-box-swatch-none {
+  color: var(--g300, #9aa6b2);
+}
+
+.text-box-range {
+  width: 100%;
+  min-height: 48px;
+  accent-color: var(--hi);
+}
+.text-box-range:disabled {
+  opacity: 0.4;
+}

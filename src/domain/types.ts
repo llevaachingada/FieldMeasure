@@ -46,7 +46,7 @@ export type Geometry =
   | { kind: 'polygon'; points: Px[]; closed: boolean }
   | { kind: 'freehand'; points: Px[]; pressure: number[] }   // RAW input points, not the smoothed path
   | { kind: 'highlight'; points: Px[]; pressure: number[] }
-  | { kind: 'text'; at: Px; text: string; background: 'none' | 'pill' | 'solid' | 'auto' }
+  | { kind: 'text'; at: Px; text: string; background: 'none' | 'pill' | 'solid' | 'auto' | 'box' }
   | { kind: 'image'; x: number; y: number; width: number; height: number; rotation: number;
       crop?: { x: number; y: number; width: number; height: number };   // rect in ASSET px (§8.5)
       flipX?: boolean; flipY?: boolean; opacity?: number };

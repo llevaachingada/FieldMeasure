@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Konva from 'konva';
 import SheetEditor from '../src/ui/SheetEditor';
 import { useEditorStore, createInitialEditorState } from '../src/state/editorStore';
@@ -215,5 +215,47 @@ describe('slice 1.6 tool wiring through SheetEditor', () => {
     const note = await screen.findByRole('note');
     expect(note.textContent).toBe(STRINGS.erase.strokeNeedsPen);
     expect(screen.queryByRole('radio', { name: STRINGS.erase.modeStroke })).toBeNull();
+  });
+});
+
+describe('D160 — the text box: create with a look, tap it to edit, undo the edit', () => {
+  function glyphsOf(stage: Konva.Stage): Konva.Text {
+    return (markupChildren(stage)[0] as Konva.Group).findOne<Konva.Text>('Text')!;
+  }
+  function boxOf(stage: Konva.Stage): Konva.Rect | undefined {
+    return (markupChildren(stage)[0] as Konva.Group).findOne<Konva.Rect>('Rect');
+  }
+
+  it('creates a multi-line box in the chosen colours, reopens it on a tap, and undoes the edit', async () => {
+    useEditorStore.getState().setActiveTool('text');
+    const { host, stage, at } = await mountEditor();
+    tap(host, at);
+    const input = (await screen.findByRole('textbox')) as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Kitchen\nwall A' } });
+    fireEvent.click(screen.getByTestId('text-box-color-FFD400'));
+    fireEvent.click(screen.getByTestId('text-box-bg-123B6B'));
+    fireEvent.change(screen.getByLabelText(/Background opacity/), { target: { value: '50' } });
+    fireEvent.click(screen.getByTestId('text-box-done'));
+
+    await waitFor(() => expect(markupChildren(stage)).toHaveLength(1));
+    expect(glyphsOf(stage).text()).toBe('Kitchen\nwall A');
+    expect(glyphsOf(stage).fill()).toBe('#FFD400');
+    expect(boxOf(stage)!.fill()).toBe('rgba(18,59,107,0.5)');
+
+    // A tap ON the note (Text tool still active) opens it for editing, prefilled.
+    tap(host, { x: at.x + 5, y: at.y + 5 });
+    const again = (await screen.findByRole('textbox')) as HTMLTextAreaElement;
+    expect(again.value).toBe('Kitchen\nwall A');
+    fireEvent.change(again, { target: { value: 'Bath' } });
+    fireEvent.click(screen.getByTestId('text-box-bg-none'));
+    fireEvent.click(screen.getByTestId('text-box-done'));
+    await waitFor(() => expect(glyphsOf(stage).text()).toBe('Bath'));
+    expect(markupChildren(stage)).toHaveLength(1); // edited in place, not a second note
+    expect(boxOf(stage)).toBeUndefined();
+
+    // One undo step restores the words AND the look.
+    editorSession()?.undo();
+    await waitFor(() => expect(glyphsOf(stage).text()).toBe('Kitchen\nwall A'));
+    expect(boxOf(stage)!.fill()).toBe('rgba(18,59,107,0.5)');
   });
 });

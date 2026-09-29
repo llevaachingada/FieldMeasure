@@ -106,7 +106,8 @@ export interface EditorControllerDeps {
     setSheetTitle: Setter<string>;
     setStatus: Setter<EditorStatus>;
     setTextAnchor: Setter<Px | null>;
-    setTextDraft: Setter<string>;
+    /** D160: the text note open in the text-box editor, or null. */
+    setTextEditId: Setter<string | null>;
     setZoomPercent: Setter<number>;
     setInputKind: Setter<string | null>;
   };
@@ -162,7 +163,7 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
   const {
     setAngleSheet, setExportSheetId, setExportSheets, setInsetPickerOpen, setKeypadRequest,
     setPinnedToolbar, setPlacement, setPolygon, setReadOnly, setReplacePrompt, setSceneTick,
-    setSheetCount, setSheetTitle, setStatus, setTextAnchor, setTextDraft, setZoomPercent,
+    setSheetCount, setSheetTitle, setStatus, setTextAnchor, setTextEditId, setZoomPercent,
     setInputKind,
   } = deps.set;
   let alive = true;
@@ -456,9 +457,13 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
     scene: toolScene,
     history,
     onRequestEntry: (at) => {
+      setTextEditId(null);
       setTextAnchor(at);
-      setTextDraft('');
       markupPending(true);
+    },
+    onRequestEdit: (id) => {
+      setTextAnchor(null);
+      setTextEditId(id);
     },
     onSnapshot: markupPending,
     labels: { add: STRINGS.toasts.actionAddText, delete: STRINGS.select.delete },

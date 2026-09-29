@@ -142,7 +142,8 @@ const APPLICABILITY: Record<ToolId, Applicability> = {
   polygon: only({ strokeColor: true, strokeWidthMu: true, lineStyle: true, fillColor: true, fillAlpha: true }),
   freehand: only({ strokeColor: true, strokeWidthMu: true }),
   highlight: only({ strokeColor: true, strokeWidthMu: true, fillAlpha: true }),
-  text: only({ strokeColor: true, fontSizeMu: true, bold: true }),
+  // D160: a text box also has a background colour and its opacity.
+  text: only({ strokeColor: true, fontSizeMu: true, bold: true, fillColor: true, fillAlpha: true }),
   // D133: the inset row was `only({})` — see tests/typeToolMap.test.ts's own note that
   // this is where a real inset control set gets added, deliberately, with a DECISIONS
   // entry. `renderInset.ts` now consumes exactly these three.
@@ -299,7 +300,10 @@ export type StyleByToolStore = StyleByToolState & StyleByToolActions;
  * both ends; every other tool starts from `DEFAULT_STYLE`.
  */
 export function toolDefaultStyle(tool: ToolId): AnnotationStyle {
-  return tool === 'dimension' ? { ...DEFAULT_STYLE, arrowheads: 'both' } : { ...DEFAULT_STYLE };
+  if (tool === 'dimension') return { ...DEFAULT_STYLE, arrowheads: 'both' };
+  // D160: a new text box starts as white text on a dark box at 85% (the old auto pill's look).
+  if (tool === 'text') return { ...DEFAULT_STYLE, strokeColor: '#FFFFFF', fillColor: '#0B0E12', fillAlpha: 0.85 };
+  return { ...DEFAULT_STYLE };
 }
 
 function defaultRecord(): Record<ToolId, AnnotationStyle> {

@@ -19,7 +19,19 @@ import { screenFontSize } from '@/editor/EditorCanvas';
 /** §8.5: the auto-contrast sample region is 48×48. */
 export const TEXT_BG_SAMPLE_PX = 48;
 
-export type TextBackground = 'none' | 'pill' | 'solid' | 'auto';
+/**
+ * D160 `box`: the text-box note. Text in `style.strokeColor`; a box in `style.fillColor` at
+ * `style.fillAlpha` opacity, or no box when `fillColor` is null. The older modes stay readable.
+ */
+export type TextBackground = 'none' | 'pill' | 'solid' | 'auto' | 'box';
+
+/** `#rrggbb` + alpha → `rgba()`. Anything unparseable is returned as-is (opaque). */
+export function withAlpha(hex: string, alpha: number): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return hex;
+  const a = Math.min(1, Math.max(0, alpha));
+  return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${a})`;
+}
 
 export interface TextContrast {
   /** Background fill for the note box (null = transparent). */
@@ -69,7 +81,12 @@ export function buildTextGroup(input: TextRenderInput): Konva.Group {
   // Choose the treatment. 'auto' needs the caller's sample; the default without one is
   // the dark pill (readable on the mat and most field photos).
   let treatment: TextContrast;
-  if (input.background === 'none') treatment = { background: null, text: input.style.strokeColor };
+  if (input.background === 'box')
+    treatment = {
+      background: input.style.fillColor ? withAlpha(input.style.fillColor, input.style.fillAlpha) : null,
+      text: input.style.strokeColor,
+    };
+  else if (input.background === 'none') treatment = { background: null, text: input.style.strokeColor };
   else if (input.background === 'solid') treatment = { background: input.style.strokeColor, text: '#FFFFFF' };
   else if (input.background === 'pill')
     treatment = { background: 'rgba(11,14,18,0.85)', text: '#FFFFFF' };
@@ -84,6 +101,7 @@ export function buildTextGroup(input: TextRenderInput): Konva.Group {
     fontFamily: 'Inter',
     fontStyle: input.style.bold ? '700' : '400',
     fill: treatment.text,
+    lineHeight: 1.2,
     listening: false,
   });
   glyphs.setAttr('fontSizeMu', input.style.fontSizeMu);

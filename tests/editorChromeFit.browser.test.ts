@@ -200,7 +200,7 @@ const EXPECTED_SECTIONS: Record<TargetTool, string[]> = {
   select: ['Presets'],
   dimension: ['Color', 'Width', 'Arrowheads', 'Precision', 'Recent', 'Presets'],
   rect: ['Color', 'Width', 'Fill', 'Transparency', 'Line style', 'Recent', 'Presets'],
-  text: ['Color', 'Size', 'Recent', 'Presets'],
+  text: ['Color', 'Fill', 'Transparency', 'Size', 'Recent', 'Presets'], // D160: + Fill, Transparency
 };
 
 /** Both of the owner's sizes. Neither may clip and neither may scroll. */

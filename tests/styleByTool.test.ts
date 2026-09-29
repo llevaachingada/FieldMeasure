@@ -64,13 +64,19 @@ describe('styleByTool — per-tool memory (§7.4 #6)', () => {
     expect(styleForTool(useStyleByTool.getState(), 'rect')).toEqual(style({ strokeColor: '#000000' }));
   });
 
-  it('resetToolStyle returns exactly DEFAULT_STYLE for that tool only', () => {
+  it('resetToolStyle returns exactly the tool default for that tool only', () => {
     const { setToolStyle, resetToolStyle } = useStyleByTool.getState();
     setToolStyle('text', { bold: true, fontSizeMu: 30 });
     setToolStyle('line', { strokeColor: '#FFFFFF' });
     resetToolStyle('text');
     const state = useStyleByTool.getState();
-    expect(styleForTool(state, 'text')).toEqual(DEFAULT_STYLE);
+    // D160: the text default is white text on a dark box at 85% (the old auto pill's look).
+    expect(styleForTool(state, 'text')).toEqual({
+      ...DEFAULT_STYLE,
+      strokeColor: '#FFFFFF',
+      fillColor: '#0B0E12',
+      fillAlpha: 0.85,
+    });
     expect(styleForTool(state, 'line').strokeColor).toBe('#FFFFFF');
   });
 });
@@ -175,12 +181,13 @@ describe('applicableFor — the §7.2 table over STYLE_KEYS', () => {
     });
   });
 
-  it('Text exposes Color, Size, Bold only', () => {
+  // D160: a text box also has a background colour and its opacity.
+  it('Text exposes Color, Size, Bold, Fill, Transparency only', () => {
     expect(applicableFor('text')).toEqual({
       strokeColor: true,
       strokeWidthMu: false,
-      fillColor: false,
-      fillAlpha: false,
+      fillColor: true,
+      fillAlpha: true,
       lineStyle: false,
       arrowheads: false,
       fontSizeMu: true,
