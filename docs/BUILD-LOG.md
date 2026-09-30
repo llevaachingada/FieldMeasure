@@ -2058,3 +2058,8 @@ Gates: tsc 0 | vitest 1691/1691 | build 0 | clickthru 20/20.
 
 The clickthru camera step («Use photo» never appears) failed intermittently twice this session. Each time a re-run
 passed 20/20. Owed: find the flake in the harness's fake camera.
+
+### Session 29 (continued): D165, the loupe zooms a third less
+
+Owner request. Pen magnification 3.5× → 2.35× and touch 4× → 2.7×; window sizes are unchanged, so the source region
+is derived and larger (touch 50 → 74.07 px). `tests/loupe.test.ts` expects the new numbers. vitest 1691/1691.

@@ -3857,3 +3857,4 @@ the user picks «Allow on every visit» (Chrome/Edge 122+), which installing the
 - **D164:** the dimension label size and bold are set in the style panel's Size section. It has − / + steppers and
   S / M / L quick sizes (`src/ui/textSize.ts`, shared with the text-box editor). They set new dimensions (per tool)
   or the selection (one undo step).
+- **D165:** loupe magnification is a third less: pen 2.35× (was 3.5×) and touch 2.7× (was 4×).

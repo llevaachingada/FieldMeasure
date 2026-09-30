@@ -1,8 +1,8 @@
 /**
  * `src/editor/Loupe.ts` — the magnifier (build spec §8.4; UI §8.1; touch model §2.1).
  *
- * **Two loupes, one class.** The pen loupe (160 px by default, **3.5×**, 112 px offset)
- * and the touch loupe (200 px, **4×**, 136 px offset, contact disc, dashed leader,
+ * **Two loupes, one class.** The pen loupe (160 px by default, **2.35×** (D165; was 3.5×), 112 px offset)
+ * and the touch loupe (200 px, **2.7×** (D165; was 4×), 136 px offset, contact disc, dashed leader,
  * freeze-on-lift) differ only by the numbers in their spec.
  *
  * **The derived-number rule (D65 / §19.5, twice-bitten).** Never state a loupe's window,
@@ -11,10 +11,10 @@
  *
  *     sourcePx = diameterPx / magnification
  *
- *   Pen:    112 / 3.5 = 32 px          (arithmetic: 112 ÷ 3.5 = 32)
- *           160 / 3.5 = 45.714… px     (160 ÷ 3.5 = 45.7142857…)
- *           200 / 3.5 = 57.142… px     (200 ÷ 3.5 = 57.1428571…)
- *   Touch:  200 / 4   = 50 px          (200 ÷ 4   = 50)
+ *   Pen:    112 / 2.35 = 47.66 px      (D165; was 3.5×)
+ *           160 / 2.35 = 68.09 px
+ *           200 / 2.35 = 85.11 px
+ *   Touch:  200 / 2.7  = 74.07 px      (D165; was 4×)
  *
  * Fixing magnification (not the source size) keeps endpoint precision constant when the
  * user changes the loupe size, which is the point of the loupe.
@@ -39,7 +39,8 @@ import type { LoupeOverlay } from './snapTargets';
  * Specs
  * ------------------------------------------------------------------ */
 
-export const PEN_LOUPE_MAGNIFICATION = 3.5;
+// Owner (session 29, D165): a third less zoom. Were 3.5 (pen) and 4 (touch).
+export const PEN_LOUPE_MAGNIFICATION = 2.35;
 /** UI §8.1 setting values (Off / 112 / 160 / 200). */
 export const PEN_LOUPE_SIZES = [112, 160, 200] as const;
 export const PEN_LOUPE_OFFSET_PX = 112;
@@ -47,7 +48,7 @@ export const LOUPE_EDGE_PX = 24; // §8.4 "flips quadrant within 24 px of a view
 export const CROSSHAIR_GAP_PX = 12; // §8.4 crosshair centre gap
 
 export const TOUCH_LOUPE_DIAMETER_PX = 200;
-export const TOUCH_LOUPE_MAGNIFICATION = 4;
+export const TOUCH_LOUPE_MAGNIFICATION = 2.7;
 export const TOUCH_LOUPE_OFFSET_PX = 136;
 export const TOUCH_CONTACT_DISC_PX = 44;
 export const TOUCH_FREEZE_MS = 700;
