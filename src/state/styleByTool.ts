@@ -133,7 +133,8 @@ const APPLICABILITY: Record<ToolId, Applicability> = {
   // Select lists the selection's shared style and edits it in place (§7.4); it creates nothing.
   select: only({}),
   pan: only({}),
-  dimension: only({ strokeColor: true, strokeWidthMu: true, arrowheads: true }),
+  // D164: a dimension's label size and weight are set from the same Size section as text.
+  dimension: only({ strokeColor: true, strokeWidthMu: true, arrowheads: true, fontSizeMu: true, bold: true }),
   angle: only({ strokeColor: true, strokeWidthMu: true }),
   line: only({ strokeColor: true, strokeWidthMu: true, lineStyle: true, arrowheads: true }),
   arrow: only({ strokeColor: true, strokeWidthMu: true, lineStyle: true, arrowheads: true }),

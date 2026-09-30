@@ -106,7 +106,9 @@ describe('recents — dedupe, cap, newest-first, tool filter (§7.3)', () => {
 
   it('filters the raw list to styles valid for the current tool', () => {
     const { replaceToolStyle } = useStyleByTool.getState();
-    const textLook = style({ bold: true, fontSizeMu: 30 });
+    // D164: a dimension now has size + bold too, so the text look is made text-only by its
+    // background fill (which a dimension cannot express).
+    const textLook = style({ bold: true, fontSizeMu: 30, fillColor: '#123B6B' });
     const dimensionLook = style({ strokeColor: '#FFD400', arrowheads: 'both' });
     replaceToolStyle('text', textLook);
     replaceToolStyle('dimension', dimensionLook);
@@ -167,7 +169,8 @@ describe('applicableFor — the §7.2 table over STYLE_KEYS', () => {
   // STYLE_KEYS; every non-inset row is false on all three (only `inset` sets them).
   const NO_INSET_KEYS = { insetBorder: false, insetRadius: false, insetShadow: false };
 
-  it('Dimension exposes Color, Width, Arrowheads only', () => {
+  // D164: plus the label's Size and Bold.
+  it('Dimension exposes Color, Width, Arrowheads, Size, Bold only', () => {
     expect(applicableFor('dimension')).toEqual({
       strokeColor: true,
       strokeWidthMu: true,
@@ -175,8 +178,8 @@ describe('applicableFor — the §7.2 table over STYLE_KEYS', () => {
       fillAlpha: false,
       lineStyle: false,
       arrowheads: true,
-      fontSizeMu: false,
-      bold: false,
+      fontSizeMu: true,
+      bold: true,
       ...NO_INSET_KEYS,
     });
   });

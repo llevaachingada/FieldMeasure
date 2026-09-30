@@ -3854,3 +3854,6 @@ the user picks «Allow on every visit» (Chrome/Edge 122+), which installing the
   Before this, a created note could never be moved.
 - **D163:** after a folder re-pick, cached project folder handles are re-resolved (`projectsRootGeneration`). Autosave
   «Retry» re-asks the folder grant inside the tap. A sheet switch re-resolves the folder.
+- **D164:** the dimension label size and bold are set in the style panel's Size section. It has − / + steppers and
+  S / M / L quick sizes (`src/ui/textSize.ts`, shared with the text-box editor). They set new dimensions (per tool)
+  or the selection (one undo step).

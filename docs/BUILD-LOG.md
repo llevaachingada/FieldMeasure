@@ -2040,3 +2040,21 @@ Owner report: re-authorizing the folder kept breaking, and saves did not land. *
 
 The new test in `projectSession.test.ts` fails without the fix (the save lands in the old folder).
 Gates: tsc 0 | vitest 1690/1690 | build 0. Clickthru stalled on this run and was not re-run.
+
+### Session 29 (continued): D164, dimension label size in the left style panel
+
+Owner request: a clean way to resize dimension text from the left toolbar.
+- **Applicability:** the Dimension tool now applies to `fontSizeMu` and `bold`, so the existing Size section appears
+  for dimensions and for selected dimensions. A selection edit is one coalesced undo step, like width and colour.
+  New dimensions take the size through `scene.dimensionStyle`.
+- **Controls:** the Size section (text and dimensions) gained − / + steppers and S / M / L quick sizes (14 / 18 / 28)
+  above the slider. They sit in 3-column, 48 px rows that fit the 176 px dock.
+- **Shared steps:** `src/ui/textSize.ts` holds the steps and sizes used by both the panel and the text-box editor.
+- **Test changes:** `styleByTool` expects dimensions to have size and bold, and its recents test uses a fill so the
+  text look stays text-only. `editorChromeFit` expects the Dimension panel to include Size. There is a new
+  `stylePanel` test.
+
+Gates: tsc 0 | vitest 1691/1691 | build 0 | clickthru 20/20.
+
+The clickthru camera step («Use photo» never appears) failed intermittently twice this session. Each time a re-run
+passed 20/20. Owed: find the flake in the harness's fake camera.

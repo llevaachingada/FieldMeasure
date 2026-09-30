@@ -1012,3 +1012,21 @@
   flex-shrink: 0;
   min-width: 48px;
 }
+
+/* D164: the Size steppers and S/M/L quick sizes, as tidy 3-column rows that fit the 176 px dock
+   at the 48 px touch floor. The − and + sit at the ends; the quick sizes fill one row. */
+.style-panel-size-row {
+  display: grid;
+  grid-template-columns: repeat(3, 48px);
+  justify-content: space-between;
+  gap: 6px;
+}
+.style-panel-size-row > [data-testid='style-size-plus'] {
+  grid-column: 3;
+}
+.style-panel-size-chip {
+  min-width: 48px;
+  width: 48px;
+  padding: 0;
+  font-weight: 700;
+}
