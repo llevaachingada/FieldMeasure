@@ -1,6 +1,8 @@
 name: Deploy to GitHub Pages
 
-# Builds the app under the /FieldMeasure/ sub-path (FM_BASE, D34) and publishes dist/.
+# Builds the app under the repo's own Pages path (FM_BASE, D34; D164 reads it from
+# configure-pages, so a renamed repo, a copy under another owner, or a custom domain
+# just works) and publishes dist/.
 # Repo settings needed once: Settings > Pages > Source = "GitHub Actions", and under
 # Settings > Environments > github-pages, allow the branch being deployed.
 on:
@@ -27,12 +29,14 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - id: pages
+        uses: actions/configure-pages@v5
       - name: Build for Pages
         run: npm run build
         env:
-          FM_BASE: /FieldMeasure/
+          # base_path is '/<repo>' for a project site, '' for a user site or a custom domain.
+          FM_BASE: ${{ steps.pages.outputs.base_path }}/
           FM_BUILD_ID: ${{ github.ref_name }}+${{ github.sha }}
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

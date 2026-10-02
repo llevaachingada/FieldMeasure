@@ -2040,3 +2040,20 @@ Owner report: re-authorizing the folder kept breaking, and saves did not land. *
 
 The new test in `projectSession.test.ts` fails without the fix (the save lands in the old folder).
 Gates: tsc 0 | vitest 1690/1690 | build 0. Clickthru stalled on this run and was not re-run.
+
+## Session 30: D164, ownership handoff packet
+
+The owner asked for a handoff packet so their former employer can take the app from GitHub, deploy their own copy,
+put it on their Surfaces, and keep changing it with AI tools. **Found while designing it:** the manifest's
+`start_url`/`scope` were pinned to `/FieldMeasure/`, so a copy under any other path (a renamed repo, a custom domain,
+`vite preview` at `/`) would not install. **Fix (D164):** `id`/`start_url`/`scope` follow the build base, and
+`pages.yml` takes `FM_BASE` from `configure-pages`' `base_path`. Packet: `START-HERE.md`, `handoff/1-5`,
+`handoff/emails/` (IT push request, crew announcement). The install runbook's wrong lines were fixed, and README and
+AGENTS.md point at the packet.
+
+Gates (Linux container, Node 22; the repo targets Node 24): tsc 0 | build 0 (also with `FM_BASE=/Renamed/`) |
+playwright 8 passed / 5 skipped (with `PW_CHROMIUM_PATH`) | installability at `/` clean apart from `in-incognito`.
+vitest node+jsdom: 2 failures in `projectSession.test.ts` (R5 close ordering, D163). They **fail identically on the
+pre-change tree** in this container, so they are not from this change. They passed 1690/1690 on the owner's Windows
+machine under Node 24; recheck on Node 24. The vitest browser project could not launch here (the container's Chromium
+1194 does not match Playwright 1.63's 1243), so CI is the gate for it. Clickthru was not run (no UI change).

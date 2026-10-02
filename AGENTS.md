@@ -9,6 +9,12 @@ multi-user.
 been through many adversarial review rounds — the count and the current state live in
 `docs/CONTINUITY.md`.
 
+**Ownership handoff (D164).** The project has been handed to new owners who direct agents but do
+not read code. `START-HERE.md` and `handoff/` are their guide. When they ask for a change, follow
+this file exactly as before (branch, gates, DECISIONS/BUILD-LOG/CONTINUITY entries, pull request)
+and explain the result in plain English: what changed, what to try on a Surface, what you could
+not test. Every push to `main` redeploys the live app to their crews.
+
 **Never trust this file for project state.** This file is the *contract* — the rules that do not
 change. State lives in two places: `docs/CONTINUITY.md` (the live snapshot) and the last entry of
 `docs/BUILD-LOG.md` (where the previous session stopped). Read both before your first decision, and

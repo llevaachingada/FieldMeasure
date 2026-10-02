@@ -3854,3 +3854,28 @@ the user picks «Allow on every visit» (Chrome/Edge 122+), which installing the
   Before this, a created note could never be moved.
 - **D163:** after a folder re-pick, cached project folder handles are re-resolved (`projectsRootGeneration`). Autosave
   «Retry» re-asks the folder grant inside the tap. A sheet switch re-resolves the folder.
+
+### D164 - ownership handoff: the app installs under any host path, and a handoff packet
+
+**Status: shipped (session 30).** The owner is giving the app to their former employer, who will run their own copy
+and change it with AI tools.
+
+- **The manifest followed a fixed path.** `start_url` and `scope` were pinned to `/FieldMeasure/` while `base` came
+  from `FM_BASE`. Any other host path (a renamed repo, a copy under another owner with a different name, a custom
+  domain, a root host, or `vite preview` at `/`) produced an app whose start URL sat outside the page's scope, so it
+  would not install. Now `id`, `start_url` and `scope` all equal the build base. For the existing
+  `/FieldMeasure/` deployment the values are unchanged, and `id` equals the old computed id (the start URL), so
+  installed apps keep their identity. Checked by building with `FM_BASE=/Renamed/` and `/`, and by Chromium's
+  `Page.getInstallabilityErrors` at `/` on `vite preview` (only `in-incognito`, from the test context).
+- **The Pages workflow reads the path from GitHub.** `pages.yml` runs `actions/configure-pages` before the build and
+  sets `FM_BASE` to `${base_path}/` (`/<repo>/` for a project site, `/` for a user site or a custom domain), so
+  a copy deploys correctly whatever the repository is called.
+- **The manifest description** no longer says "slice 0.1 scaffold". Newer Edge install dialogs can show it.
+- **The handoff packet:** `START-HERE.md` plus `handoff/1-5` and `handoff/emails/`. It is written for owners who direct
+  AI agents and do not read code. A copy is made with "Use this template" (the original repo must have Template
+  repository ticked) or the GitHub importer, and deployed with GitHub Pages (Source = GitHub Actions). Surfaces get
+  the app through the Edge `WebAppInstallForceList` policy or a manual install.
+- **Install runbook corrections:** `npm run dev` cannot render the app (D105), first run asks about handedness
+  before the folder, and the «moved» screen it described is still a stub (`src/data/originGuard.ts`). A changed
+  address shows first run again, and the fix is to pick the same folder.
+- `AGENTS.md` gained a short ownership-handoff paragraph. Its rules are unchanged.

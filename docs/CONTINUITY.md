@@ -3,7 +3,13 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-29 (session 29: owner requests D154-D161, GitHub Pages live)
+**Last updated:** 2026-10-02 (session 30: D164 ownership handoff packet)
+
+**Session 30 (D164): the app is being handed to the owner's former employer.** New owners start at
+[`START-HERE.md`](../START-HERE.md) (`handoff/1-5`, `handoff/emails/`). The manifest now follows the build base and
+`pages.yml` reads the base from `configure-pages`, so a copy under any repo name or host installs correctly.
+**`main` was 31 commits behind `beta-readiness-wave-2`.** The handoff assumes `main` carries the current app; merge
+before sending.
 
 **Session 29 (D154-D161), CURRENT HANDOFF: [`docs/handoff-session-29.md`](handoff-session-29.md).** The app is live
 at https://llevaachingada.github.io/FieldMeasure/ (`.github/workflows/pages.yml`; every push to `main` or

@@ -1,5 +1,8 @@
 # Field Measure
 
+> **New owners: read [`START-HERE.md`](START-HERE.md) first.** It covers getting your own copy live,
+> putting it on the Surfaces, and changing it safely with AI tools.
+
 A Windows-first web app (PWA) for **Microsoft Surface** tablets with a pen. Take a photo with the
 built-in camera, draw **feet-inch dimension lines** and rich markup on it, insert extra photos
 *within* the photo, and export a marked-up **PDF/PNG** to a local project folder. There is **no
@@ -134,4 +137,6 @@ See [`docs/preflight-handoff-v0.3-hardened.md`](docs/preflight-handoff-v0.3-hard
 
 ## License
 
-Private / internal. Not for distribution.
+There is no license file. The original author has given this code to its former employer to
+copy, deploy, change and rebrand freely. See [`START-HERE.md`](START-HERE.md). Third-party
+components keep their own licenses ([`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)).

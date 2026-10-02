@@ -38,6 +38,8 @@ A map of everything in this repository. Last updated **2026-09-25 (session 28: W
 | `docs/review-brief.md` | **The review brief** — the eight questions every review lane must answer, each with the real defect that put it there (proves-nothing tests, trivial gates, unfaithful DECISIONS claims, stale arithmetic, faked deferral, flattened invariants, unpinned boundaries, environment coupling). Hand it to every `@oracle`/adversarial lane. |
 | `docs/appendix-scaffold-files.md` | **Scaffold reference** — the pinned files slice 0.1 must produce (TS 5.x). |
 | `docs/install-runbook.md` | **Install runbook** — one page, non-developer, how a Surface gets the app. |
+| `START-HERE.md` | **Ownership handoff entry point** (D164) — for new owners: deploy your own copy, roll out, change with AI. |
+| `handoff/1-5`, `handoff/emails/` | **Handoff packet** (D164) — what you are getting, deploy, Surfaces rollout, AI change loop + prompts, troubleshooting, IT and crew emails. |
 | `docs/appendix-strings-gaps.md` | **Proposed copy for the gaps** — wording for the 26 implied-but-unquoted strings (PROPOSED, approve before shipping). |
 | `docs/gui-ux-readiness-and-design-handoff.md` | **Session-5 senior GUI/UX readiness report + design handoff** — architecture assessment, the Claude Design verdict, the pre-code tooling stack, contradiction register C1–C14, the pre-code decision package, and the touch workstream. |
 | `docs/touch-first-interaction-model.md` | **Session-5 touch-first interaction design** — one `PlacementController`, the 450 ms settle window, the touch loupe, the Offset Nudge Pad, the object-first drag predicate, tap precedence, the gesture budget, latency budgets and the required spec deltas. |
