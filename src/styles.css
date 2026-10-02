@@ -1371,15 +1371,6 @@ button.crumb:hover {
   background: rgba(47, 212, 224, 0.16);
 }
 
-.erase-pen-note {
-  max-width: 320px;
-  margin: 0;
-  padding: 8px 12px;
-  font-size: 14px;
-  line-height: 1.35;
-  color: var(--g100);
-}
-
 .angle-sheet,
 .text-entry {
   display: flex;

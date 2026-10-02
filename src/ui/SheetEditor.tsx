@@ -819,42 +819,38 @@ export default function SheetEditor({
           </div>
         ) : null}
 
-        {/* Erase panel (plan step 6 / touch model §4.1): under touch stroke-scope is
-            hidden and the pen-required note is shown. */}
-        {eraseAvailable ? (
+        {/* Erase panel (plan step 6 / touch model §4.1): its only content is the
+            Objects/Stroke mode switch. Under touch stroke-scope is unavailable (D167: the
+            crews use only the touchscreen), so the whole panel is omitted — rendering it
+            would leave an empty dark chip. */}
+        {eraseAvailable && strokeMode ? (
           <div className="erase-panel" role="group" aria-label={STRINGS.tool.erase}>
-            {strokeMode ? (
-              <div className="erase-modes" role="radiogroup" aria-label={STRINGS.tool.erase}>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={eraseMode === 'object'}
-                  className={eraseMode === 'object' ? 'is-active' : undefined}
-                  onClick={() => {
-                    setEraseMode('object');
-                    eraseRef.current?.setMode('object');
-                  }}
-                >
-                  {STRINGS.erase.modeObject}
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={eraseMode === 'stroke'}
-                  className={eraseMode === 'stroke' ? 'is-active' : undefined}
-                  onClick={() => {
-                    setEraseMode('stroke');
-                    eraseRef.current?.setMode('stroke');
-                  }}
-                >
-                  {STRINGS.erase.modeStroke}
-                </button>
-              </div>
-            ) : (
-              <p className="erase-pen-note" role="note">
-                {STRINGS.erase.strokeNeedsPen}
-              </p>
-            )}
+            <div className="erase-modes" role="radiogroup" aria-label={STRINGS.tool.erase}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={eraseMode === 'object'}
+                className={eraseMode === 'object' ? 'is-active' : undefined}
+                onClick={() => {
+                  setEraseMode('object');
+                  eraseRef.current?.setMode('object');
+                }}
+              >
+                {STRINGS.erase.modeObject}
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={eraseMode === 'stroke'}
+                className={eraseMode === 'stroke' ? 'is-active' : undefined}
+                onClick={() => {
+                  setEraseMode('stroke');
+                  eraseRef.current?.setMode('stroke');
+                }}
+              >
+                {STRINGS.erase.modeStroke}
+              </button>
+            </div>
           </div>
         ) : null}
 

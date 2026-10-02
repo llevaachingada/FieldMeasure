@@ -2,7 +2,7 @@
  * Settings (build spec P §20.5(b); implementation plan slice 0.3 step 5).
  *
  * A single scrolling column, max-width 720px, of labelled groups in this order:
- * Input (handedness · the five touch toggles · palm-rejection window) · Units
+ * Input (handedness · the four touch toggles · palm-rejection window) · Units
  * (unit system · unit format · per-project-precision note) · Display (theme ·
  * density) · Storage (projects folder · persistent storage · Trash…) · About
  * (build version + date · third-party notices).
@@ -307,7 +307,6 @@ export default function Settings({ onBack }: SettingsProps) {
     'fingerDraws',
     'magnifierOnTap',
     'glovedTouch',
-    'penOnly',
   ];
 
   return (
@@ -339,7 +338,6 @@ export default function Settings({ onBack }: SettingsProps) {
                 label={STRINGS.settings[key]}
                 checked={state[key]}
                 onToggle={() => void changeToggle(key)}
-                description={key === 'penOnly' ? STRINGS.settings.penOnlyHint : undefined}
               />
             ))}
             <div className="settings-row">

@@ -43,7 +43,7 @@ export type InputIntent = 'draw' | 'navigate' | 'ignore';
 export interface InputRouterOptions {
   palmWindowMs?: number;          // default 1200; refreshed by every pen event
   touchPlaces?: () => boolean;    // «Touch places and moves» — default ON
-  fingerDraws?: () => boolean;    // «Finger draws (freehand)» — default OFF
+  fingerDraws?: () => boolean;    // «Finger draws (freehand)»; the app default is ON (D167), this fallback stays off
 }
 const EDGE_REJECT_PX = 24;        // pen-free path (a): outer band a contact can never place from
 const PALM_BURST_COUNT = 3;       // pen-free path (b): contacts in a burst that read as a palm/heel

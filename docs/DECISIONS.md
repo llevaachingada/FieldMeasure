@@ -3896,8 +3896,23 @@ owner asked for pen-related material to be removed from the instructions and the
 - **Kept:** the input router's pen handling (pointerType routing, pressure, the barrel button). It is invisible,
   shared with the touch path, and covered by tests, and removing it would risk touch behaviour for no user benefit. An
   agent must not build pen-only features or wording (`AGENTS.md`).
-- Tests that asserted the removed setting or note were changed to match. Every other assertion in them is unchanged.
-  Exact list: the session-30 entry in `docs/CHANGELOG.md` and the pull request.
+- **«Finger draws» now defaults ON.** It was OFF under the pen-first design, and with it off, a finger drag with the
+  Freehand tool selected only panned (`gestureArbiter.ts`). On a touch-only fleet that left Freehand looking broken.
+  Anyone who set the toggle explicitly keeps their stored value. The palm risk with no pen (no palm window, archived
+  hardware row H1b) is now `docs/FIELD-TEST.md` check 6.
+- **The erase panel renders only when stroke mode is available.** Under touch, the removed note was its only
+  content, so dropping the note alone would have left an empty chip.
+- **Copy contract:** the three removed keys are struck through in `docs/appendix-strings.md` and marked «Removed
+  (D167)», keeping the line count so the `appendix-strings.md:<line>` citations in code stay valid. The string count
+  is now 220.
+- **Tests, only where they asserted the removed things:**
+  - `settings.test.tsx`: no «Pen only» switch (with a new assertion that none renders); «Finger draws» defaults ON,
+    and the persist test flips it ON → OFF.
+  - `markupTools.test.ts`: dropped the `penOnly: true` case; the `fingerDraws` cases stay.
+  - `markupTools.browser.test.ts`: the touch erase test asserts stroke mode is hidden and that no note renders.
+  - `shapeToolHold` / `sheetEditor` browser tests: dropped the `penOnly` field from their settings literals.
+
+  Every other assertion is unchanged.
 
 ### D168 - docs for the handoff: a small live set, the build-era docs archived
 

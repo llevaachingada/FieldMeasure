@@ -72,10 +72,6 @@ export const STRINGS = {
     fingerDraws: 'Finger draws (freehand)',
     magnifierOnTap: 'Magnifier when you tap',
     glovedTouch: 'Gloved touch (bigger touch targets)',
-    penOnly: 'Pen only',
-    // ⚠ PROPOSED (C14) — not approved copy (wording from appendix-strings.md
-    // `settings.penOnly` "Where it appears"; no guillemet string exists)
-    penOnlyHint: 'Limits finger gestures to two-finger pan/zoom',
 
     // ── ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §1) ────
     headingInput: 'Input',
@@ -659,8 +655,6 @@ export const STRINGS = {
   },
 
   erase: {
-    // APPROVED inventory (appendix-strings.md) — slice 1.6.
-    strokeNeedsPen: 'Splitting a stroke needs the pen. Touch can delete the whole stroke.',
     // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
     modeObject: 'Objects',
     modeStroke: 'Stroke',
@@ -682,11 +676,6 @@ export const STRINGS = {
     copyStyle: 'Copy style',
     pasteStyle: 'Paste style',
     noStyleCopied: 'Copy a style first',
-  },
-
-  touch: {
-    // APPROVED inventory (appendix-strings.md) — slice 1.6.
-    freehandPenBetter: 'Freehand is most precise with the pen.',
   },
 
   style: {
@@ -894,7 +883,7 @@ export const STRINGS = {
       markup: {
         heading: 'Mark up the photo',
         steps: {
-          s1: 'Annotate: freehand pen, highlighter and text notes.',
+          s1: 'Annotate: freehand drawing, highlighter and text notes.',
           s2: 'Mark: lines, arrows, rectangles, ellipses and shapes.',
           s3: 'Change color, line width and arrowheads in the style panel on the left before or after you draw.',
           s4: 'Use Select to move, rotate, lock or delete a mark. The Layers button (top bar) lists every mark.',

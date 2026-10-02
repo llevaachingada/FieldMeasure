@@ -102,7 +102,6 @@ export interface ToolSettings {
   glovedTouch: boolean;
   fingerDraws: boolean;
   touchPlaces: boolean;
-  penOnly: boolean;
 }
 
 export function labelContextFrom(settings: ToolSettings): LabelContext {

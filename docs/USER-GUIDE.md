@@ -40,7 +40,7 @@ app: tap **Help** at the top of any screen (Home, a project's sheets, or the pho
 
 ## 4. Mark up the photo
 
-1. **Annotate**: freehand pen, highlighter and text notes.
+1. **Annotate**: freehand drawing, highlighter and text notes.
 2. **Mark**: lines, arrows, rectangles, ellipses and shapes.
 3. Change color, line width and arrowheads in the style panel on the left before or after you draw.
 4. Use **Select** to move, rotate, lock or delete a mark. The **Layers** button (top bar) lists

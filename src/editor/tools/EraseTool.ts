@@ -9,8 +9,9 @@
  *     NEVER a polygon boolean (the spec is explicit; a boolean would lose pressure and
  *     produce an unaddressable fragment).
  *
- * **Stroke-scope is pen-only.** Under touch the stroke-mode control is hidden and the
- * panel shows `erase.strokeNeedsPen`. `effectiveEraseMode` encodes exactly that.
+ * **Stroke-scope is not offered under touch** (D167: the crews use only the touchscreen).
+ * Under touch the stroke-mode control is hidden, the whole erase panel is omitted, and no
+ * explanatory note is shown. `effectiveEraseMode` encodes exactly that.
  */
 import Konva from 'konva';
 import type { Annotation, Px } from '@/domain/types';
@@ -21,12 +22,12 @@ import { ERASE_PREVIEW_MS, type MarkupTool } from './toolTypes';
 
 export type EraseMode = 'object' | 'stroke';
 
-/** Object mode is the only mode a finger gets; stroke-scope needs the pen. */
+/** Object mode is the only mode a finger gets; stroke-scope is not offered under touch. */
 export function effectiveEraseMode(mode: EraseMode, pointerType: string): EraseMode {
   return pointerType === 'touch' ? 'object' : mode;
 }
 
-/** The stroke-mode control is hidden (and the note shown) under touch. */
+/** The stroke-mode control (and with it the whole erase panel) is hidden under touch. */
 export function strokeModeAvailable(pointerType: string): boolean {
   return pointerType !== 'touch';
 }

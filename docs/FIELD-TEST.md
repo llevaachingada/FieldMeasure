@@ -18,7 +18,7 @@ each check Pass or Fail and write down anything odd. A Fail goes to your AI tool
 | 7 | Type 12' 6 3/8" on the keypad. The label reads exactly that. | |
 | 8 | Drag a dimension end. It snaps to another mark's end, and the magnifier shows where you are. | |
 | 9 | Same as 6, wearing work gloves. 4 dimensions in under 90 seconds. | |
-| 10 | Draw, write a text box, erase, undo and redo. All of it behaves. | |
+| 10 | With the Freehand tool, draw with a finger while your palm rests on the glass. Only the finger draws. Then write a text box, erase, undo and redo. All of it behaves. | |
 | **Saving** | | |
 | 11 | Make an edit and tap **Projects** straight away. Reopen: the edit is there. Repeat 5 times. | |
 | 12 | Close the app completely and restart the Surface. Reopen: the projects are listed (or one tap on **Re-authorize** brings them back) and nothing is lost. | |

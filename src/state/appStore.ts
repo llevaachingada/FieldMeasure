@@ -76,7 +76,6 @@ export interface AppActions {
   setExportLocation: (value: ExportLocation) => void;
   setTouchPlaces: (value: boolean) => void;
   setFingerDraws: (value: boolean) => void;
-  setPenOnly: (value: boolean) => void;
   setMagnifierOnTap: (value: boolean) => void;
   setGlovedTouch: (value: boolean) => void;
   setInputToggle: (key: InputToggleKey, value: boolean) => void;
@@ -124,7 +123,6 @@ export const useAppStore = create<AppStore>((set) => ({
   setExportLocation: (exportLocation) => set({ exportLocation }),
   setTouchPlaces: (touchPlaces) => set({ touchPlaces }),
   setFingerDraws: (fingerDraws) => set({ fingerDraws }),
-  setPenOnly: (penOnly) => set({ penOnly }),
   setMagnifierOnTap: (magnifierOnTap) => set({ magnifierOnTap }),
   setGlovedTouch: (glovedTouch) => set({ glovedTouch }),
   setInputToggle: (key, value) => set({ [key]: value } as Pick<AppState, InputToggleKey>),
