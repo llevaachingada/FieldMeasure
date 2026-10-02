@@ -51,7 +51,7 @@ Install from your link on each Surface (section 1). Anyone who installed from my
 yours, pick **the same folder** on first run (every project is still there), then uninstall the
 old one from the Start menu.
 
-From then on, anything merged into your `main` branch updates the app by itself. Surfaces show
+From then on, anything merged into your `main` branch updates the app by itself once the automatic checks pass. Surfaces show
 **"Update ready"**, and tapping **Reload** applies it.
 
 ## 4. Change it with AI
@@ -76,7 +76,7 @@ it pass, update docs/DECISIONS.md, docs/CHANGELOG.md and docs/STATUS.md, then op
 request that explains in plain English what changed and what to try on a Surface.
 ```
 
-Then read the pull request and merge it. It's live in about 3 minutes. Try it on one Surface. If
+Then read the pull request and merge it. Once the automatic checks pass, it's live in about 5 minutes. Try it on one Surface. If
 it's wrong, open the merged pull request on GitHub and click **Revert**.
 
 **The rules:**
@@ -114,7 +114,7 @@ shortcut. Don't do real work on a `localhost` copy; it can't move to the real li
 | Home says **Folder permission expired** | Tap **Re-authorize** and choose **Allow on every visit**. |
 | First-run questions again, no projects | It was opened from a different link. Pick the same folder; everything comes back. |
 | Deploy fails at "configure-pages" | Settings → Pages → Source: **GitHub Actions**, then run it again. |
-| The **CI** check is red | CI is the tests, separate from deploying. Re-run once. If it's still red, ask the AI why, and don't let it disable a test. |
+| The **CI** check is red, and the app didn't update | The app only deploys after the tests (CI) pass, so broken code never reaches the crews. Open the run and click **Re-run jobs** once. If it's still red, ask the AI why, and don't let it disable a test. |
 | `npm` "is not recognized" or "scripts are disabled" | Install Node 24, then use Command Prompt (or type `npm.cmd`). |
 | A measurement or export looks wrong | Treat it as serious. Keep the project folder, screenshot it, and give both to the AI with the exact numbers typed. |
 

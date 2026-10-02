@@ -18,7 +18,10 @@ what's owed. It replaces the build-era `CONTINUITY.md` (now in [`archive/`](arch
   Settings).
 - **Safety:** autosave, atomic writes, trash, a folder re-authorize flow, and offline use after install.
 
-Input is **touch only** (D167). The code still accepts a pen, but nothing on screen mentions one.
+Input is **touch only** (D167). «Finger draws» is on by default. The code still accepts a pen, but
+nothing on screen mentions one.
+
+**Deploys:** a merge to `main` goes live only after CI passes on it (D168).
 
 ## Tests
 
@@ -31,20 +34,33 @@ Use **Node 24**. Node 22 fails two `projectSession` tests.
 
 ## Not yet done
 
+In priority order:
+
 1. **Field test.** No crew member has used it on a real job yet. Checklist:
    [`FIELD-TEST.md`](FIELD-TEST.md).
-2. **Make the three load-sensitive tests robust.** Never by skipping them.
-3. **Offset Nudge Pad:** on-screen fine-adjust arrows. Keyboard arrow nudging already works.
-4. **History panel:** browse older versions of a sheet. `writeHistorySnapshot` exists but nothing
+2. **Wire the file-version guard.** `src/domain/migrate.ts` refuses a project written by a *newer*
+   build, but the load path in `src/fs/projectStore.ts` never calls it (only tests do). Risk: if two
+   Surfaces on different versions share a project folder (Dropbox), the older app could re-save the
+   file and drop fields it doesn't know. This is in a high-stakes module, so it needs its own careful
+   change with tests. Until then, let every Surface update (tap **Reload**) before sharing projects.
+3. **Make the three load-sensitive tests robust.** Never by skipping them.
+4. **Offset Nudge Pad:** on-screen fine-adjust arrows. Keyboard arrow nudging already works.
+5. **History panel:** browse older versions of a sheet. `writeHistorySnapshot` exists but nothing
    calls it.
-5. **«Moved to a new address» screen:** `src/data/originGuard.ts` is still a stub. A changed web
-   address shows first run again, and picking the same folder recovers everything.
-6. **Proposed wording:** strings marked `⚠ PROPOSED` in `src/ui/strings.ts`
+6. **«Moved to a new address» screen:** never built. A changed web address shows first run again,
+   and picking the same folder recovers everything.
+7. **Two disabled controls:** Settings → «Third-party notices» (should open
+   `THIRD-PARTY-NOTICES.md`) and the export wizard's «Include sheet names». Build or remove them.
+8. **Five end-to-end tests marked `test.fixme`:** the power-loss simulations in
+   `tests/e2e/kill-switch.spec.ts` (4) and a touch reorder in `tests/e2e/layersReorderTouch.spec.ts`
+   (1). They need a decision, not deletion. Field-test checks 11-13 cover the same ground by hand.
+9. **Proposed wording:** strings marked `⚠ PROPOSED` in `src/ui/strings.ts`
    (see [`appendix-strings-gaps.md`](appendix-strings-gaps.md)) need the owner's sign-off.
-7. **Small open choices:**
-   - the side panel when different mark types are selected together;
-   - the left-handed tab order;
-   - whether the Dimension tool should grab an existing end directly;
-   - per-tool styles for shapes and ink;
-   - «Remember this destination» on export;
-   - arrowheads on the preview line.
+10. **Small open choices:**
+    - the side panel when different mark types are selected together;
+    - the left-handed tab order;
+    - whether the Dimension tool should grab an existing end directly;
+    - per-tool styles for shapes and ink;
+    - «Remember this destination» on export;
+    - arrowheads on the preview line;
+    - the eraser's Objects/Stroke switch shows until the first touch.

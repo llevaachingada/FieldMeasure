@@ -4,7 +4,7 @@
   "private": true,
   "description": "Field Measure: offline Surface app for photo dimensions and marked-up PDF/PNG export.",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN README.md",
   "engines": {
     "node": ">=24"
   },
