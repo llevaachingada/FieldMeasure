@@ -1,5 +1,5 @@
 // Units — §6.1 (strict parser + formatters) and §6.1.1 (keypad slot model) of
-// docs/preflight-handoff-v0.3-hardened.md. Copied verbatim; this module is the
+// docs/archive/preflight-handoff-v0.3-hardened.md. Copied verbatim; this module is the
 // highest-stakes one in the app (a bug here is a wrong measurement).
 //
 // Note (§6.1.1): the strict parser is the GUARDIAN and rejects `12 6`; the keypad

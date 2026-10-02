@@ -188,14 +188,8 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
   resizeObserver.observe(host);
 
   const router = createInputRouter({
-    touchPlaces: () => {
-      const s = useAppStore.getState();
-      return s.touchPlaces && !s.penOnly;
-    },
-    fingerDraws: () => {
-      const s = useAppStore.getState();
-      return s.fingerDraws && !s.penOnly;
-    },
+    touchPlaces: () => useAppStore.getState().touchPlaces,
+    fingerDraws: () => useAppStore.getState().fingerDraws,
   });
 
   // ---- the dimension flagship's live objects ----
@@ -361,7 +355,6 @@ function mount(host: HTMLDivElement, deps: EditorControllerDeps) {
       glovedTouch: s.glovedTouch,
       fingerDraws: s.fingerDraws,
       touchPlaces: s.touchPlaces,
-      penOnly: s.penOnly,
     };
   };
   const markupPending = (pending: boolean): void => {

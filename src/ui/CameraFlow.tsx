@@ -329,7 +329,7 @@ export const GRANT_PROMPT_TIMEOUT_MS = 60_000;
  *
  * Extracted so the mechanism is testable WITHOUT the camera flow: the first attempt to test it
  * end to end had to fight the capture's own async path under fake timers (and a queued mock
- * leaked into the next test), which is the trap `docs/review-brief.md` §8 names — a test that
+ * leaked into the next test), which is the trap `docs/archive/review-brief.md` §8 names — a test that
  * depends on an environment which cannot exercise the path. The DOM half (the stage label and
  * the photo staying on screen) is pinned with real timers instead.
  */

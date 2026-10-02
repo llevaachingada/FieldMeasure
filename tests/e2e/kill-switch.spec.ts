@@ -15,7 +15,7 @@
  *
  * HUMAN PROCEDURE for the [Surface] half of the gate (cannot be automated: it needs the real
  * app + Edge on a Surface, which lands with the project UI in later slices). Run it manually
- * against the target build and log the result in docs/HARDWARE-TEST-CHECKLIST.md:
+ * against the target build and log the result in docs/archive/HARDWARE-TEST-CHECKLIST.md:
  *   1. Create a project, add a sheet, draw a dimension, let the chip reach «Saved».
  *   2. Kill the power (or Task Manager → End task) while the chip reads «Saving…»:
  *      2a. during a markup.json write, 2b. during the first photo.jpg write, 2c. as a

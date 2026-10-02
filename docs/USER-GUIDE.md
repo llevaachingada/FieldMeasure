@@ -26,21 +26,20 @@ app: tap **Help** at the top of any screen (Home, a project's sheets, or the pho
 
 ## 3. Add dimensions
 
-1. In the tool bar on the right, tap **Dimension** (at the top, under **Measure**).
+1. In the tool bar at the side of the screen, tap **Dimension** (at the top, under **Measure**).
 2. Tap where the measurement starts, then tap where it ends. The keypad opens.
 3. Type the size (for example `12 FT 6 IN 3/8`) and tap the check mark.
 4. To move the numbers off the line, tap **Select**, tap the dimension, then drag its numbers.
 5. To fix an end, tap **Select**, tap the dimension, then drag one of its round end grips. The
-   end follows your finger (it is never hidden under it) and the magnifier shows it, with your
-   other dimensions and marks. It snaps to their ends and corners; a green ring means it snapped.
-6. **Text**: tap **Text**, then tap the photo to type. Choose size, bold, text color, background
-   color and background opacity in the box. To change a note, tap it again (or select it and tap
-   it a second time).
+   end follows your finger and the magnifier shows it. It snaps to the ends of other dimensions
+   and marks (a green ring).
+6. **Text**: tap **Text**, then tap the photo to type. Choose size, colors and background in the
+   box. To change a note, tap it again.
 7. **Undo** and **Redo** are at the bottom of the tool bar.
 
 ## 4. Mark up the photo
 
-1. **Annotate**: freehand pen, highlighter and text notes.
+1. **Annotate**: freehand drawing, highlighter and text notes.
 2. **Mark**: lines, arrows, rectangles, ellipses and shapes.
 3. Change color, line width and arrowheads in the style panel on the left before or after you draw.
 4. Use **Select** to move, rotate, lock or delete a mark. The **Layers** button (top bar) lists
@@ -53,7 +52,7 @@ app: tap **Help** at the top of any screen (Home, a project's sheets, or the pho
    on one page.
 2. By default, exports go into a dated folder inside the project (`exports\<date and time>`).
    **Settings > Export** can send them straight to the project folder instead.
-3. When the export finishes, tap **Copy folder path** and paste it into File Explorer, or tap
+3. When the export finishes, tap **Copy path** and paste it into File Explorer, or tap
    **Open** next to a file to view it.
 
 ## 6. Troubleshooting

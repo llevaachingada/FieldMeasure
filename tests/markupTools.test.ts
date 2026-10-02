@@ -150,10 +150,9 @@ describe('ink width (the CI counterpart of the [Surface — pen] gate)', () => {
     expect(pressureForSource('pen', 0)).toBe(0.5);
   });
 
-  it('finger freehand is gated behind the setting and penOnly', () => {
-    expect(isFingerInkAllowed({ fingerDraws: false, penOnly: false })).toBe(false);
-    expect(isFingerInkAllowed({ fingerDraws: true, penOnly: false })).toBe(true);
-    expect(isFingerInkAllowed({ fingerDraws: true, penOnly: true })).toBe(false);
+  it('finger freehand is gated behind the setting', () => {
+    expect(isFingerInkAllowed({ fingerDraws: false })).toBe(false);
+    expect(isFingerInkAllowed({ fingerDraws: true })).toBe(true);
   });
 
   it('strokeIsStraight accepts a straight sample and rejects a bent one', () => {

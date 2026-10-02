@@ -6,10 +6,10 @@
  * after the last edit; cache as `sheets/<n>/thumb.jpg` (written atomically, §5.3)."
  *
  * Split of responsibilities:
- *  - `decodeInWorker` runs `createImageBitmap` inside `decodeWorker.ts` (the module
- *    the slice-0.1 stub left behind — slice 1.3 replaces the body, not the URL
- *    convention). It resolves with the worker's `decodedIn` provenance marker so the
- *    "decode is actually off the main thread" gate is machine-checkable.
+ *  - `decodeInWorker` runs `createImageBitmap` inside `decodeWorker.ts` (a module
+ *    worker built from this module's URL). It resolves with the worker's `decodedIn`
+ *    provenance marker so the "decode is actually off the main thread" gate is
+ *    machine-checkable.
  *  - `renderThumbnail` draws the decoded bitmap on the MAIN thread into a 640×480
  *    offscreen canvas. Fit is **contain** on the `--mat` colour: a sheet thumbnail
  *    must show the whole photo, never crop it (the alternative, cover, hides exactly
@@ -19,8 +19,11 @@
  *    `projectStore.writeAtomic` (the ONLY disk writer, AGENTS #3) and tests supply a
  *    spy.
  *
- * Markup compositing is a no-op in 1.3 (no markup exists yet); `renderThumbnail`
- * takes an optional `drawMarkup` hook that slice 1.5+ will pass.
+ * This module draws the bare photo only: it writes the FIRST thumbnail of a sheet, at
+ * capture or import, before any markup exists. The photo + markup composite that
+ * replaces it after an edit is a snapshot of the editor's canvas layers taken in
+ * `src/editor/sheetThumb.ts` (D155). `renderThumbnail`'s optional `drawMarkup` hook is
+ * not passed by any caller.
  */
 
 /** 640×480 per §7.3. */

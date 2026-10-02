@@ -50,14 +50,18 @@ async function renderSettings(): Promise<void> {
 const switchFor = (label: string) => screen.getByRole('switch', { name: label });
 
 describe('Settings', () => {
-  it('renders the five input toggles with their documented defaults', async () => {
+  // D167 removed «Pen only»: the input toggles are touchPlaces, fingerDraws, magnifierOnTap,
+  // glovedTouch = 4 (was 5 with penOnly). Each is asserted by name below.
+  it('renders the four input toggles with their documented defaults', async () => {
     await renderSettings();
 
     expect(switchFor(STRINGS.settings.touchPlaces).getAttribute('aria-checked')).toBe('true');
-    expect(switchFor(STRINGS.settings.fingerDraws).getAttribute('aria-checked')).toBe('false');
+    // D167: «Finger draws» defaults ON: the crews have no pen, so Freehand must draw with a finger.
+    expect(switchFor(STRINGS.settings.fingerDraws).getAttribute('aria-checked')).toBe('true');
     expect(switchFor(STRINGS.settings.magnifierOnTap).getAttribute('aria-checked')).toBe('true');
     expect(switchFor(STRINGS.settings.glovedTouch).getAttribute('aria-checked')).toBe('false');
-    expect(switchFor(STRINGS.settings.penOnly).getAttribute('aria-checked')).toBe('false');
+    // D167: there is no «Pen only» switch any more.
+    expect(screen.queryByRole('switch', { name: /pen/i })).toBeNull();
   });
 
   it('persists handedness and reads it back on reload', async () => {
@@ -79,12 +83,13 @@ describe('Settings', () => {
     ).toBe('true');
   });
 
-  it('persists the five toggles and reads them back on reload', async () => {
+  it('persists the four toggles and reads them back on reload', async () => {
     const user = userEvent.setup();
     await renderSettings();
 
+    // Flip fingerDraws away from its D167 default (ON → OFF), so the reload proves persistence.
     await user.click(switchFor(STRINGS.settings.fingerDraws));
-    await waitFor(() => expect(idbStore.get('fm:settings:input:fingerDraws')).toBe(true));
+    await waitFor(() => expect(idbStore.get('fm:settings:input:fingerDraws')).toBe(false));
 
     await user.click(switchFor(STRINGS.settings.touchPlaces));
     await waitFor(() => expect(idbStore.get('fm:settings:input:touchPlaces')).toBe(false));
@@ -94,11 +99,10 @@ describe('Settings', () => {
     useAppStore.setState(createInitialAppState());
     await renderSettings();
 
-    expect(switchFor(STRINGS.settings.fingerDraws).getAttribute('aria-checked')).toBe('true');
+    expect(switchFor(STRINGS.settings.fingerDraws).getAttribute('aria-checked')).toBe('false');
     expect(switchFor(STRINGS.settings.touchPlaces).getAttribute('aria-checked')).toBe('false');
     expect(switchFor(STRINGS.settings.magnifierOnTap).getAttribute('aria-checked')).toBe('true');
     expect(switchFor(STRINGS.settings.glovedTouch).getAttribute('aria-checked')).toBe('false');
-    expect(switchFor(STRINGS.settings.penOnly).getAttribute('aria-checked')).toBe('false');
   });
 
   // ── Slice 1.10 — the Display → Theme control (UI §14.2) ────────────────────

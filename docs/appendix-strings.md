@@ -1,17 +1,17 @@
 # Appendix — UI strings inventory
 
-> Source: `docs/ui-spec-field-measure-v2-hardened.md` + `docs/preflight-handoff-v0.3-hardened.md`.
+> Source: `docs/archive/ui-spec-field-measure-v2-hardened.md` + `docs/archive/preflight-handoff-v0.3-hardened.md`.
 > The complete set of user-visible copy, verbatim, keyed for `src/ui/strings.ts`.
-> Count: 223 distinct strings. Generated 2026-09-21; revised for the touch-primary input model 2026-09-21.
+> Count: 220 distinct strings (223 − 3 removed under D167, touch-only crews: `settings.penOnly`, `touch.freehandPenBetter`, `erase.strokeNeedsPen`; their rows are struck through IN PLACE, not deleted, so the `appendix-strings.md:NNN` line references in `src/` and `tests/` stay valid). Generated 2026-09-21; revised for the touch-primary input model 2026-09-21.
 >
 > **Touch-primary revision (2026-09-21).** The app is switching from pen-first to **touch-primary**
-> (`docs/gui-ux-readiness-and-design-handoff.md` §13, `docs/touch-first-interaction-model.md`). Rows
+> (`docs/archive/gui-ux-readiness-and-design-handoff.md` §13, `docs/archive/touch-first-interaction-model.md`). Rows
 > whose `Source ref` reads **`TF §9`** are **proposed, not final** — the wording is the content owner's
 > (`TF §9`). They are keyed and listed so `src/ui/strings.ts` has somewhere to put them, but they must
 > **not** be treated as approved copy. Gap placeholders flagged **⚠ unapproved** are likewise keys only,
 > never wording to ship.
 >
-> **Refs.** `U §x:line` = `docs/ui-spec-field-measure-v2-hardened.md`; `P §x:line` = `docs/preflight-handoff-v0.3-hardened.md`; `TF §x` = `docs/touch-first-interaction-model.md` (proposed design, **not canonical**).
+> **Refs.** `U §x:line` = `docs/archive/ui-spec-field-measure-v2-hardened.md`; `P §x:line` = `docs/archive/preflight-handoff-v0.3-hardened.md`; `TF §x` = `docs/archive/touch-first-interaction-model.md` (proposed design, **not canonical**).
 > **Verbatim:** every `String` column is reproduced exactly as written between the guillemets — typos, punctuation, `…`, dash characters and inner whitespace preserved. No guillemets appear in the `String` column.
 > **Interpolation:** the `Interpolation` column lists the runtime-filled parts; a blank cell means the string is literal. Example strings keep their literal example text (e.g. `Sheet 04`, `Saved 2:14 PM`) with the varying parts described here.
 
@@ -292,15 +292,15 @@
 
 | Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
 |---|---|---|---|---|
-| settings.penOnly | Pen only | Settings → Input toggle: limits finger gestures to two-finger pan/zoom. **No longer the only input filter** — it sits alongside the four touch toggles below. **Default OFF** under touch-primary (was the default safety mode under pen-first) | U §14.7:795; TF §7.7 | |
+| ~~settings.penOnly~~ | ~~Pen only~~ | **Removed (D167, touch-only).** Was the Settings → Input toggle that limited finger gestures to two-finger pan/zoom (default OFF). The crews use only the touchscreen, so the setting, its hint and its state were removed end to end. | U §14.7:795; TF §7.7 | |
 | settings.touchPlaces | Touch places and moves | Settings → Input toggle — permits tap/tap and drag to place and move geometry. **Default ON** | TF §9; TF §0, §7.7; U §14.7:270 | |
-| settings.fingerDraws | Finger draws (freehand) | Settings → Input toggle — permits finger freehand ink (pressure→width off, width floor 8 mu, smoothing 60). **Default OFF** | TF §9; TF §0, §4.2, §7.7; U §14.7:270 | |
+| settings.fingerDraws | Finger draws (freehand) | Settings → Input toggle — permits finger freehand ink (pressure→width off, width floor 8 mu, smoothing 60). **Default ON** since D167 (touch-only; was OFF under pen-first) | TF §9; TF §0, §4.2, §7.7; U §14.7:270 | |
 | settings.magnifierOnTap | Magnifier when you tap | Settings → Input toggle — the touch loupe on placement (200px, 4×, contact disc). **Default ON** | TF §9; TF §2.1, §7.7; U §8.1:479 | |
 | settings.glovedTouch | Gloved touch (bigger touch targets) | Settings → Input toggle — hit slop +8px, snap acquire +4px, loupe offset +16px. **Default OFF** | TF §9; TF §7.6, §7.7; U §14.7:270 | |
 
 **Note.** `TF §9` strings in this section are **proposed, not final** (see the touch-primary revision
-note at the top of this file). `settings.penOnly` keeps its existing quoted string; only its scope and
-default context change.
+note at the top of this file). `settings.penOnly` was removed under D167 (struck-through row above);
+the four touch toggles are the whole Input toggle set.
 
 ## placement
 
@@ -331,20 +331,20 @@ two-finger pan in one line.
 | Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
 |---|---|---|---|---|
 | touch.drawnVsTyped | The value you type is the measurement. The line shows where you put it. | One-time hint, first touch dimension | TF §9 | |
-| touch.freehandPenBetter | Freehand is most precise with the pen. | One-time hint, first finger freehand | TF §9; U §7.2:425; U §8.4:563 | |
+| ~~touch.freehandPenBetter~~ | ~~Freehand is most precise with the pen.~~ | **Removed (D167, touch-only).** Was a one-time hint on first finger freehand; it was never rendered anywhere. | TF §9; U §7.2:425; U §8.4:563 | |
 
 **Note.** `TF §9` strings — **proposed, not final**. These are the two hand-off honesty lines
 (`TF §8` risks 1 and 7); `touch.drawnVsTyped` is the typed-measurement reframing from
-`docs/gui-ux-readiness-and-design-handoff.md` §13.7.
+`docs/archive/gui-ux-readiness-and-design-handoff.md` §13.7.
 
 ## erase
 
 | Proposed key | String (verbatim, no guillemets) | Where it appears (screen/component) | Source ref (file §/line) | Interpolation |
 |---|---|---|---|---|
-| erase.strokeNeedsPen | Splitting a stroke needs the pen. Touch can delete the whole stroke. | Erase panel note shown under touch (stroke mode hidden) | TF §9; TF §4.1 | |
+| ~~erase.strokeNeedsPen~~ | ~~Splitting a stroke needs the pen. Touch can delete the whole stroke.~~ | **Removed (D167, touch-only).** Was the erase-panel note shown under touch; under touch the stroke-mode control stays hidden and no note is shown. | TF §9; TF §4.1 | |
 
-**Note.** `TF §9` string — **proposed, not final**. Under touch, stroke-split erase is pen-only and the
-stroke-mode control is hidden; this note explains why.
+**Note.** `TF §9` string — **proposed, not final**. Under touch, stroke-split erase is not offered and the
+stroke-mode control is hidden; the note that explained why was removed under D167.
 
 ## errors
 
@@ -384,7 +384,7 @@ stroke-mode control is hidden; this note explains why.
 
 These places clearly require user-visible text but the specs provide no guillemet string. The builder would otherwise invent them. (Spec refs use the same `U`/`P` convention.)
 
-1. **Settings screen** — `P §20.5(b)` defines the whole screen (group headers `Input`, `Units`, `Display`, `Storage`, `About`; row labels and controls, `Change folder…`, persistent-storage state text, build version + date, `Third-party notices`) but gives no strings at all. Only `Pen only` is quoted (and that from `U §14.7`).
+1. **Settings screen** — `P §20.5(b)` defines the whole screen (group headers `Input`, `Units`, `Display`, `Storage`, `About`; row labels and controls, `Change folder…`, persistent-storage state text, build version + date, `Third-party notices`) but gives no strings at all. Only `Pen only` was quoted (and that from `U §14.7`); it has since been removed (D167).
    - **⚠ unapproved keys (C14):** `settings.headingInput`, `settings.headingUnits`, `settings.headingDisplay`, `settings.headingStorage`, `settings.headingAbout`, `settings.changeFolder`, `settings.storageProtected`, `settings.storageNotProtected`, `settings.buildVersion`, `settings.thirdPartyNotices` — plus the four touch toggles now quoted-by-proposal in `## settings` above (`TF §9`, default context added). Proposed wording lives in `docs/appendix-strings-gaps.md` §1 and is **not final copy**; the touch toggles need content-owner approval before shipping.
 2. **Theme options** — `U §14.2` (`Standard` / `Sunlight` / `Dim`) and **density options** `U §3.5` (`Field` / `Desk`) are backticked, not quoted.
 3. **Home sort control** — `U §11.1:659` names `Sort: Recent ▾` and the options `Recent` / `Name` / `Size` / `Needs attention`; none are quoted.
@@ -449,9 +449,9 @@ must be rewritten for touch-primary:
   final copy, pending content-owner approval):** `tips.dimension` = "Tap the first point, then the
   second, then type the measurement."; `tips.line` = "Tap the first point, then the second.";
   `tips.rectangle` = "Tap two opposite corners."; `tips.angle` = "Tap the vertex, then each end
-  point."; `tips.freehand` = "Draw with the pen — or turn on Finger draws." The gap-12 row in
+  point."; `tips.freehand` = "Draw with your finger." (D167: touch only; the old pen wording must not ship). The gap-12 row in
   `appendix-strings-gaps.md` must be reconciled by its owner.
 
 ## Summary
 
-**223 distinct strings** — 212 unique guillemet matches (single-line scan) − 9 non-copy exclusions + 3 wrap/missing-guillemet cases (`Make this a separate project`, `Highlighter always sits under other markup`, `Focus`) + 3 nested-guillemet outer strings the scan misses (`Added Sheet 05`, `Camera unavailable in this browser. Open Windows Camera or Import a photo instead.`, `No projects match riv`) **+ 14 touch-primary rows** (`editor.emptyHint` reworded; `placement.*` ×6, `select.touchHint`, `touch.*` ×2, `erase.strokeNeedsPen`, `settings.*` toggles ×4 — all `TF §9` **proposed, not final**). Gap keys flagged **⚠ unapproved** are not counted; they are placeholders, not strings. The `Interpolation` column documents the runtime-filled parts of otherwise-literal example strings.
+**220 distinct strings** — 212 unique guillemet matches (single-line scan) − 9 non-copy exclusions + 3 wrap/missing-guillemet cases (`Make this a separate project`, `Highlighter always sits under other markup`, `Focus`) + 3 nested-guillemet outer strings the scan misses (`Added Sheet 05`, `Camera unavailable in this browser. Open Windows Camera or Import a photo instead.`, `No projects match riv`) **+ 14 touch-primary rows** (`editor.emptyHint` reworded; `placement.*` ×6, `select.touchHint`, `touch.*` ×2, `erase.strokeNeedsPen`, `settings.*` toggles ×4 — all `TF §9` **proposed, not final**) = 212 − 9 + 3 + 3 + 14 = 223 as first generated, **− 3 removed under D167** (touch-only crews: `settings.penOnly`, `touch.freehandPenBetter`, `erase.strokeNeedsPen`, struck through in place above) = **220**. Of the touch-primary list, `touch.*` is now `touch.drawnVsTyped` only and `erase.strokeNeedsPen` is gone. Gap keys flagged **⚠ unapproved** are not counted; they are placeholders, not strings. The `Interpolation` column documents the runtime-filled parts of otherwise-literal example strings.

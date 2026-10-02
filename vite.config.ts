@@ -6,8 +6,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 /**
  * Origin-agnostic build (build spec §21.1 part 3).
  * `FM_BASE` is the only thing that changes when the app moves hosts: the deployed
- * base path is `process.env.FM_BASE ?? '/'`. The default production value is
- * `/FieldMeasure/` (GitHub Pages); dev/preview use `/`.
+ * base path is `process.env.FM_BASE ?? '/'`. The default (FM_BASE unset: local builds,
+ * `vite preview`) is `/`; the GitHub Pages workflow sets FM_BASE to the repo's own Pages
+ * path (`/FieldMeasure/` for this repo; D34, D166).
  *
  * §19.2 build id: stamped at build time and rendered in Settings, so a field bug
  * report can name the exact build it came from. `FM_BUILD_ID` is the CI override
@@ -33,7 +34,7 @@ export default defineConfig({
     react(),
     VitePWA({
       // §19.2 / D25: prompt on update — never autoUpdate. A reload mid-measurement
-      // is a data-risk; the update toast is slice 1.11.
+      // is a data-risk; `UpdateToast` (src/ui/UpdateToast.tsx) asks first.
       registerType: 'prompt',
       manifest: {
         name: 'Field Measure',

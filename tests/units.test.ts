@@ -1,6 +1,6 @@
 // tests/units.test.ts — §6.1 strict parser + formatters.
 // The accepts/rejects tables are carried forward verbatim from the spec's §6.1
-// test block (docs/preflight-handoff-v0.3-hardened.md lines ~1155–1311).
+// test block (docs/archive/preflight-handoff-v0.3-hardened.md lines ~1155–1311).
 import { describe, it, expect } from 'vitest';
 import {
   parseImperialToInches,

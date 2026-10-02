@@ -127,7 +127,7 @@ A green clickthru run **never promotes a `[Surface]` row**. Emulation cannot rep
 - the **14-day trash clock** and the **service-worker update lifecycle**;
 - **File System Access on a real disk** — the projects root and export destination are OPFS.
 
-Those rows live in `docs/HARDWARE-TEST-CHECKLIST.md` and still need a human on real hardware.
+Those rows live in `docs/archive/HARDWARE-TEST-CHECKLIST.md` and still need a human on real hardware.
 
 ---
 

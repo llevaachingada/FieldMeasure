@@ -5,8 +5,9 @@
  * here (the persistence queue is slice 1.2). Screens hydrate from the
  * `src/settings/*` helpers on mount and write back through those helpers.
  *
- * `ProjectSummary` is defined locally because the storage layer (slice 1.2) owns
- * the real scan; the Home shell renders placeholder data until then.
+ * `ProjectSummary` is defined locally because the storage layer owns the real scan
+ * (`scanProjects()` in `src/fs/projectStore.ts`, run by `ProjectList` on mount).
+ * `projects` here is only a fallback list for when the scan is not running.
  */
 import { create } from 'zustand';
 import type { Handedness } from '@/settings/handedness';
@@ -76,7 +77,6 @@ export interface AppActions {
   setExportLocation: (value: ExportLocation) => void;
   setTouchPlaces: (value: boolean) => void;
   setFingerDraws: (value: boolean) => void;
-  setPenOnly: (value: boolean) => void;
   setMagnifierOnTap: (value: boolean) => void;
   setGlovedTouch: (value: boolean) => void;
   setInputToggle: (key: InputToggleKey, value: boolean) => void;
@@ -124,7 +124,6 @@ export const useAppStore = create<AppStore>((set) => ({
   setExportLocation: (exportLocation) => set({ exportLocation }),
   setTouchPlaces: (touchPlaces) => set({ touchPlaces }),
   setFingerDraws: (fingerDraws) => set({ fingerDraws }),
-  setPenOnly: (penOnly) => set({ penOnly }),
   setMagnifierOnTap: (magnifierOnTap) => set({ magnifierOnTap }),
   setGlovedTouch: (glovedTouch) => set({ glovedTouch }),
   setInputToggle: (key, value) => set({ [key]: value } as Pick<AppState, InputToggleKey>),
