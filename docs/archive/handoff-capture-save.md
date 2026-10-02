@@ -1,8 +1,8 @@
 # Handoff — the capture save that hangs (owner-reported), and the deadlock behind it
 
-**Read in this order:** `AGENTS.md` (the contract) → `docs/CONTINUITY.md` (live state) →
-`docs/BUILD-RUNBOOK.md` (how to work) → **this file** → `docs/DECISIONS.md` **D119, D120, D121** (the three
-rounds of this issue) → the last entries of `docs/BUILD-LOG.md`.
+**Read in this order:** `AGENTS.md` (the contract) → `docs/archive/CONTINUITY.md` (live state) →
+`docs/archive/BUILD-RUNBOOK.md` (how to work) → **this file** → `docs/DECISIONS.md` **D119, D120, D121** (the three
+rounds of this issue) → the last entries of `docs/archive/BUILD-LOG.md`.
 
 Everything here was executed on this machine unless it says otherwise. Where something is *not* proven, it says
 so — that distinction is the whole point of this file.
@@ -225,7 +225,7 @@ like it did nothing.
 2. The owner's original **failure** case (if it recurs) has its message line captured and its cause fixed.
 3. `writeAtomic` has a bounded lock acquisition with an honest message (or a recorded reason it cannot).
 4. Two-tab arbitration verified on hardware, including that a stuck holder cannot silently block writes.
-5. The `[Surface]`/manual rows under slice 1.10 in `docs/HARDWARE-TEST-CHECKLIST.md` that touch this path are
+5. The `[Surface]`/manual rows under slice 1.10 in `docs/archive/HARDWARE-TEST-CHECKLIST.md` that touch this path are
    run, not faked.
 
 ---
@@ -244,7 +244,7 @@ like it did nothing.
   took the *lease's* name).
 - No new runtime dependency; no inline styles (CSP `style-src 'self'` + the e2e `[style]` count === 0); no
   react-konva.
-- Never fake a `[Surface]`/hardware result: log it in `docs/HARDWARE-TEST-CHECKLIST.md` and continue.
+- Never fake a `[Surface]`/hardware result: log it in `docs/archive/HARDWARE-TEST-CHECKLIST.md` and continue.
 
 ---
 

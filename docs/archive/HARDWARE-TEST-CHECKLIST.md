@@ -2,14 +2,14 @@
 
 Many acceptance gates cannot run on a development machine: palm rejection, pen pressure, sunlight
 legibility, power-loss mid-write, real camera resolution. Those gates are marked `[Surface]` in
-`docs/implementation-plan.md`.
+`docs/archive/implementation-plan.md`.
 
-**The app is touch-primary; the pen is an enhancement** (`docs/gui-ux-readiness-and-design-handoff.md`
-§13, `docs/touch-first-interaction-model.md`). A test device therefore needs a real Surface **with or
+**The app is touch-primary; the pen is an enhancement** (`docs/archive/gui-ux-readiness-and-design-handoff.md`
+§13, `docs/archive/touch-first-interaction-model.md`). A test device therefore needs a real Surface **with or
 without a pen**. Items labelled **pen-only** still require the pen but **must not block a v1
 touch-only build**; items labelled **touch-primary** must pass with the pen nowhere near the device.
 
-**Policy** (`docs/BUILD-RUNBOOK.md` §4): a `[Surface]` gate does **not** block the slice. It is
+**Policy** (`docs/archive/BUILD-RUNBOOK.md` §4): a `[Surface]` gate does **not** block the slice. It is
 copied here, the plan's checkbox is marked `[~]`, and the build continues. A gate that is not in
 this file did not happen.
 
@@ -57,7 +57,7 @@ Fill this in before the first run — several gates are device-specific.
 ## Deferred gates by slice
 
 > The building agent fills these in. Each entry is the gate text copied verbatim from
-> `docs/implementation-plan.md`, plus a result column.
+> `docs/archive/implementation-plan.md`, plus a result column.
 
 ### Slice 0.1 — Scaffold
 | Gate | Result |
@@ -205,7 +205,7 @@ These are the tests that only mean something on the finished app.
 | H8 | **50-photo project:** build one, then export at 2×. No tab crash. | |
 | H9 | **Pen pressure — pen-only, NOT a v1 touch blocker:** a hard stroke is visibly wider than a light one at the same style width. `pressure` is a pen-only signal (a parallel array filled from pen input — `IP:956–959`); it is unreachable from a finger, so a touch-only device is expected to skip this row. Mark **PENDING (pen-only)** rather than FAIL when no pen is present. | |
 | H10 | **Real camera resolution:** the capture toggle's label matches what the device actually delivers (C3). | |
-| H11 | **Install + airplane reload** from the pinned production origin, on a clean Surface, following `docs/install-runbook.md`. | |
+| H11 | **Install + airplane reload** from the pinned production origin, on a clean Surface, following `docs/INSTALL.md`. | |
 | H12 | **Export measured in Acrobat:** a 4-mu stroke and an 18-mu label measure identical physical sizes in PDFs exported at 1×, 2× and 3×; page size = imagePx × 0.75 pt. | |
 | H13 | **Barrel-button routing (pen-only):** confirm the pen barrel button arrives as `button === 2`, `buttons === 2`, and is not stolen by a Windows/Edge right-click or long-press gesture. The radial quick-menu is barrel-gated (`P §2.4:226`); if the button cannot be read, keep the documented degrade path (radial absent rather than broken) and reach the menu from the rail only. | PENDING — **emulated half green after D128:** the clickthru's step 17 (real CDP pen input, `buttons: 2`, freehand active) used to **draw** (`objects 2 → 3`); the router now treats any non-tip pen contact as `'ignore'` and the editor registers no contact, so a barrel press creates **no object, no ink and no pan**, with three router tests that fail against the pre-fix code. **Still `[Surface]`:** whether the real digitiser reports the barrel as `button === 2` (and the eraser end as `5`) at all, and that Windows/Edge does not steal the press as a right-click. |
 | H14 | **Pen hover semantics (pen-only):** confirm `pointerType === 'pen'` with `buttons === 0` fires `pointerover`/`pointermove` in range and that hover never triggers an action. Touch has no hover, so every hover affordance needs the touch equivalent in `TF §6.3` — verify both. | |

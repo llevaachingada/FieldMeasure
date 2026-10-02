@@ -1,9 +1,9 @@
 # Handoff — session 21 → the next orchestrator (to the beta)
 
-**Read in this order:** `AGENTS.md` (the contract) → `docs/CONTINUITY.md` (the live state) →
-`docs/BUILD-RUNBOOK.md` (how to work) → **this file** (where the last session left the ground) →
+**Read in this order:** `AGENTS.md` (the contract) → `docs/archive/CONTINUITY.md` (the live state) →
+`docs/archive/BUILD-RUNBOOK.md` (how to work) → **this file** (where the last session left the ground) →
 `docs/DECISIONS.md` **D100–D113** (why each of this session's choices was made).
-`docs/BUILD-LOG.md`'s last six entries are the record of what shipped.
+`docs/archive/BUILD-LOG.md`'s last six entries are the record of what shipped.
 
 ---
 
@@ -50,7 +50,7 @@ path additionally by an independent executed register (`D109`); the trash + grid
 - **No agent has ever driven the app end to end.** There is no camera and no folder picker in the agent
   environment, so only a human on real hardware has exercised capture → measure → export. The tests prove the
   units and the wiring they assert; they do not prove the loop.
-- Every **`[Surface]`** row (`docs/HARDWARE-TEST-CHECKLIST.md`): H8, H12, H19–H22, the Sunlight porch check,
+- Every **`[Surface]`** row (`docs/archive/HARDWARE-TEST-CHECKLIST.md`): H8, H12, H19–H22, the Sunlight porch check,
   the real touch reorder, the **service-worker update lifecycle**, and the **14-day trash clock**.
 - Real File System Access behaviour on a real disk (the fakes model it; `move()`, NTFS case rules and quota
   are the OS's).

@@ -3,7 +3,7 @@
 > **Status:** Pre-flight. No functional code exists yet. Reference code in Part 3 is a build anchor, not finished code — treat it as the required starting point and verify library versions/APIs when installing packages.
 > **Version:** 0.2 (September 21, 2026) — supersedes `field-measure-preflight.md` v0.1.
 > **Audience:** the AI builder. This document is written to be followed end-to-end with minimal judgment calls. Anything a builder might reasonably guess at is spelled out here.
-> **Companion:** `docs/ui-spec-field-measure.md` (detailed UI/UX). Where the two disagree, this document wins on architecture and data; the UI spec wins on visual presentation and interaction feel.
+> **Companion:** `docs/archive/ui-spec-field-measure.md` (detailed UI/UX). Where the two disagree, this document wins on architecture and data; the UI spec wins on visual presentation and interaction feel.
 
 ---
 
@@ -1071,7 +1071,7 @@ interface EditorState {
 
 ## 11. UI/UX specification
 
-> This section is the implementation-level summary. The full spec — `docs/ui-spec-field-measure.md` — is authoritative on visual tokens, exact pixel values, and interaction micro-detail. A builder must honor its "do not simplify" list (reproduced in §11.6). This section exists so the builder does not need to flip between files for the core layout and flows.
+> This section is the implementation-level summary. The full spec — `docs/archive/ui-spec-field-measure.md` — is authoritative on visual tokens, exact pixel values, and interaction micro-detail. A builder must honor its "do not simplify" list (reproduced in §11.6). This section exists so the builder does not need to flip between files for the core layout and flows.
 
 ### 11.1 Interaction principles (non-negotiable)
 
@@ -1376,4 +1376,4 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 
 ---
 
-*End of handoff. Build order in §13; data model in §3; reference code in §5–§9; UI authority in `docs/ui-spec-field-measure.md`; decisions in §16.*
+*End of handoff. Build order in §13; data model in §3; reference code in §5–§9; UI authority in `docs/archive/ui-spec-field-measure.md`; decisions in §16.*

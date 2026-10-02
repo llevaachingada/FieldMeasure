@@ -1,7 +1,7 @@
 # Handoff — Field Measure, for the next agent (session 23 → 24)
 
 Written 2026-09-22. `main == origin/main`, HEAD `1b18ec3`. Everything below is verified on that tree unless it
-says otherwise. **Read this, then read `docs/CONTINUITY.md`'s header — it is now the one-screen state.**
+says otherwise. **Read this, then read `docs/archive/CONTINUITY.md`'s header — it is now the one-screen state.**
 
 ---
 
@@ -12,10 +12,10 @@ lines on the photo, export a marked-up PDF/PNG into a folder you drag into Dropb
 sign-in, no cloud. It is **feature-complete for v1** and going to **beta**.
 
 **Read in this order:** `AGENTS.md` (the contract — non-negotiables, and it is *not* a status file) →
-`docs/CONTINUITY.md` (live state; its header is current) → `docs/BUILD-RUNBOOK.md` (how to work: the slice loop,
-the lane protocol §11, the gate policy) → `docs/clickthru-harness.md` (**how to actually look at the app**) →
+`docs/archive/CONTINUITY.md` (live state; its header is current) → `docs/archive/BUILD-RUNBOOK.md` (how to work: the slice loop,
+the lane protocol §11, the gate policy) → `docs/archive/clickthru-harness.md` (**how to actually look at the app**) →
 `docs/DECISIONS.md` **D115–D131** (this session: the grid wave, the beta wave, both a11y audits, the doc
-repair) → `docs/BUILD-LOG.md`'s last entry.
+repair) → `docs/archive/BUILD-LOG.md`'s last entry.
 
 **Gates right now:** `tsc` 0 · **100 files / 1409 tests** (node + jsdom + browser) · `build` 0 (26 precache,
 1525.57 KiB) · `playwright` 5 passed / 5 skipped · **`clickthru` 20 PASS / 0 FAIL / 0 UNREACHED**.
@@ -40,7 +40,7 @@ and it **never promotes a `[Surface]` row**.
 
 ### What this session changed (so you don't redo it)
 
-1. **The clickthru harness exists** (D123/D124; `docs/clickthru-harness.md`; a `clickthru` skill; an OMO
+1. **The clickthru harness exists** (D123/D124; `docs/archive/clickthru-harness.md`; a `clickthru` skill; an OMO
    orchestrator rule; four discoverability layers). One command: `npm.cmd run clickthru`. **D124 is important:**
    the harness needs a **fake folder picker + an `IDBObjectStore` sentinel shim**, because a page that loads
    with an **OPFS** handle under `fm:projects-root` **kills the renderer** — that also **corrects D81**: the
@@ -81,7 +81,7 @@ From `AGENTS.md` (non-negotiables) and this project's own scar tissue:
   arithmetic shown in `docs/DECISIONS.md`, then the test. This has happened repeatedly; each time the spec was
   wrong and the test was right to fail.
 - **Never fake a `[Surface]` result**, and never silently skip one. Log it in
-  `docs/HARDWARE-TEST-CHECKLIST.md` and continue.
+  `docs/archive/HARDWARE-TEST-CHECKLIST.md` and continue.
 - **Look at the app** (clickthru) after any wave that changes what the user sees.
 
 ### Environment quirks (this machine, Windows) — they cost a failed call each time
@@ -102,7 +102,7 @@ From `AGENTS.md` (non-negotiables) and this project's own scar tissue:
 
 ---
 
-## 3. The lane protocol (`docs/BUILD-RUNBOOK.md` §11) — read it before dispatching
+## 3. The lane protocol (`docs/archive/BUILD-RUNBOOK.md` §11) — read it before dispatching
 
 - **One writer per file per wave.** The contended set: `src/ui/strings.ts`, `src/styles.css`, `src/App.tsx`,
   `src/state/*`, `docs/**`. Two writers on one file is whole-file last-writer-wins **loss**.
@@ -121,7 +121,7 @@ From `AGENTS.md` (non-negotiables) and this project's own scar tissue:
 ## 4. What is owed, in beta order
 
 **P0 — before a tester touches it**
-1. **The hardware pass.** Every `[Surface]` row in `docs/HARDWARE-TEST-CHECKLIST.md` (palm with no pen, sunlight,
+1. **The hardware pass.** Every `[Surface]` row in `docs/archive/HARDWARE-TEST-CHECKLIST.md` (palm with no pen, sunlight,
    the 14-day trash clock, the service-worker update lifecycle, the real digitiser's barrel `button`, real FSA
    on NTFS/Dropbox). **No emulation promotes these**, and the project is "not beta-ready until every entry has
    been run on real hardware or has a logged, accepted deviation."
@@ -140,7 +140,7 @@ From `AGENTS.md` (non-negotiables) and this project's own scar tissue:
 4. **The History flyout.** `writeHistorySnapshot` (`src/fs/projectStore.ts`) still has **no caller**. Plan item 1
    (1.10) wants tap→History→whole-sheet snapshot restore. Entry points: the autosave chip area
    (`src/ui/AutosaveChip.tsx`), `persistQueue`'s cadence (`src/state/persistQueue.ts`, D52), and the snapshot
-   writer. Note `docs/BUILD-RUNBOOK.md`'s "small, honest steps" — a flyout that claims a restore it cannot do
+   writer. Note `docs/archive/BUILD-RUNBOOK.md`'s "small, honest steps" — a flyout that claims a restore it cannot do
    would be this project's signature bug.
 
 **P2 — polish with known shapes**
@@ -201,7 +201,7 @@ pre-fix source**, with the before/after numbers in the report.
    `test-results/clickthru/latest/contact-sheet.html`, and look at the 20 screenshots. You will know what the app
    is in two minutes, and you may see something no test asserts. *(Copy the folder aside if you plan to run the
    e2e gate — it wipes `test-results/`.)*
-2. **Then read** `docs/CONTINUITY.md`'s header + `docs/DECISIONS.md` D126–D131, and pick from §4 above.
+2. **Then read** `docs/archive/CONTINUITY.md`'s header + `docs/DECISIONS.md` D126–D131, and pick from §4 above.
 3. **Then choose your first lane** — and if the provider balance allows lanes, split by file (`BUILD-RUNBOOK`
    §11). The **Offset Nudge Pad** and the **History flyout** are both single-lane, single-file-cluster jobs;
    the **doc-layer decision test** (§4.9) is a small, high-leverage one that makes the *next* handoff safer.

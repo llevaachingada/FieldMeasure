@@ -20,7 +20,7 @@ docs). Two external facts were independently re-verified at source.
 ## 1. Executive summary
 
 **There is no application code.** The repo is 16 documents plus installed dependencies
-(**verified**, `docs/BUILD-LOG.md:6`, `docs/CONTINUITY.md:15`). This is a design *ahead of* a build,
+(**verified**, `docs/archive/BUILD-LOG.md:6`, `docs/archive/CONTINUITY.md:15`). This is a design *ahead of* a build,
 not a retrofit — which changes the question from "should we reverse-engineer a design from running
 software" to "which design decisions are inputs to the build".
 
@@ -58,7 +58,7 @@ a small part of it needs to *precede* it.
 it will be used **primarily by touch**. That inverts a documented non-negotiable (`U §1.1`), contradicts
 **22** statements across the docs, and — critically — leaves **no palm rejection whatsoever** in a
 pen-less session, because the input router only starts its suppression clock on a pen event. The full
-analysis is **§13**, the implementable design is `docs/touch-first-interaction-model.md`, and the
+analysis is **§13**, the implementable design is `docs/archive/touch-first-interaction-model.md`, and the
 consolidated verdict is **§14**. It is cheapest to correct **now**, before slice 0.1, because it lands
 almost entirely inside slice 0.2 (the input spike), which has not started.
 
@@ -68,12 +68,12 @@ almost entirely inside slice 0.2 (the input spike), which has not started.
 
 | Fact | Evidence |
 |---|---|
-| No `src/`, no `tests/`, no build output | `docs/BUILD-LOG.md:54`; `docs/CONTINUITY.md:15` |
-| `package.json` is still npm-init defaults (`"type": "commonjs"`, placeholder test script) | `docs/CONTINUITY.md:273` |
-| Dependencies installed and pinned; four spec/UI-review rounds complete | `docs/CONTINUITY.md:18–21` |
-| `docs/BUILD-RUNBOOK.md` cited by four docs but **now exists (created session 4b, after this review)** | `docs/CONTINUITY.md:280` |
-| `THIRD-PARTY-NOTICES.md` required by spec, **now exists (created session 4b, after this review)** | `docs/CONTINUITY.md:279` |
-| Next action: slice 0.0, then 0.1 | `docs/CONTINUITY.md:241` |
+| No `src/`, no `tests/`, no build output | `docs/archive/BUILD-LOG.md:54`; `docs/archive/CONTINUITY.md:15` |
+| `package.json` is still npm-init defaults (`"type": "commonjs"`, placeholder test script) | `docs/archive/CONTINUITY.md:273` |
+| Dependencies installed and pinned; four spec/UI-review rounds complete | `docs/archive/CONTINUITY.md:18–21` |
+| `docs/archive/BUILD-RUNBOOK.md` cited by four docs but **now exists (created session 4b, after this review)** | `docs/archive/CONTINUITY.md:280` |
+| `THIRD-PARTY-NOTICES.md` required by spec, **now exists (created session 4b, after this review)** | `docs/archive/CONTINUITY.md:279` |
+| Next action: slice 0.0, then 0.1 | `docs/archive/CONTINUITY.md:241` |
 
 ---
 
@@ -240,7 +240,7 @@ written against jsdom *passes without testing hit testing*. Anything touching a 
 run in a **real browser** (Vitest browser mode + Playwright, or Playwright directly). jsdom is fine
 for stores and pure logic only. Konva's official testing guidance says this explicitly.
 
-**What cannot be validated off-device, ever** (log to `docs/HARDWARE-TEST-CHECKLIST.md`, never fake):
+**What cannot be validated off-device, ever** (log to `docs/archive/HARDWARE-TEST-CHECKLIST.md`, never fake):
 OS/driver palm rejection as delivered (the ~12 cm angled dead-zone and its handedness setting);
 true end-to-end ink latency; real coalescing rate and `getPredictedEvents()`; pen hover semantics;
 barrel/eraser routing; pressure curve and light-touch registration; `twist` (Surface Slim Pen 2 has
@@ -453,7 +453,7 @@ Each item is a `docs/DECISIONS.md` entry (plus a doc fix where noted). None requ
 code. Time-boxed; discard freely.
 
 **Inputs to attach:**
-1. `docs/ui-spec-field-measure-v2-hardened.md` §3 (tokens), §5 (layout), §6 (rail), §7 (style panel),
+1. `docs/archive/ui-spec-field-measure-v2-hardened.md` §3 (tokens), §5 (layout), §6 (rail), §7 (style panel),
    §8.1 (keypad), §10.1 (capture), §11 (Home/Project), §12 (export).
 2. `docs/appendix-strings.md` (real copy — do not let the tool invent words).
 3. The exact canvas sizes: landscape 1440×960 (DPI-scaled 200%, i.e. CSS 1440×960), portrait
@@ -582,8 +582,8 @@ select-by-tap (8px slop, 12px on thin strokes), the 56px invisible handle target
 pinch/rotate, double-tap fit↔100%, long-press reorder/options, and the whole 44/48/56/64/72px target
 ladder.
 
-**Superseded docs — do NOT edit when the change lands:** `docs/ui-spec-field-measure.md` and
-`docs/preflight-handoff.md` carry the same pen-first text but are superseded by the `-hardened` files.
+**Superseded docs — do NOT edit when the change lands:** `docs/archive/ui-spec-field-measure.md` and
+`docs/archive/preflight-handoff.md` carry the same pen-first text but are superseded by the `-hardened` files.
 
 ### 13.5 Sequencing — this change is cheapest right now
 
@@ -598,7 +598,7 @@ slice 0.1, so 0.2's spike validates the touch-first router rather than the pen-f
 
 ### 13.6 Touch-first interaction model — **DESIGNED**
 
-Full design: **`docs/touch-first-interaction-model.md`** (a standalone, implementable proposal).
+Full design: **`docs/archive/touch-first-interaction-model.md`** (a standalone, implementable proposal).
 Its load-bearing decisions:
 
 | Decision | Resolution |
@@ -684,7 +684,7 @@ generous undo; no two handle hit-regions overlapping; and a published statement 
 
 `lib-1` (Claude Design), `lib-2` (tooling), `lib-3` (Konva/pen), `lib-4` (touch), `des-1` (spec gaps),
 `des-2` (field-app teardown), `des-3` (touch design), `exp-1` (docs audit) — all returned and are
-reconciled into this document and `docs/touch-first-interaction-model.md`.
+reconciled into this document and `docs/archive/touch-first-interaction-model.md`.
 
 ---
 
@@ -752,9 +752,9 @@ guard · SW update toast · Second-tab notice (**verified**, `U §5–§13`, `P 
 
 ## Appendix C — Sources
 
-- **Internal (verified in-repo):** `docs/preflight-handoff-v0.3-hardened.md`,
-  `docs/ui-spec-field-measure-v2-hardened.md`, `docs/implementation-plan.md`,
-  `docs/CONTINUITY.md`, `docs/BUILD-LOG.md`, `docs/INDEX.md`, `docs/appendix-strings.md`.
+- **Internal (verified in-repo):** `docs/archive/preflight-handoff-v0.3-hardened.md`,
+  `docs/archive/ui-spec-field-measure-v2-hardened.md`, `docs/archive/implementation-plan.md`,
+  `docs/archive/CONTINUITY.md`, `docs/archive/BUILD-LOG.md`, `docs/archive/INDEX.md`, `docs/appendix-strings.md`.
 - **External (independently re-verified):** TechCrunch 2026-04-17; VentureBeat; Adweek;
   `anthropic.com/news/claude-design-anthropic-labs`; `support.claude.com` (get started with Claude
   Design); `claude.com/blog/claude-design-stays-on-brand-for-daily-work`.

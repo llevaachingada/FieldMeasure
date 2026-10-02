@@ -1,10 +1,10 @@
 # Field Measure — Pre-flight Handoff & Implementation Plan (v0.3, hardened)
 
 > **Status:** Pre-flight. No functional code exists yet. Reference code in Part 3+ is a build anchor, not finished code — treat it as the required starting point and verify library versions/APIs when installing packages.
-> **Version:** 0.3-hardened **+ session-4 addendum + touch-primary addendum** (September 21, 2026). Round 4 was a senior adversarial + architecture review; it re-executed this document's reference code and found defects that survived rounds 1–3. Code-level fixes are marked `SESSION-4 FIX (…)` in place; new normative rules are in **§5.8** and **§19**; the full finding register is `docs/review-session-4-hardening.md`. **Round 5 (touch-primary inversion):** touch is now the **primary input** and the pen enhances it — see the round-5 changelog below and §8.2. Base version note follows.
+> **Version:** 0.3-hardened **+ session-4 addendum + touch-primary addendum** (September 21, 2026). Round 4 was a senior adversarial + architecture review; it re-executed this document's reference code and found defects that survived rounds 1–3. Code-level fixes are marked `SESSION-4 FIX (…)` in place; new normative rules are in **§5.8** and **§19**; the full finding register is `docs/archive/review-session-4-hardening.md`. **Round 5 (touch-primary inversion):** touch is now the **primary input** and the pen enhances it — see the round-5 changelog below and §8.2. Base version note follows.
 > **Version (base):** 0.3-hardened (September 21, 2026) — supersedes `preflight-handoff.md` v0.2. This revision incorporates the adversarial review (findings B1–B5, M1–M13, Minors 1–6): corrected export math, keypad input model, inset child coordinate space, FSA API corrections, validation fixes, and build-plan gaps. Library versions verified against the npm registry on 2026-09-21.
 > **Audience:** the AI builder. This document is written to be followed end-to-end with zero judgment calls. Anything a builder might reasonably guess at is spelled out here.
-> **Companion:** `docs/ui-spec-field-measure-v2-hardened.md` (detailed UI/UX, v2 hardened). Where the two disagree, this document wins on architecture and data; the UI spec wins on visual presentation and interaction feel. **The v1 scope table (§2.4) wins over both** — it is the single authority on what is built in v1.
+> **Companion:** `docs/archive/ui-spec-field-measure-v2-hardened.md` (detailed UI/UX, v2 hardened). Where the two disagree, this document wins on architecture and data; the UI spec wins on visual presentation and interaction feel. **The v1 scope table (§2.4) wins over both** — it is the single authority on what is built in v1.
 
 ---
 
@@ -63,8 +63,8 @@ measurement or data loss · 🟠 build-blocking · 🟡 correctness/clarity.
 
 **Locked product decisions (2026-09-21): touch is the primary input; the pen enhances it.** The
 pre-flight input model assumed a pen was always present, so much of §8/§13 was written pen-first.
-Every row below is a consequence. Design sources: `docs/gui-ux-readiness-and-design-handoff.md`
-§13 (C1–C14, touch workstream) and `docs/touch-first-interaction-model.md` (§9 lists the deltas).
+Every row below is a consequence. Design sources: `docs/archive/gui-ux-readiness-and-design-handoff.md`
+§13 (C1–C14, touch workstream) and `docs/archive/touch-first-interaction-model.md` (§9 lists the deltas).
 Severity: 🔴 wrong measurement/artifact · 🟠 build-blocking · 🟡 correctness/clarity.
 
 | # | Change | Finding |
@@ -1490,7 +1490,7 @@ Text nodes do NOT go through `Konva.pixelRatio` for their raster; text sharpness
 > **The inversion (2026-09-21):** touch is the **primary input**; the pen enhances it. Touch can both
 > **place/move** geometry and **navigate**. The pen always draws, and additionally supplies pressure,
 > tilt and hover. This section is the single authority on input routing — §8.4/§8.5, §11.1 and slice
-> 0.2 all defer to it. Design source: `docs/touch-first-interaction-model.md` §1, §3, §9.
+> 0.2 all defer to it. Design source: `docs/archive/touch-first-interaction-model.md` §1, §3, §9.
 
 **Intent is decided once, at `pointerdown`, and is sticky for the whole contact.** A contact
 classified `'draw'` stays `'draw'` for its lifetime (a drifting placement never silently becomes a
@@ -1932,7 +1932,7 @@ interface EditorState {
 
 ## 11. UI/UX specification
 
-> This section is the implementation-level summary. The full spec — `docs/ui-spec-field-measure-v2-hardened.md` — is authoritative on visual tokens, exact pixel values, and interaction micro-detail. A builder must honor its "do not simplify" list (reproduced in §11.6). This section exists so the builder does not need to flip between files for the core layout and flows. **§2.4's scope table overrides both documents.**
+> This section is the implementation-level summary. The full spec — `docs/archive/ui-spec-field-measure-v2-hardened.md` — is authoritative on visual tokens, exact pixel values, and interaction micro-detail. A builder must honor its "do not simplify" list (reproduced in §11.6). This section exists so the builder does not need to flip between files for the core layout and flows. **§2.4's scope table overrides both documents.**
 
 ### 11.1 Interaction principles (non-negotiable)
 
@@ -2106,11 +2106,11 @@ All user-visible text lives in `src/ui/strings.ts`.
 Build in order. Do not start a slice until the previous slice's "done when" passes **on a real Surface** (touch-first; a pen is used where a gate names one). Mouse-only testing misses the important bugs. Each slice leaves the app usable.
 
 > **Session 4 added three slices** — 0.0, 1.4.5 and 1.11 — for work that previously had no
-> owner. `docs/implementation-plan.md` is the authority on order and done-ness and carries
+> owner. `docs/archive/implementation-plan.md` is the authority on order and done-ness and carries
 > their full build packets.
 
 ### 0.0 — Origin, distribution and install decision (NEW — session 4, §19.1)
-**Files:** `docs/DECISIONS.md` (the decision), `docs/install-runbook.md` (how a Surface gets the app).
+**Files:** `docs/DECISIONS.md` (the decision), `docs/INSTALL.md` (how a Surface gets the app).
 **Do:** choose and **pin** the origin (scheme + host + port + base path) the app will be served from for the life of the product, per §19.1; confirm it is a secure context; write the per-device install runbook (open the URL in Edge → Install → verify airplane-mode reload → pick the projects folder). Nothing is built here — this is a half-day decision that costs a migration if it is made after slice 0.1.
 **Done when:** the origin is written in DECISIONS with its rationale, `start_url` and `scope` for slice 0.1's manifest are stated verbatim, and the runbook exists.
 
@@ -2187,13 +2187,13 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 **Done when:** reboot Surface → nothing lost; corrupted file → recovered; trash restore works; sunlight mode legible outdoors.
 
 ### 1.11 — Release, update and install (NEW — session 4, §19.2)
-**Files:** `vite.config.ts` (SW registration options), `src/ui/UpdateToast.tsx`, `src/ui/Settings.tsx` (build version), `docs/install-runbook.md`.
+**Files:** `vite.config.ts` (SW registration options), `src/ui/UpdateToast.tsx`, `src/ui/Settings.tsx` (build version), `docs/INSTALL.md`.
 **Do:** `registerType: 'prompt'`; the non-modal `«Update ready — reload when you're done»` toast, **suppressed while a write is in flight, while `pendingOp !== 'none'`, or while the keypad is open**; `Reload` flushes the persistence queue and waits for it to settle before `skipWaiting`; build version + date in Settings.
 **Done when:** a new build deployed to the pinned origin surfaces the toast on the next online launch, never mid-measurement; `Reload` loses no edits (verify with an unflushed queue); airplane-mode reload still works after the update; Settings names the running build.
 
 ### 2.0 — Field pilot
 **Do:** 2 people, 1 week, real jobs, side-by-side with their current tool. Write go/no-go + top 5 fixes.
-**Done when:** (session 4 — every other slice had a gate and this one did not) both pilots completed **at least 3 real jobs each** entirely in this app; **zero wrong-measurement reports** and **zero data-loss reports** across the week; the go/no-go decision and the top-5 fix list are written into `docs/CONTINUITY.md`. A wrong-measurement or data-loss report is an automatic no-go regardless of how the rest of the week went.
+**Done when:** (session 4 — every other slice had a gate and this one did not) both pilots completed **at least 3 real jobs each** entirely in this app; **zero wrong-measurement reports** and **zero data-loss reports** across the week; the go/no-go decision and the top-5 fix list are written into `docs/archive/CONTINUITY.md`. A wrong-measurement or data-loss report is an automatic no-go regardless of how the rest of the week went.
 
 **Explicitly out of v1 (deferred/cut — see §2.4 for the full table):** vector-overlay PDF, reference calibration (+`≈`, Keep-measured, calibrated rulers, polygon area), dimensions-summary page, laser meters, metric keypad UI (seam kept), auto-enhance, import-project-bundle, duplicate project, rotate-sheet, sheet templates, rulers/guides.
 
@@ -2303,7 +2303,7 @@ Build in order. Do not start a slice until the previous slice's "done when" pass
 
 ---
 
-*End of handoff. Scope authority in §2.4; build order in §13; data model in §3; reference code in §5–§9; UI authority in `docs/ui-spec-field-measure-v2-hardened.md`; decisions in §16.*
+*End of handoff. Scope authority in §2.4; build order in §13; data model in §3; reference code in §5–§9; UI authority in `docs/archive/ui-spec-field-measure-v2-hardened.md`; decisions in §16.*
 
 ---
 
@@ -2317,7 +2317,7 @@ in §5, §6.1, §6.1.1 and §8.5 and are marked `SESSION-4 FIX (…)` there. The
 new **normative rules** that had no home in the document.
 
 The full finding register, with evidence and severity, is
-`docs/review-session-4-hardening.md`.
+`docs/archive/review-session-4-hardening.md`.
 
 ### 19.1 Origin and distribution (was completely unspecified — highest-leverage gap)
 

@@ -2,9 +2,9 @@
 
 **Status:** design proposal (2026-09-21). **Not canonical.** Requires build-spec / UI-spec edits plus
 `DECISIONS.md` entries before it is binding (see §9).
-**Derived from:** `docs/ui-spec-field-measure-v2-hardened.md`, `docs/preflight-handoff-v0.3-hardened.md`,
+**Derived from:** `docs/archive/ui-spec-field-measure-v2-hardened.md`, `docs/archive/preflight-handoff-v0.3-hardened.md`,
 the touch-primacy audit, and the product decisions F1/F2 recorded in
-`docs/gui-ux-readiness-and-design-handoff.md` §13.3.
+`docs/archive/gui-ux-readiness-and-design-handoff.md` §13.3.
 **Scope:** adds a **gesture grammar, feedback layer, and state machine**. It does not move the rail,
 restyle the style panel, or change any Site Slate token.
 

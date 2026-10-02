@@ -63,7 +63,7 @@ Both capture and import feed the same atomic write path; nothing is missing at t
   the high-res path when the web camera caps out.
 
 What remains is **on-glass verification** (real camera + real FSA folder), already tracked as `[Surface]`
-rows in `docs/HARDWARE-TEST-CHECKLIST.md` — never faked, never silently skipped.
+rows in `docs/archive/HARDWARE-TEST-CHECKLIST.md` — never faked, never silently skipped.
 
 ---
 

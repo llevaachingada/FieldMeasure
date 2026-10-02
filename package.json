@@ -1,6 +1,6 @@
 {
   "name": "field-measure",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Field Measure: offline Surface app for photo dimensions and marked-up PDF/PNG export.",
   "type": "module",

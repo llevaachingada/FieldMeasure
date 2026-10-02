@@ -1,14 +1,14 @@
 # Handoff (session 13) — next implementer: finish it — 1.9 → 1.10 → 1.11 → 2.0
 
 **Written:** 2026-09-22 (session 13) · **Branch:** `main` · **Tree:** clean · **HEAD:** `32d17c6`
-(pushed; `origin/main == HEAD`) · **Previous handoff:** `docs/handoff-session-12.md` — **its §0.1
+(pushed; `origin/main == HEAD`) · **Previous handoff:** `docs/archive/handoff-session-12.md` — **its §0.1
 document table is still valid and still the authority on the orienting document set; read it there rather
 than repeating it here.**
 
 This file is **prescriptive**. Where it names a file and a line, the line was verified this session; if the
 code disagrees, **the code wins** — fix this file and note it in `docs/DECISIONS.md`.
 
-`docs/CONTINUITY.md` is the live snapshot; the last `docs/BUILD-LOG.md` entries are the per-slice record.
+`docs/archive/CONTINUITY.md` is the live snapshot; the last `docs/archive/BUILD-LOG.md` entries are the per-slice record.
 Where they disagree with this file, **they win**.
 
 > **The single most valuable thing you can do first is §1: run the independent review this session did
@@ -19,9 +19,9 @@ Where they disagree with this file, **they win**.
 
 # 0. Ground rules (inherited; only the deltas are repeated)
 
-1. **Read order:** `docs/CONTINUITY.md` → `docs/BUILD-LOG.md` (last 2 entries) → `AGENTS.md` →
-   `docs/BUILD-RUNBOOK.md` (**§11 is the parallel-lane protocol — follow it literally**) →
-   `docs/review-brief.md` → `docs/handoff-session-12.md` §0.1 → this file.
+1. **Read order:** `docs/archive/CONTINUITY.md` → `docs/archive/BUILD-LOG.md` (last 2 entries) → `AGENTS.md` →
+   `docs/archive/BUILD-RUNBOOK.md` (**§11 is the parallel-lane protocol — follow it literally**) →
+   `docs/archive/review-brief.md` → `docs/archive/handoff-session-12.md` §0.1 → this file.
 2. **One writer per file, per wave.** Two writers on one file is whole-file **loss**, not a merge
    conflict.
 3. **`docs/` are orchestrator-only.** Lanes report; you write the logs.
@@ -80,7 +80,7 @@ variant of that shape, caught only by the full gate.
 
 **Do this, in this order:**
 
-1. Give the reviewer **`docs/review-brief.md`** verbatim (its eight questions each exist because they
+1. Give the reviewer **`docs/archive/review-brief.md`** verbatim (its eight questions each exist because they
    caught a real defect).
 2. Scope it to the **session-13 batch**: the `selectTool.resize` / `editorShell` / `sheetEditor.dimension`
    / `render*` / `EditorCanvas` changes (F9/F3/F5/F6/F7), the whole **1.8** seam
@@ -103,7 +103,7 @@ variant of that shape, caught only by the full gate.
 
 # 2. Slice 1.9 — Export  ← **the next acceptance gate that matters**
 
-**Packet:** `docs/implementation-plan.md` **lines 1259–1425** (read it in full; the filename reference
+**Packet:** `docs/archive/implementation-plan.md` **lines 1259–1425** (read it in full; the filename reference
 implementation and its 29-row table live at 1273–1406 and are the most execution-hardened thing in the
 plan). **Spec refs:** §4.2 export rules, §9, §11.10, §13/1.9.
 
@@ -128,7 +128,7 @@ table), `src/export/renderStage.ts`, `src/export/pdf.ts`, `src/export/png.ts`,
 not let the export path call `applyScreenRules`.** If a physical measurement disagrees across M, the
 invariant is the spec and the code is wrong — re-check the three rows above first (packet's Rollback note).
 
-**Checkpoint C6 fires here** (`docs/CHECKPOINTS.md` line 103): the export memory ceiling on the target
+**Checkpoint C6 fires here** (`docs/archive/CHECKPOINTS.md` line 103): the export memory ceiling on the target
 device. Measure it, read the row (the plan has a computed budget, a hard guard, and a designed
 PDF-splitting remedy), record the number in **all three places** (DECISIONS + CHECKPOINTS + the BUILD-LOG
 `Checkpoints fired:` field), and remember a dev-machine number is **provisional**.
@@ -142,7 +142,7 @@ PDF-splitting remedy), record the number in **all three places** (DECISIONS + CH
 - `filenames.ts` is closed; nobody edits it.
 
 **Gate:** mostly `[Surface]` (real Acrobat measurement, 50-sheet 2× export on a Surface Go). Log those to
-`docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.9 and mark the plan's boxes `[~]`. The **machine** half you
+`docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 1.9 and mark the plan's boxes `[~]`. The **machine** half you
 must actually pass: the invariant's arithmetic at every M, the PNG pixel dimensions, the damaged-photo
 white-page path, the 3× refusal, the conflict-policy rows, and the a11y items (keyboard-operable wizard,
 announced steps, selectable result path, 48 px + 16 px slop).
@@ -151,7 +151,7 @@ announced steps, selectable result path, 48 px + 16 px slop).
 
 # 3. Slice 1.10 — Safety & polish
 
-**Packet:** `docs/implementation-plan.md` **lines 1427–1462**. **Spec refs:** §11.11, §11.12, §8.3.
+**Packet:** `docs/archive/implementation-plan.md` **lines 1427–1462**. **Spec refs:** §11.11, §11.12, §8.3.
 
 **The autosave chip is a carry-in, and it owns a real bug the queue currently hides.** Since 1.6 the
 `persistQueue` **parks and retries** writes when the project is **read-only** or a save **fails**; nothing
@@ -173,7 +173,7 @@ object tree, the themes, and a full keyboard-only pass of the core loop).
 
 # 4. Slice 1.11 — Release, update and install
 
-**Packet:** `docs/implementation-plan.md` **lines 1464–1517**. **Spec refs:** §19.1, §19.2, §13/1.11.
+**Packet:** `docs/archive/implementation-plan.md` **lines 1464–1517**. **Spec refs:** §19.1, §19.2, §13/1.11.
 
 The non-negotiables, in order of how badly they bite if ignored:
 1. **`registerType: 'prompt'` — never `autoUpdate`.** A reload mid-measurement is a data risk *and* a trust
@@ -184,7 +184,7 @@ The non-negotiables, in order of how badly they bite if ignored:
    reload. Never reload over an unflushed queue;** if the flush fails, keep the toast and *say so*.
 4. `__BUILD_ID__` in Settings (build version + date, injected via Vite `define`). A bug report that cannot
    name the build is not actionable.
-5. **Re-run `docs/install-runbook.md` on a clean Surface, start to finish, by someone who did not write
+5. **Re-run `docs/INSTALL.md` on a clean Surface, start to finish, by someone who did not write
    it** — and correct the runbook where reality disagrees.
 6. `THIRD-PARTY-NOTICES.md` still has `verify at scaffold (C1)` fields to confirm.
 
@@ -195,8 +195,8 @@ re-install from the runbook) — never `autoUpdate`. Record the choice.
 
 # 5. 2.0 — Field pilot (the only checkpoint that may end in "ask the human")
 
-**Packet:** `docs/implementation-plan.md` **lines 1519–1523**. 2 people, 1 week, real jobs, side-by-side
-with their current tool. Write **go/no-go + the top 5 fixes** into `docs/CONTINUITY.md`. This is **C7**, and
+**Packet:** `docs/archive/implementation-plan.md` **lines 1519–1523**. 2 people, 1 week, real jobs, side-by-side
+with their current tool. Write **go/no-go + the top 5 fixes** into `docs/archive/CONTINUITY.md`. This is **C7**, and
 it is the one checkpoint allowed to end with a question for the human — do not pre-empt it, and do not ship
 to 2.0 with the **14 placeholder tool glyphs** (D68) unreviewed.
 
@@ -260,7 +260,7 @@ to 2.0 with the **14 placeholder tool glyphs** (D68) unreviewed.
 remains the Surface Go's · C5 ✅ · C6 ⬜ (fires in 1.9) · C7 ⬜ (2.0) · C8 ⬜ · C9 machine half ✅ / pen
 PENDING · C10 machine half ✅ / on-glass walk deferred.**
 
-Added to `docs/HARDWARE-TEST-CHECKLIST.md` this session:
+Added to `docs/archive/HARDWARE-TEST-CHECKLIST.md` this session:
 - **C4 re-measure** on a Surface Go — the dev-machine number (median **0.6 ms**, p95 1.3; the ≤16 ms bar is
   not tripped) decides **nothing**.
 - ⚠ **The B1 handle check** — *pick a real folder in first-run, then reload: does Home come back?* This is

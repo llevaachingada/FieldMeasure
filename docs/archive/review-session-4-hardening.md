@@ -1,6 +1,6 @@
 # Session 4 — Senior Adversarial & Hardening Review
 
-**Date:** 2026-09-21 · **Scope:** `docs/implementation-plan.md` + the architecture behind it
+**Date:** 2026-09-21 · **Scope:** `docs/archive/implementation-plan.md` + the architecture behind it
 (build spec v0.3-hardened, UI spec v2-hardened) · **Method:** re-execute the specs' own reference
 code, attack the storage layer's failure paths, and audit the build plan for work that **no slice
 owned**.

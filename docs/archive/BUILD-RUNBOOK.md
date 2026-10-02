@@ -3,8 +3,8 @@
 **How to work on Field Measure, slice by slice.** This is the operating procedure, not a spec. The
 specs say *what* to build; this says *how* to build it without going off the rails.
 
-Read this file once, then follow it every slice. It is cited from `AGENTS.md`, `docs/CHECKPOINTS.md`
-(§2), `docs/HARDWARE-TEST-CHECKLIST.md` (§4) and `docs/BUILD-LOG.md` (§6). If those sections drift,
+Read this file once, then follow it every slice. It is cited from `AGENTS.md`, `docs/archive/CHECKPOINTS.md`
+(§2), `docs/archive/HARDWARE-TEST-CHECKLIST.md` (§4) and `docs/archive/BUILD-LOG.md` (§6). If those sections drift,
 this file is the source of truth.
 
 ---
@@ -17,11 +17,11 @@ on what ships in v1. Below it, in order: the build spec, the UI spec, then the i
 
 Before you write any code for a slice, read, in this order:
 
-1. `docs/CONTINUITY.md` — where the project stands right now (live state, open items).
-2. `docs/BUILD-LOG.md` — the last entry; it tells you where the previous session stopped.
-3. `docs/implementation-plan.md` — **the slice you are on, read in full** (files, build order,
+1. `docs/archive/CONTINUITY.md` — where the project stands right now (live state, open items).
+2. `docs/archive/BUILD-LOG.md` — the last entry; it tells you where the previous session stopped.
+3. `docs/archive/implementation-plan.md` — **the slice you are on, read in full** (files, build order,
    signatures, test tables, gate).
-4. `docs/preflight-handoff-v0.3-hardened.md` — the build spec sections that slice cites.
+4. `docs/archive/preflight-handoff-v0.3-hardened.md` — the build spec sections that slice cites.
 5. `docs/appendix-strings.md` — every user-visible string, keyed for `src/ui/strings.ts`.
 
 **Never start a slice before reading its implementation-plan entry in full.**
@@ -34,14 +34,14 @@ Work one slice at a time, in plan order. For each slice:
 
 1. **Read** the slice's plan entry in full — files, numbered build order, signatures, test tables,
    and the gate at the end.
-2. **Check checkpoints** — open `docs/CHECKPOINTS.md` and see whether any checkpoint fires in this
+2. **Check checkpoints** — open `docs/archive/CHECKPOINTS.md` and see whether any checkpoint fires in this
    slice. If one does, run its measurement first, read the row, act, and record the number in
    `docs/DECISIONS.md` (see §8). A checkpoint is never skipped and never guessed.
 3. **Build** — follow the numbered build order. Do not implement more than the slice calls for:
    v1 scope is §2.4, not the plan's examples.
 4. **Write tests as you go** — a slice's test tables are part of the slice, not an afterthought.
 5. **Gate** — run the slice's gate (§3). Every item must pass before the slice is done.
-6. **Record** — update `docs/BUILD-LOG.md` with the slice entry (see §5) and commit in the same
+6. **Record** — update `docs/archive/BUILD-LOG.md` with the slice entry (see §5) and commit in the same
    commit as the code.
 
 A slice is **done** only when its gate passes and its `BUILD-LOG.md` entry is committed.
@@ -76,13 +76,13 @@ You cannot run `[Surface]` gates. **This does not block you.**
 
 For every `[Surface]` gate a slice reaches:
 
-1. **Copy it verbatim** from the plan into `docs/HARDWARE-TEST-CHECKLIST.md`, under the slice's
+1. **Copy it verbatim** from the plan into `docs/archive/HARDWARE-TEST-CHECKLIST.md`, under the slice's
    heading.
 2. Mark the plan's checkbox `[~]` (deferred — not `[ ]`, which reads as "not attempted").
 3. Continue the slice. The slice is done when its **machine** gates pass; the `[Surface]` gates are
    logged and re-checked later on hardware.
 
-A gate that is not in `docs/HARDWARE-TEST-CHECKLIST.md` did not happen. The project is **not
+A gate that is not in `docs/archive/HARDWARE-TEST-CHECKLIST.md` did not happen. The project is **not
 beta-ready** until every entry in that file has been run on real hardware and either passed or has a
 logged, accepted deviation. Never fake a `[Surface]` result, and never silently skip one.
 
@@ -91,8 +91,8 @@ logged, accepted deviation. Never fake a `[Surface]` result, and never silently 
 ## 5. Commit discipline
 
 - One commit per slice, with the slice number in the subject (e.g. `feat(0.1): scaffold`).
-- Update `docs/BUILD-LOG.md` in the **same** commit — the log entry is how the next session resumes.
-- Copy the `Entry template` from `docs/BUILD-LOG.md`; fill every field (Built / Machine gates /
+- Update `docs/archive/BUILD-LOG.md` in the **same** commit — the log entry is how the next session resumes.
+- Copy the `Entry template` from `docs/archive/BUILD-LOG.md`; fill every field (Built / Machine gates /
   Deferred to hardware / Checkpoints fired / Decisions recorded / Surprises / Next).
 - "Surprises" is mandatory: anything that disagreed with the docs, and what you did — including any
   spec expectation you corrected, with the arithmetic. This is the project's most valuable memory.
@@ -108,7 +108,7 @@ If a machine gate fails and a fix does not work:
 3. Third attempt — a third, different approach.
 
 If three genuinely different fixes all fail the same gate, **stop**. Append a `## BLOCKED — slice
-<n>` entry to `docs/BUILD-LOG.md` (use its template: exact failure + command + output, the three
+<n>` entry to `docs/archive/BUILD-LOG.md` (use its template: exact failure + command + output, the three
 attempts, your read on what is wrong, and what would unblock it) and stop building. Do not paper
 over the failure, do not loosen the gate, and do not burn a fourth attempt. A blocked gate is a spec
 or plan defect, not a persistence problem.
@@ -132,11 +132,11 @@ Everything else: decide, record it in `docs/DECISIONS.md`, and keep going.
 
 ## 8. Checkpoints, decisions, and the wrong-measurement tripwires
 
-- **A checkpoint** (`docs/CHECKPOINTS.md`) is a question only code can answer (what the camera
+- **A checkpoint** (`docs/archive/CHECKPOINTS.md`) is a question only code can answer (what the camera
   reports, how fast a Surface redraws, whether a toolchain version cooperates). It is measured, not
   asked, and **never guessed**. When one fires (slice-loop step 2), measure, read the row, act, and
   record it in **three places, in the same commit**: the number in `docs/DECISIONS.md` (format at the
-  bottom of `CHECKPOINTS.md`), its status flipped in `docs/CHECKPOINTS.md`, and the `Checkpoints
+  bottom of `CHECKPOINTS.md`), its status flipped in `docs/archive/CHECKPOINTS.md`, and the `Checkpoints
   fired:` field of the `BUILD-LOG.md` entry. A checkpoint with no DECISIONS heading did not happen.
   Only C7 (field pilot) can legitimately end in "ask the human".
 - **A decision** you make that the spec doesn't already cover gets one line in `docs/DECISIONS.md`
@@ -172,7 +172,7 @@ production on a pinned static HTTPS host (default `https://<owner>.github.io/Fie
 
 What remains for slice 0.0 is **execution, not decision**: pin the exact owner/domain string (the
 `<owner>` placeholder) into `docs/DECISIONS.md`, state `start_url`/`scope` verbatim for slice 0.1,
-write `docs/install-runbook.md`, and record the update/publish path (slice 1.11's input). The gate
+write `docs/INSTALL.md`, and record the update/publish path (slice 1.11's input). The gate
 still holds — an exact origin string and a runbook a non-developer can follow.
 
 ---
@@ -189,8 +189,8 @@ new slices add new shared files. The known set today:
 ```
 src/ui/strings.ts          src/styles.css            src/App.tsx
 src/state/appStore.ts      src/state/editorStore.ts
-docs/HARDWARE-TEST-CHECKLIST.md
-docs/DECISIONS.md  docs/BUILD-LOG.md  docs/CONTINUITY.md  docs/CHECKPOINTS.md
+docs/archive/HARDWARE-TEST-CHECKLIST.md
+docs/DECISIONS.md  docs/archive/BUILD-LOG.md  docs/archive/CONTINUITY.md  docs/archive/CHECKPOINTS.md
 ```
 
 The `docs/` files are **orchestrator-only**: lanes report findings in their final message and the
@@ -214,7 +214,7 @@ wire the seam (a few lines at most) at integration.
 collide. A lane must tolerate transient errors in files it does not own, say so, and not "fix" them.
 
 **Integration checklist (once per wave):** fold staged copy → wire the deferred seams → read the
-diffs, not just the reports → full gate on the reconciled tree → review against `docs/review-brief.md`
+diffs, not just the reports → full gate on the reconciled tree → review against `docs/archive/review-brief.md`
 → resolve findings → re-run the full gate → `BUILD-LOG` + `DECISIONS` + `CONTINUITY` (and
 `CHECKPOINTS` if one fired) → commit per slice with the slice number in the subject → push.
 
@@ -225,7 +225,7 @@ Once a session has shipped a whole slice, start fresh — context exhaustion sho
 
 ## 12. Review brief
 
-Every review lane gets **`docs/review-brief.md`**. It is not optional, and it is not a substitute for
+Every review lane gets **`docs/archive/review-brief.md`**. It is not optional, and it is not a substitute for
 judgement: it lists the eight questions that have each already caught a real defect in this project —
 a test that proves nothing, a trivially-true gate, a DECISIONS claim the code does not support, stale
 arithmetic in a subordinate doc, a faked or unlogged deferral, a flattened invariant, an unpinned

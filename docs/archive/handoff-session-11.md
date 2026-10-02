@@ -6,16 +6,16 @@ This file is **prescriptive**. It names every file, the exact methods to add, wh
 the lane split for each wave. You should not need to go looking for a solution — if something here is
 wrong, the code wins; fix this file and note it in `docs/DECISIONS.md`.
 
-`docs/CONTINUITY.md` is the live snapshot; the last `docs/BUILD-LOG.md` entries are the per-slice record.
+`docs/archive/CONTINUITY.md` is the live snapshot; the last `docs/archive/BUILD-LOG.md` entries are the per-slice record.
 Where they disagree with this file, **they win**.
 
 ---
 
 # 0. Ground rules for the orchestrator
 
-1. **Read order:** `docs/CONTINUITY.md` → `docs/BUILD-LOG.md` (last 3 entries) → `AGENTS.md` →
-   `docs/BUILD-RUNBOOK.md` (**§11 is the parallel-lane protocol — follow it literally**) →
-   `docs/review-brief.md` → this file.
+1. **Read order:** `docs/archive/CONTINUITY.md` → `docs/archive/BUILD-LOG.md` (last 3 entries) → `AGENTS.md` →
+   `docs/archive/BUILD-RUNBOOK.md` (**§11 is the parallel-lane protocol — follow it literally**) →
+   `docs/archive/review-brief.md` → this file.
 2. **One writer per file, per wave.** A file two lanes could touch has exactly one owner for that wave;
    every other lane reads only. Two writers on one file is **whole-file loss**, not a merge conflict.
 3. **`docs/` are orchestrator-only.** Lanes *report* findings; you write `BUILD-LOG` / `DECISIONS` /
@@ -49,28 +49,28 @@ conflict, fix the subordinate document and add a line to `docs/DECISIONS.md`.
 | Document | What it is | Read it |
 |---|---|---|
 | `AGENTS.md` | The **contract**: non-negotiables, the four highest-stakes modules, working rules, the lane-protocol pointer, environment quirks. **It never carries state.** | First, always |
-| `docs/CONTINUITY.md` | The **live snapshot** — phase, shipped slices, session timeline, open questions, watch items. | First, for state |
-| `docs/BUILD-LOG.md` | The **per-slice record** — what was built, gate numbers, checkpoints fired, surprises, what is owed. Read the last 3 entries. | Before your slice |
-| `docs/BUILD-RUNBOOK.md` | **How to work:** §2 slice loop · §3 gate policy · §4 `[Surface]` deferral · §5 commit discipline · §6 three-strike · §8 checkpoint recording (three places) · §9 copy · **§11 parallel-lane protocol** · §12 review brief. | Before dispatching anything |
-| `docs/implementation-plan.md` | **Authority on order and done-ness.** Dependency graph, and per-slice packets: files, numbered build order, signatures, inline tests, checkable gates, rollback. | Your slice's packet **in full** |
-| `docs/preflight-handoff-v0.3-hardened.md` | **The build spec — authority on WHAT.** §2.4 is the v1 scope table and overrides everything. | §2.4 always, then your slice's refs |
-| `docs/ui-spec-field-measure-v2-hardened.md` | The UI spec: editor layout §5, tool rail §6, style panel §7, tool flows §8, layers §9, capture §10, a11y/field ergonomics §14, component map §15. | Any UI work |
-| `docs/touch-first-interaction-model.md` | The touch-primary interaction design: tap-tap placement, the 450 ms settle, the loupe, the Offset Nudge Pad, keypad-open state, object-first drag. | Any placement/gesture work |
+| `docs/archive/CONTINUITY.md` | The **live snapshot** — phase, shipped slices, session timeline, open questions, watch items. | First, for state |
+| `docs/archive/BUILD-LOG.md` | The **per-slice record** — what was built, gate numbers, checkpoints fired, surprises, what is owed. Read the last 3 entries. | Before your slice |
+| `docs/archive/BUILD-RUNBOOK.md` | **How to work:** §2 slice loop · §3 gate policy · §4 `[Surface]` deferral · §5 commit discipline · §6 three-strike · §8 checkpoint recording (three places) · §9 copy · **§11 parallel-lane protocol** · §12 review brief. | Before dispatching anything |
+| `docs/archive/implementation-plan.md` | **Authority on order and done-ness.** Dependency graph, and per-slice packets: files, numbered build order, signatures, inline tests, checkable gates, rollback. | Your slice's packet **in full** |
+| `docs/archive/preflight-handoff-v0.3-hardened.md` | **The build spec — authority on WHAT.** §2.4 is the v1 scope table and overrides everything. | §2.4 always, then your slice's refs |
+| `docs/archive/ui-spec-field-measure-v2-hardened.md` | The UI spec: editor layout §5, tool rail §6, style panel §7, tool flows §8, layers §9, capture §10, a11y/field ergonomics §14, component map §15. | Any UI work |
+| `docs/archive/touch-first-interaction-model.md` | The touch-primary interaction design: tap-tap placement, the 450 ms settle, the loupe, the Offset Nudge Pad, keypad-open state, object-first drag. | Any placement/gesture work |
 | `docs/DECISIONS.md` | The ADR log — why things are the way they are. Most relevant now: **D31** (fraction chip is entry-scoped), **D40** (canvas tests never in jsdom), **D51** (the runtime project key), **D54** (§4.2 screen seam), **D63** (second-finger restore), **D64** (unproven dpr-2 path), **D65** (loupe arithmetic), **D67–D73** (this session). | Before any technical choice |
-| `docs/CHECKPOINTS.md` | C1–C10 — things measurable only once code exists, each with an action for **every** outcome. Check at step 2 of every slice. | Every slice |
-| `docs/HARDWARE-TEST-CHECKLIST.md` | The `[Surface]` ledger. Every deferred gate, **PENDING** with its machine-verifiable half stated. | Before claiming any gate |
-| `docs/review-brief.md` | The **eight questions** every review must answer, each carrying the real defect that put it there. Hand it to every review lane. | Before any review |
+| `docs/archive/CHECKPOINTS.md` | C1–C10 — things measurable only once code exists, each with an action for **every** outcome. Check at step 2 of every slice. | Every slice |
+| `docs/archive/HARDWARE-TEST-CHECKLIST.md` | The `[Surface]` ledger. Every deferred gate, **PENDING** with its machine-verifiable half stated. | Before claiming any gate |
+| `docs/archive/review-brief.md` | The **eight questions** every review must answer, each carrying the real defect that put it there. Hand it to every review lane. | Before any review |
 | `docs/appendix-strings.md` | The **approved copy inventory** — the only legitimate source of user-visible text. | Before writing any copy |
 | `docs/appendix-strings-gaps.md` | **Proposed** copy for the unquoted gaps; any key taken from here needs a `// ⚠ PROPOSED (C14)` marker. | Same |
 | `docs/UNITS.md` | ft-in input formats, rounding, the keypad model, the four highest-stakes modules. | Any measurement work |
-| `docs/INDEX.md` | A map of every file in the repo. | Orientation |
-| `docs/review-session-4-hardening.md` | The session-4 finding register **and its method note** (execute, don't read). | Before reviewing |
-| `docs/gui-ux-readiness-and-design-handoff.md` | The GUI/UX readiness review, the pre-code tooling verdict, the C1–C14 contradiction register. | Design questions |
-| `docs/install-runbook.md` | One page, non-developer: how a Surface gets the app. | Slice 1.11 |
-| `docs/appendix-scaffold-files.md` | The pinned scaffold files slice 0.1 produced (TS 5.x). | Reference |
+| `docs/archive/INDEX.md` | A map of every file in the repo. | Orientation |
+| `docs/archive/review-session-4-hardening.md` | The session-4 finding register **and its method note** (execute, don't read). | Before reviewing |
+| `docs/archive/gui-ux-readiness-and-design-handoff.md` | The GUI/UX readiness review, the pre-code tooling verdict, the C1–C14 contradiction register. | Design questions |
+| `docs/INSTALL.md` | One page, non-developer: how a Surface gets the app. | Slice 1.11 |
+| `docs/archive/appendix-scaffold-files.md` | The pinned scaffold files slice 0.1 produced (TS 5.x). | Reference |
 | `THIRD-PARTY-NOTICES.md` | Dependency licence notices + font OFL texts. | Slice 1.11 |
 | `CLAUDE.md` | A deliberate one-line pointer to `AGENTS.md` (it used to be a stale second copy). | — |
-| `docs/preflight-handoff.md` · `docs/ui-spec-field-measure.md` · `docs/review-handoff.md` · `docs/handoff-plan-verification.md` | **Superseded or historical** (v0.2 build spec, v1 UI spec, the review brief that produced them, the session-3 contract). | **Never build from these** |
+| `docs/archive/preflight-handoff.md` · `docs/archive/ui-spec-field-measure.md` · `docs/archive/review-handoff.md` · `docs/archive/handoff-plan-verification.md` | **Superseded or historical** (v0.2 build spec, v1 UI spec, the review brief that produced them, the session-3 contract). | **Never build from these** |
 
 ## 0.2 Repository map (current, generated from the tree)
 
@@ -351,7 +351,7 @@ deletes and toasts; moving the finger cancels the preview.
 
 # Part B — slice 1.7: image insets
 
-**Packet:** `docs/implementation-plan.md` lines **1158–1204**. Read it in full before dispatch; it is the
+**Packet:** `docs/archive/implementation-plan.md` lines **1158–1204**. Read it in full before dispatch; it is the
 contract. **Spec refs:** build spec §8.5 (inset coordinate model), UI spec §9, §13/1.7.
 
 **The one thing that must not be flattened** (packet lines 1171–1179): a `Konva.Group` whose rect sits at
@@ -401,7 +401,7 @@ dispatch; ensure the picker opens from the insert flow.
 
 # Part C — slice 1.8: style system
 
-**Packet:** `docs/implementation-plan.md` lines **1205–1258**. **Spec refs:** build spec §11.5, UI spec §7.
+**Packet:** `docs/archive/implementation-plan.md` lines **1205–1258**. **Spec refs:** build spec §11.5, UI spec §7.
 
 **Purpose:** per-tool style memory, the WYSIWYG Style Chip, and the **project-level**
 precision/unit-format controls — the one place precision is edited.
@@ -468,7 +468,7 @@ Wave C  two lanes  → 1.8 style system              → integrate → gate → 
 ```
 
 Between waves: reconcile → read the diffs (not just the reports) → full gate → optional review lane
-against `docs/review-brief.md` → resolve → re-run gate → docs → commit → push.
+against `docs/archive/review-brief.md` → resolve → re-run gate → docs → commit → push.
 
 **Cross-check before each dispatch:** the contended set. Today it is `src/ui/strings.ts`,
 `src/styles.css`, `src/App.tsx`, `src/state/{appStore,editorStore}.ts`, `src/editor/shapes/scene.ts`,

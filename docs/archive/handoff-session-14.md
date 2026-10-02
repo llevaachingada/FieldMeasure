@@ -2,7 +2,7 @@
 
 **Written:** 2026-09-22 (session 14) · **Branch:** `claude/amazing-carson-ocp8q7` (NOT `main`) ·
 **PR:** https://github.com/llevaachingada/FieldMeasure/pull/2 (draft, open) ·
-**Previous handoff:** `docs/handoff-session-13.md` — **its §0 ground rules, §7 standing contracts and
+**Previous handoff:** `docs/archive/handoff-session-13.md` — **its §0 ground rules, §7 standing contracts and
 §9 owed-items table are still valid and are NOT repeated here. Read it.**
 
 This file is **prescriptive**. Where it names a file and a line, the line was verified this session; if
@@ -52,7 +52,7 @@ Baseline at session start was 62 files / 790 tests, so this session added **225 
 # 1. FIRST ACTION — run the independent review over THIS session's batch
 
 Same instruction session 13 gave, for the same reason, with fresh evidence behind it. Hand the reviewer
-`docs/review-brief.md` verbatim and scope it to:
+`docs/archive/review-brief.md` verbatim and scope it to:
 
 1. **`src/export/renderStage.ts` — the whole module.** It is one of the four highest-stakes modules
    (`AGENTS.md`) and its correctness is the slice. Specifically: `applyExportRules` against
@@ -228,7 +228,7 @@ Do **not** call `createWritable()` anywhere else.
    given §2.3, adding a new edge into a lazy chunk is exactly the untested case, and the browser project
    is the only gate that can see it (D84's watch item, handoff-13 §9.2 item 14). **Run the browser
    project on that change specifically.**
-6. **Checkpoint C6 fires in this slice** (`docs/CHECKPOINTS.md:103`) — the export memory ceiling on the
+6. **Checkpoint C6 fires in this slice** (`docs/archive/CHECKPOINTS.md:103`) — the export memory ceiling on the
    target device. `EXPORT_BITMAP_LIMIT_BYTES` is 512 MB with the arithmetic pinned, but a dev-machine
    number is **provisional**; the real measurement is the Surface Go's. Record it in all three places
    (DECISIONS + CHECKPOINTS + the BUILD-LOG `Checkpoints fired:` field).

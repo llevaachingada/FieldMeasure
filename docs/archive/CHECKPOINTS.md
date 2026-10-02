@@ -7,7 +7,7 @@ A checkpoint is **not** an open question. Each one says: which slice it fires in
 measure, and what to do with **every** possible answer. You measure, read the row, act, and record
 the number in `docs/DECISIONS.md`. **You never invent an answer and you never wait for one.**
 
-At step 2 of the slice loop (`docs/BUILD-RUNBOOK.md` §2), check whether a checkpoint fires.
+At step 2 of the slice loop (`docs/archive/BUILD-RUNBOOK.md` §2), check whether a checkpoint fires.
 
 | Status key | Meaning |
 |---|---|
@@ -20,7 +20,7 @@ At step 2 of the slice loop (`docs/BUILD-RUNBOOK.md` §2), check whether a check
 ## C1 — Toolchain bring-up · slice 0.1 · ✅
 
 **Measure:** does `npx tsc --noEmit` + `npm run build` + `npx vitest run` all succeed with the pins
-in `docs/appendix-scaffold-files.md`?
+in `docs/archive/appendix-scaffold-files.md`?
 
 | Result | Do |
 |---|---|
@@ -122,7 +122,7 @@ separately from everything else.
 
 | Result | Do |
 |---|---|
-| Zero wrong-measurement and zero data-loss reports | Write go + the top-5 fix list into `docs/CONTINUITY.md`. |
+| Zero wrong-measurement and zero data-loss reports | Write go + the top-5 fix list into `docs/archive/CONTINUITY.md`. |
 | **Any** wrong-measurement or data-loss report | **Automatic no-go**, regardless of how the rest of the week went. Root-cause it against the tripwire list before anything else ships. |
 
 **This is the one checkpoint that legitimately ends with "ask the human"** — it is a product
@@ -132,9 +132,9 @@ decision made from field evidence, not a technical measurement.
 
 ## Touch-primary checkpoints (added 2026-09-21)
 
-These implement the touch-primary input change (`docs/gui-ux-readiness-and-design-handoff.md` §13,
-`docs/touch-first-interaction-model.md`). C8 and C9 are the **successors** to the pen-first 0.2 palm
-gauntlet and 1.6 pressure gates that live in `docs/implementation-plan.md`; they are numbered after
+These implement the touch-primary input change (`docs/archive/gui-ux-readiness-and-design-handoff.md` §13,
+`docs/archive/touch-first-interaction-model.md`). C8 and C9 are the **successors** to the pen-first 0.2 palm
+gauntlet and 1.6 pressure gates that live in `docs/archive/implementation-plan.md`; they are numbered after
 C7 for stability, so the C-numbers are not in slice order.
 
 ---
@@ -142,7 +142,7 @@ C7 for stability, so the C-numbers are not in slice order.
 ## C8 — Touch-primary palm gauntlet · slice 0.2 · ⬜
 
 **Supersedes the pen-first 0.2 palm gauntlet.** The router has **no palm suppression without a pen**
-(the 1.2 s window only starts on a pen event — `P §8.2`; `docs/gui-ux-readiness-and-design-handoff.md`
+(the 1.2 s window only starts on a pen event — `P §8.2`; `docs/archive/gui-ux-readiness-and-design-handoff.md`
 §13.4), and browser palm rejection is **not deterministically solvable** (§13.7). The old gate tested a
 >1.2 s **pen** stroke with a resting palm; under touch-primary that is the wrong test.
 
@@ -175,7 +175,7 @@ widths at the first and last point; then draw a hard stroke and a light stroke a
 | Result | Do |
 |---|---|
 | Pressure varies continuously and the ramped/hard strokes are materially wider | Keep pressure→width as specified (`P §3.3`). Record. |
-| **No pen present (touch-only run)** | Mark **PENDING (pen-only)** — never FAIL. Finger ink runs pressure→width **off**, width floor **8 mu**, smoothing 60 (`docs/touch-first-interaction-model.md` §4.2). A touch-only build ships freehand without pressure. |
+| **No pen present (touch-only run)** | Mark **PENDING (pen-only)** — never FAIL. Finger ink runs pressure→width **off**, width floor **8 mu**, smoothing 60 (`docs/archive/touch-first-interaction-model.md` §4.2). A touch-only build ships freehand without pressure. |
 | Pressure reads as 0 / 0.5 / 1 only (constant or quantised) | Treat pressure as optional decoration: disable pressure→width and keep the fixed width floor. Record the raw values. |
 
 ---
@@ -211,4 +211,4 @@ Decision row taken: <which row of the table>
 Action: <what you built as a result>
 ```
 
-Then flip its status in this file to ✅ and note it in `docs/BUILD-LOG.md`.
+Then flip its status in this file to ✅ and note it in `docs/archive/BUILD-LOG.md`.

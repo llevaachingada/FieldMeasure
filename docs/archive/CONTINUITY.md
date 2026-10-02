@@ -11,7 +11,7 @@ resume without re-deriving context. **Update this file at the end of each work s
 follows the build base, and `pages.yml` takes the base from `configure-pages`, so a copy under any repo name or host
 installs. **Next:** the `[Surface]` pass with a crew member, then the owed list below.
 
-**Session 29 (D154-D161), CURRENT HANDOFF: [`docs/handoff-session-29.md`](handoff-session-29.md).** The app is live
+**Session 29 (D154-D161), CURRENT HANDOFF: [`docs/archive/handoff-session-29.md`](handoff-session-29.md).** The app is live
 at https://llevaachingada.github.io/FieldMeasure/ (`.github/workflows/pages.yml`; every push to `main` or
 `beta-readiness-wave-2` redeploys it). Shipped:
 - exports match the editor's mark sizes;
@@ -26,10 +26,10 @@ at https://llevaachingada.github.io/FieldMeasure/ (`.github/workflows/pages.yml`
 **What this project has now that it did not before: a clickthru harness.** One command drives the *built*
 app end to end with real touch and pen input on the Surface geometry and screenshots every step, so an agent
 can *look* instead of trusting a green gate. `npm.cmd run clickthru` | `playwright.clickthru.config.ts` |
-`tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc `docs/clickthru-harness.md`;
+`tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc `docs/archive/clickthru-harness.md`;
 a `clickthru` skill; an OMO orchestrator rule. It is **never a gate** and **never promotes a `[Surface]` row**.
 
-**Session 28, owner requests (D146-D152), CURRENT HANDOFF: [`docs/handoff-session-28.md`](handoff-session-28.md).**
+**Session 28, owner requests (D146-D152), CURRENT HANDOFF: [`docs/archive/handoff-session-28.md`](handoff-session-28.md).**
 Shipped: rear camera by default, the AE/AF lock off by default (Settings), a one-page export with a default location
 setting plus «Copy folder path» and «Open», «Use photo» → editor, a one-column rail (Measure on top), a three-swatch style
 dock, slim dimension arrowheads, a draggable dimension text offset, and a persistent Help button + `docs/USER-GUIDE.md`.
@@ -52,7 +52,7 @@ Interface deviations and a load-sensitive browser flake are in BUILD-LOG "Wave 2
 **Session 27 (beta readiness, D137-D143):** a readiness review drove the built app and found two Critical bugs every
 beta user would hit: an edit made just before tapping «Projects» was never saved, and the sheets grid showed «Couldn't
 read this project folder» after every editor visit (both from the editor deregistering the project on unmount). Wave 1 of
-`docs/beta-readiness-fix-plan.md` (six parallel lanes + integration) fixed them (**D137**) and shipped error boundaries
+`docs/archive/beta-readiness-fix-plan.md` (six parallel lanes + integration) fixed them (**D137**) and shipped error boundaries
 (**D138**), first-run fixes (**D139**: a real `FieldMeasure` folder, an unsupported-browser notice), a Home scan that hides
 non-project folders (**D140**), Home covers/real meta/no dead controls (**D141**), grid «Retry» + a `.hit-slop` cascade fix
 that had knocked the sheet card's select toggle and ⋯ menu out of place (**D142**), and a **journey e2e gate** (**D143**,
@@ -70,7 +70,7 @@ showed 2-6 timing failures in `sheetEditor.dimension.browser.test.ts` / `gridReo
 `sleep`); each file passes alone and the next full run was green, so this reads as load flakiness, not a regression - but it
 is unproven against the pre-change tree. New `[Surface]` rows H23-H25. Not committed.
 
-**Session 24:** the owner's `docs/handoff-ui-pass-for-claude.md` (the UI/GUI pass — make every rail/panel/HUD/
+**Session 24:** the owner's `docs/archive/handoff-ui-pass-for-claude.md` (the UI/GUI pass — make every rail/panel/HUD/
 menu control real, §0–§8) plus a direct watermark request. **Shipped, in order: the VANGARDE watermark**
 (**D132**), **§4.1** (**D133** — the style data channel: inset border/corner-radius/shadow, the arrow elbow
 renderer, the highlighter's "Chisel width" label; five items explicitly deferred with reasons), **§4.2**
@@ -78,7 +78,7 @@ renderer, the highlighter's "Chisel width" label; five items explicitly deferred
 with reasons). **§4.3 (the two overflow menus) was NOT reached** — the session was closed at the owner's
 explicit request (running low on token budget) before starting it. **Owed before the next session claims
 anything works end to end: re-run `npm run clickthru`** (last run was on the watermark slice, before §4.1/§4.2)
-— see `docs/clickthru-harness.md`; a green run here was never re-verified against the mini-toolbar's new
+— see `docs/archive/clickthru-harness.md`; a green run here was never re-verified against the mini-toolbar's new
 buttons or the anchor fix.
 
 **Gates (session 24, final slice — §4.2):** `tsc` 0 | **74 files / 1236 tests** (node + jsdom) + **31 files /
@@ -113,14 +113,14 @@ consumed by an insert. Both repaired - one section per number, in order, all 131
 | Phase | **Slices 0.2-1.9 complete (1.9 reviewed, D109); 1.10 in progress; 1.11 landed (D112); the Project screen built (D111) and now owns sheet trash (D113); the beta-readiness wave landed (D126-D130).** Still owed: the hardware pass, the Offset Nudge Pad, the History flyout, D101's halo, the export list, PDF captions, and two owner decisions. Then 2.0 |
 | Latest change | **D136 (session 26, owner report):** the projects folder no longer needs re-choosing in Settings — Home names a lapsed grant with a one-tap «Re-authorize», Settings adopts a new folder without a grant-dropping reload, the capture re-pick is guarded to the open project's root, «Use photo» re-asks a lapsed grant in the tap. 107 files / 1530 tests, build 0; clickthru passed; `[Surface]` H26. Previous: **D135 (session 25, owner request):** calculator keypad, project-name pop-up, `Sheet.capturedAt` + export date stamp, larger watermarks on every page, camera at max resolution with working zoom. 106 files / 1515 tests, build 0, clickthru 20/20. |
 | Application code | **Twelve slices + 1.9 wiring + 1.10 trust layer/trash + 1.11 + the Project screen**, **100 files / 1409 tests** (node + jsdom + browser) on the unified tree; build 0 (26 precache entries, 1525.57 KiB); playwright 5 passed / 5 skipped; **clickthru 20/20**. Session 22 built the grid's five D111 items (`src/fs/sheetOps.ts`, `src/ui/sheetReorder.ts`, `StorageChip.tsx`, `src/fs/projectSize.ts`) and then, from the owner's two Surface screenshots, the beta-readiness wave: real tool glyphs, the chrome fitted to ~1920x1120, the grid scroller + drag autoscroll, the bounded write lock, the D125/D127/D128 fixes, both a11y audits, and the arrow-key nudge |
-| Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
-| UI spec | **v2 hardened + touch-first (v2.1)** — `docs/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
-| Implementation plan | ✅ `docs/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
+| Build spec | **v0.3 hardened (r2) + touch-first (round 5)** — `docs/archive/preflight-handoff-v0.3-hardened.md` (canonical). §8.2 input router is now **touch-primary** |
+| UI spec | **v2 hardened + touch-first (v2.1)** — `docs/archive/ui-spec-field-measure-v2-hardened.md` (canonical). Touch-primary principle, tap-tap placement, C11/C12/C14 applied |
+| Implementation plan | ✅ `docs/archive/implementation-plan.md` **v1.2 hardened + touch-first** — touch-first router/gates, three Vitest projects (incl. browser), CSP-as-a-test |
 | Adversarial review | ✅ rounds 1–5 · ✅ sessions 7–9 (orchestrator + independent oracle on 1.3, F1–F5) · ⚠️ **session 10's waiver is now discharged: session 12 ran the independent `@oracle` pass over the 1.4→1.6 batch** — execution-based, in a clean worktree at `e06bf8f`, with a real-CDP-touch harness. **No wrong-measurement and no data-loss finding**, six correctness findings (**D77**): F1 touch drag-to-reorder silently dead, F2 «Adjust endpoints» dead, F3 Esc never cancels a pending dimension, F4 Chain locks at the pre-refine B, F5 settle survives a tool switch, F6 sub-slop moves outside history, plus F7 (a **measured** §4.2 label/text layout drift), F8, F9 and two doc-fidelity items. **F1/F2/F4/F8 are fixed** with pre-fix-failing evidence; **F3/F5/F6/F7/F9 remain owed** and are the next action. **Verified sound** with evidence: the §4.2 size invariants, `Annotation.visible` through zod, the anchor-based §20.2 reorder, the timers, persistence, the loupe arithmetic, history, and the copy contract. |
 | Design research | ✅ **Session 5** — 8 lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`): Claude Design capability, pre-code tooling, Konva/pen/palm, touch placement, spec gap analysis, field-app teardown, touch interaction design, touch-primacy docs audit |
 | Dependencies | Installed and pinned — **TS 5.9.3** (not 7.0.2), + `@testing-library/react` 16.3.3, `@testing-library/user-event` 14.6.7, `jsdom` 30.1.0, `@vitest/browser-playwright` 5.0.1 |
 | Blocking item | **None.** Origin resolved (§21.1 / D24). **UI/UX is implementation-ready**; no design gate remains |
-| Next action | **The hardware pass** (now including H23-H25 from D135 and H26 from D136) - the `[Surface]` rows in `docs/HARDWARE-TEST-CHECKLIST.md` (palm/sunlight/the 14-day trash clock/the SW update lifecycle/the real digitiser), which no emulation can promote. The machine half is now driven by `npm.cmd run clickthru` (20/20 on the Surface profile). Then the **Offset Nudge Pad** and the **History flyout**, the last two large owed items, and the two **owner decisions** (the mixed-selection chrome, the 14.9 handedness tab order) |
+| Next action | **The hardware pass** (now including H23-H25 from D135 and H26 from D136) - the `[Surface]` rows in `docs/archive/HARDWARE-TEST-CHECKLIST.md` (palm/sunlight/the 14-day trash clock/the SW update lifecycle/the real digitiser), which no emulation can promote. The machine half is now driven by `npm.cmd run clickthru` (20/20 on the Surface profile). Then the **Offset Nudge Pad** and the **History flyout**, the last two large owed items, and the two **owner decisions** (the mixed-selection chrome, the 14.9 handedness tab order) |
 
 **Authority:** the build spec's **§2.4 "v1 scope table"** is the single authority on what ships in v1.
 When any doc conflicts, §2.4 wins.
@@ -136,19 +136,19 @@ When any doc conflicts, §2.4 wins.
    dependency versions/licenses, ft-in input UX, inset/tool/style-panel UX) and a UI/UX design pass.
 3. Ran an architecture review; reconciled conflicts (per-sheet `markup.json` sidecars, atomic writes,
    markup-unit scaling, inset container model).
-4. Wrote build spec v0.2 (`docs/preflight-handoff.md`) and UI spec v1 (`docs/ui-spec-field-measure.md`).
-5. Wrote the adversarial-review brief `docs/review-handoff.md`.
+4. Wrote build spec v0.2 (`docs/archive/preflight-handoff.md`) and UI spec v1 (`docs/archive/ui-spec-field-measure.md`).
+5. Wrote the adversarial-review brief `docs/archive/review-handoff.md`.
 6. Installed Node 24.19.0 (LTS) + npm 11.17.0 via winget; installed all runtime + dev dependencies
    (0 vulnerabilities); pinned `fflate` 0.8.3. Added `node_modules/` + build output to `.gitignore`.
-7. **Adversarial review was run** (via `docs/review-handoff.md`) and produced hardened revisions:
-   - `docs/preflight-handoff-v0.3-hardened.md` (supersedes v0.2) — fixes B1–B5, M1–M13, Minors 1–6:
+7. **Adversarial review was run** (via `docs/archive/review-handoff.md`) and produced hardened revisions:
+   - `docs/archive/preflight-handoff-v0.3-hardened.md` (supersedes v0.2) — fixes B1–B5, M1–M13, Minors 1–6:
      corrected export/DPI math, keypad slot state machine + lenient tokenizer, inset child coordinate
      space, FSA API corrections (`FileSystemFileHandle.move()` used; `FileSystemDirectoryHandle.move()`
      removed), zod `.nullish()` + guarded `JSON.parse` + `.history/_project/` recovery, per-project
      two-tab lock, derived-only `label`, handedness as a plain question, `fflate` for PNG zip,
      perfect-freehand `getSvgPathFromStroke` not exported (local helper), and a new **§2.4 v1 scope table**.
-   - `docs/ui-spec-field-measure-v2-hardened.md` (supersedes v1).
-8. Added repo docs: `README.md`, `docs/INDEX.md`, `docs/CONTINUITY.md`, `docs/DECISIONS.md`,
+   - `docs/archive/ui-spec-field-measure-v2-hardened.md` (supersedes v1).
+8. Added repo docs: `README.md`, `docs/archive/INDEX.md`, `docs/archive/CONTINUITY.md`, `docs/DECISIONS.md`,
    `docs/UNITS.md`; reconciled references to the hardened canonical versions.
 
 ### 2026-09-21 — Session 2: UI-spec appendix, round-2 senior review, implementation plan
@@ -183,11 +183,11 @@ When any doc conflicts, §2.4 wins.
      decomposition: `124.5 in` → `124 1/2"`).
    - **`parseJson`** simplified to sync (zod is sync); `readJsonValidated` takes `MaybePromise`.
    - UNITS.md expanded: keypad model table, project-level precision, four highest-stakes modules.
-3. Wrote `docs/implementation-plan.md` — the multi-slice build plan with gates and checkpoints,
+3. Wrote `docs/archive/implementation-plan.md` — the multi-slice build plan with gates and checkpoints,
    derived from build spec §13 with the round-2 corrections applied.
 
-### 2026-09-21 — Session 3: plan verification + flush-out (per `docs/handoff-plan-verification.md`)
-1. Adversarially verified `docs/implementation-plan.md` against the canonical specs. Cross-doc greps
+### 2026-09-21 — Session 3: plan verification + flush-out (per `docs/archive/handoff-plan-verification.md`)
+1. Adversarially verified `docs/archive/implementation-plan.md` against the canonical specs. Cross-doc greps
    clean: no "React 18" stragglers in canonical docs, no `148`-class test expectation, no
    Explorer-open / Windows-pen-setting claims. Every `〔v1 scope〕` marker agrees with §2.4; every spec
    §13 "Done when" has a plan gate and vice versa.
@@ -204,13 +204,13 @@ When any doc conflicts, §2.4 wins.
      px = `local + crop`. Fixed both hit-testing notes.
    - **Property-test count 200 → 500** (§13/1.1, §14) to match the execution-verified §6.1.1 code.
    - **Plan dependency graph** drew 0.3 → 1.2 (Home shell hosts project creation) + a 1.1 parallelism note.
-3. Flushed out `docs/implementation-plan.md` into per-slice build packets: files + responsibilities,
+3. Flushed out `docs/archive/implementation-plan.md` into per-slice build packets: files + responsibilities,
    numbered build order, signatures at point of use, inline test tables, checkable gates, rollback notes.
    Checkpoint table and wrong-measurement tripwires kept in sync (added the inset crop-detach tripwire).
 
 ### 2026-09-21 — Session 4: senior adversarial & hardening review; plan expansion
 
-Full finding register with evidence: **`docs/review-session-4-hardening.md`**.
+Full finding register with evidence: **`docs/archive/review-session-4-hardening.md`**.
 Method: the specs' reference code was extracted into a JS runtime and **executed** against its own
 committed tables (as rounds 2 and 3 did — and as in both prior rounds, it found defects that reading
 had missed); the storage failure paths were attacked; and the build plan was audited for work that
@@ -298,11 +298,11 @@ assumes:
    (**D24**), fraction chip entry-scoped (**D31**), metric deferred, job-site address schema-only,
    sheet templates cut, **TypeScript pinned 5.x** (supersedes D14), plus the capture-resolution,
    `Konva.pixelRatio` and `lucide-react` decision tables. §18 rewritten into a resolved registry.
-3. **New process docs:** `docs/CHECKPOINTS.md` (C1–C7), `docs/HARDWARE-TEST-CHECKLIST.md` (H1–H12),
-   `docs/BUILD-LOG.md`, `AGENTS.md` / `CLAUDE.md`, and `docs/appendix-strings.md` (the complete UI
+3. **New process docs:** `docs/archive/CHECKPOINTS.md` (C1–C7), `docs/archive/HARDWARE-TEST-CHECKLIST.md` (H1–H12),
+   `docs/archive/BUILD-LOG.md`, `AGENTS.md` / `CLAUDE.md`, and `docs/appendix-strings.md` (the complete UI
    copy inventory for `src/ui/strings.ts`).
-4. **Closed the process gaps:** wrote `docs/BUILD-RUNBOOK.md` (slice loop §2, `[Surface]` deferral
-   §4, three-strike rule §6), `docs/appendix-scaffold-files.md`, `docs/install-runbook.md`,
+4. **Closed the process gaps:** wrote `docs/archive/BUILD-RUNBOOK.md` (slice loop §2, `[Surface]` deferral
+   §4, three-strike rule §6), `docs/archive/appendix-scaffold-files.md`, `docs/INSTALL.md`,
    `THIRD-PARTY-NOTICES.md`, and `docs/appendix-strings-gaps.md` (proposed copy for the 26 gaps).
 
 ### 2026-09-21 — Session 5: touch-first input model + GUI/UX readiness review
@@ -314,8 +314,8 @@ touch** — tap-tap dimension placement (tap A, tap B) with one-finger drag to a
 **Method:** 8 parallel research lanes (4 × `librarian`, 3 × `designer`, 1 × `explorer`) plus
 source-verified checks of the Claude Design product claims, then 4 implementation lanes to apply the
 accepted changes. Two new documents:
-**`docs/gui-ux-readiness-and-design-handoff.md`** (the senior report + design handoff) and
-**`docs/touch-first-interaction-model.md`** (the implementable interaction design).
+**`docs/archive/gui-ux-readiness-and-design-handoff.md`** (the senior report + design handoff) and
+**`docs/archive/touch-first-interaction-model.md`** (the implementable interaction design).
 
 1. **Verdict — no pre-implementation design phase.** The UI spec is already implementable; the
    outstanding work was *decisions*, not mockups. **Claude Design is real** (Anthropic Labs,
@@ -429,7 +429,7 @@ D51 keys and D54/D56–D59 as written.
 
 **Machine gates:** `npx tsc --noEmit` 0 · `npx vitest run` **270/270** (24 files) · `npm run build` 0
 (12 precache) · `npx playwright test` 5 passed / 4 fixme. Five `[Surface]` gates logged to
-`docs/HARDWARE-TEST-CHECKLIST.md` (none faked). `docs/DECISIONS.md` D54–D64.
+`docs/archive/HARDWARE-TEST-CHECKLIST.md` (none faked). `docs/DECISIONS.md` D54–D64.
 
 **Next:** slice 1.4 ∥ 1.4.5, then 1.5.
 
@@ -443,8 +443,8 @@ A reflect pass over session 9 produced three document-level fixes and one machin
    invocation, the console encoding trap, background-task tooling, CRLF — so they stop costing a failed
    tool call every session. `CLAUDE.md` is now a pointer: it had drifted into a stale second copy with a
    mojibake header and no referrers.
-2. **`docs/BUILD-RUNBOOK.md` gained §11 (parallel lane protocol) and §12 (review brief)**, and
-   **`docs/review-brief.md`** now holds the eight questions every review lane must answer, each with the
+2. **`docs/archive/BUILD-RUNBOOK.md` gained §11 (parallel lane protocol) and §12 (review brief)**, and
+   **`docs/archive/review-brief.md`** now holds the eight questions every review lane must answer, each with the
    real defect that put it there. The lane rules this session re-derived twice are written down.
 3. **Checkpoint bookkeeping is three places per firing** (§8). **C4 was fired in 1.3 and never recorded**;
    it is now recorded as *not measurable at its slice* — 1.3 shipped no annotation model, so "50
@@ -489,7 +489,7 @@ the machine lane had already added some of the same keys.
 
 **Owner decision:** the independent `@oracle` review of this batch was **waived** (recorded in
 DECISIONS and above). Compensating controls, all executed: the full gate on the reconciled tree;
-an internal review against `docs/review-brief.md`; the lanes were asked for adversarial findings
+an internal review against `docs/archive/review-brief.md`; the lanes were asked for adversarial findings
 and produced real ones (two nested modals; hotkeys leaking through the open keypad; a spec height
 that cannot hold its own contents; stale refusal copy under D31).
 
@@ -938,7 +938,7 @@ Three lanes on disjoint files, integrated by the orchestrator, then the full gat
 (26 precache, 1516.68 KiB) · `playwright` 5 passed / 5 skipped.
 
 **Reviews (same session, against the wave's commit).** Two ran: an **executed correctness register**
-(`@oracle`, clean worktree pinned to `249754e`, per `docs/review-brief.md`) which reproduced the gate itself
+(`@oracle`, clean worktree pinned to `249754e`, per `docs/archive/review-brief.md`) which reproduced the gate itself
 and found **no wrong-measurement and no data-loss defect**, and an **independent UI/UX review** that measured
 the screen in the repo's own Chromium because jsdom cannot see layout (D40). Their registers are **D118**. The
 fixes: the card menu's direction + `max-height` backstop (it rendered 102 px of its 364 px at the bottom row,
@@ -995,7 +995,7 @@ content-owner items.
    lease — while six browser suites **mock `acquireWriterLease` away**, so no test had ever held the real lock
    while writing. Also executed: Chromium **grants** a same-client `ifAvailable` re-request, so §5.8d's exclusion
    is **cross-tab** (recorded; the fake had taught the opposite). Written up for the next session in
-   **`docs/handoff-capture-save.md`**.
+   **`docs/archive/handoff-capture-save.md`**.
 
 ### 2026-09-22 — Session 22 (continued): the beta-readiness wave (the owner's Surface screenshots)
 
@@ -1031,7 +1031,7 @@ integration.
    could not run the browser project): an **in-flow fixture** compared against `window.innerHeight` (two
    coordinate spaces at once) and an **overhang constant outside both of its own constraints**, pushing the ⋯
    the test clicks 128 px below the fold. The product was never at fault; both traps are now recorded in
-   `docs/clickthru-harness.md`.
+   `docs/archive/clickthru-harness.md`.
 7. **One browser-project flake**, not reproduced in isolation (`tests/insetWire.browser.test.ts`'s iframe never
    became ready alongside Vite's "unexpectedly reloaded a test") — the D84 shape, flaky-until-explained.
 
@@ -1079,7 +1079,7 @@ round-tripping, and OPFS was then verified as a genuine backing store — `query
 **Shipped:** the three Surface profiles, a raw-CDP gesture lab (tap-tap with the 450 ms settle, 600 ms
 long-press, one-finger drag, two-finger pan, second-finger cancel-and-restore, pinch, palm+tap, and pen with
 force/hover/barrel), the rotation gate, per-step screenshots + `run.json` evidence + a self-contained
-contact sheet, `npm run clickthru`, **`docs/clickthru-harness.md`**, the **`clickthru` skill**, and an OMO
+contact sheet, `npm run clickthru`, **`docs/archive/clickthru-harness.md`**, the **`clickthru` skill**, and an OMO
 orchestrator rule. **20 PASS / 0 FAIL / 0 UNREACHED** at 1440×960 @ DPR 2; `playwright.config.ts` and
 `npm run e2e` untouched.
 
@@ -1098,7 +1098,7 @@ oddity, because the build under test contained a concurrent lane's uncommitted `
 
 ### 2026-09-22 — Session 24: the VANGARDE watermark (owner request), and the UI/GUI handoff pass begins
 
-The owner's next message carried two things: `docs/handoff-ui-pass-for-claude.md` (the UI/GUI pass brief,
+The owner's next message carried two things: `docs/archive/handoff-ui-pass-for-claude.md` (the UI/GUI pass brief,
 §0–§8, written from a `main == origin/main` at `d2bd8ad` recon — see the doc itself for its own inventory) and a
 direct, separate request — incorporate the client's two supplied logos ("VANGARDE woodworks") as a small,
 toggleable watermark in the app and its exports. The watermark was self-contained and shipped first; the
@@ -1188,7 +1188,7 @@ anything works end to end (AGENTS: never claim it without running it).
   traced; a wrong committed test expectation (`12 6` → 148 in; correct is 150), a fraction-dropping
   `composeEnteredText`, `pressDot` semantics, `parseLooseToSlots` gaps, a `cleanStaleTmp` race, an
   inset crop-offset gap, and the React 18/19 mismatch were all fixed before commit.
-- ✅ **`docs/implementation-plan.md`** — dependency graph, 14 slices, machine-checkable +
+- ✅ **`docs/archive/implementation-plan.md`** — dependency graph, 14 slices, machine-checkable +
   on-device gates, checkpoint table, wrong-measurement tripwires.
 - ✅ **Session 3** — plan verified (findings fixed in spec + plan) and flushed out to per-slice build
   packets (files, build order, signatures, inline tests, checkable gates, rollback notes).
@@ -1196,15 +1196,15 @@ anything works end to end (AGENTS: never claim it without running it).
 - ✅ Repo documentation scaffolding (README, INDEX, CONTINUITY, DECISIONS, UNITS) updated for all of the above.
 - ✅ **Session 4b** — build spec §20 (implementation contracts) + §21 (resolved decisions) added;
   §18 rewritten as a resolved registry.
-- ✅ **Session 4b** — process docs added: `docs/CHECKPOINTS.md`, `docs/HARDWARE-TEST-CHECKLIST.md`,
-  `docs/BUILD-LOG.md`, `AGENTS.md`, `CLAUDE.md`, `docs/appendix-strings.md`.
-- ✅ **Session 4b** — handoff closed: `docs/BUILD-RUNBOOK.md`, `docs/appendix-scaffold-files.md`,
-  `docs/install-runbook.md`, `THIRD-PARTY-NOTICES.md`, `docs/appendix-strings-gaps.md`.
+- ✅ **Session 4b** — process docs added: `docs/archive/CHECKPOINTS.md`, `docs/archive/HARDWARE-TEST-CHECKLIST.md`,
+  `docs/archive/BUILD-LOG.md`, `AGENTS.md`, `CLAUDE.md`, `docs/appendix-strings.md`.
+- ✅ **Session 4b** — handoff closed: `docs/archive/BUILD-RUNBOOK.md`, `docs/archive/appendix-scaffold-files.md`,
+  `docs/INSTALL.md`, `THIRD-PARTY-NOTICES.md`, `docs/appendix-strings-gaps.md`.
 - ✅ **Session 5** — senior GUI/UX readiness review + design handoff
-  (`docs/gui-ux-readiness-and-design-handoff.md`): architecture assessment, Claude Design verdict,
+  (`docs/archive/gui-ux-readiness-and-design-handoff.md`): architecture assessment, Claude Design verdict,
   pre-code tooling stack, 14-item contradiction register, pre-code decision package.
 - ✅ **Session 5** — touch-first interaction model designed
-  (`docs/touch-first-interaction-model.md`): one `PlacementController`, the 450 ms settle window, the
+  (`docs/archive/touch-first-interaction-model.md`): one `PlacementController`, the 450 ms settle window, the
   Offset Nudge Pad, the object-first drag predicate, tap precedence, gesture budget, latency budgets.
 - ✅ **Session 5** — **touch inversion applied** across the UI spec, build spec, implementation plan,
   strings inventory, hardware ledger and checkpoints; **D35–D42** recorded.
@@ -1218,7 +1218,7 @@ anything works end to end (AGENTS: never claim it without running it).
 ## Next slice (not started)
 
 - ⏳ **Slice 1.4 ∥ slice 1.4.5.** Capture flow (`CameraFlow.tsx`, capture → `normalizeImage` → `writeBlobAtomic`) ∥ the editor shell (`EditorLayout`/`ToolRail`/`TopBar`/`icons/tools/*`/`editorStore.ts`). Two disjoint lanes; `src/ui/strings.ts` and `src/App.tsx` are owned by the 1.4.5 lane.
-- ⏳ Then **1.5** (dimension flagship), then 1.6 → 1.11 → 2.0 per `docs/implementation-plan.md`.
+- ⏳ Then **1.5** (dimension flagship), then 1.6 → 1.11 → 2.0 per `docs/archive/implementation-plan.md`.
 - Also outstanding: **slice 1.9 steps 2–5** (`renderStage`/`pdf`/`png`/`ExportWizard`) — step 1 is already shipped.
 
 ## Next (in order)
@@ -1232,7 +1232,7 @@ anything works end to end (AGENTS: never claim it without running it).
    pen palm gauntlet).
 4. Slice 0.3 first-run / settings / Home shell (includes the five input toggles and their defaults).
 5. Slices 1.1 → 1.4, **1.4.5 (editor shell)**, 1.5 → 1.10, **1.11 (release & update)**, then the
-   2.0 field pilot — **follow `docs/implementation-plan.md`** for gates and checkpoint tables.
+   2.0 field pilot — **follow `docs/archive/implementation-plan.md`** for gates and checkpoint tables.
 
 ---
 
@@ -1242,7 +1242,7 @@ anything works end to end (AGENTS: never claim it without running it).
 
 1. **C14 final copy wording.** Settings labels, capture toggles, sort/search, style-panel headers and
    the first-run `Right`/`Left` card labels are marked **placeholder copy** in
-   `docs/ui-spec-field-measure-v2-hardened.md` and `docs/appendix-strings.md`, with proposals in
+   `docs/archive/ui-spec-field-measure-v2-hardened.md` and `docs/appendix-strings.md`, with proposals in
    `docs/appendix-strings-gaps.md`. A content owner must approve the wording before it ships —
    **do not invent final copy in code.**
 2. **`docs/appendix-strings-gaps.md` §12** needs reconciliation by its owner (flagged by the ledger lane).
@@ -1309,7 +1309,7 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   of `b68b74c`. Neither went through a slice gate or a `BUILD-LOG` entry, so **review them before treating
   1.4/1.4.5 as shipped**: `src/fs/sheetIntake.ts` is new and `SheetEditor.tsx` was rewired through it.
 - **C4 is recorded but unmeasured** — re-run after 1.6, when annotations exist (D66, hardware row logged).
-- **`docs/HARDWARE-TEST-CHECKLIST.md` carries a C4 row that is on disk but not yet committed** (the file
+- **`docs/archive/HARDWARE-TEST-CHECKLIST.md` carries a C4 row that is on disk but not yet committed** (the file
   is lane-owned this wave); confirm it survives the wave commit.
 
 
@@ -1485,7 +1485,7 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
 
 - **The grid wave's independent review is owed.** This wave rewrote `project.json` (reorder/rename/duplicate/
   replace) and the shell seam — the two places this project's real bugs have lived. Run
-  `docs/review-brief.md` against the commit, executed, the way D114 was.
+  `docs/archive/review-brief.md` against the commit, executed, the way D114 was.
 - **Not built, deliberately (D115):** the selection bar's batch `Duplicate` / `Delete` (UI §11.2:717).
   The spec pins the buttons but neither batch-delete/undo semantics nor any copy, and an undo that restored
   only the last sheet would be the lie this project keeps fixing.
@@ -1527,7 +1527,7 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
   write is possible in that build).
 - **The capture hang is ROOT-CAUSED and FIXED (D121): a Web Lock name collision** — the session writer lease and
   the per-write mutex both asked for `fm:project:<id>`, so every write for an open project queued forever. Pinned
-  by `tests/writerLease.browser.test.ts` (real locks, no mocks) and written up in `docs/handoff-capture-save.md`.
+  by `tests/writerLease.browser.test.ts` (real locks, no mocks) and written up in `docs/archive/handoff-capture-save.md`.
   **Still owed in this area:** `writeAtomic` has **no lock-acquisition timeout** (anything that ever holds the
   mutex for long would hang writes the same silent way); the owner's **original failure** (a *rejection*, D119)
   has no captured message line yet; and the two-tab check on hardware.
@@ -1624,18 +1624,18 @@ Calibration and vector-overlay PDF were already resolved by the review (build sp
 ## How to resume
 
 1. Read this file.
-2. Read `docs/BUILD-RUNBOOK.md` — how to work (slice loop, gate policy, `[Surface]` deferral,
+2. Read `docs/archive/BUILD-RUNBOOK.md` — how to work (slice loop, gate policy, `[Surface]` deferral,
    three-strike rule).
-3. Read `docs/review-session-4-hardening.md` — the most recent review, its findings, and the
+3. Read `docs/archive/review-session-4-hardening.md` — the most recent review, its findings, and the
    **method note**: extract every reference code block into a runtime and run it against its own
    committed table *before* reading prose. Three rounds running, that is what found the real bugs.
-4. Read `docs/preflight-handoff-v0.3-hardened.md` — start with **§2.4 (v1 scope table)**, then the
+4. Read `docs/archive/preflight-handoff-v0.3-hardened.md` — start with **§2.4 (v1 scope table)**, then the
    session-4 changelog rows 21–38, **§5.8**, **§19**, then §13 (build slices).
-5. Read `docs/ui-spec-field-measure-v2-hardened.md` for UI detail.
+5. Read `docs/archive/ui-spec-field-measure-v2-hardened.md` for UI detail.
 6. Check `docs/DECISIONS.md` before making a technical choice.
 7. Follow the build slices in order.
-8. At step 2 of each slice, check `docs/CHECKPOINTS.md` for a checkpoint that fires, and log the
-   slice in `docs/BUILD-LOG.md` in the same commit. Copy strings from `docs/appendix-strings.md` into
+8. At step 2 of each slice, check `docs/archive/CHECKPOINTS.md` for a checkpoint that fires, and log the
+   slice in `docs/archive/BUILD-LOG.md` in the same commit. Copy strings from `docs/appendix-strings.md` into
    `src/ui/strings.ts` — never invent wording.
 9. Before claiming anything works end to end, run `npm.cmd run clickthru` and read the contact sheet —
-   `docs/clickthru-harness.md`. It is an inspection tool, never a gate.
+   `docs/archive/clickthru-harness.md`. It is an inspection tool, never a gate.

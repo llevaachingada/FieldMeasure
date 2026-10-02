@@ -18,9 +18,9 @@ carries `file:line`. You should not need to crawl the repo to know what is broke
 | # | File | Why |
 |---|---|---|
 | 1 | `AGENTS.md` | The **contract**: non-negotiables. It is not a status file. |
-| 2 | `docs/ui-spec-field-measure-v2-hardened.md` | The **look/feel authority** (§7 style panel, §8 objects/mini-toolbar, §6 rail, §11 screens, §14 a11y, §19.6 targets). |
-| 3 | `docs/handoff-session-23.md` | My current-state handoff: gates, owed work, the traps. |
-| 4 | `docs/clickthru-harness.md` | **How to look at the app.** Run it before and after. |
+| 2 | `docs/archive/ui-spec-field-measure-v2-hardened.md` | The **look/feel authority** (§7 style panel, §8 objects/mini-toolbar, §6 rail, §11 screens, §14 a11y, §19.6 targets). |
+| 3 | `docs/archive/handoff-session-23.md` | My current-state handoff: gates, owed work, the traps. |
+| 4 | `docs/archive/clickthru-harness.md` | **How to look at the app.** Run it before and after. |
 | 5 | `docs/DECISIONS.md` **D126–D131** | What the last wave did to the chrome (glyphs, the fit, the rail side, the a11y audits). |
 
 **Do not read the whole `docs/` tree.** Everything you need about the *chrome* is in this brief.
@@ -264,8 +264,8 @@ Only after the buttons are real. Concretely, and in this order of payoff:
 
 ## 7. How to work, and how to prove it
 
-**The loop (from `docs/BUILD-RUNBOOK.md` §2/§3):** read the slice → check checkpoints → build → write tests as
-you go → gate → record in `docs/BUILD-LOG.md` + `docs/DECISIONS.md` in the same commit.
+**The loop (from `docs/archive/BUILD-RUNBOOK.md` §2/§3):** read the slice → check checkpoints → build → write tests as
+you go → gate → record in `docs/archive/BUILD-LOG.md` + `docs/DECISIONS.md` in the same commit.
 
 **Verification discipline that this codebase actually requires:**
 

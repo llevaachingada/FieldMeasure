@@ -8,7 +8,7 @@ target geometry**, taking a screenshot at every step. An agent (or a human) then
 promotes a `[Surface]` row**. It is an *inspection* harness: it produces evidence and finds things
 tests cannot see. It found three on its first two runs (§10).
 
-**Why it exists.** `docs/handoff-session-21.md` §2 records the gap plainly: *"No agent has ever
+**Why it exists.** `docs/archive/handoff-session-21.md` §2 records the gap plainly: *"No agent has ever
 driven the app end to end"* — and every one of this project's recent owner-visible defects (D85, D103,
 D110, D119, D120, D122) was found by **running the app**, never by a green gate. This harness closes
 that loop for the machine-checkable half.
@@ -52,7 +52,7 @@ Everything lands in **`test-results/clickthru/latest/`** (gitignored; wiped at t
 **It proves** that the path renders, is reachable, and responds to the right input on the target
 geometry — with a screenshot to check, not an assertion to trust.
 
-**It can never prove** (these stay `PENDING` in `docs/HARDWARE-TEST-CHECKLIST.md`, always):
+**It can never prove** (these stay `PENDING` in `docs/archive/HARDWARE-TEST-CHECKLIST.md`, always):
 a finger's systematic contact-centroid offset; real palm physics; the OS ~250 ms pinch delay on an
 inking surface (**H15**); coalescing/`getCoalescedEvents` rates (**H16**); the Ink API (**H17**);
 thermal and sustained DPR-2 FPS (**H18**); real camera optics and resolution (**C3/H10**);
@@ -140,9 +140,9 @@ tests pass"* into *"I looked at it"*.
 any `FAIL`/`UNREACHED` decide whether the harness or the product is at fault. Then record:
 
 - a **product** finding → `docs/DECISIONS.md` (with the evidence) and an owed item in
-  `docs/CONTINUITY.md`, plus a `BUILD-LOG.md` **Surprises** line if it contradicted a document;
+  `docs/archive/CONTINUITY.md`, plus a `BUILD-LOG.md` **Surprises** line if it contradicted a document;
 - a **harness** finding → fix the harness in the same wave, and say so in `README.md`;
-- a **`[Surface]`** question → `docs/HARDWARE-TEST-CHECKLIST.md`, left `PENDING`, never promoted.
+- a **`[Surface]`** question → `docs/archive/HARDWARE-TEST-CHECKLIST.md`, left `PENDING`, never promoted.
 
 **Never** wire this harness into `playwright.config.ts` or `npm run e2e`. The gate stays byte-identical:
 this is an inspection tool, and the fastest way to lose its value is to let it become a gate that

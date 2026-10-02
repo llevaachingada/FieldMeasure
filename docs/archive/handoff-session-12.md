@@ -1,22 +1,22 @@
 # Handoff (session 12) — next implementer: clear the review findings, then 1.8 → 2.0
 
 **Written:** 2026-09-21 (session 12) · **Branch:** `main` · **Tree:** clean, pushed ·
-**HEAD:** `19b624b` · **Previous handoff:** `docs/handoff-session-11.md` (its §0.1 document table is
+**HEAD:** `19b624b` · **Previous handoff:** `docs/archive/handoff-session-11.md` (its §0.1 document table is
 still valid — read it there rather than repeating it).
 
 This file is **prescriptive**. Where it names a file and a line, the line was verified this session;
 if the code disagrees, **the code wins** — fix this file and note it in `docs/DECISIONS.md`.
 
-`docs/CONTINUITY.md` is the live snapshot; the last `docs/BUILD-LOG.md` entries are the per-slice
+`docs/archive/CONTINUITY.md` is the live snapshot; the last `docs/archive/BUILD-LOG.md` entries are the per-slice
 record. Where they disagree with this file, **they win.**
 
 ---
 
 # 0. Ground rules
 
-1. **Read order:** `docs/CONTINUITY.md` → `docs/BUILD-LOG.md` (last 3 entries) → `AGENTS.md` →
-   `docs/BUILD-RUNBOOK.md` (**§11 is the parallel-lane protocol — follow it literally**) →
-   `docs/review-brief.md` → `docs/handoff-session-11.md` §0.1 → this file.
+1. **Read order:** `docs/archive/CONTINUITY.md` → `docs/archive/BUILD-LOG.md` (last 3 entries) → `AGENTS.md` →
+   `docs/archive/BUILD-RUNBOOK.md` (**§11 is the parallel-lane protocol — follow it literally**) →
+   `docs/archive/review-brief.md` → `docs/archive/handoff-session-11.md` §0.1 → this file.
 2. **One writer per file, per wave.** Two writers on one file is whole-file loss, not a merge
    conflict. This session paid for that rule once (the D76 reorder seam) and respected it thereafter.
 3. **`docs/` are orchestrator-only.** Lanes report findings; you write the logs.
@@ -168,7 +168,7 @@ remains hardware's (§21.8's ladder), so a dev-machine number is recorded **prov
 
 # Part C — slice 1.8: style system
 
-**Packet:** `docs/implementation-plan.md` lines **1205–1258**. **Spec refs:** build spec §11.5, UI
+**Packet:** `docs/archive/implementation-plan.md` lines **1205–1258**. **Spec refs:** build spec §11.5, UI
 spec §7. Read the packet in full before dispatch.
 
 **Two-thirds of the UI already exists and is green but UNTRACKED**: `src/ui/StylePanel.tsx`,

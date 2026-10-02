@@ -1,6 +1,6 @@
 # Field Measure — Implementation Plan (v1.2 — hardened)
 
-**Derived from:** `docs/preflight-handoff-v0.3-hardened.md` §13 (slice spec) + §2.4 (scope authority),
+**Derived from:** `docs/archive/preflight-handoff-v0.3-hardened.md` §13 (slice spec) + §2.4 (scope authority),
 after adversarial review rounds 1, 2, the session-3 flush-out, and the **session-4 senior
 adversarial + hardening review**. This plan is the **execution order**: it adds per-slice files,
 numbered build order, signatures at point of use, inline test tables, and checkable gates to the
@@ -10,7 +10,7 @@ spec's slices. The spec remains the authority on *what* to build; this plan is t
 > ## What session 4 changed (read this before anything else)
 >
 > Round 4 re-executed the spec's own reference code and attacked the plan for work that **no slice
-> owned**. The full finding register with evidence is **`docs/review-session-4-hardening.md`**;
+> owned**. The full finding register with evidence is **`docs/archive/review-session-4-hardening.md`**;
 > spec-level fixes are marked `SESSION-4 FIX (…)` in the build spec and collected in its
 > changelog rows 21–38, **§5.8** and **§19**.
 >
@@ -165,7 +165,7 @@ makes the failure quiet instead of loud — the user just sees first-run again, 
 
 **Files:**
 - `docs/DECISIONS.md` — the decision, the exact origin string, and why.
-- `docs/install-runbook.md` — how one Surface goes from nothing to a working installed app.
+- `docs/INSTALL.md` — how one Surface goes from nothing to a working installed app.
 
 **Build order:**
 1. Read §19.1's three options and the trade table. **Recommended: a static HTTPS host** — it
@@ -177,7 +177,7 @@ makes the failure quiet instead of loud — the user just sees first-run again, 
    secure context**: no install, no service worker, no `showDirectoryPicker`. It cannot be used.
 2. Write the chosen origin into DECISIONS as an exact string — **scheme, host, port, base path**.
    State the `start_url` and `scope` slice 0.1 must put in the manifest, verbatim.
-3. Write `docs/install-runbook.md`: open the URL in Edge → `Install` → confirm the app opens in its
+3. Write `docs/INSTALL.md`: open the URL in Edge → `Install` → confirm the app opens in its
    own window → **turn on airplane mode and reload** → pick the projects folder → answer the
    handedness question. One page, written for a person who is not a developer.
 4. Record how a new build reaches the devices (this is slice 1.11's input): who publishes, how the
@@ -191,7 +191,7 @@ makes the failure quiet instead of loud — the user just sees first-run again, 
 - [ ] `docs/DECISIONS.md` names the exact origin string and the reason it was chosen over the other two.
 - [ ] The origin is a **secure context** (`https://…` or `http://localhost`) — write down which.
 - [ ] `start_url` and `scope` are stated verbatim for slice 0.1 to copy.
-- [ ] `docs/install-runbook.md` exists and a non-developer could follow it.
+- [ ] `docs/INSTALL.md` exists and a non-developer could follow it.
 
 **Rollback:** none needed — nothing is built. But **do not skip this slice and "decide later."**
 Later costs a migration and a data-orphaning incident, and it is the one decision in this plan
@@ -1472,7 +1472,7 @@ with the wrong strategy, an update reloads the tab mid-measurement.
 - `vite.config.ts` (edit) — `registerType: 'prompt'`.
 - `src/ui/UpdateToast.tsx` — the non-modal update prompt.
 - `src/ui/Settings.tsx` (edit) — build version + build date.
-- `docs/install-runbook.md` (from 0.0, now verified end-to-end on a real Surface).
+- `docs/INSTALL.md` (from 0.0, now verified end-to-end on a real Surface).
 
 **Build order:**
 1. `registerType: 'prompt'` — **never `autoUpdate`**. An automatic reload mid-measurement is both a
@@ -1508,7 +1508,7 @@ export function UpdateToast(props: { needRefresh: boolean; onReload: () => Promi
       the edit is on disk after the reload. [Surface]
 - [ ] Airplane-mode reload still works after the update (re-run slice 0.1's gate). [Surface]
 - [ ] Settings shows the running build id and date; it changes after the update.
-- [ ] `docs/install-runbook.md` was followed on a clean Surface, start to finish, by someone who did
+- [ ] `docs/INSTALL.md` was followed on a clean Surface, start to finish, by someone who did
       not write it. [Surface]
 - [ ] **(a11y §19.6)** The toast is an `aria-live="polite"` region, is dismissible from the keyboard,
       and never steals focus; **its buttons are ≥48 px with 16 px hit slop**.
@@ -1519,7 +1519,7 @@ export function UpdateToast(props: { needRefresh: boolean; onReload: () => Promi
 ### 2.0 — Field pilot
 **Spec refs:** §13/2.0.
 
-**Do:** 2 people, 1 week, real jobs, side-by-side with their current tool. Write go/no-go + top 5 fixes into `docs/CONTINUITY.md`.
+**Do:** 2 people, 1 week, real jobs, side-by-side with their current tool. Write go/no-go + top 5 fixes into `docs/archive/CONTINUITY.md`.
 
 ---
 

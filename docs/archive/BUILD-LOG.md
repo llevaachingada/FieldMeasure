@@ -5,7 +5,7 @@ slice, in the same commit as the slice.
 
 **Status: slices 0.2 + 1.1 + 0.3 + 1.2 + 1.3 complete — all machine gates green.** Also landed:
 **slice 1.9 step 1 only** (the filename module; **1.9 is NOT complete** — renderStage/pdf/png/wizard
-still land after 1.8). Next action: **slice 1.4 ∥ 1.4.5** in `docs/implementation-plan.md`.
+still land after 1.8). Next action: **slice 1.4 ∥ 1.4.5** in `docs/archive/implementation-plan.md`.
 
 ---
 
@@ -21,7 +21,7 @@ still land after 1.8). Next action: **slice 1.4 ∥ 1.4.5** in `docs/implementat
 - [x] <gate text>
 - [x] <gate text>
 
-**Deferred to hardware:** <n> gates → logged in docs/HARDWARE-TEST-CHECKLIST.md under slice <n>
+**Deferred to hardware:** <n> gates → logged in docs/archive/HARDWARE-TEST-CHECKLIST.md under slice <n>
 
 **Checkpoints fired:** <C<n> — measured X, took row Y> | none
 
@@ -37,7 +37,7 @@ expectation you corrected, with the arithmetic>
 
 ## BLOCKED entries
 
-If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instead and stop:
+If the three-strike rule (`docs/archive/BUILD-RUNBOOK.md` §6) fires, append here instead and stop:
 
 ```
 ## BLOCKED — slice <n>
@@ -56,7 +56,7 @@ If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instea
 ## Slice 0.0 — Origin, distribution and install decision
 **Date:** 2026-09-21 · **Commit:** docs-only, folded into session 4b
 
-**Built:** nothing executable — pinned the origin (D24/D34/§21.1), wrote `docs/install-runbook.md`; the origin guard is specified for 0.1.
+**Built:** nothing executable — pinned the origin (D24/D34/§21.1), wrote `docs/INSTALL.md`; the origin guard is specified for 0.1.
 
 **Machine gates:** n/a (decision slice). **Checkpoints fired:** none.
 
@@ -77,7 +77,7 @@ If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instea
 - [x] vitest browser project (real canvas → PNG data URL — D40 gate)
 - [x] playwright e2e (3 tests: smoke + CSP landscape/portrait)
 
-**Deferred to hardware:** 2 gates → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 0.1 (airplane-mode reload after install; fonts load offline after install)
+**Deferred to hardware:** 2 gates → logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 0.1 (airplane-mode reload after install; fonts load offline after install)
 
 **Checkpoints fired:** C1 — toolchain bring-up: "All pass" (versions recorded in DECISIONS)
 
@@ -98,7 +98,7 @@ If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instea
 - [x] `npm run build` succeeds
 - [x] `npx vitest run` green (114 tests across node/jsdom/browser); `npx playwright test` green (smoke + CSP ×2 + device-caps)
 
-**Deferred to hardware:** 8 gates → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 0.2 (touch tap-tap, touch drag-vs-pan, pen parity, palm gauntlet [pen], touch-only palm gate, ink ≤16 ms, pen `pointercancel`, touch `pointercancel`). The throwaway `spike.tsx` canvas is deferred — every one of its gates is `[Surface]`, no machine gate to satisfy.
+**Deferred to hardware:** 8 gates → logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 0.2 (touch tap-tap, touch drag-vs-pan, pen parity, palm gauntlet [pen], touch-only palm gate, ink ≤16 ms, pen `pointercancel`, touch `pointercancel`). The throwaway `spike.tsx` canvas is deferred — every one of its gates is `[Surface]`, no machine gate to satisfy.
 
 **Checkpoints fired:** C3 — measured PROVISIONAL (no camera on build machine), recorded in DECISIONS. C8 (touch-primary palm gauntlet) deferred to hardware (H1/H1b).
 
@@ -160,7 +160,7 @@ If the three-strike rule (`docs/BUILD-RUNBOOK.md` §6) fires, append here instea
 - [x] `npx playwright test` green (5 passed: smoke + CSP ×2 + device-caps + `move()` overwrite; 4 `fixme`: 3 renderer-crash + 1 app-level, deferred)
 - [x] `cleanStaleTmp` recursion + lock coverage + I/O-failure recovery + disk-full + persistQueue coalesce/backoff all unit-asserted
 
-**Deferred to hardware:** 4 gates → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.2 (kill-switch ×3, disk-full mid-edit, duplicate-id folder copy, two-tab/different-project). The renderer-crash harness is `fixme` (CDP `Page.crash`+reopen times out in this env); the real power-loss case is H4.
+**Deferred to hardware:** 4 gates → logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 1.2 (kill-switch ×3, disk-full mid-edit, duplicate-id folder copy, two-tab/different-project). The renderer-crash harness is `fixme` (CDP `Page.crash`+reopen times out in this env); the real power-loss case is H4.
 
 **Checkpoints fired:** none.
 
@@ -207,7 +207,7 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 
 **Decisions recorded:** pending — see Follow-ups.
 
-**Surprises:** (1) The plan's slice-1.9 gate text said "the full **17-row** table above passes" while the table it references has **29** rows (20 + 4 + 5). Gate text corrected in `docs/implementation-plan.md`; the DECISIONS line is still owed. (2) All 29 rows were re-executed against the reference implementation by an independent lane: **no row disagreed**, including `con.jpg` → `_con.jpg` (the row the session-4 from-prose draft failed) and both truncation-re-exposes-a-dot rows. (3) Two of the lane's own extra edge tests were first written with bad arithmetic and were caught by execution, not reading — the module was never at fault.
+**Surprises:** (1) The plan's slice-1.9 gate text said "the full **17-row** table above passes" while the table it references has **29** rows (20 + 4 + 5). Gate text corrected in `docs/archive/implementation-plan.md`; the DECISIONS line is still owed. (2) All 29 rows were re-executed against the reference implementation by an independent lane: **no row disagreed**, including `con.jpg` → `_con.jpg` (the row the session-4 from-prose draft failed) and both truncation-re-exposes-a-dot rows. (3) Two of the lane's own extra edge tests were first written with bad arithmetic and were caught by execution, not reading — the module was never at fault.
 
 **Follow-ups owed (not done):** the DECISIONS entry for the 17→29 gate-text correction, held so it does not race slice 1.3's concurrent `DECISIONS.md` edits.
 
@@ -227,7 +227,7 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 - [x] `npx playwright test` 5 passed / 4 skipped (unchanged)
 - [x] Slice gates with a machine half: **zoom constancy at 1×/4×/8×** (stroke + ink pixel-measured; label now ink-measured too); EXIF orientation baked upright (3024×4032) and the re-encode proven free of APP1/GPS; the 12 MP fixture decodes at its real size; the object-first/pan predicate **and its wiring** (new `sheetEditor.browser` test); the EXIF read bounded to 64 KB
 
-**Deferred to hardware:** 5 gates → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.3 (12 MP upright + 0.25×–8× smoothness; 20-photo import memory; Explorer GPS-property check; the on-glass touch-drag walk; Performance-panel worker confirmation; the on-device a11y walk). No `[Surface]` result was faked.
+**Deferred to hardware:** 5 gates → logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 1.3 (12 MP upright + 0.25×–8× smoothness; 20-photo import memory; Explorer GPS-property check; the on-glass touch-drag walk; Performance-panel worker confirmation; the on-device a11y walk). No `[Surface]` result was faked.
 
 **Checkpoints fired:** none — and **C2's fixture TODO is now closed** (the 12 MP EXIF-6 fixture exists and is real, not a stub).
 
@@ -260,7 +260,7 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 - [x] `npx playwright test` 5 passed / 4 skipped (unchanged, CSP-as-a-test green at both viewports)
 - [x] Gate halves with a machine form: the `panelDockFor` table **including the inclusive 1.2 boundary**; rail side follows handedness and never the dock; an unimplemented tool cannot change `activeTool`; the autosave slot renders nothing; capture → review → Use writes `photo.jpg` + one `project.json` sheet + schedules the thumbnail; a failed write leaves `project.json` unchanged and the photo in memory; camera-denied renders the exact copy; copy contract enforced by `tests/strings.test.ts`
 
-**Deferred to hardware:** 7 rows added to `docs/HARDWARE-TEST-CHECKLIST.md` (5 for 1.4, 2 for 1.4.5), every one PENDING with its machine-verifiable half stated. No `[Surface]` result was faked.
+**Deferred to hardware:** 7 rows added to `docs/archive/HARDWARE-TEST-CHECKLIST.md` (5 for 1.4, 2 for 1.4.5), every one PENDING with its machine-verifiable half stated. No `[Surface]` result was faked.
 
 **Checkpoints fired:** **C5** (`lucide-react` 1.x icon API, slice 1.4.5) → measured: named exports work (`Undo2`/`Redo2`, `ChevronLeft/Right`, `Layers`, … render; build + CSP test green). Recorded in DECISIONS and flipped in CHECKPOINTS. C4 was already recorded by the owner as "fired but not measurable until annotations exist".
 
@@ -289,7 +289,7 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 - [x] `npx playwright test` 5 passed / 4 skipped
 - [x] The packet’s machine-checkable gates: pure tap/settle/contact/chain/refine decisions **and their wiring** in the browser project; the keypad truth table (`12 6`, `12 6 3`, `10'-4 1/2"`) asserted on the derived label **and** the committed `valueMm`/`enteredText`; the refusal table (`0`, `12 6 20`, `-5`, 1001 ft) each refused **with a rendered reason**; chain locks at B; precision 1/16 → 1/2 re-derives every label with no stored `label` key anywhere; one stroke = one undo step; undo/redo toasts name the action
 
-**Deferred to hardware:** 10 rows added to `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.5 (tap-tap + settle on glass, the keypad truth/refusal tables with a Type Cover, the measured pen-3.5×/touch-4× loupe ratios, the on-glass target walk, focus/keyboard walk, 4-dims timing, the accuracy walk, and the D37/D63 finger walk). None faked.
+**Deferred to hardware:** 10 rows added to `docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 1.5 (tap-tap + settle on glass, the keypad truth/refusal tables with a Type Cover, the measured pen-3.5×/touch-4× loupe ratios, the on-glass target walk, focus/keyboard walk, 4-dims timing, the accuracy walk, and the D37/D63 finger walk). None faked.
 
 **Checkpoints fired:** **C10** (touch placement accuracy) → the machine half is proven and logged; the on-glass walk is deferred (no Surface), so it is recorded as **not measurable without hardware** — never as a pass. CHECKPOINTS flipped with that wording.
 
@@ -325,7 +325,7 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 - [x] `npx playwright test` 5 passed / 4 skipped (CSP-as-a-test green at both viewports)
 - [x] Gate halves with a machine form: ink zoom constancy 1× → 8×; highlighter inserted below all markup; shape tap-tap pure **and** wired; Polygon closes on `✓ Done`; a right angle reads 90 and a < 8 px ray is **refused**; touch erase deletes with a named undo toast and hides stroke-scope; every mutation undoable; markup round-trips through `markup.json`
 
-**Deferred to hardware:** the pen-pressure comparison (C9), the on-glass handle walk, the touch palm/selection gauntlet, the panel’s 320 px/56 px/48 px target walk and the 2.0 timing gates — logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.6. None faked.
+**Deferred to hardware:** the pen-pressure comparison (C9), the on-glass handle walk, the touch palm/selection gauntlet, the panel’s 320 px/56 px/48 px target walk and the 2.0 timing gates — logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 1.6. None faked.
 
 **Checkpoints fired:** **C9** (pen pressure response) → the **touch-only** row: the CI counterpart is green (a ramped pen array yields a materially wider outline; an all-`0.5` touch stroke renders at the constant 8-mu floor), and the on-device pen comparison is marked **PENDING (pen-only)**, never FAIL and never faked.
 
@@ -361,7 +361,7 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 - [x] Gate halves with a machine form: rows in the right bands with children indented; tap-select passes the **key**; eye/lock undoable and named; the photo row offers no delete; the panel opens from the TopBar, Escape closes it and focus returns; the scene round-trip carries `visible`/`locked` after a reload (`layersWire.browser.test.ts`); marquee selects enclosed annotations; a handle drag is one undo step; the rotate commit lands snapped; long-press pins the toolbar; a 600 ms erase press previews and deletes nothing
   - ⚠ **Corrected (D77/F11):** this bullet first claimed "row count matches after a reload (proves `visible`/`locked` persisted)". A row count cannot prove visibility — a hidden row still counts. The persistence claim rests on the scene round-trip test above, which does cover it.
 
-**Deferred to hardware:** 4 new rows → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.6 (drag-to-reorder on glass; eye/lock undo + reload; the erase 600 ms preview; the mini-toolbar pin), each with its machine half stated. None faked.
+**Deferred to hardware:** 4 new rows → logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 1.6 (drag-to-reorder on glass; eye/lock undo + reload; the erase 600 ms preview; the mini-toolbar pin), each with its machine half stated. None faked.
 
 **Checkpoints fired:** none. **C4's obstacle is gone** — annotations now exist, so its "50 annotations on a 4096-px sheet" measurement is constructible; it stays a hardware decision and its machine half is **owed, not yet dispatched** (⚠ corrected in session 12: an earlier version of this line claimed it *was* dispatched, which was not true).
 
@@ -398,7 +398,7 @@ D52 (snapshot cadence → 1.6/1.10) and D53 (kill-switch harness → H4) confirm
 - [x] `npx playwright test` — 5 passed / **5 skipped** (4 pre-existing + the new real-touch spec, deferred `fixme` — see below)
 - [x] Gate halves with a machine form: the **child round-trip through the real editor** (place → Focus → child dimension → scale ×2 + crop + rotate 30° → save → remount → the child's asset geometry is unchanged and its wrapper sits at exactly `−crop`); the crop-window glue trace; two insets from one asset have **independent** children; the same image twice writes **one** file; Focus clips inside and outside-markup renders above insets; the §4.2 Esc ladder; Replace-photo warn/keep/hold-to-confirm-remove; a11y (Focus announced, breadcrumb is a real button, 48 px + 16 px slop, no inline style)
 
-**Deferred to hardware:** 2 rows → logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.7 (the on-glass Focus/target walk; and the deferred real-touch reorder gate). None faked.
+**Deferred to hardware:** 2 rows → logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 1.7 (the on-glass Focus/target walk; and the deferred real-touch reorder gate). None faked.
 
 **Checkpoints fired:** none.
 
@@ -464,7 +464,7 @@ below; both waves share one commit, so this gate is the gate for both).
 - [x] `npm run build` → 0 errors, 2125 modules, **17 precache entries (855.24 KiB)**
 - [x] `npx playwright test` → **5 passed / 5 skipped** (the F1 real-touch spec stays `fixme` — D81)
 
-**Deferred to hardware:** 2 added → `docs/HARDWARE-TEST-CHECKLIST.md`
+**Deferred to hardware:** 2 added → `docs/archive/HARDWARE-TEST-CHECKLIST.md`
 - **C4** re-measured on a Surface Go (the §21.8 ladder; the dev-machine number decides nothing).
 - ⚠ **The B1 handle-persistence check** — *pick a real folder in first-run, then reload: does Home come
   back?* This decides whether the renderer death is an OPFS-only harness problem or a **product** defect in
@@ -654,7 +654,7 @@ the §11.10 four-step wizard built against an injected-props interface, so it ne
 lane's in-flight file. 48 copy rows folded into `strings.ts` and machine-checked.
 
 **NOT built — the slice is not usable:** `src/export/runExport.ts` does not exist and the wizard is not
-mounted, so **nothing in the app can reach an export**. See `docs/handoff-session-14.md` §3.
+mounted, so **nothing in the app can reach an export**. See `docs/archive/handoff-session-14.md` §3.
 
 **Machine gates:**
 - [x] **export invariance, measured in REAL PIXELS** at M = 1/2/3 (`tests/renderStage.browser.test.ts`
@@ -687,7 +687,7 @@ what sets it.
 **Gate on the pushed tree (`250668c`):** `tsc` 0 · `vitest` **71 files / 1015 tests** (node + jsdom +
 browser) · `build` 0 (17 precache, 857.62 KiB) · `playwright` 5 passed / 5 skipped.
 
-> **Restored in session 16.** The merge commit `2e7a43a` took `docs/BUILD-LOG.md` wholesale from `main`,
+> **Restored in session 16.** The merge commit `2e7a43a` took `docs/archive/BUILD-LOG.md` wholesale from `main`,
 > which silently dropped this entry (it exists in history at `b2d6dea`). The text above is that record with
 > its decision numbers re-mapped to the reconciled scheme (`D85`–`D88` → `D96`–`D99`; see DECISIONS `D100`).
 
@@ -755,7 +755,7 @@ on-screen stroke finding), D102 (the owner's D88 answer + the beta-honesty rule)
    passed every gate and documented the wrong mechanism.
 
 **Next:** slice 1.9's wiring (`src/export/runExport.ts` + mounting the wizard + enabling the entry points,
-per `docs/handoff-session-14.md` §3), then 1.10.
+per `docs/archive/handoff-session-14.md` §3), then 1.10.
 
 ---
 
@@ -822,8 +822,8 @@ a11y audit), then 1.11 (update strategy), then 2.0.
 
 ## Investigation — the torch button and the capture/import path (owner request)
 
-Read-only investigation, recorded in `docs/investigation-torch-and-capture.md` and indexed in
-`docs/INDEX.md`. No product behaviour changed by this entry.
+Read-only investigation, recorded in `docs/archive/investigation-torch-and-capture.md` and indexed in
+`docs/archive/INDEX.md`. No product behaviour changed by this entry.
 
 **Question asked:** does the ⚡ Torch button actually fire the light on a Surface tablet, and is photo
 saving/import complete?
@@ -1105,7 +1105,7 @@ paused 1.10 polish (History flyout, a11y audit, halo fix, PDF captions), then 2.
 **Date:** 2026-09-22 · **Commits:** see `git log` · **Branch:** `main`
 
 **Context:** the independent, executed review of the trash + grid wave returned six findings (`D114`).
-This entry records the resolutions; `docs/handoff-session-21.md` §9 carries the register in the same commit.
+This entry records the resolutions; `docs/archive/handoff-session-21.md` §9 carries the register in the same commit.
 
 **Fixed:**
 
@@ -1202,7 +1202,7 @@ chip), the paused 1.10 polish, and a real end-to-end run on the built app.
 
 **Deferred to hardware:** the real touch reorder (implicit pointer capture, `touch-action` read at pointer
 creation), the chip's real pointer-follow, a real replace against `move()`/NTFS/AV locks, and the chip's
-numbers against Explorer — logged in `docs/HARDWARE-TEST-CHECKLIST.md` under slice 1.10.
+numbers against Explorer — logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` under slice 1.10.
 
 **Checkpoints fired:** none.
 
@@ -1239,7 +1239,7 @@ end-to-end run on a machine with a webcam.
 
 **Built:** nothing new that a user asked for — this entry is the register and the fixes. Two reviews ran against
 the wave's commit: an **executed correctness register** (`@oracle`, clean worktree pinned to the revision, per
-`docs/review-brief.md`) and an **independent UI/UX review** that MEASURED the screen in the repo's own Chromium
+`docs/archive/review-brief.md`) and an **independent UI/UX review** that MEASURED the screen in the repo's own Chromium
 (a fixture mirroring the real DOM chain and stylesheets, 1440×960 · 960×1440 · 1200×800, `getBoundingClientRect`
 per element) — because jsdom cannot see any of it (D40).
 
@@ -1398,7 +1398,7 @@ the real lock while writing.
 
 **Checkpoints fired:** none.
 
-**Decisions recorded:** **D121**. A handoff for this issue: **`docs/handoff-capture-save.md`**.
+**Decisions recorded:** **D121**. A handoff for this issue: **`docs/archive/handoff-capture-save.md`**.
 
 **Surprises:** two. (1) The same lock name was **pinned in the spec in two places** and mirrored by a test
 requirement — a spec-level self-deadlock, not a slip in one module. (2) Executed: Chromium **grants** an
@@ -1433,7 +1433,7 @@ handle's permission, which is why a folder change looked like it did nothing.
 
 **Checkpoints fired:** none.
 
-**Decisions recorded:** **D122**; `docs/handoff-capture-save.md` gained the "if the line says Folder permission
+**Decisions recorded:** **D122**; `docs/archive/handoff-capture-save.md` gained the "if the line says Folder permission
 expired" diagnosis.
 
 **Next:** the owner re-picks the folder (and reloads manually on the build they have), then captures again.
@@ -1586,7 +1586,7 @@ hardware pass.
 
 **Date:** 2026-09-22 · **Commit:** this commit · **Not a slice** — verification tooling.
 
-**Why:** `docs/handoff-session-21.md` §2 records it plainly — *"No agent has ever driven the app end to
+**Why:** `docs/archive/handoff-session-21.md` §2 records it plainly — *"No agent has ever driven the app end to
 end."* Several of the recent owner-visible defects were all found by **running** the app, never by a green
 gate. This harness closes that loop for the machine-checkable half.
 
@@ -1687,7 +1687,7 @@ z-index, so the in-app mark's bottom-right corner overlaps the tool rail's Undo/
 specifically. Verified harmless (never blocks a tap, glyphs stay legible) against the clickthru harness's own
 screenshots rather than assumed; kept small/low-opacity rather than given route-aware positioning logic.
 
-**Next:** the UI/GUI handoff pass itself (`docs/handoff-ui-pass-for-claude.md`), starting with its own §8
+**Next:** the UI/GUI handoff pass itself (`docs/archive/handoff-ui-pass-for-claude.md`), starting with its own §8
 priority order — §4.1 (extend `AnnotationStyle` with the per-tool style keys the panel has no data channel
 for), §4.2 (the mini-toolbar to spec), §4.3 (the two overflow menus).
 
@@ -1695,7 +1695,7 @@ for), §4.2 (the mini-toolbar to spec), §4.3 (the two overflow menus).
 
 **Date:** 2026-09-22 · **Commit:** (this commit)
 
-**Built:** `docs/handoff-ui-pass-for-claude.md` §4.1's data-channel work, scoped to what genuinely needed it
+**Built:** `docs/archive/handoff-ui-pass-for-claude.md` §4.1's data-channel work, scoped to what genuinely needed it
 (full reasoning + the five deferred items in **D133**). Three new `AnnotationStyle` keys —
 `insetBorder`/`insetRadius`/`insetShadow` — additive/`.nullish()`, no schema version bump. Rendered in
 `renderInset.ts` (border inset by half its stroke width so it survives the group's own clip; shadow is a
@@ -1773,7 +1773,7 @@ crop) and sit clear of the watermark. Full reasoning, the rewritten tests and th
 **Machine gates:** `tsc` 0 · vitest — see the CONTINUITY snapshot for the final counts on this tree · `build` — see CONTINUITY.
 `clickthru` was **not** re-run for this change (it is owed, along with the §4.1/§4.2 re-run session 24 already owed).
 
-**Owed / `[Surface]`:** H23–H25 in `docs/HARDWARE-TEST-CHECKLIST.md` (the still-capture maximum, hardware vs digital zoom, the
+**Owed / `[Surface]`:** H23–H25 in `docs/archive/HARDWARE-TEST-CHECKLIST.md` (the still-capture maximum, hardware vs digital zoom, the
 watermark/zoom-chip clearance on the real tablet).
 
 
@@ -1791,13 +1791,13 @@ closes the app browser gracefully before forcing it. Full reasoning in **D136**.
 **Machine gates:** `tsc` 0 · vitest 107 files / 1530 tests (node + jsdom + browser) · `build` 0 (28 precache, 1644.44 KiB).
 `npm.cmd run clickthru` re-run on this tree: passed (it also discharges the D135/§4.1/§4.2 re-run owed on the same build).
 
-**Owed / `[Surface]`:** H26 in `docs/HARDWARE-TEST-CHECKLIST.md` (the real Chromium grant prompt and relaunch loop).
+**Owed / `[Surface]`:** H26 in `docs/archive/HARDWARE-TEST-CHECKLIST.md` (the real Chromium grant prompt and relaunch loop).
 
 ## Wave 1 (beta readiness, session 27) — save-on-exit, error boundaries, first run, Home/grid, journey gate (D137-D143)
 
 **Date:** 2026-09-24 · **Commit:** see `git log` (Wave 1 commits on `claude/quirky-ramanujan-4xn374`)
 
-**Built:** from `docs/beta-readiness-fix-plan.md`, six parallel lanes (L1-L6) plus integration. The editor now awaits its
+**Built:** from `docs/archive/beta-readiness-fix-plan.md`, six parallel lanes (L1-L6) plus integration. The editor now awaits its
 autosave before leaving and the shell owns the open-project registry (D137, the review's two Critical findings); route,
 app and capture error boundaries with a guarded chunk reload and a global rejection toast (D138); first run creates or
 uses a real `FieldMeasure` folder, names an unsupported browser, and shows picker failures (D139); the Home scan hides
@@ -1815,7 +1815,7 @@ was driven headlessly and screenshotted: Home (cover, «1 sheet · 6:46 PM», no
 editor (no error line, 1 card), the unsupported-browser notice, and the sheet card after the `.hit-slop` fix. **Owed:**
 `npm.cmd run clickthru` on the Windows machine before claiming the whole path end to end.
 
-**Deferred to hardware:** H27-H29 in `docs/HARDWARE-TEST-CHECKLIST.md`.
+**Deferred to hardware:** H27-H29 in `docs/archive/HARDWARE-TEST-CHECKLIST.md`.
 
 **Checkpoints fired:** none.
 
@@ -1835,7 +1835,7 @@ editor (no error line, 1 card), the unsupported-browser notice, and the sheet ca
 - Commits are grouped (fixes, then the journey gate, then docs) rather than one per lane: `App.tsx` and `strings.ts`
   carry several decisions' integration lines, and every commit must compile on its own.
 
-**Next:** Wave 2 of `docs/beta-readiness-fix-plan.md` (R1-R4 behaviour-preserving refactors), after the owed clickthru
+**Next:** Wave 2 of `docs/archive/beta-readiness-fix-plan.md` (R1-R4 behaviour-preserving refactors), after the owed clickthru
 and the H27-H29 hardware rows.
 
 ## Wave 1 verification on the Windows build machine (session 27 continued) — merge, gate, clickthru
@@ -1981,7 +1981,7 @@ old sheet comes back.
 
 ## Session 28 (continued): owner requests D146-D152
 
-**Handoff: [`docs/handoff-session-28.md`](handoff-session-28.md)** has the commits, gates, the test changes the
+**Handoff: [`docs/archive/handoff-session-28.md`](handoff-session-28.md)** has the commits, gates, the test changes the
 requests forced, and the owed list. Two Sonnet lanes built the camera (D146) and the export (D147) changes; the
 orchestrator built the rest and integrated.
 
@@ -1999,7 +1999,7 @@ playwright 8/5 | clickthru 20/20.
 
 ## Session 29: owner requests D154-D161, and GitHub Pages
 
-**Handoff: [`docs/handoff-session-29.md`](handoff-session-29.md).** Commits on `beta-readiness-wave-2`:
+**Handoff: [`docs/archive/handoff-session-29.md`](handoff-session-29.md).** Commits on `beta-readiness-wave-2`:
 `4bdec6c` (D154-D157), `9d6c2d6` (D158), `6278750` (D159), `fac8309` (Pages workflow and base-relative assets),
 `fe108a1` (D160), and the D161 commit.
 

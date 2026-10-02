@@ -7,7 +7,7 @@ the structural complexity that produced those findings. Lower-effort subagents (
 without extra context. Each lane brief below is **self-contained**: a lane reads only
 its own brief plus the files it names.
 
-> **Authority.** This plan is subordinate to `AGENTS.md`, `docs/BUILD-RUNBOOK.md` (§11 is the
+> **Authority.** This plan is subordinate to `AGENTS.md`, `docs/archive/BUILD-RUNBOOK.md` (§11 is the
 > parallel lane protocol this plan follows) and the build spec §2.4. Where this plan changes
 > behaviour that an existing test pins, the orchestrator records the decision in
 > `docs/DECISIONS.md` **before** any lane edits that test (AGENTS non-negotiable 7: fix the spec
@@ -942,7 +942,7 @@ Follow runbook §11's integration checklist. In order:
    committed) and see the fallback; set `showDirectoryPicker` to `undefined` in DevTools and reload to
    see the unsupported notice.
 8. **Docs:** finish D137 to D143 in `DECISIONS.md` (for D140 and D141, show why the old assertions
-   were superseded). Add the BUILD-LOG entry (template in `docs/BUILD-LOG.md`, "Surprises" is mandatory)
+   were superseded). Add the BUILD-LOG entry (template in `docs/archive/BUILD-LOG.md`, "Surprises" is mandatory)
    and the CONTINUITY snapshot. In `HARDWARE-TEST-CHECKLIST.md`, add `[Surface]` rows for: first run
    picking real `Documents`, exiting the editor right after a real pen stroke, and the unsupported
    notice in a non-Chromium browser.
@@ -1138,7 +1138,7 @@ Only after the owner approves the proposal. The orchestrator asks, and doesn't a
 You are lane <ID> on the Field Measure repo at /home/user/FieldMeasure, branch
 claude/quirky-ramanujan-4xn374. Other lanes are editing other files at the same time.
 
-Read docs/beta-readiness-fix-plan.md §1 (rules) and your brief, §<section> "<ID>: …".
+Read docs/archive/beta-readiness-fix-plan.md §1 (rules) and your brief, §<section> "<ID>: …".
 Do exactly the brief's steps, in order. Edit ONLY the files it lists under "Owns".
 Do not commit, push, run npm run build, run Playwright, or edit docs/**.
 Verify with: npx tsc --noEmit && npx vitest run --project node --project jsdom

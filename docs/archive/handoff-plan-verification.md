@@ -16,7 +16,7 @@ Two jobs, in this order:
    canonical docs, unbuildable steps, wrong architecture, data-loss paths, wrong-measurement paths,
    missing slices/dependencies, gates that don't actually check what they claim. Fix findings in the
    docs before fleshing out.
-2. **Flush out.** Expand `docs/implementation-plan.md` from its current state (slice order, task
+2. **Flush out.** Expand `docs/archive/implementation-plan.md` from its current state (slice order, task
    lists, gates) into a complete per-slice build packet: exact files with signatures, step-by-step
    build order inside each slice, the test tables inline, and the acceptance gates restated as
    checklists. The bar: a lower-level AI builder can execute any single slice with **zero guessing**
@@ -43,11 +43,11 @@ Two jobs, in this order:
 
 | # | Doc | Authority over |
 |---|---|---|
-| 1 | `docs/CONTINUITY.md` | live state, where things stand |
+| 1 | `docs/archive/CONTINUITY.md` | live state, where things stand |
 | 2 | **This file** | your job and constraints |
-| 3 | `docs/preflight-handoff-v0.3-hardened.md` | **what to build.** §2.4 v1 scope table is the single authority on what ships in v1; §13 defines the slices |
-| 4 | `docs/implementation-plan.md` | **order, gates, done-ness.** You are flushing this out |
-| 5 | `docs/ui-spec-field-measure-v2-hardened.md` | look & feel, interaction detail. Inline `〔v1 scope: …〕` markers defer to the build spec §2.4 |
+| 3 | `docs/archive/preflight-handoff-v0.3-hardened.md` | **what to build.** §2.4 v1 scope table is the single authority on what ships in v1; §13 defines the slices |
+| 4 | `docs/archive/implementation-plan.md` | **order, gates, done-ness.** You are flushing this out |
+| 5 | `docs/archive/ui-spec-field-measure-v2-hardened.md` | look & feel, interaction detail. Inline `〔v1 scope: …〕` markers defer to the build spec §2.4 |
 | 6 | `docs/DECISIONS.md` | why things are the way they are (D1–D20 + review corrections) |
 | 7 | `docs/UNITS.md` | input formats, keypad model, precision rules |
 
@@ -98,11 +98,11 @@ precision is project-level; fflate for PNG zip; handedness as a plain question; 
 
 ## 6. Your verification pass (do this BEFORE fleshing out)
 
-Work through these checks; fix what fails; log findings in `docs/CONTINUITY.md` (session 3) and
+Work through these checks; fix what fails; log findings in `docs/archive/CONTINUITY.md` (session 3) and
 `docs/DECISIONS.md` where a choice was involved.
 
 **Cross-doc consistency:**
-- [ ] Every slice in `docs/implementation-plan.md` matches its spec §13 entry (files, tasks, gates).
+- [ ] Every slice in `docs/archive/implementation-plan.md` matches its spec §13 entry (files, tasks, gates).
   The plan added slices 0.3/1.4 — confirm §13 has them (round-1 M9 fix) and that nothing drifted.
 - [ ] Every gate in the plan actually checks the thing it's named for (e.g., the 1.9 invariance gate
   must reference the §4.2 export rules AND §9.2's `page pt = imagePx × 0.75`).
@@ -139,7 +139,7 @@ Work through these checks; fix what fails; log findings in `docs/CONTINUITY.md` 
 
 ## 7. Your flush-out pass (after verification is clean)
 
-For each slice in `docs/implementation-plan.md`, extend its entry with:
+For each slice in `docs/archive/implementation-plan.md`, extend its entry with:
 
 1. **Files:** exact paths (spec §12 layout) with one line on each file's responsibility.
 2. **Build order inside the slice:** numbered steps a builder follows literally, including "wire X
@@ -173,7 +173,7 @@ For each slice in `docs/implementation-plan.md`, extend its entry with:
 
 ## 9. Session mechanics
 
-1. Update `docs/CONTINUITY.md` at session start (mark session 3, in-progress: plan verification +
+1. Update `docs/archive/CONTINUITY.md` at session start (mark session 3, in-progress: plan verification +
    flush-out) and at session end (findings, state, next action).
 2. Commit with a descriptive message; push to `origin HEAD`. Follow the repo's existing message
    style (see `git log`).
@@ -184,6 +184,6 @@ For each slice in `docs/implementation-plan.md`, extend its entry with:
    `[Surface — pending]` rather than removing it.
 
 **Definition of done for your session:** verification checklist all green (with findings fixed and
-logged), `docs/implementation-plan.md` flushed out slice-by-slice per §7, CONTINUITY updated,
+logged), `docs/archive/implementation-plan.md` flushed out slice-by-slice per §7, CONTINUITY updated,
 committed and pushed. The next session after yours should be able to start slice 0.1 with zero
 questions.

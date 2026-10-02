@@ -1,7 +1,7 @@
 # Adversarial Review Handoff — Field Measure preflight packet
 
 **To:** a senior-level adversarial reviewer (architecture + correctness + hardening + issue-finding).
-**Subject:** `docs/preflight-handoff.md` (primary) and `docs/ui-spec-field-measure.md` (companion UI/UX spec).
+**Subject:** `docs/archive/preflight-handoff.md` (primary) and `docs/archive/ui-spec-field-measure.md` (companion UI/UX spec).
 **Your job:** try to break it. Find contradictions, unbuildable specs, data-loss paths, wrong-measurement paths, security/privacy gaps, and over/under-engineering. Verify this packet is actually executable by a lower-level builder with **zero guessing**.
 
 ---
@@ -19,8 +19,8 @@ Report **material findings only** — not prose polish, not preference.
 
 ## Artifacts under review
 
-- `docs/preflight-handoff.md` — architecture, data model, zod schemas, reference code, tool-by-tool specs, build slices, decisions, risks.
-- `docs/ui-spec-field-measure.md` — UI/UX spec (authority on visual/interaction detail).
+- `docs/archive/preflight-handoff.md` — architecture, data model, zod schemas, reference code, tool-by-tool specs, build slices, decisions, risks.
+- `docs/archive/ui-spec-field-measure.md` — UI/UX spec (authority on visual/interaction detail).
 
 ## Context (accepted — do not re-research, do not relitigate)
 

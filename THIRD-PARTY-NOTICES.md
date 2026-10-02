@@ -1,7 +1,7 @@
 # Third-party notices
 
 Field Measure bundles the third-party software listed below. This file is required by build spec
-`docs/preflight-handoff-v0.3-hardened.md` §2.2 and is checked by CI; regenerate it whenever a
+`docs/archive/preflight-handoff-v0.3-hardened.md` §2.2 and is checked by CI; regenerate it whenever a
 dependency changes. Its absence fails the build.
 
 License text that must survive distribution (MIT/BSD notices) is reproduced in full in the sections

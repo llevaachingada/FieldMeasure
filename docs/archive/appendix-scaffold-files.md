@@ -1,7 +1,7 @@
 # Appendix — Scaffold file reference (slice 0.1)
 
-> Source: `docs/preflight-handoff-v0.3-hardened.md` **§2.2** (stack, pins, CSP, notices), **§12**
-> (repo layout), **§13/0.1**; `docs/implementation-plan.md` **slice 0.1**; `docs/DECISIONS.md`
+> Source: `docs/archive/preflight-handoff-v0.3-hardened.md` **§2.2** (stack, pins, CSP, notices), **§12**
+> (repo layout), **§13/0.1**; `docs/archive/implementation-plan.md` **slice 0.1**; `docs/DECISIONS.md`
 > **D14** (versions), **D24** (origin); **§21.1** (origin), **§21.6** (TypeScript), **§19.2**
 > (service worker).
 >
@@ -254,7 +254,7 @@ Not in the original §13/0.1 file list, but owned by the same slice and required
 
 - [ ] `npm run build` succeeds; `npm run dev` serves in Edge.
 - [ ] `«Install app»` works; **after install, reload in airplane mode still opens the app**
-      (SW precache). `[Surface]` — log to `docs/HARDWARE-TEST-CHECKLIST.md`; does not block.
+      (SW precache). `[Surface]` — log to `docs/archive/HARDWARE-TEST-CHECKLIST.md`; does not block.
 - [ ] `THIRD-PARTY-NOTICES.md` exists and names all 11 runtime deps **and both font licenses**.
 - [ ] CI green on push (`npm ci` → typecheck → vitest → build (+ Playwright, notices check)).
 - [ ] `npx vitest run` runs **both** projects (node + jsdom) and both smoke tests pass.
