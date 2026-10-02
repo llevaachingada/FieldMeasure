@@ -354,8 +354,6 @@ export const PALETTE = [
   { hex: '#123B6B', nameKey: 'swatchDeepNavy' },
 ] as const;
 
-export type SwatchNameKey = (typeof PALETTE)[number]['nameKey'];
-
 /** The deep editor's ~48 colours in 4 hue-rows (UI §7.5): palette, warm, cool, neutral. */
 export const DEEP_PALETTE: ReadonlyArray<ReadonlyArray<string>> = [
   PALETTE.map((entry) => entry.hex),
@@ -372,11 +370,6 @@ export const DEEP_PALETTE: ReadonlyArray<ReadonlyArray<string>> = [
     '#4A5866', '#2B3540', '#1E262F', '#12181E', '#0E1318', '#000000',
   ],
 ];
-
-/** The accessible + visible name of a swatch (the 12-palette names, P §11.7). */
-export function swatchLabel(nameKey: SwatchNameKey): string {
-  return S[nameKey];
-}
 
 /** The palette name for a hex, or the uppercased hex when it is not one of the 12 (P §11.7).
  *  Exported (D129) so the deep editor's ~48-swatch grid names its colours the same way — an

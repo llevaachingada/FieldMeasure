@@ -28,7 +28,6 @@ import {
   HOLD_SHAPE_TOUCH_MS,
   HOLD_SHAPE_TOUCH_PX,
   TOUCH_INK_SMOOTHING_PERCENT,
-  type MarkupTool,
   type ToolSettings,
 } from './toolTypes';
 
@@ -282,6 +281,3 @@ export class FreehandTool {
     this.straightMachine?.dispose();
   }
 }
-
-/** Kept for the MarkupTool import shape in callers that expect it. */
-export type FreehandMarkupTool = MarkupTool;

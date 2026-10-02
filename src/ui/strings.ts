@@ -895,7 +895,7 @@ export const STRINGS = {
         steps: {
           s1: 'Tap Export (top bar). Choose which sheets, the format (PDF or image) and where to save, all on one page.',
           s2: 'By default, exports go into a dated folder inside the project (exports, then the date and time). Settings > Export can send them straight to the project folder instead.',
-          s3: 'When the export finishes, tap Copy folder path and paste it into File Explorer, or tap Open next to a file to view it.',
+          s3: 'When the export finishes, tap Copy path and paste it into File Explorer, or tap Open next to a file to view it.',
         },
       },
       troubleshooting: {

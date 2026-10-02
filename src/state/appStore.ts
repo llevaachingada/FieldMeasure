@@ -5,8 +5,9 @@
  * here (the persistence queue is slice 1.2). Screens hydrate from the
  * `src/settings/*` helpers on mount and write back through those helpers.
  *
- * `ProjectSummary` is defined locally because the storage layer (slice 1.2) owns
- * the real scan; the Home shell renders placeholder data until then.
+ * `ProjectSummary` is defined locally because the storage layer owns the real scan
+ * (`scanProjects()` in `src/fs/projectStore.ts`, run by `ProjectList` on mount).
+ * `projects` here is only a fallback list for when the scan is not running.
  */
 import { create } from 'zustand';
 import type { Handedness } from '@/settings/handedness';

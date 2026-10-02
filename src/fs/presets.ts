@@ -318,13 +318,3 @@ export async function savePresets(projectId: string, file: PresetsFile): Promise
   const projectDir = await resolveOpenProjectDirFn(projectId);
   await writePresetsFileFn(projectDir, file, projectId);
 }
-
-/** Write presets to an already-resolved project directory (used by tests and callers that hold the dir). */
-export async function savePresetsToDir(
-  projectDir: unknown,
-  file: PresetsFile,
-  projectId: string,
-): Promise<void> {
-  const writePresetsFileFn = requireBinding('writePresetsFile', writePresetsFile);
-  await writePresetsFileFn(projectDir as FileSystemDirectoryHandle, file, projectId);
-}

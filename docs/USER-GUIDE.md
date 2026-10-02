@@ -53,7 +53,7 @@ app: tap **Help** at the top of any screen (Home, a project's sheets, or the pho
    on one page.
 2. By default, exports go into a dated folder inside the project (`exports\<date and time>`).
    **Settings > Export** can send them straight to the project folder instead.
-3. When the export finishes, tap **Copy folder path** and paste it into File Explorer, or tap
+3. When the export finishes, tap **Copy path** and paste it into File Explorer, or tap
    **Open** next to a file to view it.
 
 ## 6. Troubleshooting

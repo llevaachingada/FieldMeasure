@@ -73,34 +73,6 @@ export interface ProjectListProps {
   loadCover?: (folderName: string) => Promise<Blob | null>;
 }
 
-/** Placeholder data for the card-layout states. */
-export const SAMPLE_PROJECTS: ProjectSummary[] = [
-  {
-    id: 'sample-riverside',
-    title: 'Riverside Elementary',
-    sheetCount: 12,
-    thumbPath: null,
-    path: 'Documents\\FieldMeasure\\Riverside',
-    status: 'ok',
-  },
-  {
-    id: 'sample-elm',
-    title: 'Elm Street Footings',
-    sheetCount: 5,
-    thumbPath: null,
-    path: 'Documents\\FieldMeasure\\ElmStreet',
-    status: 'ok',
-  },
-  {
-    id: 'sample-depot',
-    title: 'Depot Retrofit',
-    sheetCount: 23,
-    thumbPath: null,
-    path: 'D:\\Sites\\Depot',
-    status: 'missing',
-  },
-];
-
 const SKELETON_COUNT = 6;
 
 /** What a card renders, from either the scan or an explicit `projects` override. */

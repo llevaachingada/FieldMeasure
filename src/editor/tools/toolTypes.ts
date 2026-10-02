@@ -50,9 +50,7 @@ export const HOLD_SHAPE_TOUCH_PX = 16;
 /** Erase §4.1: long-press reveals the `--err` outline without deleting. */
 export const ERASE_PREVIEW_MS = 600;
 
-/** Polygon step 2: nodes 56 px hit, close ring 56 px, 32 px proximity to close. */
-export const POLYGON_NODE_HIT_PX = 56;
-export const POLYGON_CLOSE_RING_PX = 56;
+/** Polygon step 2: a tap within 32 px of the first node closes the ring. */
 export const POLYGON_CLOSE_PROXIMITY_PX = 32;
 /** Polygon needs at least a triangle. */
 export const POLYGON_MIN_POINTS = 3;
@@ -74,8 +72,6 @@ export const SELECT_EDGE_SUPPRESS_PX = 96;
 /** §3.3: axis lock after 8 px of movement within 20° of the handle's natural axis. */
 export const AXIS_LOCK_PX = 8;
 export const AXIS_LOCK_DEG = 20;
-/** §3.3: the mini-toolbar is 64 px tall and pinned by a 600 ms long-press. */
-export const MINI_TOOLBAR_H = 64;
 
 /** §3.3 rotate snaps. */
 export const ROTATE_SNAPS = [0, 15, 30, 45, 90] as const;
@@ -83,11 +79,6 @@ export const ROTATE_SNAPS = [0, 15, 30, 45, 90] as const;
 /* ------------------------------------------------------------------ *
  * Shared pure helpers
  * ------------------------------------------------------------------ */
-
-/** Screen px → image px at `scale`. */
-export function toImagePx(screenPx: number, scale: number): number {
-  return screenPx / scale;
-}
 
 /** Does a contact within `screenPx` of `point` hit it? Distance is screen-space. */
 export function withinScreenPx(a: Px, b: Px, screenPx: number, scale: number): boolean {

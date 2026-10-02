@@ -1,10 +1,9 @@
 /**
- * Field Measure global stylesheet (slice 0.1 scaffold).
+ * Field Measure global stylesheet.
  *
  * Fonts are SELF-HOSTED (no CDN) and precached by the service worker
  * (workbox globPatterns includes `**\/*.woff2`). Both files are subsets of the
- * full families; see `public/fonts/` provenance notes and
- * `THIRD-PARTY-NOTICES.md` for the OFL licences.
+ * full families; see `THIRD-PARTY-NOTICES.md` for the OFL licences.
  *
  * CSP is `style-src 'self'` — this file is external by construction, and no
  * inline `style=""` attributes are permitted anywhere in the app.
@@ -76,17 +75,6 @@ code,
 pre,
 .mono {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-}
-
-/* Slice 0.1 placeholder screen (no features). */
-.scaffold {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 0.5rem;
-  text-align: center;
 }
 
 /* ---------------------------------------------------------------------------
@@ -323,16 +311,6 @@ pre,
   margin: 0 16px 16px;
   font-size: 13px;
   color: var(--warn);
-}
-.project-card-secondary {
-  align-items: center;
-  justify-content: center;
-  border-style: dashed;
-  background: transparent;
-  color: var(--g300);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
 }
 .skeleton-card {
   min-height: 280px;
@@ -967,13 +945,6 @@ button.crumb:hover {
   width: 26px;
   height: 26px;
 }
-/* An empty cell is a flat well, never a disabled button (UI §6.2). */
-.tool-well {
-  width: 56px;
-  height: 56px;
-  border-radius: 10px;
-  background: var(--g800);
-}
 
 .tool-rail-history {
   display: grid;
@@ -1039,7 +1010,6 @@ button.crumb:hover {
   grid-template-columns: 40px;
 }
 .editor-layout[data-density='desk'] .tool-button,
-.editor-layout[data-density='desk'] .tool-well,
 .editor-layout[data-density='desk'] .rail-history-button {
   width: 40px;
   height: 40px;
@@ -1412,17 +1382,6 @@ button.crumb:hover {
   gap: 12px;
   justify-content: flex-end;
   width: 100%;
-}
-
-.text-entry-input {
-  width: min(80vw, 520px);
-  min-height: 56px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--g100);
-  font-size: 18px;
 }
 
 /* ---------------------------------------------------------------------------

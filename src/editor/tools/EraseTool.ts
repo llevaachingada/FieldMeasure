@@ -280,6 +280,3 @@ export class EraseTool implements MarkupTool {
     this.clearPreview();
   }
 }
-
-/** The `--err` token used by the preview outline (Site Slate §3.1). */
-export const ERR_COLOR = '#FF5A5F';

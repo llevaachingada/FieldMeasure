@@ -49,9 +49,6 @@ export interface StorageBackend {
 /** Directory handed back when a write has no project id (root-level files only). */
 export const ROOT_LOCK_SCOPE = '__root__';
 
-/** Picker id — must match first-run / §5.2 so Chromium remembers the folder. */
-export const PICKER_ID = 'fieldmeasure-projects';
-
 /**
  * `FileSystemFileHandle.move()` is real in Chromium (M109+ overwrite-on-move) but
  * is absent from TypeScript 5.9's `lib.dom.d.ts`, so it is reached through this

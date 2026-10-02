@@ -1,7 +1,7 @@
 /**
  * `src/ui/ProjectScreen.tsx` — the Project screen: one project's sheets grid (UI §11.2;
- * build spec §20.5(a); D88/D102/D111). **Not yet routed** — the orchestrator wires `App`
- * to the pinned `ProjectScreenProps` below.
+ * build spec §20.5(a); D88/D102/D111). Routed from `App.tsx` (the `project` route), which
+ * supplies the `ProjectScreenProps` below.
  *
  * What this screen is for: seeing every sheet at a glance, adding pages, and exporting.
  * The two add tiles («Take photo» / «Import») come FIRST in the grid, always, in every

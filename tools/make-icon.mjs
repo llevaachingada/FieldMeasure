@@ -4,7 +4,10 @@
  * built-in zlib plus a local CRC-32). The icon is placeholder art and will be
  * replaced with final art before 2.0 (build spec §12 / slice 0.1 step 5).
  *
- * Run:  node public/icons/make-icon.mjs
+ * Run (from the repo root):  node tools/make-icon.mjs
+ * It writes `public/icons/icon-512.png`, found relative to this file, so the working
+ * directory does not matter. The script lives in `tools/`, not `public/`, so it is not
+ * copied into `dist/` and shipped to the app's users.
  *
  * The mark mirrors `icon.svg`: dark background, cyan frame, orange dimension line
  * with end ticks. Committed as a script so the binary is reproducible, not opaque.
@@ -96,6 +99,6 @@ const png = Buffer.concat([
   chunk('IEND', Buffer.alloc(0)),
 ]);
 
-const outPath = join(dirname(fileURLToPath(import.meta.url)), 'icon-512.png');
+const outPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons', 'icon-512.png');
 writeFileSync(outPath, png);
 console.log('Wrote', outPath, `(${png.length} bytes, ${SIZE}x${SIZE})`);
