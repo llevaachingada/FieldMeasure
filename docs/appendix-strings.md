@@ -1,17 +1,17 @@
 # Appendix — UI strings inventory
 
-> Source: `docs/ui-spec-field-measure-v2-hardened.md` + `docs/preflight-handoff-v0.3-hardened.md`.
+> Source: `docs/archive/ui-spec-field-measure-v2-hardened.md` + `docs/archive/preflight-handoff-v0.3-hardened.md`.
 > The complete set of user-visible copy, verbatim, keyed for `src/ui/strings.ts`.
 > Count: 220 distinct strings (223 − 3 removed under D167, touch-only crews: `settings.penOnly`, `touch.freehandPenBetter`, `erase.strokeNeedsPen`; their rows are struck through IN PLACE, not deleted, so the `appendix-strings.md:NNN` line references in `src/` and `tests/` stay valid). Generated 2026-09-21; revised for the touch-primary input model 2026-09-21.
 >
 > **Touch-primary revision (2026-09-21).** The app is switching from pen-first to **touch-primary**
-> (`docs/gui-ux-readiness-and-design-handoff.md` §13, `docs/touch-first-interaction-model.md`). Rows
+> (`docs/archive/gui-ux-readiness-and-design-handoff.md` §13, `docs/archive/touch-first-interaction-model.md`). Rows
 > whose `Source ref` reads **`TF §9`** are **proposed, not final** — the wording is the content owner's
 > (`TF §9`). They are keyed and listed so `src/ui/strings.ts` has somewhere to put them, but they must
 > **not** be treated as approved copy. Gap placeholders flagged **⚠ unapproved** are likewise keys only,
 > never wording to ship.
 >
-> **Refs.** `U §x:line` = `docs/ui-spec-field-measure-v2-hardened.md`; `P §x:line` = `docs/preflight-handoff-v0.3-hardened.md`; `TF §x` = `docs/touch-first-interaction-model.md` (proposed design, **not canonical**).
+> **Refs.** `U §x:line` = `docs/archive/ui-spec-field-measure-v2-hardened.md`; `P §x:line` = `docs/archive/preflight-handoff-v0.3-hardened.md`; `TF §x` = `docs/archive/touch-first-interaction-model.md` (proposed design, **not canonical**).
 > **Verbatim:** every `String` column is reproduced exactly as written between the guillemets — typos, punctuation, `…`, dash characters and inner whitespace preserved. No guillemets appear in the `String` column.
 > **Interpolation:** the `Interpolation` column lists the runtime-filled parts; a blank cell means the string is literal. Example strings keep their literal example text (e.g. `Sheet 04`, `Saved 2:14 PM`) with the varying parts described here.
 
@@ -294,7 +294,7 @@
 |---|---|---|---|---|
 | ~~settings.penOnly~~ | ~~Pen only~~ | **Removed (D167, touch-only).** Was the Settings → Input toggle that limited finger gestures to two-finger pan/zoom (default OFF). The crews use only the touchscreen, so the setting, its hint and its state were removed end to end. | U §14.7:795; TF §7.7 | |
 | settings.touchPlaces | Touch places and moves | Settings → Input toggle — permits tap/tap and drag to place and move geometry. **Default ON** | TF §9; TF §0, §7.7; U §14.7:270 | |
-| settings.fingerDraws | Finger draws (freehand) | Settings → Input toggle — permits finger freehand ink (pressure→width off, width floor 8 mu, smoothing 60). **Default OFF** | TF §9; TF §0, §4.2, §7.7; U §14.7:270 | |
+| settings.fingerDraws | Finger draws (freehand) | Settings → Input toggle — permits finger freehand ink (pressure→width off, width floor 8 mu, smoothing 60). **Default ON** since D167 (touch-only; was OFF under pen-first) | TF §9; TF §0, §4.2, §7.7; U §14.7:270 | |
 | settings.magnifierOnTap | Magnifier when you tap | Settings → Input toggle — the touch loupe on placement (200px, 4×, contact disc). **Default ON** | TF §9; TF §2.1, §7.7; U §8.1:479 | |
 | settings.glovedTouch | Gloved touch (bigger touch targets) | Settings → Input toggle — hit slop +8px, snap acquire +4px, loupe offset +16px. **Default OFF** | TF §9; TF §7.6, §7.7; U §14.7:270 | |
 
@@ -335,7 +335,7 @@ two-finger pan in one line.
 
 **Note.** `TF §9` strings — **proposed, not final**. These are the two hand-off honesty lines
 (`TF §8` risks 1 and 7); `touch.drawnVsTyped` is the typed-measurement reframing from
-`docs/gui-ux-readiness-and-design-handoff.md` §13.7.
+`docs/archive/gui-ux-readiness-and-design-handoff.md` §13.7.
 
 ## erase
 
@@ -449,7 +449,7 @@ must be rewritten for touch-primary:
   final copy, pending content-owner approval):** `tips.dimension` = "Tap the first point, then the
   second, then type the measurement."; `tips.line` = "Tap the first point, then the second.";
   `tips.rectangle` = "Tap two opposite corners."; `tips.angle` = "Tap the vertex, then each end
-  point."; `tips.freehand` = "Draw with the pen — or turn on Finger draws." The gap-12 row in
+  point."; `tips.freehand` = "Draw with your finger." (D167: touch only; the old pen wording must not ship). The gap-12 row in
   `appendix-strings-gaps.md` must be reconciled by its owner.
 
 ## Summary

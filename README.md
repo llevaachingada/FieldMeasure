@@ -30,7 +30,7 @@ A one-page version to print for the shop: [`docs/INSTALL.md`](docs/INSTALL.md).
 |---|---|
 | **Works** | New project → camera → room name → dimensions (calculator keypad, snapping, magnifier) → 14 markup tools (shapes, arrows, angles, freehand drawing, highlighter, text boxes, eraser, photo-in-photo) → one-page PDF/PNG with a date stamp and the VANGARDE watermark. Autosave, undo, offline. Touch only. |
 | **Tested** | About 1,690 automated tests run on every change. A few timing-sensitive tests sometimes fail when the machine is busy and pass on a re-run. |
-| **Not yet** | A real crew member using it on a real job. Do this first: [`docs/FIELD-TEST.md`](docs/FIELD-TEST.md) (17 checks, about an hour). |
+| **Not yet** | A real crew member using it on a real job. Do this first: [`docs/FIELD-TEST.md`](docs/FIELD-TEST.md) (17 checks; most take about an hour). |
 | **Unfinished** | On-screen nudge arrows (keyboard arrows work), a version-history panel, and some wording marked "proposed". None of it blocks use. Full list: [`docs/STATUS.md`](docs/STATUS.md). |
 
 ## 3. Make your own copy (15 minutes, clicks only)
@@ -43,22 +43,23 @@ The live link above runs from my GitHub account. To own the app outright:
    (No "Use this template" button? Use **+** → **Import repository** with
    `https://github.com/llevaachingada/FieldMeasure.git` instead.)
 2. In your new repo: **Settings** → **Pages** → **Source: GitHub Actions**.
-3. **Actions** tab → **Deploy to GitHub Pages** → **Run workflow**. Wait for the green check
-   (about 3 minutes).
+3. **Actions** tab → **Deploy to GitHub Pages** → the **Run workflow** dropdown on the right →
+   the green **Run workflow** button. Wait for the green check (about 3 minutes).
 4. **Settings** → **Pages** now shows your link: `https://<your-github-name>.github.io/FieldMeasure/`.
 
 Install from your link on each Surface (section 1). Anyone who installed from my link: install
 yours, pick **the same folder** on first run (every project is still there), then uninstall the
 old one from the Start menu.
 
-From then on, anything merged into your `main` branch updates the app by itself once the automatic checks pass. Surfaces show
-**"Update ready"**, and tapping **Reload** applies it.
+From then on, anything merged into your `main` branch updates the app by itself once the
+automatic checks pass. Surfaces show **"Update ready"**, and tapping **Reload** applies it.
 
 ## 4. Change it with AI
 
 The whole app was built with AI coding agents, and the repo is set up for the next one.
-`AGENTS.md` holds the rules; `docs/STATUS.md`, `docs/CHANGELOG.md` and `docs/DECISIONS.md` are the project's memory. Use **Claude Code** (claude.ai/code
-works in a browser with nothing to install; connect it to your repo), or Cursor, Codex or Copilot.
+`AGENTS.md` holds the rules; `docs/STATUS.md`, `docs/CHANGELOG.md` and `docs/DECISIONS.md` are
+the project's memory. Use **Claude Code** (claude.ai/code works in a browser with nothing to
+install; connect it to your repo), or Cursor, Codex or Copilot.
 
 **Start every session with:**
 
@@ -76,8 +77,17 @@ it pass, update docs/DECISIONS.md, docs/CHANGELOG.md and docs/STATUS.md, then op
 request that explains in plain English what changed and what to try on a Surface.
 ```
 
-Then read the pull request and merge it. Once the automatic checks pass, it's live in about 5 minutes. Try it on one Surface. If
-it's wrong, open the merged pull request on GitHub and click **Revert**.
+**To fix a problem:**
+
+```text
+Problem: <what the person did, what they expected, what happened instead>. <Attach a screenshot.>
+Follow AGENTS.md. First reproduce it and tell me the cause in plain English. Then fix it with a
+test that fails before the fix and passes after, and open a pull request.
+```
+
+Then read the pull request and merge it. Once the automatic checks pass, it's live in about 5
+minutes. Try it on one Surface. If it's wrong, open the merged pull request on GitHub and click
+**Revert**.
 
 **The rules:**
 - Changes go through pull requests. **Merging to `main` is shipping.**
@@ -116,7 +126,7 @@ shortcut. Don't do real work on a `localhost` copy; it can't move to the real li
 | Deploy fails at "configure-pages" | Settings → Pages → Source: **GitHub Actions**, then run it again. |
 | The **CI** check is red, and the app didn't update | The app only deploys after the tests (CI) pass, so broken code never reaches the crews. Open the run and click **Re-run jobs** once. If it's still red, ask the AI why, and don't let it disable a test. |
 | `npm` "is not recognized" or "scripts are disabled" | Install Node 24, then use Command Prompt (or type `npm.cmd`). |
-| A measurement or export looks wrong | Treat it as serious. Keep the project folder, screenshot it, and give both to the AI with the exact numbers typed. |
+| A measurement or export looks wrong | Treat it as serious. Keep the project folder, screenshot it, and use the "To fix a problem" prompt with the exact numbers typed. |
 
 ---
 
@@ -133,9 +143,12 @@ shortcut. Don't do real work on a `localhost` copy; it can't move to the real li
 - **Stack:** React 19, TypeScript, Konva (imperative, never react-konva), zustand + immer, zod,
   idb-keyval, @cantoo/pdf-lib, perfect-freehand, fflate, lucide-react, Vite, vite-plugin-pwa,
   Vitest + Playwright. The runtime dependency list is closed.
-- **Checks (Node 24):** `npx tsc --noEmit` · `npx vitest run` · `npm run build` · `npx playwright test` ·
-  `npm run clickthru` (screenshots the built app at Surface size; inspection, not a gate).
-- **Deploy:** `.github/workflows/pages.yml` publishes every push to `main`. The base path comes from
+- **Checks (Node 24; first time: `npx playwright install chromium`):** `npx tsc --noEmit` ·
+  `npx vitest run` · `npm run build` · `npx playwright test` · `node tools/third-party-notices.mjs --check`
+  (CI fails if a dependency changed and the notices weren't regenerated) · `npm run clickthru`
+  (screenshots the built app at Surface size; inspection, not a gate).
+- **Deploy:** `.github/workflows/pages.yml` publishes `main` after CI passes on it, or when you click
+  **Run workflow**. The base path comes from
   GitHub (`FM_BASE`), so a renamed repo or custom domain works. On another static host: build with
   `FM_BASE=/` (or the sub-path), publish `dist/`, and serve it over HTTPS.
 

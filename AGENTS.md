@@ -11,8 +11,8 @@ cloud, Bluetooth or multi-user.
 **The owner** runs a small cabinetry shop and directs agents without reading code. Explain every
 result in plain English: what changed, what to try on a Surface, and what you could not test.
 
-**`main` is the live app.** Every push to `main` redeploys to the crews within minutes. Always work
-on a branch and open a pull request.
+**`main` is the live app.** Once CI passes on `main`, it deploys to the crews within minutes. Always
+work on a branch and open a pull request.
 
 ---
 
@@ -37,14 +37,17 @@ Where the archive and the code disagree, the code and its tests win.
 2. Make the change. Put all on-screen wording in `src/ui/strings.ts` (see Copy below).
 3. Run the checks and report the numbers:
    `npx tsc --noEmit` · `npx vitest run` · `npm run build` · `npx playwright test`.
-   Use **Node 24**; Node 22 has unrelated test failures.
+   Use **Node 24**; Node 22 has unrelated test failures. In a fresh environment run
+   `npx playwright install chromium` first (the vitest browser project and e2e need it).
+   If you changed a dependency, run `node tools/third-party-notices.mjs` (CI checks it).
 4. If what the user sees changed, run `npm run clickthru`. It builds the app, drives it with real
    touch on the Surface screen size and screenshots every step. Look at the screenshots. It's an
    inspection tool, not a gate. (Background: `docs/archive/clickthru-harness.md`.)
 5. Document it in the same pull request:
    - **`docs/DECISIONS.md`:** a new `### D<next number> - <title>` section at the end. Numbers are
      unique and ascending; `tests/documents.test.ts` checks this.
-   - **`docs/CHANGELOG.md`:** one entry at the top.
+   - **`docs/CHANGELOG.md`:** a new `## <YYYY-MM-DD>: <title>` entry at the top. Bump the
+     `package.json` version only when the owner asks for a release.
    - **`docs/STATUS.md`:** update it if what works or what's owed changed.
    - **`docs/USER-GUIDE.md`:** update it if Help text changed (it mirrors `STRINGS.help`).
 6. Open a pull request whose description says, in plain English, what changed, what to try on a
@@ -100,7 +103,11 @@ you copy:
 - **Never use `npm run dev` to look at the app.** The CSP blocks Vite's dev styles, so it renders
   unstyled. Use `npm run build` + `npm run preview` (http://localhost:4173), or `npm run clickthru`.
 - **You can't test on a real Surface.** Say so, and add anything that needs real hardware to the
-  owner's checklist in `docs/FIELD-TEST.md` rather than claiming it works.
+  owner's checklist in `docs/FIELD-TEST.md` rather than claiming it works. Append new checks at the end;
+  never renumber the existing ones (other docs cite them by number).
+- **Old references in comments:** "slice", "lane", "session N", "§x.y", "U §" and "P §" point into
+  the build-era docs in `docs/archive/` (`P` = the build spec, `U` = the UI spec). They're history.
+  Don't add new ones.
 - **Windows:** if PowerShell blocks `npm`, use `npm.cmd`/`npx.cmd` or Command Prompt.
   `tools/launch-fieldmeasure.ps1` builds and opens the app locally.
 

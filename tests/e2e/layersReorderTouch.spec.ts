@@ -39,7 +39,7 @@
  *   actually picks — behaves the same is NOT established; only OPFS handles were testable
  *   headlessly. If real handles also kill the next load, this is a **product** defect in
  *   `src/settings/projectsRoot.ts`, not a harness limitation. Logged as a hardware check
- *   (`docs/HARDWARE-TEST-CHECKLIST.md`) — do not claim the product is exonerated.
+ *   (`docs/archive/HARDWARE-TEST-CHECKLIST.md`) — do not claim the product is exonerated.
  *   The real-touch proof therefore remains **OWED** (D78). F1's *mechanism* is covered by
  *   `tests/layersPanel.test.tsx` (pure `dropKeyAtPoint`/`rowKeyFromElement`) and
  *   `tests/layersReorder.browser.test.ts` (real `elementFromPoint` against laid-out rows) —

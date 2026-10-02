@@ -1,7 +1,7 @@
 # Status
 
 **Version 1.0.0** (handoff, 2026-10-02). Live at https://llevaachingada.github.io/FieldMeasure/ and built
-from `main`. Every merge to `main` redeploys it.
+from `main`. Once CI passes on a merge to `main`, it redeploys.
 
 Keep this page current: update it in the same pull request as any change that alters what works or
 what's owed. It replaces the build-era `CONTINUITY.md` (now in [`archive/`](archive/)).
@@ -49,8 +49,15 @@ In priority order:
    calls it.
 6. **«Moved to a new address» screen:** never built. A changed web address shows first run again,
    and picking the same folder recovers everything.
-7. **Two disabled controls:** Settings → «Third-party notices» (should open
-   `THIRD-PARTY-NOTICES.md`) and the export wizard's «Include sheet names». Build or remove them.
+7. **Disabled controls (visible but greyed out):**
+   - Settings → «Third-party notices» (should open `THIRD-PARTY-NOTICES.md`)
+   - Settings → «Trash…» (the sheets grid's Trash works)
+   - Settings → «Project settings» link beside precision
+   - Settings → unit system «Metric» (metric parsing exists in `src/domain/units.ts`; the display
+     and project wiring don't)
+   - the export wizard's «Include sheet names»
+
+   Build or remove each.
 8. **Five end-to-end tests marked `test.fixme`:** the power-loss simulations in
    `tests/e2e/kill-switch.spec.ts` (4) and a touch reorder in `tests/e2e/layersReorderTouch.spec.ts`
    (1). They need a decision, not deletion. Field-test checks 11-13 cover the same ground by hand.

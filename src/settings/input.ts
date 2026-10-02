@@ -4,12 +4,12 @@
  *
  * Four toggles:
  *   - touchPlaces    «Touch places and moves»        default ON   (the F1/F2 capability)
- *   - fingerDraws    «Finger draws (freehand)»       default OFF  (finger ink only; pen always draws)
+ *   - fingerDraws    «Finger draws (freehand)»       default ON   (D167; finger freehand ink)
  *   - magnifierOnTap «Magnifier when you tap»        default ON
  *   - glovedTouch    «Gloved touch»                  default OFF
  *
  * D167: the «Pen only» toggle (`penOnly`) was removed — the crews use only the touchscreen.
- * Finger freehand is opt-in, touch placement is the default. A `fm:settings:input:penOnly`
+ * Finger freehand and touch placement are both on by default. A `fm:settings:input:penOnly`
  * key left in IndexedDB by an earlier build is simply never read (no migration needed).
  */
 import { get, set } from 'idb-keyval';

@@ -1,10 +1,9 @@
 # Decisions (ADR log)
 
-One entry per architectural decision. Add a line here whenever you make a decision the spec doesn't
-already cover (see build spec §15, rule 11).
-
-**Canonical spec:** `docs/archive/preflight-handoff-v0.3-hardened.md` (v0.3, hardened after adversarial
-review). Its **§2.4 v1 scope table** is the single authority on what ships in v1.
+Why the app is the way it is. Add a new `### D<next number> - <title>` section **at the end** for
+every decision a change makes (numbers are unique and ascending; `tests/documents.test.ts` checks
+it). Older entries are history: they cite the build-era docs, now in `docs/archive/`, and may
+describe things later decisions changed. The latest decision on a topic wins.
 
 Status: **Accepted** · Superseded · Proposed.
 
@@ -3959,6 +3958,21 @@ owner asked for pen-related material to be removed from the instructions and the
   - **Help text:** it named a «Copy folder path» button. The button reads «Copy path», so Help and the user guide
     now match.
   - **Favicon:** `index.html` gained an icon link (it 404'd).
+  - **Fresh-eyes review fixes:**
+    - `pages.yml` deploys only for a CI run triggered by a *push* to `main`: a fork pull request from a branch
+      named `main` would otherwise match the branch filter.
+    - Every remaining `docs/<moved file>` mention in code comments now points into `docs/archive/`. The edits
+      are in-line, so `appendix-strings.md` keeps its 457 lines and the `:line` citations hold.
+    - The «Finger draws» default and the unshipped `tips.freehand` wording are made touch-only in both
+      appendices.
+    - Help and the user guide say "the tool bar at the side of the screen", since the rail follows
+      handedness; two guide steps were re-aligned to the Help text.
+    - `FIELD-TEST.md` check 7 now uses the real keypad keys and label format (`12'-6 3/8"`), and check 13 uses
+      a forced shutdown (a battery tablet can't have its power pulled).
+    - AGENTS gained the first-run `npx playwright install chromium`, the notices regeneration step, the
+      CHANGELOG entry format, append-only field-test numbering, and a note that slice/lane/§ references
+      point into the archive.
+    - STATUS lists all five disabled controls, and UNITS marks metric input as not yet switched on.
   - **Not fixed here, listed in `docs/STATUS.md`:**
     - the unwired file-version guard (`migrate.ts` is never called on load);
     - two disabled controls;

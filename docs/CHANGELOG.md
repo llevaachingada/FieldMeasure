@@ -14,7 +14,8 @@ checks that ran. The full build-era log (sessions 1-30) is
   `docs/archive/` (**D168**).
 - The app deploys only after CI passes on `main`. The third-party notices are complete and checked in
   CI. Dead code, stale comments and stray files are cleaned up. Help names the right button
-  («Copy path») (**D168**).
+  («Copy path»), and Help says the tool bar is "at the side of the screen" (it follows
+  handedness) (**D168**).
 
 Checks: tsc 0 · vitest node+jsdom 1455/1455 (Node 24) · build 0 · playwright 8 passed, 5 skipped ·
 notices up to date · CI (all three test projects).

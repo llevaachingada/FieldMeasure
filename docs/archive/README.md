@@ -2,7 +2,8 @@
 
 Everything here was written **to build** the app (specs, plans, session handoffs, reviews and
 process). None of it is needed to use, deploy or change the app. It's kept because it explains
-*why* things are the way they are, and AI tools can search it when a question goes deep.
+*why* things are the way they are, and AI tools can search it when a question goes deep. Don't
+delete it: `tests/documents.test.ts` reads `CONTINUITY.md` and `BUILD-LOG.md` from here.
 
 These files are frozen: don't update them. Live documents are one level up, in [`docs/`](../).
 The decision log [`../DECISIONS.md`](../DECISIONS.md) is still live and links into this folder.

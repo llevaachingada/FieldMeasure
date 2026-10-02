@@ -1,6 +1,6 @@
 /**
  * tests/editorCanvasPerf.browser.test.ts — C4's **machine half** (checkpoint measurement,
- * not a feature). See `docs/CHECKPOINTS.md` C4 and `docs/handoff-session-12.md` Part B2.
+ * not a feature). See `docs/archive/CHECKPOINTS.md` C4 and `docs/archive/handoff-session-12.md` Part B2.
  *
  * WHAT C4 ASKS
  * ------------

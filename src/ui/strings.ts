@@ -871,7 +871,7 @@ export const STRINGS = {
       dimensions: {
         heading: 'Add dimensions',
         steps: {
-          s1: 'In the tool bar on the right, tap Dimension (at the top, under Measure).',
+          s1: 'In the tool bar at the side of the screen, tap Dimension (at the top, under Measure).',
           s2: 'Tap where the measurement starts, then tap where it ends. The keypad opens.',
           s3: 'Type the size (for example 12 FT 6 IN 3/8) and tap the check mark.',
           s4: 'To move the numbers off the line, tap Select, tap the dimension, then drag its numbers.',

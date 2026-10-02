@@ -1,4 +1,4 @@
-// Geometry — §6.2 of docs/preflight-handoff-v0.3-hardened.md (copied verbatim).
+// Geometry — §6.2 of docs/archive/preflight-handoff-v0.3-hardened.md (copied verbatim).
 // All geometry is in WORKING-IMAGE PIXEL space.
 
 import type { Px } from './types';

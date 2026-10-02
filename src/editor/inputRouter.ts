@@ -7,7 +7,7 @@
  * 'ignore', never a draw, because §11.4/§20.6 make the barrel hold only an *optional
  * accelerator* for the radial quick-menu and that radial is not built — the documented
  * degrade is "radial absent rather than broken" (no-op, never ink). The orchestrator
- * should fold this row into §8.2. Design source: `docs/touch-first-interaction-model.md`
+ * should fold this row into §8.2. Design source: `docs/archive/touch-first-interaction-model.md`
  * §1, §3, §9.
  *
  * Intent is decided once, at `pointerdown`, and is sticky for the whole contact.
