@@ -1,7 +1,7 @@
 # Install runbook — putting Field Measure on a Surface
 
-> **New owners:** [`handoff/3-put-it-on-the-surfaces.md`](../handoff/3-put-it-on-the-surfaces.md) is the
-> current version of this page, including the IT push (zero-touch) option.
+> Print this for the shop floor. The owner's guide (own copy, changes with AI) is the
+> [`README`](../README.md).
 
 This is a one-page guide for a crew member, not a developer. It takes about two minutes. You need
 the network **once** (while you install); after that the app works offline.

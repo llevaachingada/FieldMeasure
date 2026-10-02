@@ -1,13 +1,14 @@
 name: Deploy to GitHub Pages
 
-# Builds the app under the repo's own Pages path (FM_BASE, D34; D164 reads it from
+# `main` is the live app (D166): only pushes to it deploy.
+# Builds the app under the repo's own Pages path (FM_BASE, D34; D166 reads it from
 # configure-pages, so a renamed repo, a copy under another owner, or a custom domain
 # just works) and publishes dist/.
 # Repo settings needed once: Settings > Pages > Source = "GitHub Actions", and under
-# Settings > Environments > github-pages, allow the branch being deployed.
+# Settings > Environments > github-pages, allow `main`.
 on:
   push:
-    branches: [main, beta-readiness-wave-2]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

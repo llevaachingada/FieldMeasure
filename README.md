@@ -1,142 +1,147 @@
 # Field Measure
 
-> **New owners: read [`START-HERE.md`](START-HERE.md) first.** It covers getting your own copy live,
-> putting it on the Surfaces, and changing it safely with AI tools.
+A Surface app for the shop. Take a photo of a job, draw feet-and-inch dimensions on it with a
+finger or pen, and export a marked-up PDF or PNG for the job folder. It works offline, saves
+everything to a folder on the Surface, and has no accounts, server or monthly cost.
 
-A Windows-first web app (PWA) for **Microsoft Surface** tablets with a pen. Take a photo with the
-built-in camera, draw **feet-inch dimension lines** and rich markup on it, insert extra photos
-*within* the photo, and export a marked-up **PDF/PNG** to a local project folder. There is **no
-server, no database, no sign-in, no cloud SDK, no Bluetooth, and no multi-user** — each Surface is
-self-contained, and the user drags the exported folder into Dropbox to share.
+Built by Hunter Singleton. It's yours to use, copy and change.
 
-> **Status: nine slices shipped and green — the app runs, takes a photo, and places typed
-> dimensions.** Slices 0.2 (input router), 1.1 (domain core), 0.3 (first-run/Settings/Home), 1.2
-> (storage core), 1.3 (media + canvas), 1.4 (capture flow), 1.4.5 (editor shell), 1.5 (dimension
-> tool), 1.6 (markup tools, with the Layers panel mounted and wired) and **1.7 (image insets)** are
-> complete, and slice 1.9 has shipped **step 1 of 5** (`export/filenames.ts`). An **independent
-> adversarial review** of the 1.4→1.6 batch has now run (the session-10 waiver is discharged): it found
-> no wrong-measurement and no data-loss defect, **four of its findings are fixed and five remain
-> owed** — see `docs/DECISIONS.md` **D77/D78** and [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md).
->
-> **Machine gates (on the committed file set):** `npx tsc --noEmit` clean · `npx vitest run` **636
-> tests / 52 files** · `npm run build` clean (17 precache) · `npx playwright test` 5 passed / 5 skipped.
->
-> **Annotations persist** to each sheet's `markup.json`, so markup survives a reload. Read
-> [`docs/CONTINUITY.md`](docs/CONTINUITY.md) for live state and
-> [`docs/handoff-session-12.md`](docs/handoff-session-12.md) for the current handoff. The origin
-> question ([`DECISIONS.md`](docs/DECISIONS.md) D24) is resolved in build spec **§21.1**.
+**Live app:** https://llevaachingada.github.io/FieldMeasure/
 
-## Using the app
+---
 
-New to Field Measure? Read the **[User Guide](docs/USER-GUIDE.md)**: take a photo, add dimensions,
-mark it up, and export, in a few short steps. The same guide opens in the app from the **Help** button
-at the top of every screen.
+## 1. Put it on a Surface (2 minutes, needs Wi-Fi once)
 
-## Why
+1. Open the live app link above in **Microsoft Edge**.
+2. Tap the **Install** icon at the right end of the address bar, then **Install**. (No icon? **…**
+   menu → **More tools** → **Apps** → **Install Field Measure**.)
+3. It opens in its own window. From now on, open it from the Start menu.
+4. First time only: pick the hand you write with, then tap **Use Documents\FieldMeasure**. When
+   asked about folder access, choose **Allow on every visit**.
 
-Paper sketches get lost, and photos without dimensions lose their meaning by the time they reach the
-office. Android measuring apps no longer run on Windows (Windows Subsystem for Android ended March
-2025), so the team needs a Surface-native "photo + dimensions" tool with clean handoff into job
-folders.
+After that it works with no signal. Tap **Help** at the top of any screen for the how-to. Projects
+are normal folders in `Documents\FieldMeasure`; drag them into Dropbox to share.
 
-## Canonical documents
+A one-page version to print for the shop floor: [`docs/install-runbook.md`](docs/install-runbook.md).
 
-| Document | Canonical version | Notes |
-|---|---|---|
-| Build spec | [`docs/preflight-handoff-v0.3-hardened.md`](docs/preflight-handoff-v0.3-hardened.md) | **Authoritative.** Its **§2.4 "v1 scope table" is the single authority on what ships in v1.** Hardened across rounds 1, 2 and 4 (both 2 and 4 execution-verified the reference code). Session-4 additions: changelog rows 21–38, §5.8, §19. Session-4b additions: §20 (implementation contracts), §21 (resolved decisions). |
-| UI/UX spec | [`docs/ui-spec-field-measure-v2-hardened.md`](docs/ui-spec-field-measure-v2-hardened.md) | **Authoritative** on look & feel. |
-| Implementation plan | [`docs/implementation-plan.md`](docs/implementation-plan.md) | **Authoritative on build order** (v1.2 hardened). Slice sequence, dependency graph, per-slice gates, checkpoint table, wrong-measurement and data-loss tripwires. |
-| Latest review | [`docs/review-session-4-hardening.md`](docs/review-session-4-hardening.md) | Session-4 finding register: evidence, severity, and what was fixed. Includes the review **method note**. |
-| Decisions (ADR) | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Why things are the way they are. |
-| Unit rules | [`docs/UNITS.md`](docs/UNITS.md) | Input formats, rounding, examples. |
-| Continuity log | [`docs/CONTINUITY.md`](docs/CONTINUITY.md) | Read first when resuming work. |
-| File index | [`docs/INDEX.md`](docs/INDEX.md) | Map of every file. |
-| UI strings | [`docs/appendix-strings.md`](docs/appendix-strings.md) | Complete inventory of user-visible copy, keyed for `src/ui/strings.ts`. |
-| Checkpoints | [`docs/CHECKPOINTS.md`](docs/CHECKPOINTS.md) | **C1–C10** — things measurable only once code exists (C5 lucide API, C9 pen pressure and C10 touch accuracy all fired in 1.4.5/1.6). |
-| Hardware checklist | [`docs/HARDWARE-TEST-CHECKLIST.md`](docs/HARDWARE-TEST-CHECKLIST.md) | `[Surface]` gate ledger + H1–H12 end-of-build checks. |
-| Build log | [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md) | Cross-session agent memory; one entry per slice. |
-| Agent instructions | [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md) | Entry instructions for the building agent. |
-| Build runbook | [`docs/BUILD-RUNBOOK.md`](docs/BUILD-RUNBOOK.md) | How to work: slice loop, gate policy, `[Surface]` deferral, three-strike rule. |
-| Scaffold reference | [`docs/appendix-scaffold-files.md`](docs/appendix-scaffold-files.md) | The pinned files slice 0.1 must produce (TS 5.x). |
-| Install runbook | [`docs/install-runbook.md`](docs/install-runbook.md) | One page, non-developer, how a Surface gets the app. |
-| String gaps (proposed) | [`docs/appendix-strings-gaps.md`](docs/appendix-strings-gaps.md) | Proposed wording for the 26 implied-but-unquoted strings. |
-| Third-party notices | [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Dependency license notices + font OFL texts. |
+## 2. Where it's at
 
-> The earlier `docs/preflight-handoff.md` (v0.2) and `docs/ui-spec-field-measure.md` (v1) are kept for
-> history only and are **superseded — do not build from them.**
-
-## What's here today
-
-| Area | State |
+| | |
 |---|---|
-| Build spec (v0.3, hardened ×2 review rounds) | ✅ |
-| UI/UX spec (v2, hardened) | ✅ |
-| Adversarial review | ✅ rounds 1, 2, 4, 5; ✅ sessions 7–9 (orchestrator + an independent `oracle` pass on 1.3 that caught F1). ✅ **Session 11**: an orchestrator internal review of the 1.4/1.4.5/1.5/1.6 batch (the owner waived the independent `@oracle` pass — recorded in DECISIONS/CONTINUITY, so this batch has **not** had independent adversarial review). |
-| Implementation plan (slice gates) | ✅ v1.2 hardened — 17 slices, per-slice gates |
-| Origin / distribution decision | ✅ **resolved** — static HTTPS host + origin guard (D24 / §21.1) |
-| Decisions log (ADR) | ✅ |
-| Dependencies installed | ✅ (`package.json`, Node 24 LTS, React 19.3) |
-| Latest owner-request pass (D135) | ✅ calculator-style dimension keypad (postfix `FT`/`IN`, preset fractions), a project-name pop-up on «New project», photo date/time stamped above the export logo, larger VANGARDE marks on every page (Settings switch), camera at device-maximum resolution with working zoom. Hardware rows H23-H25 owed. See `docs/DECISIONS.md` D135. |
-| Folder permission fix (D136) | ✅ the projects folder survives relaunches and captures: Home shows «Folder permission expired» + one-tap «Re-authorize» instead of a fake empty list, Settings «Change folder…» no longer reloads (which dropped the grant), the capture re-pick cannot replace the root with a project folder, «Use photo» re-asks a lapsed grant in the tap. Hardware row H26 owed. See `docs/DECISIONS.md` D136. |
-| Application code | ✅ slices 0.2–1.11 + the Project screen + the UI/GUI pass (§4.1/§4.2) + D135/D136. **1530 tests / 107 files** (node + jsdom + browser), build + clickthru green. Current state: `docs/CONTINUITY.md`. |
+| **Works** | New project → camera → room name → dimensions (calculator keypad, snapping, magnifier) → 14 markup tools (shapes, arrows, angles, pen, highlighter, text boxes, eraser, photo-in-photo) → one-page PDF/PNG with a date stamp and the VANGARDE watermark. Autosave, undo, offline. |
+| **Tested** | About 1,690 automated tests run on every change. Two timing-sensitive tests sometimes fail when the machine is busy and pass on a re-run. |
+| **Not yet** | A real crew member using it on a real job. Do this first, with [`docs/HARDWARE-TEST-CHECKLIST.md`](docs/HARDWARE-TEST-CHECKLIST.md) (the `[Surface]` rows). |
+| **Unfinished** | On-screen nudge arrows (keyboard arrows work), a version-history panel, and some wording marked "proposed". None of it blocks use. Full list: [`docs/CONTINUITY.md`](docs/CONTINUITY.md). |
 
-## Prerequisites
+## 3. Make your own copy (15 minutes, clicks only)
 
-- **Node.js 24 LTS** + npm 11+ (Node is installed on this machine)
-- **Microsoft Edge** on Windows 11 (target runtime)
-- A **Surface device with a pen** for real testing
+The live link above runs from my GitHub account. To own the app outright:
 
-## Quick start
+1. Sign in to GitHub (a shop account is best). Open
+   https://github.com/llevaachingada/FieldMeasure → **Use this template** → **Create a new
+   repository** → name it `FieldMeasure`, **Public** → **Create**.
+   (No "Use this template" button? Use **+** → **Import repository** with
+   `https://github.com/llevaachingada/FieldMeasure.git` instead.)
+2. In your new repo: **Settings** → **Pages** → **Source: GitHub Actions**.
+3. **Actions** tab → **Deploy to GitHub Pages** → **Run workflow**. Wait for the green check
+   (about 3 minutes).
+4. **Settings** → **Pages** now shows your link: `https://<your-github-name>.github.io/FieldMeasure/`.
 
-> Runnable: `npm ci`, then `npm run dev` (Vite dev server) or `npm run build`. The three test
+Install from your link on each Surface (section 1). Anyone who installed from my link: install
+yours, pick **the same folder** on first run (every project is still there), then uninstall the
+old one from the Start menu.
 
-```bash
-npm ci           # install exact locked versions
-npm run dev      # vite dev server
-npm test         # vitest
+From then on, anything merged into your `main` branch updates the app by itself. Surfaces show
+**"Update ready"**, and tapping **Reload** applies it.
+
+## 4. Change it with AI
+
+The whole app was built with AI coding agents, and the repo is set up for the next one.
+`AGENTS.md` holds the rules, and `docs/` is the project's memory. Use **Claude Code** (claude.ai/code
+works in a browser with nothing to install; connect it to your repo), or Cursor, Codex or Copilot.
+
+**Start every session with:**
+
+```text
+Read AGENTS.md, docs/CONTINUITY.md and the last entry of docs/BUILD-LOG.md. Tell me in plain
+English where the app stands and what's unfinished. Don't change anything yet.
 ```
 
-## Stack
+**To change something:**
 
-React 19 · TypeScript · **Konva (imperative, not react-konva)** · zustand + immer · zod ·
-idb-keyval · @cantoo/pdf-lib · perfect-freehand · fflate · lucide-react · Vite · Vitest + Playwright ·
-vite-plugin-pwa. Versions and rationale: [`docs/preflight-handoff-v0.3-hardened.md`](docs/preflight-handoff-v0.3-hardened.md) §2.
+```text
+I want: <the change, in plain words>. Follow AGENTS.md: work on a new branch, run the checks
+(tsc, vitest, build, playwright) and show me the results, never delete or loosen a test to make
+it pass, update docs/DECISIONS.md, docs/BUILD-LOG.md and docs/CONTINUITY.md, then open a pull
+request that explains in plain English what changed and what to try on a Surface.
+```
 
-## Core constraints (do not violate)
+Then read the pull request and merge it. It's live in about 3 minutes. Try it on one Surface. If
+it's wrong, open the merged pull request on GitHub and click **Revert**.
 
-- Windows/Surface + Edge only; built-in camera only.
-- **No** server, database, sign-in, analytics, cloud SDKs, Bluetooth, or multi-user.
-- Everything autosaves to a **local per-project folder** (File System Access API; OPFS fallback).
-- Geometry is stored in **working-image pixels**; style sizes in **markup units (mu)**; lengths as
-  **millimeters + the entered text**.
-- All disk writes go through `src/fs/projectStore.ts` (tmp → close → rename).
-- The UI spec's "do not simplify" list is binding.
+**The rules:**
+- Changes go through pull requests. **Merging to `main` is shipping.**
+- Never let the AI delete, skip or loosen a test. A failing test here has been right every time.
+- Be extra careful with `src/domain/` (measurement maths), `src/export/` (the PDF) and
+  `src/fs/projectStore.ts` (saving). Bugs there mean wrong numbers or lost work.
+- No servers, logins, cloud services or tracking. That's why it's free and private.
+- Don't use `npm run dev` to look at the app. It shows a broken, unstyled page on purpose.
 
-## Launching (Windows)
+## 5. Run it on a PC (optional, for testing changes)
 
-`tools/launch-fieldmeasure.ps1` rebuilds, starts `vite preview` on port 4173 and opens Chrome (Edge fallback) in a
-dedicated profile. `-SkipBuild` reuses `dist`, `-Stop` stops everything, `-InstallShortcut` adds a Desktop shortcut.
-It closes the app browser gracefully before forcing it, so Chrome's saved site permissions are not lost.
+Needs [Node.js 24 LTS](https://nodejs.org/) and [Git](https://git-scm.com/download/win). In
+**Command Prompt**:
 
-## Projects folder permission
+```bat
+git clone https://github.com/<your-github-name>/FieldMeasure.git
+cd FieldMeasure
+npm ci
+npm run build
+npm run preview
+```
 
-The chosen projects folder is saved once (first run or Settings) and is **never** reset by the app. Browsers do not keep
-the folder's *write permission* across a relaunch on their own, so after a relaunch Home may show
-**«Folder permission expired»** — tap **«Re-authorize»** (one browser prompt) and pick **"Allow on every visit"** if the
-browser offers it; after that no prompt should return. «Re-pick folder» appears only if the browser has blocked the
-folder. You never need to re-choose the folder in Settings. Details: `docs/DECISIONS.md` D136.
+Open http://localhost:4173. Or run `powershell -ExecutionPolicy Bypass -File
+tools\launch-fieldmeasure.ps1 -InstallShortcut`, which does the same and adds a desktop
+shortcut. Don't do real work on a `localhost` copy; it can't move to the real link later.
 
-## Documentation
+## 6. If something goes wrong
 
-Start at [`docs/INDEX.md`](docs/INDEX.md). When resuming work, read
-[`docs/CONTINUITY.md`](docs/CONTINUITY.md) first.
+| Problem | Fix |
+|---|---|
+| No Install option | Use Edge and the exact `https://` link. Check the Start menu; it may already be installed. |
+| "This browser can't save to folders" | Use Edge (or Chrome). |
+| Won't open offline | Open it once with Wi-Fi, wait 30 seconds, close it, then try again. |
+| Home says **Folder permission expired** | Tap **Re-authorize** and choose **Allow on every visit**. |
+| First-run questions again, no projects | It was opened from a different link. Pick the same folder; everything comes back. |
+| Deploy fails at "configure-pages" | Settings → Pages → Source: **GitHub Actions**, then run it again. |
+| The **CI** check is red | CI is the tests, separate from deploying. Re-run once. If it's still red, ask the AI why, and don't let it disable a test. |
+| `npm` "is not recognized" or "scripts are disabled" | Install Node 24, then use Command Prompt (or type `npm.cmd`). |
+| A measurement or export looks wrong | Treat it as serious. Keep the project folder, screenshot it, and give both to the AI with the exact numbers typed. |
 
-## Repository layout
+---
 
-See [`docs/preflight-handoff-v0.3-hardened.md`](docs/preflight-handoff-v0.3-hardened.md) §12.
+## For the AI and developers
+
+- **Rules:** [`AGENTS.md`](AGENTS.md) (canonical; `CLAUDE.md` points to it).
+- **State:** [`docs/CONTINUITY.md`](docs/CONTINUITY.md) and the last entry of
+  [`docs/BUILD-LOG.md`](docs/BUILD-LOG.md).
+- **Why things are the way they are:** [`docs/DECISIONS.md`](docs/DECISIONS.md).
+- **Specs:** [`docs/preflight-handoff-v0.3-hardened.md`](docs/preflight-handoff-v0.3-hardened.md)
+  (§2.4 is the v1 scope and wins every conflict),
+  [`docs/ui-spec-field-measure-v2-hardened.md`](docs/ui-spec-field-measure-v2-hardened.md),
+  [`docs/implementation-plan.md`](docs/implementation-plan.md).
+- **Every file:** [`docs/INDEX.md`](docs/INDEX.md). **Crew how-to:** [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md).
+- **Stack:** React 19, TypeScript, Konva (imperative, never react-konva), zustand + immer, zod,
+  idb-keyval, @cantoo/pdf-lib, perfect-freehand, fflate, lucide-react, Vite, vite-plugin-pwa,
+  Vitest + Playwright. The runtime dependency list is closed.
+- **Checks:** `npx tsc --noEmit` · `npx vitest run` · `npm run build` · `npx playwright test` ·
+  `npm run clickthru` (screenshots the built app on the Surface screen size; an inspection tool,
+  not a gate).
+- **Deploy:** `.github/workflows/pages.yml` builds and publishes every push to `main`. The base path
+  comes from GitHub (`FM_BASE`), so a renamed repo or custom domain works. Other static hosts:
+  build with `FM_BASE=/` (or the sub-path), publish `dist/`, and serve over HTTPS.
 
 ## License
 
-There is no license file. The original author has given this code to its former employer to
-copy, deploy, change and rebrand freely. See [`START-HERE.md`](START-HERE.md). Third-party
-components keep their own licenses ([`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)).
+No license file. The author gives this code to Vangarde Woodworks to copy, run, change and rebrand
+freely. Third-party components keep their own licenses: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

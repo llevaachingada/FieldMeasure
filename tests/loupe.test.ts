@@ -29,23 +29,24 @@ import {
 } from '../src/editor/Loupe';
 
 describe('the derived source rule: sourcePx = diameterPx / magnification', () => {
-  it('pen magnification is fixed at 3.5× at every size setting', () => {
-    expect(PEN_LOUPE_MAGNIFICATION).toBe(3.5);
-    expect(loupeSourcePx(112, 3.5)).toBeCloseTo(32, 6); // 112 ÷ 3.5 = 32
-    expect(loupeSourcePx(160, 3.5)).toBeCloseTo(45.714285, 5); // 160 ÷ 3.5 = 45.7142857…
-    expect(loupeSourcePx(200, 3.5)).toBeCloseTo(57.142857, 5); // 200 ÷ 3.5 = 57.1428571…
+  // D165 (owner): a third less zoom — pen 3.5× → 2.35×, touch 4× → 2.7×.
+  it('pen magnification is fixed at 2.35× at every size setting', () => {
+    expect(PEN_LOUPE_MAGNIFICATION).toBe(2.35);
+    expect(loupeSourcePx(112, 2.35)).toBeCloseTo(47.659574, 5); // 112 ÷ 2.35
+    expect(loupeSourcePx(160, 2.35)).toBeCloseTo(68.085106, 5); // 160 ÷ 2.35
+    expect(loupeSourcePx(200, 2.35)).toBeCloseTo(85.106383, 5); // 200 ÷ 2.35
   });
 
-  it('touch magnification is fixed at 4× of a 50 px source in a 200 px window', () => {
-    expect(TOUCH_LOUPE_MAGNIFICATION).toBe(4);
-    expect(loupeSourcePx(200, 4)).toBe(50); // 200 ÷ 4 = 50
+  it('touch magnification is fixed at 2.7× of a 74.07 px source in a 200 px window', () => {
+    expect(TOUCH_LOUPE_MAGNIFICATION).toBe(2.7);
+    expect(loupeSourcePx(200, 2.7)).toBeCloseTo(74.074074, 5); // 200 ÷ 2.7
   });
 
   it('penLoupeSpec keeps the magnification while deriving the source', () => {
     for (const diameter of [112, 160, 200]) {
       const spec = penLoupeSpec(diameter);
-      expect(spec.magnification).toBe(3.5);
-      expect(spec.sourcePx).toBeCloseTo(diameter / 3.5, 6);
+      expect(spec.magnification).toBe(2.35);
+      expect(spec.sourcePx).toBeCloseTo(diameter / 2.35, 6);
       expect(spec.diameterPx).toBe(diameter);
     }
   });
@@ -53,8 +54,8 @@ describe('the derived source rule: sourcePx = diameterPx / magnification', () =>
   it('touchLoupeSpec carries the locked touch numbers', () => {
     const spec = touchLoupeSpec();
     expect(spec.diameterPx).toBe(200);
-    expect(spec.magnification).toBe(4);
-    expect(spec.sourcePx).toBe(50);
+    expect(spec.magnification).toBe(2.7); // D165
+    expect(spec.sourcePx).toBeCloseTo(200 / 2.7, 6);
     expect(spec.offsetPx).toBe(136);
     expect(spec.contactDiscPx).toBe(44);
     expect(spec.leader).toBe(true);

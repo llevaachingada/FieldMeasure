@@ -2,7 +2,7 @@
   "name": "field-measure",
   "version": "0.1.0",
   "private": true,
-  "description": "Field Measure — local-only, offline PWA for footing and dimension markup (slice 0.1 scaffold).",
+  "description": "Field Measure: offline Surface app for photo dimensions and marked-up PDF/PNG export.",
   "type": "module",
   "license": "UNLICENSED",
   "engines": {

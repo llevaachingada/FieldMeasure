@@ -973,3 +973,17 @@ function mountProps(overrides: Partial<StylePanelProps> = {}): StylePanelProps {
     ...overrides,
   };
 }
+
+describe('D164 — dimension label size in the Size section', () => {
+  it('the dimension tool shows Size with steppers and S/M/L quick sizes', () => {
+    const { onChange } = mountPanel({ tool: 'dimension', style: { ...DEFAULT_STYLE, fontSizeMu: 18 } });
+    expect(screen.getByTestId('style-size-M').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByTestId('style-size-L'));
+    expect(onChange).toHaveBeenLastCalledWith({ fontSizeMu: 28 });
+    fireEvent.click(screen.getByTestId('style-size-plus'));
+    expect(onChange).toHaveBeenLastCalledWith({ fontSizeMu: 19 });
+    fireEvent.click(screen.getByTestId('style-size-minus'));
+    expect(onChange).toHaveBeenLastCalledWith({ fontSizeMu: 17 });
+    expect((screen.getByTestId('style-bold') as HTMLButtonElement).disabled).toBe(false);
+  });
+});

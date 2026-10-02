@@ -75,6 +75,7 @@ import { TOOL_FOR_TYPE } from '@/state/styleByTool';
 import { toolDefById, type ToolId } from '@/ui/ToolRail';
 
 import { STRINGS, fractionLabel, t } from './strings';
+import { TEXT_SIZE_PRESETS, stepTextSize } from './textSize';
 import './stylePanel.css';
 
 // ---------------------------------------------------------------------------
@@ -1246,6 +1247,48 @@ export default function StylePanel({
               <span className="style-panel-readout-value mono">
                 {mixed ? S.mixedDash : String(style.fontSizeMu)}
               </span>
+            </div>
+            {/* D164: finger-sized steppers and quick sizes; the slider stays for big jumps. */}
+            <div className="style-panel-row style-panel-size-row">
+              <button
+                type="button"
+                className="style-panel-stepper"
+                data-testid="style-size-minus"
+                data-style-focusable="true"
+                aria-label={nameFor(S.sizeSmaller, 'fontSizeMu')}
+                disabled={notApplicable('fontSizeMu') || style.fontSizeMu <= FONT_SIZE_MIN}
+                onClick={() => onChange({ fontSizeMu: stepTextSize(style.fontSizeMu, -1, FONT_SIZE_MIN, FONT_SIZE_MAX) })}
+              >
+                <Minus aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="style-panel-stepper"
+                data-testid="style-size-plus"
+                data-style-focusable="true"
+                aria-label={nameFor(S.sizeLarger, 'fontSizeMu')}
+                disabled={notApplicable('fontSizeMu') || style.fontSizeMu >= FONT_SIZE_MAX}
+                onClick={() => onChange({ fontSizeMu: stepTextSize(style.fontSizeMu, 1, FONT_SIZE_MIN, FONT_SIZE_MAX) })}
+              >
+                <Plus aria-hidden="true" />
+              </button>
+            </div>
+            <div className="style-panel-row style-panel-size-row">
+              {TEXT_SIZE_PRESETS.slice(0, 3).map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  className="style-panel-option style-panel-size-chip"
+                  data-testid={`style-size-${preset.label}`}
+                  data-style-focusable="true"
+                  aria-label={nameFor(t(S.sizePreset, { size: preset.label }), 'fontSizeMu')}
+                  aria-pressed={!mixed && style.fontSizeMu === preset.mu}
+                  disabled={notApplicable('fontSizeMu')}
+                  onClick={() => onChange({ fontSizeMu: preset.mu })}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
             <input
               type="range"

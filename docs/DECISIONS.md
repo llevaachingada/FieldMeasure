@@ -3854,28 +3854,32 @@ the user picks «Allow on every visit» (Chrome/Edge 122+), which installing the
   Before this, a created note could never be moved.
 - **D163:** after a folder re-pick, cached project folder handles are re-resolved (`projectsRootGeneration`). Autosave
   «Retry» re-asks the folder grant inside the tap. A sheet switch re-resolves the folder.
+- **D164:** the dimension label size and bold are set in the style panel's Size section. It has − / + steppers and
+  S / M / L quick sizes (`src/ui/textSize.ts`, shared with the text-box editor). They set new dimensions (per tool)
+  or the selection (one undo step).
+- **D165:** loupe magnification is a third less: pen 2.35× (was 3.5×) and touch 2.7× (was 4×).
 
-### D164 - ownership handoff: the app installs under any host path, and a handoff packet
+### D166 - handoff: `main` is the live app, the app installs under any host path, the README is the guide
 
-**Status: shipped (session 30).** The owner is giving the app to their former employer, who will run their own copy
-and change it with AI tools.
+**Status: shipped (session 30).** The owner is handing the app to their boss at the shop, who directs AI tools and
+does not read code.
 
+- **`main` is the live app.** `beta-readiness-wave-2` (through D165) is merged into `main`, and `pages.yml` deploys
+  from `main` only. Before this, both branches deployed to the same site and the last push won.
 - **The manifest followed a fixed path.** `start_url` and `scope` were pinned to `/FieldMeasure/` while `base` came
-  from `FM_BASE`. Any other host path (a renamed repo, a copy under another owner with a different name, a custom
-  domain, a root host, or `vite preview` at `/`) produced an app whose start URL sat outside the page's scope, so it
-  would not install. Now `id`, `start_url` and `scope` all equal the build base. For the existing
-  `/FieldMeasure/` deployment the values are unchanged, and `id` equals the old computed id (the start URL), so
-  installed apps keep their identity. Checked by building with `FM_BASE=/Renamed/` and `/`, and by Chromium's
-  `Page.getInstallabilityErrors` at `/` on `vite preview` (only `in-incognito`, from the test context).
-- **The Pages workflow reads the path from GitHub.** `pages.yml` runs `actions/configure-pages` before the build and
-  sets `FM_BASE` to `${base_path}/` (`/<repo>/` for a project site, `/` for a user site or a custom domain), so
-  a copy deploys correctly whatever the repository is called.
-- **The manifest description** no longer says "slice 0.1 scaffold". Newer Edge install dialogs can show it.
-- **The handoff packet:** `START-HERE.md` plus `handoff/1-5` and `handoff/emails/`. It is written for owners who direct
-  AI agents and do not read code. A copy is made with "Use this template" (the original repo must have Template
-  repository ticked) or the GitHub importer, and deployed with GitHub Pages (Source = GitHub Actions). Surfaces get
-  the app through the Edge `WebAppInstallForceList` policy or a manual install.
-- **Install runbook corrections:** `npm run dev` cannot render the app (D105), first run asks about handedness
-  before the folder, and the «moved» screen it described is still a stub (`src/data/originGuard.ts`). A changed
-  address shows first run again, and the fix is to pick the same folder.
-- `AGENTS.md` gained a short ownership-handoff paragraph. Its rules are unchanged.
+  from `FM_BASE`. A copy under any other path (a renamed repo, a custom domain, a root host, `vite preview` at `/`)
+  had its start URL outside the page's scope and would not install. Now `id`, `start_url` and `scope` all equal the
+  build base. For the existing `/FieldMeasure/` site the values are unchanged, and `id` equals the old computed id, so
+  installed apps keep their identity. Checked by building with `FM_BASE=/Renamed/` and `/`, and with Chromium's
+  `Page.getInstallabilityErrors` at `/` (only `in-incognito`, from the test context).
+- **`pages.yml` reads the path from GitHub:** `configure-pages` runs before the build, and
+  `FM_BASE = ${base_path}/`.
+- **The README is the handoff:** install on a Surface, where it's at, make your own copy ("Use this template", Pages
+  source = GitHub Actions, Run workflow), the AI change loop with two prompts and the rules, run on a PC,
+  troubleshooting. The stale status block (it still said "nine slices, 636 tests") and the `npm run dev` quick start
+  (it cannot render, D105) are gone.
+- **Install runbook corrections:** `npm run dev` cannot render the app, first run asks about handedness before the
+  folder, and the «moved» screen it described is still a stub (`src/data/originGuard.ts`). A changed address shows
+  first run again, and the fix is to pick the same folder.
+- The manifest and `package.json` descriptions no longer say "slice 0.1 scaffold". `AGENTS.md` gained a short handoff
+  paragraph. Its rules are unchanged.

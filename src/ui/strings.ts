@@ -736,6 +736,10 @@ export const STRINGS = {
     // `APPROVED inventory` block does.
     panelLabel: 'Style',
     fontSize: 'Size',
+    // D164: the Size steppers and quick sizes (still under the PROPOSED marker above).
+    sizeSmaller: 'Smaller text',
+    sizeLarger: 'Larger text',
+    sizePreset: 'Text size {size}',
     paletteLabel: 'Palette',
     widthLadder: 'Width ladder',
     hexLabel: 'Hex',

@@ -198,7 +198,7 @@ type TargetTool = (typeof TOOLS)[number];
 /** The sections each tool must actually show - keeps "it fits" non-trivial. */
 const EXPECTED_SECTIONS: Record<TargetTool, string[]> = {
   select: ['Presets'],
-  dimension: ['Color', 'Width', 'Arrowheads', 'Precision', 'Recent', 'Presets'],
+  dimension: ['Color', 'Width', 'Arrowheads', 'Size', 'Precision', 'Recent', 'Presets'], // D164: + Size
   rect: ['Color', 'Width', 'Fill', 'Transparency', 'Line style', 'Recent', 'Presets'],
   text: ['Color', 'Fill', 'Transparency', 'Size', 'Recent', 'Presets'], // D160: + Fill, Transparency
 };

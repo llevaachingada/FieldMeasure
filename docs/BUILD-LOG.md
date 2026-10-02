@@ -2041,19 +2041,39 @@ Owner report: re-authorizing the folder kept breaking, and saves did not land. *
 The new test in `projectSession.test.ts` fails without the fix (the save lands in the old folder).
 Gates: tsc 0 | vitest 1690/1690 | build 0. Clickthru stalled on this run and was not re-run.
 
-## Session 30: D164, ownership handoff packet
+### Session 29 (continued): D164, dimension label size in the left style panel
 
-The owner asked for a handoff packet so their former employer can take the app from GitHub, deploy their own copy,
-put it on their Surfaces, and keep changing it with AI tools. **Found while designing it:** the manifest's
-`start_url`/`scope` were pinned to `/FieldMeasure/`, so a copy under any other path (a renamed repo, a custom domain,
-`vite preview` at `/`) would not install. **Fix (D164):** `id`/`start_url`/`scope` follow the build base, and
-`pages.yml` takes `FM_BASE` from `configure-pages`' `base_path`. Packet: `START-HERE.md`, `handoff/1-5`,
-`handoff/emails/` (IT push request, crew announcement). The install runbook's wrong lines were fixed, and README and
-AGENTS.md point at the packet.
+Owner request: a clean way to resize dimension text from the left toolbar.
+- **Applicability:** the Dimension tool now applies to `fontSizeMu` and `bold`, so the existing Size section appears
+  for dimensions and for selected dimensions. A selection edit is one coalesced undo step, like width and colour.
+  New dimensions take the size through `scene.dimensionStyle`.
+- **Controls:** the Size section (text and dimensions) gained − / + steppers and S / M / L quick sizes (14 / 18 / 28)
+  above the slider. They sit in 3-column, 48 px rows that fit the 176 px dock.
+- **Shared steps:** `src/ui/textSize.ts` holds the steps and sizes used by both the panel and the text-box editor.
+- **Test changes:** `styleByTool` expects dimensions to have size and bold, and its recents test uses a fill so the
+  text look stays text-only. `editorChromeFit` expects the Dimension panel to include Size. There is a new
+  `stylePanel` test.
 
-Gates (Linux container, Node 22; the repo targets Node 24): tsc 0 | build 0 (also with `FM_BASE=/Renamed/`) |
-playwright 8 passed / 5 skipped (with `PW_CHROMIUM_PATH`) | installability at `/` clean apart from `in-incognito`.
-vitest node+jsdom: 2 failures in `projectSession.test.ts` (R5 close ordering, D163). They **fail identically on the
-pre-change tree** in this container, so they are not from this change. They passed 1690/1690 on the owner's Windows
-machine under Node 24; recheck on Node 24. The vitest browser project could not launch here (the container's Chromium
-1194 does not match Playwright 1.63's 1243), so CI is the gate for it. Clickthru was not run (no UI change).
+Gates: tsc 0 | vitest 1691/1691 | build 0 | clickthru 20/20.
+
+The clickthru camera step («Use photo» never appears) failed intermittently twice this session. Each time a re-run
+passed 20/20. Owed: find the flake in the harness's fake camera.
+
+### Session 29 (continued): D165, the loupe zooms a third less
+
+Owner request. Pen magnification 3.5× → 2.35× and touch 4× → 2.7×; window sizes are unchanged, so the source region
+is derived and larger (touch 50 → 74.07 px). `tests/loupe.test.ts` expects the new numbers. vitest 1691/1691.
+
+## Session 30: D166, handoff to the shop
+
+The owner asked for a clean handoff of the app as it is now. **Found:** the live site was built from
+`beta-readiness-wave-2` (`6a91972`, D165), and `main` was 33 commits behind it. The manifest's `start_url`/`scope` were
+pinned to `/FieldMeasure/`, so a copy under any other path would not install. **Done (D166):** beta merged into the
+handoff branch; `pages.yml` deploys `main` only and takes `FM_BASE` from `configure-pages`; `id`/`start_url`/`scope`
+follow the base; the README was rewritten as the owner's guide; the install runbook was corrected; AGENTS.md has a
+handoff paragraph. The branch merges into `main` through PR #5.
+
+Gates: tsc 0 | vitest node+jsdom **1455/1455 on Node 24** | build 0 (also with `FM_BASE=/Renamed/` and `/`) |
+playwright 8 passed / 5 skipped. The container's default Node 22 fails two `projectSession.test.ts` cases (on the
+pre-change tree too), and they pass on Node 24, which `engines` requires. The vitest browser project cannot launch the
+container's Chromium (1194 vs Playwright 1.63's 1243), so CI is its gate. Clickthru was not run (no UI change).

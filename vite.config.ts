@@ -40,7 +40,7 @@ export default defineConfig({
         short_name: 'FieldMeasure',
         description: 'Photograph a site, draw feet-inch dimensions on it, and export a marked-up PDF or PNG.',
         display: 'standalone',
-        // D164: start_url and scope follow the build base, so the app installs at
+        // D166: start_url and scope follow the build base, so the app installs at
         // whatever path it is hosted under (a renamed repo, a custom domain, a root
         // host, or `vite preview` at /). They were pinned to '/FieldMeasure/', which
         // made any other host install an out-of-scope, broken app.
