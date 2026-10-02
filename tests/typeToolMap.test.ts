@@ -117,7 +117,8 @@ describe('§7.4 #4 applicability intersection — the executed table (finding 7)
   it('non-inset heterogeneous selections still intersect to their shared controls', () => {
     // text: strokeColor + fontSizeMu + bold; rect: strokeColor + width + fill + alpha +
     // lineStyle → shared = strokeColor only.
-    expect(enabledFor(['text', 'rect'])).toEqual(['strokeColor']);
+    // D160: text now also has fill + alpha, so those are shared with rect too.
+    expect(enabledFor(['text', 'rect'])).toEqual(['strokeColor', 'fillColor', 'fillAlpha']);
     // dimension: strokeColor + strokeWidthMu + arrowheads; angle: strokeColor +
     // strokeWidthMu → shared = the first two.
     expect(enabledFor(['dimension', 'angle'])).toEqual(['strokeColor', 'strokeWidthMu']);

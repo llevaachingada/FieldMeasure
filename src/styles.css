@@ -855,10 +855,12 @@ button.crumb:hover {
   display: none;
 }
 
-/* ---- tool rail (128 px = 4 + 56 + 8 + 56 + 4, UI §6.2) ------------------- */
+/* ---- tool rail (56 px = 4 + 48 + 4: ONE column, owner request D149; was 128 px, UI §6.2) ----
+   48 px keeps the touch floor every chrome control meets (editorA11y). The gaps below are
+   tightened so 14 tools, six group headers and Undo/Redo still fit at 1916x960. */
 
 .tool-rail {
-  flex: 0 0 128px;
+  flex: 0 0 56px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -876,7 +878,7 @@ button.crumb:hover {
 .tool-rail-groups {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   /* Bottom-anchored: `auto` pushes the groups down when there is room and reaches
      for the scroll when there is not (which `justify-content: flex-end` cannot do). */
   margin-top: auto;
@@ -884,7 +886,8 @@ button.crumb:hover {
 .tool-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  /* D149: 1 px (was 4), part of fitting one column at 1916x960. */
+  gap: 1px;
 }
 /* Full-width hairline between groups (UI §6.2). Group 6 (ERASE) is additionally
    isolated: hairline + 16 px of extra gap from its neighbour. */
@@ -896,24 +899,28 @@ button.crumb:hover {
 }
 .tool-group-header {
   margin: 0;
-  padding: 0 4px;
-  font-size: 11px;
-  line-height: 13px;
+  padding: 0;
+  /* D149: 9 px so the longest header («ANNOTATE») fits the 48 px column. */
+  font-size: 9px;
+  line-height: 10px;
+  text-align: center;
+  overflow: hidden;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--g400);
 }
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(2, 56px);
-  gap: 8px;
+  grid-template-columns: 48px;
+  /* D149: 2 px between stacked tools (was 8 between grid cells). */
+  gap: 2px;
   justify-content: center;
 }
 .tool-button {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -970,10 +977,10 @@ button.crumb:hover {
 
 .tool-rail-history {
   display: grid;
-  grid-template-columns: repeat(2, 56px);
-  gap: 8px;
+  grid-template-columns: 48px;
+  gap: 2px;
   justify-content: center;
-  padding-top: 6px;
+  padding-top: 4px;
   border-top: 2px solid var(--g700);
 }
 .rail-history-button {
@@ -981,8 +988,8 @@ button.crumb:hover {
      mark shows through everywhere around them. */
   position: relative;
   z-index: 81;
-  width: 56px;
-  min-height: 56px;
+  width: 48px;
+  min-height: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1022,20 +1029,21 @@ button.crumb:hover {
  * telemetry that does not exist); the user picks it in Settings.
  */
 .editor-layout[data-density='desk'] .tool-rail {
-  flex-basis: 108px;
+  /* D149: one 40 px column + 2 x 4 px padding. */
+  flex-basis: 48px;
   gap: 6px;
   padding: 6px 3px;
 }
 .editor-layout[data-density='desk'] .tool-grid,
 .editor-layout[data-density='desk'] .tool-rail-history {
-  grid-template-columns: repeat(2, 48px);
+  grid-template-columns: 40px;
 }
 .editor-layout[data-density='desk'] .tool-button,
 .editor-layout[data-density='desk'] .tool-well,
 .editor-layout[data-density='desk'] .rail-history-button {
-  width: 48px;
-  height: 48px;
-  min-height: 48px;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
 }
 .editor-layout[data-density='desk'] .tool-button svg {
   width: 22px;
@@ -1057,7 +1065,10 @@ button.crumb:hover {
 /* UI §7.2: the expanded LANDSCAPE panel is 280 px wide; the panel fills the dock
    (`.style-panel` is width/height 100%). The old 72 px chip slot is gone. */
 .style-dock[data-orientation='vertical'] {
-  flex: 0 0 280px;
+  /* D149 (owner request): three swatch tiles wide. 3 x 44 + 2 x 6 gaps + 2 x 8 section padding
+     + a thin scrollbar (~10) + the 2 px divider = 172; 176 keeps three columns when the body
+     scrolls. Was 280 (§7.2). */
+  flex: 0 0 176px;
   min-width: 0;
   flex-direction: column;
 }
@@ -1525,5 +1536,39 @@ button.crumb:hover {
      top of the clamp it is 260 x 122 px. The camera's zoom chips clear that height. */
   width: clamp(140px, 14vw, 260px);
   height: auto;
-  opacity: 0.14;
+  /* Owner (session 29): a little less transparent. Was 0.14. */
+  opacity: 0.24;
+}
+
+/* D157: the small VANGARDE mark centred in each top bar (editor, project, Home). Decorative and
+   click-through; hidden where the bar is too narrow for it to clear the breadcrumb and actions. */
+.editor-topbar,
+.project-bar,
+.home-bar {
+  position: relative;
+}
+.topbar-logo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  height: 28px;
+  width: auto;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.editor-topbar[data-compact='true'] .topbar-logo {
+  display: none;
+}
+@media (max-width: 1100px) {
+  .topbar-logo {
+    display: none;
+  }
+}
+/* D157: the centre belongs to the logo; the autosave chip sits just right of it when the logo shows. */
+@media (min-width: 1101px) {
+  .editor-topbar:not([data-compact='true']) .topbar-autosave {
+    justify-content: flex-end;
+    padding-right: 16px;
+  }
 }

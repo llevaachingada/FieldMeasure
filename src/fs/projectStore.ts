@@ -90,7 +90,19 @@ export class RootMismatchError extends Error {
  * threw away the grant the user had just given and landed on a Home that could not read it —
  * which looked exactly like "the folder setting did not save".
  */
+/**
+ * D163: bumped every time a projects root is adopted (a first pick or a recovery re-pick). A
+ * re-pick mints a NEW handle carrying the new grant; any folder handle resolved from the OLD root
+ * keeps the old, lapsed permission. Caches of resolved project folders (`ProjectSession.dir()`)
+ * compare this number and re-resolve, so saves go through the handle that can actually write.
+ */
+let rootGeneration = 0;
+export function projectsRootGeneration(): number {
+  return rootGeneration;
+}
+
 export async function adoptProjectsRoot(handle: FileSystemDirectoryHandle): Promise<void> {
+  rootGeneration += 1;
   await setProjectsRoot(handle);
   await initStore();
   try {

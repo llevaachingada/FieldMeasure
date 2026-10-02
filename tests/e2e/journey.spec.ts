@@ -30,7 +30,7 @@ async function toEditorWithOneSheet(page: Page, name: string): Promise<void> {
   await page.waitForTimeout(1500); // the fake camera stream needs a moment before the shutter captures a frame
   await page.locator('.camera-shutter').click();
   await page.locator('.camera-review-primary').click({ timeout: 30_000 });
-  await page.locator('[data-sheet-id] .sheet-card-open').first().click({ timeout: 60_000 });
+  // D148: «Use photo» now opens the new sheet in the editor directly (owner request).
   await expect(page.locator('.editor-canvas')).toBeVisible({ timeout: 40_000 });
   await page.waitForTimeout(1000); // the photo decode + fit settle before input
 }

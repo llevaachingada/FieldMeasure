@@ -11,6 +11,8 @@
 import { create } from 'zustand';
 import type { Handedness } from '@/settings/handedness';
 import { DEFAULT_HANDEDNESS } from '@/settings/handedness';
+import { DEFAULT_AE_AF_LOCK_ENABLED } from '@/settings/capture';
+import { DEFAULT_EXPORT_LOCATION, type ExportLocation } from '@/settings/exportLocation';
 import type { Theme } from '@/settings/theme';
 import { DEFAULT_THEME } from '@/settings/theme';
 import type { Density } from '@/settings/density';
@@ -54,6 +56,8 @@ export interface AppState extends InputToggles {
   unitFormat: UnitFormat;
   precisionDenominator: number;
   watermarkEnabled: boolean;
+  aeAfLockEnabled: boolean;
+  exportLocation: ExportLocation;
 }
 
 export interface AppActions {
@@ -68,6 +72,8 @@ export interface AppActions {
   setUnitFormat: (format: UnitFormat) => void;
   setPrecisionDenominator: (denominator: number) => void;
   setWatermarkEnabled: (value: boolean) => void;
+  setAeAfLockEnabled: (value: boolean) => void;
+  setExportLocation: (value: ExportLocation) => void;
   setTouchPlaces: (value: boolean) => void;
   setFingerDraws: (value: boolean) => void;
   setPenOnly: (value: boolean) => void;
@@ -94,6 +100,8 @@ export function createInitialAppState(): AppState {
     unitFormat: DEFAULT_UNIT_FORMAT,
     precisionDenominator: DEFAULT_PRECISION_DENOMINATOR,
     watermarkEnabled: DEFAULT_WATERMARK_ENABLED,
+    aeAfLockEnabled: DEFAULT_AE_AF_LOCK_ENABLED,
+    exportLocation: DEFAULT_EXPORT_LOCATION,
     ...INPUT_DEFAULTS,
   };
 }
@@ -112,6 +120,8 @@ export const useAppStore = create<AppStore>((set) => ({
   setUnitFormat: (unitFormat) => set({ unitFormat }),
   setPrecisionDenominator: (precisionDenominator) => set({ precisionDenominator }),
   setWatermarkEnabled: (watermarkEnabled) => set({ watermarkEnabled }),
+  setAeAfLockEnabled: (aeAfLockEnabled) => set({ aeAfLockEnabled }),
+  setExportLocation: (exportLocation) => set({ exportLocation }),
   setTouchPlaces: (touchPlaces) => set({ touchPlaces }),
   setFingerDraws: (fingerDraws) => set({ fingerDraws }),
   setPenOnly: (penOnly) => set({ penOnly }),

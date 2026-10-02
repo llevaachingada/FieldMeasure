@@ -3,13 +3,51 @@
 **Purpose:** a single place that records where this project stands, so any session (human or AI) can
 resume without re-deriving context. **Update this file at the end of each work session.**
 
-**Last updated:** 2026-09-24 (session 27: beta readiness review + Wave 1 of `docs/beta-readiness-fix-plan.md`)
+**Last updated:** 2026-10-02 (session 30: D166 handoff; `main` is now the live app)
+
+**Session 30 (D166), CURRENT STATE: the app is being handed to the owner's boss (a small custom cabinetry shop).**
+`README.md` is the handoff: install, status, own copy, changing it with AI, troubleshooting. **`main` is the live app**:
+`beta-readiness-wave-2` (through D165) was merged into it, and `pages.yml` now deploys from `main` only. The manifest
+follows the build base, and `pages.yml` takes the base from `configure-pages`, so a copy under any repo name or host
+installs. **Next:** the `[Surface]` pass with a crew member, then the owed list below.
+
+**Session 29 (D154-D161), CURRENT HANDOFF: [`docs/handoff-session-29.md`](handoff-session-29.md).** The app is live
+at https://llevaachingada.github.io/FieldMeasure/ (`.github/workflows/pages.yml`; every push to `main` or
+`beta-readiness-wave-2` redeploys it). Shipped:
+- exports match the editor's mark sizes;
+- grid thumbnails show the markup;
+- a «Room name» field at capture;
+- the top-bar logo;
+- export defaults of one file, 1x and no zip;
+- a smaller export watermark;
+- a text-box editor;
+- MyMeasures-style end grips, snapping to every mark, and a loupe that shows the markup.
 
 **What this project has now that it did not before: a clickthru harness.** One command drives the *built*
 app end to end with real touch and pen input on the Surface geometry and screenshots every step, so an agent
 can *look* instead of trusting a green gate. `npm.cmd run clickthru` | `playwright.clickthru.config.ts` |
 `tests/clickthru/{devices,gestures,harness}.ts` + `betaPath.spec.ts`; process doc `docs/clickthru-harness.md`;
 a `clickthru` skill; an OMO orchestrator rule. It is **never a gate** and **never promotes a `[Surface]` row**.
+
+**Session 28, owner requests (D146-D152), CURRENT HANDOFF: [`docs/handoff-session-28.md`](handoff-session-28.md).**
+Shipped: rear camera by default, the AE/AF lock off by default (Settings), a one-page export with a default location
+setting plus «Copy folder path» and «Open», «Use photo» → editor, a one-column rail (Measure on top), a three-swatch style
+dock, slim dimension arrowheads, a draggable dimension text offset, and a persistent Help button + `docs/USER-GUIDE.md`.
+Gates: tsc 0 | vitest 1670/1671 (the 1 is a load flake) | build 0 | playwright 8/5 | clickthru 20/20. **Next:** the owed
+list in the handoff (copy sign-off, `[Surface]`, flake fixes, per-tool styles for non-dimension marks, Wave 4 approval).
+
+**Session 28, Wave 3 (R5-R6, D144-D145):** `ProjectSession` (`src/fs/projectSession.ts`) is now the one refcounted owner of a
+project's queue, lease, channel and registration: the shell holds it while the project is open, so leaving or switching
+in the editor can no longer orphan a write (the F1/F2 root). `EditorController` owns the canvas, and **a sheet switch no longer
+remounts it** (`loadSheet`, undo history cleared per sheet). `SheetEditor.tsx` is 1186 lines. Gates: tsc 0 | vitest 1649/1651
+(2 = a pre-existing dimension-suite timing flake, which also fails on `c322bf4`) | build 0 | playwright 8/5 | clickthru 20/20. **Next:** Wave 4
+(docs diet) needs the owner's approval first. The owed list below is unchanged.
+
+**Session 28 (beta readiness Wave 2, R1-R4):** four behaviour-preserving refactors, one commit each: the gesture engine
+out of `SheetEditor` (`src/editor/gestureArbiter.ts`, 2943 → 2380 lines), the app route as a reducer plus `useProjectActions`
+(`App.tsx` 599 → 437), `useSheetReorderDrag` (`ProjectScreen.tsx` 1707 → 1374), and `CameraSession` (`CameraFlow.tsx` 1432 →
+1237). Gates: `tsc` 0 | vitest **1644/1644** (all projects) | build 0 | playwright 8 passed / 5 skipped | **clickthru 20/20**.
+Interface deviations and a load-sensitive browser flake are in BUILD-LOG "Wave 2". Wave 3 followed (above).
 
 **Session 27 (beta readiness, D137-D143):** a readiness review drove the built app and found two Critical bugs every
 beta user would hit: an edit made just before tapping «Projects» was never saved, and the sheets grid showed «Couldn't

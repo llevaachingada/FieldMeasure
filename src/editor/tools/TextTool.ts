@@ -34,6 +34,8 @@ export interface TextToolDeps {
   scene: MarkupScene;
   history: History;
   onRequestEntry: (at: Px) => void;
+  /** D160: a tap on an existing (unlocked) text box opens it for editing instead. */
+  onRequestEdit?: (id: string) => void;
   onSnapshot: (pending: boolean) => void;
   labels: { add: string; delete: string };
   background?: () => TextBackground;
@@ -59,6 +61,11 @@ export class TextTool implements MarkupTool {
   }
 
   onPointerDown(point: Px): 'consume' | 'pan' {
+    const hit = this.deps.onRequestEdit ? this.noteAt(point) : null;
+    if (hit) {
+      this.deps.onRequestEdit!(hit);
+      return 'consume';
+    }
     this.at = { ...point };
     this.deps.onSnapshot(true);
     this.deps.onRequestEntry({ ...point });
@@ -86,7 +93,8 @@ export class TextTool implements MarkupTool {
       this.deps.onSnapshot(false);
       return;
     }
-    const geometry = textAnnotationGeometry(at, text, this.deps.background?.() ?? 'auto');
+    // D160: every new note is a text box (its style carries the text and box colours).
+    const geometry = textAnnotationGeometry(at, text, this.deps.background?.() ?? 'box');
     const id = this.newId();
     this.exec({
       label: this.deps.labels.add,
@@ -96,6 +104,44 @@ export class TextTool implements MarkupTool {
       undo: () => this.deps.scene.removeObject(id),
     });
     this.deps.onSnapshot(false);
+  }
+
+  /** D161: open an existing note in the text-box editor (the Select tool's second tap). */
+  requestEdit(id: string): void {
+    this.deps.onRequestEdit?.(id);
+  }
+
+  /** D160: change an existing note's words and look as ONE undo step. */
+  edit(id: string, text: string, style: AnnotationStyle): void {
+    const scene = this.deps.scene;
+    const ann = scene.get(id);
+    if (!ann || ann.geometry.kind !== 'text') return;
+    if (!isCommittableText(text)) return;
+    const before = { geometry: { ...ann.geometry }, style: { ...ann.style } };
+    const after = {
+      geometry: { ...ann.geometry, text, background: 'box' as const },
+      style: { ...style },
+    };
+    const apply = (v: typeof before): void => {
+      scene.setStyle(id, v.style);
+      scene.setGeometry(id, { ...v.geometry });
+    };
+    this.exec({ label: this.deps.labels.add, do: () => apply(after), undo: () => apply(before) });
+  }
+
+  /** The topmost unlocked text note under an image-space point, or `null`. */
+  noteAt(point: Px): string | null {
+    const layer = this.deps.canvas.markupLayer;
+    const notes = this.deps.scene.list().filter((a) => a.geometry.kind === 'text' && !a.locked);
+    for (let i = notes.length - 1; i >= 0; i -= 1) {
+      const node = this.deps.scene.getNode(notes[i].id);
+      if (!node || !node.isVisible()) continue;
+      const r = node.getClientRect({ relativeTo: layer });
+      if (point.x >= r.x && point.x <= r.x + r.width && point.y >= r.y && point.y <= r.y + r.height) {
+        return notes[i].id;
+      }
+    }
+    return null;
   }
 
   cancel(): void {

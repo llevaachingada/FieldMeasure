@@ -15,6 +15,11 @@ import { rotatePoint } from '@/domain/geometry';
 import type { Command, History } from '@/editor/history';
 import type { MarkupScene } from '@/editor/shapes/scene';
 import type { EditorCanvas } from '@/editor/EditorCanvas';
+import type { Loupe } from '@/editor/Loupe';
+import { touchLoupeSpec, penLoupeSpec } from '@/editor/Loupe';
+import { snapPoint } from '@/domain/snapping';
+import { collectSnapTargets } from '@/editor/snapTargets';
+import { snapAcquirePx } from './DimensionTool';
 import {
   AXIS_LOCK_DEG,
   AXIS_LOCK_PX,
@@ -28,10 +33,22 @@ import {
   type MarkupTool,
 } from './toolTypes';
 
+/** The 8 box handles, plus (D161) the two END grips of a selected dimension / line / arrow. */
 export type HandleId = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+export type GripId = HandleId | 'a' | 'b';
+
+/** D161: kinds that are edited by their two ends (MyMeasures-style), not by a box. */
+export function hasEndGrips(g: Geometry): g is Extract<Geometry, { kind: 'dimension' | 'line' | 'arrow' }> {
+  return g.kind === 'dimension' || g.kind === 'line' || g.kind === 'arrow';
+}
+
+/** D161: the two end grips of a two-point mark, in image space. */
+export function endGrips(g: Geometry): Handle[] | null {
+  return hasEndGrips(g) ? [{ id: 'a', p: { ...g.a } }, { id: 'b', p: { ...g.b } }] : null;
+}
 
 export interface Handle {
-  id: HandleId;
+  id: GripId;
   /** Image-space point. */
   p: Px;
 }
@@ -86,8 +103,8 @@ export function nearestHandle(
   point: Px,
   hitPx: number,
   scale: number,
-): HandleId | null {
-  let best: HandleId | null = null;
+): GripId | null {
+  let best: GripId | null = null;
   let bestDist = Number.POSITIVE_INFINITY;
   for (const h of handles) {
     const d = Math.hypot(h.p.x - point.x, h.p.y - point.y) * scale;
@@ -208,10 +225,14 @@ export interface SelectToolDeps {
    * step, so the toast's `Undo` actually restores the selection.
    */
   onDeleteToast?: (label: string, undo: () => void) => void;
+  /** D161: the magnifier shown while an end grip is dragged (with snapping). */
+  loupe?: Loupe;
+  /** D161: whether the user wears gloves (a larger snap acquire radius). */
+  glovedTouch?: () => boolean;
 }
 
 interface TransformDrag {
-  handle: HandleId;
+  handle: GripId;
   /**
    * The path key being transformed, captured at pointer-down. Every write during the
    * drag (and the restore on cancel) addresses THIS key — never `getSelection()[0]`,
@@ -231,7 +252,7 @@ interface TransformDrag {
 export class SelectTool implements MarkupTool {
   private readonly deps: SelectToolDeps;
   private handles: Handle[] = [];
-  private hoverHalo: HandleId | null = null;
+  private hoverHalo: GripId | null = null;
   private handleGroup: Konva.Group | null = null;
   private marqueeGroup: Konva.Group | null = null;
   private marqueeStart: Px | null = null;
@@ -251,8 +272,25 @@ export class SelectTool implements MarkupTool {
     this.clearHandles();
     const keys = this.deps.getSelection();
     if (keys.length === 0) return;
+    // D161: one dimension / line / arrow is edited by its two END grips (no box handles).
+    const only = keys.length === 1 ? this.deps.scene.get(keys[0]) : undefined;
+    const ends = only && !only.locked ? endGrips(only.geometry) : null;
+    if (ends) {
+      this.handles = ends;
+      this.drawHandles(this.handles);
+      return;
+    }
     const bounds = this.selectionBounds(keys);
     if (!bounds) return;
+    // D161: a text box has no size handles (a box drag only nudged it, which read as broken).
+    // It shows an outline; drag it to move it, tap it again to edit it.
+    if (only && only.geometry.kind === 'text') {
+      const node = this.deps.scene.getNode(keys[0]);
+      const r = node?.getClientRect({ relativeTo: this.deps.canvas.markupLayer });
+      if (r) this.drawOutline(r);
+      this.handles = [];
+      return;
+    }
     this.handles = visibleHandles(bounds, this.deps.canvas.scale);
     this.drawHandles(this.handles);
   }
@@ -343,7 +381,7 @@ export class SelectTool implements MarkupTool {
   }
 
   /** The nearest handle within 56 px gets a proximity halo on contact (touch). */
-  proximityHalo(point: Px, pointerType: string): HandleId | null {
+  proximityHalo(point: Px, pointerType: string): GripId | null {
     const id = this.hitHandle(point, pointerType);
     if (id === this.hoverHalo) return id;
     this.hoverHalo = id;
@@ -352,7 +390,7 @@ export class SelectTool implements MarkupTool {
   }
 
   /** Public read for the shell's dispatch: is a handle under this contact? */
-  hitHandleAt(point: Px, pointerType: string): HandleId | null {
+  hitHandleAt(point: Px, pointerType: string): GripId | null {
     return this.hitHandle(point, pointerType);
   }
 
@@ -362,18 +400,27 @@ export class SelectTool implements MarkupTool {
     this.refresh();
   }
 
-  private hitHandle(point: Px, pointerType: string): HandleId | null {
+  private hitHandle(point: Px, pointerType: string): GripId | null {
     return nearestHandle(this.handles, point, handleHitPx(pointerType), this.deps.canvas.scale);
   }
 
-  private beginTransform(handle: HandleId, point: Px): void {
+  private beginTransform(handle: GripId, point: Px): void {
     const keys = this.deps.getSelection();
     if (keys.length !== 1) return;
     const geometry = this.deps.scene.geometryCopy(keys[0]);
     const bounds = this.selectionBounds(keys);
     if (!geometry || !bounds) return;
-    const handlePos = handlePositions(bounds).find((h) => h.id === handle)?.p;
+    const handlePos =
+      handle === 'a' || handle === 'b'
+        ? endGrips(geometry)?.find((h) => h.id === handle)?.p
+        : handlePositions(bounds).find((h) => h.id === handle)?.p;
     if (!handlePos) return;
+    if (handle === 'a' || handle === 'b') {
+      const loupe = this.deps.loupe;
+      const spec = this.pointerType === 'touch' ? touchLoupeSpec() : penLoupeSpec();
+      loupe?.setSnap(null, null, keys[0]);
+      loupe?.show(this.deps.canvas.imageToScreen(handlePos), spec, this.deps.canvas.imageToScreen(point));
+    }
     this.transform = {
       handle,
       key: keys[0],
@@ -389,19 +436,56 @@ export class SelectTool implements MarkupTool {
     if (!drag) return;
     const dx = point.x - drag.start.x;
     const dy = point.y - drag.start.y;
-    const locked = axisLockDelta(drag.handle, dx, dy, Math.hypot(dx, dy), this.deps.canvas.scale);
+    if (drag.handle === 'a' || drag.handle === 'b') {
+      if (hasEndGrips(drag.geometry)) this.dragEnd(drag, drag.geometry, point, dx, dy);
+      return;
+    }
+    const box: HandleId = drag.handle;
+    const locked = axisLockDelta(box, dx, dy, Math.hypot(dx, dy), this.deps.canvas.scale);
     // Move the dragged handle by the (possibly axis-locked) delta; the opposite
     // corner/edge is the fixed pivot and never moves (F9).
     const target = { x: drag.handlePos.x + locked.dx, y: drag.handlePos.y + locked.dy };
-    const next = scaleGeometryForHandle(drag.geometry, drag.bounds, drag.handle, target);
+    const next = scaleGeometryForHandle(drag.geometry, drag.bounds, box, target);
     this.deps.scene.setGeometry(drag.key, next);
     this.refresh();
+  }
+
+  /**
+   * D161: drag one END of a two-point mark. The end moves WITH the finger (the grab offset is
+   * kept, so it is never hidden under the fingertip), snaps to other marks' ends and corners,
+   * and the loupe looks at the end, showing the marks and the snap ring.
+   */
+  private dragEnd(
+    drag: TransformDrag,
+    geometry: Extract<Geometry, { kind: 'dimension' | 'line' | 'arrow' }>,
+    point: Px,
+    dx: number,
+    dy: number,
+  ): void {
+    const which = drag.handle as 'a' | 'b';
+    const raw = { x: drag.handlePos.x + dx, y: drag.handlePos.y + dy };
+    const acquire = snapAcquirePx(this.pointerType, this.deps.glovedTouch?.() ?? false) / this.deps.canvas.scale;
+    const { p, hit } = snapPoint(raw, collectSnapTargets(this.deps.scene.list(), drag.key), acquire);
+    const next = { ...geometry, [which]: { ...p } };
+    this.deps.scene.setGeometry(drag.key, next);
+    const other = which === 'a' ? geometry.b : geometry.a;
+    this.deps.loupe?.setSnap(hit ? hit.p : null, [other, p], drag.key);
+    this.deps.loupe?.track(this.deps.canvas.imageToScreen(p), this.deps.canvas.imageToScreen(point));
+    this.refresh();
+  }
+
+  private endLoupe(): void {
+    const loupe = this.deps.loupe;
+    if (!loupe) return;
+    if (this.pointerType === 'touch') loupe.lift();
+    else loupe.hide();
   }
 
   private endTransform(): void {
     const drag = this.transform;
     this.transform = null;
     if (!drag) return;
+    if (drag.handle === 'a' || drag.handle === 'b') this.endLoupe();
     const from = drag.geometry;
     const to = this.deps.scene.geometryCopy(drag.key);
     if (!to) return;
@@ -437,6 +521,7 @@ export class SelectTool implements MarkupTool {
     const drag = this.transform;
     this.transform = null;
     if (!drag) return;
+    if (drag.handle === 'a' || drag.handle === 'b') this.deps.loupe?.hide();
     const current = this.deps.scene.geometryCopy(drag.key);
     // Nothing was written yet (a press with no move) — do not touch the scene, so no
     // needless `onChange`/persist tick fires.
@@ -550,6 +635,23 @@ export class SelectTool implements MarkupTool {
     const size = handleVisualPx(this.pointerType) / this.deps.canvas.scale;
     for (const h of handles) {
       const halo = this.hoverHalo === h.id;
+      if (h.id === 'a' || h.id === 'b') {
+        // D161: an end grip is a ring with a clear centre, so the exact end point stays visible.
+        const ring = new Konva.Circle({
+          x: h.p.x,
+          y: h.p.y,
+          // ~48 px across on touch: a finger-sized target that still shows the photo inside.
+          radius: size * 0.85,
+          fill: 'rgba(47,212,224,0.18)',
+          stroke: '#2FD4E0',
+          strokeWidth: halo ? 3 : 2,
+          strokeScaleEnabled: false,
+        });
+        ring.setAttr('strokeWidthMu', halo ? 3 : 2);
+        const dot = new Konva.Circle({ x: h.p.x, y: h.p.y, radius: 2 / this.deps.canvas.scale, fill: '#2FD4E0' });
+        group.add(ring, dot);
+        continue;
+      }
       const rect = new Konva.Rect({
         x: h.p.x - size / 2,
         y: h.p.y - size / 2,
@@ -566,6 +668,27 @@ export class SelectTool implements MarkupTool {
       rect.setAttr('strokeWidthMu', halo ? 3 : 2);
       group.add(rect);
     }
+    this.handleGroup = group;
+    this.deps.canvas.overlayLayer.add(group);
+    this.deps.canvas.overlayLayer.batchDraw();
+  }
+
+  private drawOutline(r: Bounds): void {
+    const pad = 6 / this.deps.canvas.scale;
+    const group = new Konva.Group({ listening: false });
+    const rect = new Konva.Rect({
+      x: r.x - pad,
+      y: r.y - pad,
+      width: r.width + pad * 2,
+      height: r.height + pad * 2,
+      stroke: '#2FD4E0',
+      strokeWidth: 2,
+      strokeScaleEnabled: false,
+      dash: [6, 4],
+      cornerRadius: 4 / this.deps.canvas.scale,
+    });
+    rect.setAttr('strokeWidthMu', 2);
+    group.add(rect);
     this.handleGroup = group;
     this.deps.canvas.overlayLayer.add(group);
     this.deps.canvas.overlayLayer.batchDraw();

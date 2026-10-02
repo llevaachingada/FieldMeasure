@@ -1,12 +1,12 @@
 # Documentation & File Index
 
-A map of everything in this repository. Last updated **2026-09-22 (session 17 — slice 1.9 wired end to end, 1.10 themes, plus the torch/capture investigation record)**.
+A map of everything in this repository. Last updated **2026-09-25 (session 28: Waves 2-3, owner requests D146-D152, user guide, file directory regenerated)**.
 
 ## Root
 
 | File | What it is |
 |---|---|
-| `README.md` | Project entry point: what this is, status, canonical docs, constraints. |
+| `README.md` | **The handoff (D166)**: install on a Surface, where it's at, make your own copy, change it with AI, troubleshooting; then pointers for agents. |
 | `AGENTS.md` | **Agent entry instructions (canonical)** — reading order, authority chain, non-negotiables, working rules, lane protocol, environment quirks, when to stop and ask. |
 | `CLAUDE.md` | **A pointer to `AGENTS.md`, deliberately** — it used to be a second copy and drifted for three sessions while still claiming no code existed. Do not fork the instructions. |
 | `THIRD-PARTY-NOTICES.md` | License notices for every runtime dependency **plus both font OFL texts** (CI checks it exists). |
@@ -20,6 +20,9 @@ A map of everything in this repository. Last updated **2026-09-22 (session 17 �
 | File | What it is |
 |---|---|
 | `docs/INDEX.md` | This file. |
+| `docs/handoff-session-29.md` | **Current handoff**: session 29 (D154-D161, GitHub Pages): what shipped, what is owed, and the next steps. |
+| `docs/handoff-session-28.md` | Session 28 handoff (Waves 2-3, D144-D153). |
+| `docs/USER-GUIDE.md` | **User guide** for people using the app: getting started, photos, dimensions, markup, export, troubleshooting. The in-app **Help** pop-up shows the same content (`STRINGS.help`); keep them in step. |
 | `docs/CONTINUITY.md` | **Project continuity log** — live state, session timeline, next steps, open questions. Read first when resuming. |
 | `docs/preflight-handoff-v0.3-hardened.md` | **PRIMARY BUILD SPEC (canonical).** Hardened after adversarial review rounds 1, 2 and **4**. Its **§2.4 v1 scope table is the single authority on what ships in v1.** Round 2 executed the keypad reference code and fixed a wrong committed test expectation (`12 6` = 150 in, not 148); **round 4 executed it again and found another one** (§6.1's unicode row), plus a silent sign flip, zero/oversized commits, an unlocked "locked" write, and tmp cleanup that never entered the directories tmp files live in. Session-4 additions: changelog rows 21–38, **§5.8** (failure states) and **§19** (origin, SW updates, asset addressing, export guards). Session-4b additions: **§20** (implementation contracts) and **§21** (resolved decisions — nothing left open). |
 | `docs/ui-spec-field-measure-v2-hardened.md` | **UI/UX SPEC (canonical), v2.1 touch-first.** Authoritative on look & feel; v1 scope markers `〔v1 scope: …〕` defer to the build spec §2.4; the changelog appendix maps every change to its review finding. **Session 5 inverted the input principle to touch-primary** (tap-tap placement, one-finger drag, touch loupe, nudge pad) and applied C11/C12/C14. |
@@ -59,41 +62,26 @@ A map of everything in this repository. Last updated **2026-09-22 (session 17 �
 | `.slim/deepwork/` | OpenCode deepwork progress files (session state). |
 | `dist/`, `coverage/`, `playwright-report/`, `test-results/` | Build / test output. |
 
-## Built (slices 0.1–1.6, plus slice 1.9 step 1)
+## Project file directory (as of 2026-09-25, session 28, the tree on disk)
 
 | Path | What it holds |
 |---|---|
-| `vitest.config.ts` / `playwright.config.ts` / `tests/fixtures/` / `tests/fakes/` | Test infrastructure: three Vitest projects (node/jsdom/browser), Playwright e2e + CSP-as-a-test, deterministic fixtures, in-memory FSA fakes. |
+| `vitest.config.ts` / `playwright.config.ts` / `playwright.clickthru.config.ts` | Three Vitest projects (node / jsdom / browser), the Playwright e2e + journey gate, and the clickthru harness. |
+| `tests/` | Unit, jsdom and browser suites; `tests/e2e/` (journey gate); `tests/clickthru/` (`betaPath.spec.ts`, devices, gestures); `tests/fakes/` (in-memory FSA); `tests/fixtures/`. |
 | `public/fonts/*.woff2` | Self-hosted Archivo + JetBrains Mono subsets. |
-| `src/domain/` | `types.ts`, `schema.ts` (zod 4, jitless), `units.ts`, `geometry.ts`, `snapping.ts`, `ids.ts`, `migrate.ts`. |
-| `src/fs/` | `backend.ts` (FSA + OPFS), `projectStore.ts` (atomic/locked/recovering write path). |
-| `src/state/` | `appStore.ts`, `persistQueue.ts` (the §5.4 save pipeline). |
-| `src/settings/` | `handedness.ts`, `input.ts`, `units.ts`, `theme.ts`, `density.ts`, `projectsRoot.ts`. |
+| `src/App.tsx`, `src/main.tsx`, `src/styles.css` | App shell (route reducer, project session, capture overlay), entry point, global styles. |
 | `src/data/` | `storage.ts`, `originGuard.ts`. |
-| `src/editor/inputRouter.ts` | Touch-first input router (§8.2). |
-| `src/editor/EditorCanvas.ts` | Imperative Konva 5-layer canvas, pinch, pan/zoom/fit, and the **§4.2 screen-scaling seam** (`applyScreenRules` + the `screen*` helpers are the single chokepoint for every zoom path). |
-| `src/ui/` | `FirstRun.tsx`, `Settings.tsx`, `ProjectList.tsx`, `strings.ts`, `SheetEditor.tsx` (slice 1.3: import → normalize → render, the D51 open flow). |
-| `src/media/` | `normalizeImage.ts` (EXIF baked via `from-image`, ≤4096 clamp), `exif.ts` (manual APP1 scan, 64 KB bound, `stripExif`), `thumbnails.ts`, `decodeWorker.ts` (real decode, provenance-marked). |
-| `src/export/filenames.ts` | Slice 1.9 step 1 — the filename sanitizer + NTFS case-insensitive conflict policy (`tests/filenames.test.ts`, 29-row table). |
-| `public/icons/` | Placeholder app icons. |
-| `src/editor/shapes/` | `scene.ts` (the in-memory `Annotation[]` document, Konva sync, `AnnotationPath` addressing, §20.2 z-bands, `markupFile`/`load`), `svgPath.ts` (local `getSvgPathFromStroke` + `strokeInputPoints` — the one place that indexes the parallel `pressure[]`), `renderDimension/renderShape/renderInk/renderText/dimensionLabel`. |
-## Planned (not yet created)
-
-| Path | What it will hold |
-|---|---|
-| `src/editor/inset/` | Inset container + crop/hit-test model (1.7). |
-| `src/export/` | `renderStage.ts`, `pdf.ts`, `png.ts` (zip via `fflate`) (1.9 steps 2–5). |
-| `src/state/styleByTool.ts` | The style system (1.8). |
-| `src/ui/` | Style panel, export wizard, autosave chip, history flyout (1.8–1.10). |
-
-## Planned (not yet created)
-
-| Path | What it will hold |
-|---|---|
-| `src/editor/` | `history.ts`, `Loupe.ts`, `tools/`, `shapes/` (incl. local `svgPath.ts`), `inset/` (1.5–1.7). |
-| `src/export/` | `pdf.ts`, `png.ts` (zip via `fflate`), `renderStage.ts` (1.9) — `filenames.ts` has shipped. |
-| `src/state/` | `editorStore.ts` (1.4.5), `styleByTool.ts` (1.8). |
-| `src/ui/` | `CameraFlow.tsx` (1.4), `EditorLayout.tsx` + `ToolRail.tsx` + `TopBar.tsx` + `icons/tools/*` (1.4.5), style panel + keypad sheet + export wizard (1.5–1.9). |
+| `src/domain/` | `types.ts`, `schema.ts` (zod), `units.ts`, `geometry.ts`, `snapping.ts`, `ids.ts`, `migrate.ts`. |
+| `src/editor/` | `EditorCanvas.ts` (Konva canvas + the §4.2 screen-scaling seam), `editorController.ts` (R6: canvas/scene/tools lifecycle, `loadSheet` without remount), `gestureArbiter.ts` (R1: pointer gestures, D151 label drag), `sceneActions.ts` (Layers/mini-toolbar actions), `history.ts`, `Loupe.ts` (D161 markup overlay), `snapTargets.ts` (D161 snapping), `sheetThumb.ts` (D155 grid thumbnails), `inputRouter.ts`, `session.ts`. |
+| `src/editor/inset/` | `InsetFocus.ts`, `insetAssets.ts`, `insetGeometry.ts`, `renderInset.ts`. |
+| `src/editor/shapes/` | `scene.ts` (the `Annotation[]` document), `renderDimension.ts`, `arrowHead.ts` (D150), `dimensionLabel.ts` (D151 offset), `renderShape.ts`, `renderInk.ts`, `renderText.ts`, `styleCommand.ts`, `svgPath.ts`. |
+| `src/editor/tools/` | `DimensionTool`, `AngleTool`, `ShapeTool`, `FreehandTool`, `TextTool`, `EraseTool`, `SelectTool`, `InsetTool`, `toolTypes.ts`. |
+| `src/export/` | `runExport.ts` (export session; D147 default location, open file), `renderStage.ts`, `pdf.ts`, `png.ts`, `filenames.ts`, `watermark.ts`. |
+| `src/fs/` | `projectStore.ts` (the ONLY write path), `projectSession.ts` (R5/D144), `backend.ts`, `presets.ts`, `projectSheets.ts`, `projectSize.ts`, `sheetIntake.ts`, `sheetOps.ts`, `sheetTrash.ts`. |
+| `src/media/` | `cameraSession.ts` (R4; D146 rear-camera pick), `normalizeImage.ts`, `exif.ts`, `thumbnails.ts`, `decodeWorker.ts`. |
+| `src/settings/` | `capture.ts` (AE/AF lock, default off), `exportLocation.ts` (dated or project folder), `density.ts`, `handedness.ts`, `input.ts`, `projectsRoot.ts`, `theme.ts`, `units.ts`, `watermark.ts`. |
+| `src/state/` | `appStore.ts`, `editorStore.ts`, `persistQueue.ts`, `projectMeasure.ts`, `styleByTool.ts`. |
+| `src/ui/` | Screens and chrome: `ProjectList` (Home), `ProjectScreen` (+ `useSheetReorderDrag`), `EditorLayout`, `SheetEditor`, `TopBar`, `ToolRail`, `StylePanel`, `ExportWizard`, `CameraFlow`, `Settings`, `FirstRun`, `HelpButton` (D152), `TextBoxSheet` (D160), `TopBarLogo` (D157), dialogs and sheets, `appRoute.ts` / `useProjectActions.ts` (R2), `insetActions.ts`, `strings.ts` (all copy). `icons/tools/` holds the 14 rail glyphs. |
 
 ## Reading order for a new contributor or AI
 

@@ -74,7 +74,7 @@ export const GeometryZ = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('polygon'), points: z.array(Px), closed: z.boolean() }),
   z.object({ kind: z.literal('freehand'), points: z.array(Px), pressure: z.array(z.number()) }),
   z.object({ kind: z.literal('highlight'), points: z.array(Px), pressure: z.array(z.number()) }),
-  z.object({ kind: z.literal('text'), at: Px, text: z.string(), background: z.enum(['none', 'pill', 'solid', 'auto']) }),
+  z.object({ kind: z.literal('text'), at: Px, text: z.string(), background: z.enum(['none', 'pill', 'solid', 'auto', 'box']) }),
   z.object({ kind: z.literal('image'), x: z.number(), y: z.number(), width: z.number(), height: z.number(), rotation: z.number(),
     crop: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional(),
     flipX: z.boolean().optional(), flipY: z.boolean().optional(), opacity: z.number().optional() }),
@@ -132,6 +132,8 @@ export const ProjectFileZ = z.object({
     // import, or its file date. Distinct from `createdAt` (when the sheet row was made, which a
     // duplicate resets). `.nullish()` so every existing project file still parses unchanged.
     capturedAt: z.string().nullish(),
+    // D156: the room typed on the capture review screen. Printed with the date on exports.
+    roomName: z.string().nullish(),
   })),
 });
 

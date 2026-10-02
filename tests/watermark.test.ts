@@ -11,17 +11,17 @@ import { describe, expect, it } from 'vitest';
 import { formatCaptureStamp, stampLayout, watermarkRect } from '../src/export/watermark';
 
 describe('watermarkRect', () => {
-  it('sizes to 24% of the bitmap width for a typical (wide) mark', () => {
+  it('sizes to 18% of the bitmap width for a typical (wide) mark', () => {
     // aspectRatio = 1911/1039 ≈ 1.8393 (the shipped vangarde-full.png).
     const aspectRatio = 1911 / 1039;
     const rect = watermarkRect(4096, 3072, aspectRatio);
 
-    // width = 4096 * 0.24 = 983.04
-    expect(rect.width).toBeCloseTo(983.04, 5);
-    // height = width / aspectRatio = 983.04 / 1.8393... ≈ 534.4 — under the 18%-of-
-    // height cap (3072 * 0.18 = 552.96), so the width-first branch is the one used.
+    // width = 4096 * 0.18 = 737.28
+    expect(rect.width).toBeCloseTo(737.28, 5);
+    // height = width / aspectRatio = 737.28 / 1.8393... ≈ 400.8 — under the 13.5%-of-
+    // height cap (3072 * 0.135 = 414.72), so the width-first branch is the one used.
     expect(rect.height).toBeCloseTo(rect.width / aspectRatio, 5);
-    expect(rect.height).toBeLessThan(3072 * 0.18);
+    expect(rect.height).toBeLessThan(3072 * 0.135);
   });
 
   it('is anchored to the bottom-right corner with a 3% margin', () => {
@@ -38,7 +38,7 @@ describe('watermarkRect', () => {
 
   it('scales the mark proportionally at every export multiplier (M-independent fraction of the page)', () => {
     // A 4096×3072 sheet's bitmap at M=1, 2, 3 is (imagePx × M); the mark must stay
-    // 24% of the PAGE at every M, i.e. `rect.width / bitmapWidthPx` is constant.
+    // 18% of the PAGE at every M, i.e. `rect.width / bitmapWidthPx` is constant.
     const imageWidthPx = 4096;
     const imageHeightPx = 3072;
     const aspectRatio = 1911 / 1039;
@@ -46,18 +46,18 @@ describe('watermarkRect', () => {
       const rect = watermarkRect(imageWidthPx * m, imageHeightPx * m, aspectRatio);
       return rect.width / (imageWidthPx * m);
     });
-    expect(fractions[0]).toBeCloseTo(0.24, 10);
+    expect(fractions[0]).toBeCloseTo(0.18, 10);
     expect(fractions[1]).toBeCloseTo(fractions[0]!, 10);
     expect(fractions[2]).toBeCloseTo(fractions[0]!, 10);
   });
 
-  it('caps height at 18% of the bitmap height for a very wide/short sheet', () => {
+  it('caps height at 13.5% of the bitmap height for a very wide/short sheet', () => {
     // A panoramic sheet (aspectRatio here means the SHEET is wide; the mark's own
-    // aspect ratio is fixed at 1911/1039 ≈ 1.839 — the cap fires when 24%-of-width
-    // would make the mark taller than 18%-of-height. A short bitmap height triggers
-    // it directly: height = 4096*0.24/1.839 = 534.5, cap = 200*0.18 = 36.
+    // aspect ratio is fixed at 1911/1039 ≈ 1.839 — the cap fires when 18%-of-width
+    // would make the mark taller than 13.5%-of-height. A short bitmap height triggers
+    // it directly: height = 4096*0.18/1.839 = 534.5, cap = 200*0.135 = 36.
     const rect = watermarkRect(4096, 200, 1911 / 1039);
-    expect(rect.height).toBeCloseTo(200 * 0.18, 5);
+    expect(rect.height).toBeCloseTo(200 * 0.135, 5);
     expect(rect.width).toBeCloseTo(rect.height * (1911 / 1039), 5);
     // Still fits inside the bitmap width even though the width-first guess did not.
     expect(rect.x).toBeGreaterThan(0);
@@ -75,18 +75,18 @@ describe('stampLayout — the date/time stamp sits directly above the mark', () 
   it('is right-aligned with the logo and a fixed gap above its top edge', () => {
     const logo = watermarkRect(4096, 3072, aspect);
     const stamp = stampLayout(4096, 3072, aspect);
-    // font = 4096 * 0.013 = 53.248; gap = 0.5 em = 26.624; pad = 0.45 em = 23.9616.
-    expect(stamp.fontPx).toBeCloseTo(53.248, 5);
+    // font = 4096 * 0.00975 = 39.936; gap = 0.5 em = 19.968; pad = 0.45 em = 17.9712.
+    expect(stamp.fontPx).toBeCloseTo(39.936, 5);
     expect(stamp.rightX).toBeCloseTo(logo.x + logo.width, 8);
-    expect(stamp.bottomY).toBeCloseTo(logo.y - 26.624, 5);
-    expect(stamp.padPx).toBeCloseTo(23.9616, 5);
+    expect(stamp.bottomY).toBeCloseTo(logo.y - 19.968, 5);
+    expect(stamp.padPx).toBeCloseTo(17.9712, 5);
     // The pill's bottom is above the logo's top, so it can never overlap the mark.
     expect(stamp.bottomY).toBeLessThan(logo.y);
   });
 
   it('stays the same fraction of the page at every export multiplier', () => {
     const fractions = [1, 2, 3].map((m) => stampLayout(4096 * m, 3072 * m, aspect).fontPx / (4096 * m));
-    expect(fractions[0]).toBeCloseTo(0.013, 10);
+    expect(fractions[0]).toBeCloseTo(0.00975, 10);
     expect(fractions[1]).toBeCloseTo(fractions[0]!, 10);
     expect(fractions[2]).toBeCloseTo(fractions[0]!, 10);
   });

@@ -24,65 +24,34 @@ import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from '
 import { Maximize, Minus, Plus } from 'lucide-react';
 import type { ProjectFile } from '@/domain/schema';
 import type { Px } from '@/domain/types';
-import { DEFAULT_STYLE } from '@/domain/types';
-import type { Annotation, AnnotationStyle, Geometry, UnitFormat } from '@/domain/types';
-import {
-  EditorCanvas,
-  LONG_PRESS_MS,
-  TAP_SLOP,
-  decideDragTarget,
-  isTap,
-  onSecondFinger,
-  type DragSession,
-  type ScreenPoint,
-} from '@/editor/EditorCanvas';
-import { createInputRouter, type InputIntent } from '@/editor/inputRouter';
-import { History, STYLE_COALESCE_MS } from '@/editor/history';
-import { MarkupScene, translateGeometry } from '@/editor/shapes/scene';
+import type { Annotation, AnnotationStyle } from '@/domain/types';
+import { EditorCanvas } from '@/editor/EditorCanvas';
+import { createInsetActions } from '@/ui/insetActions';
+import { createSceneActions } from '@/editor/sceneActions';
+import { EditorController, styleCoalesceKey } from '@/editor/editorController';
+export { styleCoalesceKey };
+import { History } from '@/editor/history';
+import { MarkupScene } from '@/editor/shapes/scene';
 import { Loupe } from '@/editor/Loupe';
-import {
-  DimensionTool,
-  type DimensionSnapshot,
-  type KeypadRequest,
-} from '@/editor/tools/DimensionTool';
+import { DimensionTool, type DimensionSnapshot, type KeypadRequest } from '@/editor/tools/DimensionTool';
 import { ShapeTool, type ShapeKind } from '@/editor/tools/ShapeTool';
 import { AngleTool, type AngleSheetRequest } from '@/editor/tools/AngleTool';
-import { FreehandTool, isFingerInkAllowed } from '@/editor/tools/FreehandTool';
+import { FreehandTool } from '@/editor/tools/FreehandTool';
 import { TextTool } from '@/editor/tools/TextTool';
-import { EraseTool, effectiveEraseMode, eraseNameKey, isErasePreview, strokeModeAvailable, type EraseMode } from '@/editor/tools/EraseTool';
+import { EraseTool, strokeModeAvailable, type EraseMode } from '@/editor/tools/EraseTool';
 import { ROTATE_STOPS, SelectTool } from '@/editor/tools/SelectTool';
-import {
-  setEditorSession,
-  emitToast,
-  setPersistenceBusy,
-  type EditorSession,
-} from '@/editor/session';
-import { createPersistQueue, type PersistQueue } from '@/state/persistQueue';
-import { selectionScope, selectionStyleState } from '@/state/styleByTool';
-import {
-  applyProjectPrecision as applyProjectPrecisionFn,
-  applyProjectUnitFormat as applyProjectUnitFormatFn,
-} from '@/state/projectMeasure';
-import { HIGHLIGHT_CHISEL_TOUCH_MU } from '@/editor/tools/toolTypes';
+import type { PersistQueue } from '@/state/persistQueue';
 import DimensionKeypadSheet from '@/ui/DimensionKeypadSheet';
-import LayersPanel, { blockFor } from '@/ui/LayersPanel';
-import { annotationName, buildLayerRows, PHOTO_ROW_KEY } from '@/ui/layersRows';
-import { createInitialSelectionStyle, useEditorStore } from '@/state/editorStore';
+import LayersPanel from '@/ui/LayersPanel';
+import { annotationName, buildLayerRows } from '@/ui/layersRows';
+import { useEditorStore } from '@/state/editorStore';
+import { styleForTool, useStyleByTool } from '@/state/styleByTool';
 import { readExifInfo } from '@/media/exif';
 import { normalizeImage } from '@/media/normalizeImage';
+import { createThumbnailScheduler, type ThumbnailScheduler } from '@/media/thumbnails';
 import {
-  createThumbnailScheduler,
-  type ThumbnailScheduler,
-} from '@/media/thumbnails';
-import {
-  acquireWriterLease,
-  cleanStaleTmp,
   isPhotoDamaged,
-  openProjectChannel,
-  readProjectFile,
   readSheetMarkup,
-  registerOpenProject,
-  resolveOpenProjectDir,
   resolveSheetDir,
   writeAtomic,
   type ProjectChannel,
@@ -90,16 +59,17 @@ import {
 } from '@/fs/projectStore';
 import { useAppStore } from '@/state/appStore';
 import { addSheetFromPhoto, defaultSheetTitle } from '@/fs/sheetIntake';
-import { InsetTool, replacePhotoDecision, type InsetAssetInput } from '@/editor/tools/InsetTool';
+import { InsetTool, type InsetAssetInput } from '@/editor/tools/InsetTool';
 import { storeInsetAsset } from '@/editor/inset/insetAssets';
 import type { InsetAssetImage } from '@/editor/inset/renderInset';
 import ImageInsetPickerSheet from '@/ui/ImageInsetPickerSheet';
-import { InsetAssetRegistry, createFocusAwareScene } from '@/ui/insetWiring';
+import TextBoxSheet, { textBoxStyleFor } from '@/ui/TextBoxSheet';
+import { InsetAssetRegistry } from '@/ui/insetWiring';
 import './insetWire.css';
 import { STRINGS, t } from './strings';
 
 type SheetFile = ProjectFile['sheets'][number];
-type EditorStatus = 'loading' | 'ready' | 'empty' | 'damaged' | 'error';
+export type EditorStatus = 'loading' | 'ready' | 'empty' | 'damaged' | 'error';
 /**
  * Tool seam for the rail. `'place'` stands for ANY placement tool
  * (dimension/angle/line/…): it arms placement, so double-tap fit is suspended and a
@@ -107,9 +77,6 @@ type EditorStatus = 'loading' | 'ready' | 'empty' | 'damaged' | 'error';
  */
 type EditorTool = 'select' | 'pan' | 'place';
 
-/** Double-tap window for fit↔100%: 320 ms, 24 px (UI §5.4 "double tap"). */
-const DOUBLE_TAP_MS = 320;
-const DOUBLE_TAP_SLOP = 24;
 
 /** D134 (§4.2 anchor): the mini-toolbar's touch-first sizing/placement numbers, verbatim
  *  from the brief ("64 px tall … anchored 16 px above the selection, flipping below when
@@ -118,31 +85,7 @@ const MINI_TOOLBAR_HEIGHT_PX = 64;
 const MINI_TOOLBAR_GAP_PX = 16;
 const MINI_TOOLBAR_FLIP_HEADROOM_PX = 160;
 
-/** D133 (§4.2): nudge a Duplicate off its source so the two are visibly distinct — the
- *  same order of magnitude as the width ladder's largest stroke, small enough to stay
- *  near the original at any reasonable zoom. */
-const DUPLICATE_OFFSET_PX = 24;
 
-/**
- * The coalescing key for a style patch (§8.3: "style edits coalesce within a **600 ms**
- * window into one step").
- *
- * `StyleEditorSheet`'s HSL / transparency / font-size controls are `type="range"`
- * scrubbers that fire `onChange` on EVERY input tick, so without coalescing one drag of
- * the transparency slider pushes ~100 undo steps onto a 100-step stack — it erases the
- * session's history. `History.execCoalesced` existed for exactly this since slice 1.5 but
- * had no production caller (session-13 review F4); `applyStylePatch` below is it.
- *
- * The key is (selection, patched style keys): a different control, a different selection,
- * or a gap wider than the window each start a NEW step, which is what makes an undo mean
- * "that one control's drag" and not "everything I touched in the last second".
- */
-export function styleCoalesceKey(
-  keys: readonly string[],
-  patch: Partial<AnnotationStyle>,
-): string {
-  return `style:${keys.join('|')}:${Object.keys(patch).sort().join('+')}`;
-}
 
 /**
  * The keypad sheet is owned by a parallel lane; its pinned interface is exactly the
@@ -202,81 +145,6 @@ export interface EditorExportSource {
   flush: () => Promise<void>;
 }
 
-/**
- * The erase object-mode name (plan step 6: the undo toast names the object). Every
- * branch uses appendix copy; nothing is invented. A dimension carries its measurement
- * in the name (the appendix's `editor.eraseNameDimension` template).
- */
-function eraseObjectName(ann: Annotation): string {
-  switch (ann.type) {
-    case 'dimension':
-      return t(STRINGS.editor.eraseNameDimension, {
-        measurement: ann.enteredText ?? '',
-      });
-    case 'rect':
-      return STRINGS.editor.eraseNameRectangle;
-    case 'freehand':
-      return STRINGS.editor.layersNameFreehand;
-    case 'highlight':
-      return STRINGS.tool.highlighter;
-    case 'line':
-      return STRINGS.tool.line;
-    case 'arrow':
-      return STRINGS.tool.arrowLeader;
-    case 'ellipse':
-      return STRINGS.tool.ellipse;
-    case 'polygon':
-      return STRINGS.tool.polygon;
-    case 'angle':
-      return STRINGS.tool.angle;
-    case 'text':
-      return STRINGS.tool.textNote;
-    case 'image':
-      return STRINGS.tool.imageInset;
-  }
-}
-
-interface Contact {
-  intent: InputIntent;
-  session: DragSession;
-  start: ScreenPoint;
-  /** The contact's start in image space (the marquee anchor). */
-  startImage: Px;
-  startAt: number;
-  last: ScreenPoint;
-  /** The tool owns this contact's movement (rubber-band / refine). */
-  toolAction: 'consume' | 'pan' | 'none';
-  /** Pan even while a placement is pending (settle-time contact → pan, §1.4). */
-  forcePan: boolean;
-  objectKey: string | null;
-  /** Set while a freehand/highlighter ink stroke is being sampled. */
-  freehandKind: 'freehand' | 'highlight' | null;
-  /** Which machine owns this contact's lift: the dimension tool or a 1.6 markup tool. */
-  owner: 'dimension' | 'markup' | null;
-  /** Raw `PointerEvent.pressure` for the ink path (pen-only signal; touch is 0.5). */
-  pressure: number;
-  /** Select tool: this contact may become a marquee if it moves beyond the slop. */
-  marqueeCandidate: boolean;
-  /** Select tool: the 600 ms long-press-to-pin timer. */
-  longPressTimer: number | null;
-  /** Erase tool (object mode): preview is deferred to the 600 ms timer. */
-  eraseObject: boolean;
-  /** Erase: the contact moved beyond the slop, which cancels the preview/delete. */
-  eraseMoved: boolean;
-  /** Erase: the 600 ms `--err` preview timer. */
-  eraseTimer: number | null;
-}
-
-interface ObjectDrag {
-  key: string;
-  /** Geometry captured at drag start (any kind). */
-  geometry: Geometry;
-  startImage: Px;
-}
-
-function isAtEdge(point: ScreenPoint, host: HTMLElement): boolean {
-  return point.x < 24 || point.y < 24 || point.x > host.clientWidth - 24 || point.y > host.clientHeight - 24;
-}
 
 export default function SheetEditor({
   projectId,
@@ -333,7 +201,7 @@ export default function SheetEditor({
   const [polygon, setPolygon] = useState<{ count: number } | null>(null);
   const [angleSheet, setAngleSheet] = useState<AngleSheetRequest | null>(null);
   const [textAnchor, setTextAnchor] = useState<Px | null>(null);
-  const [textDraft, setTextDraft] = useState('');
+  const [textEditId, setTextEditId] = useState<string | null>(null);
   const [eraseMode, setEraseMode] = useState<EraseMode>('object');
   /** Select tool: the mini-toolbar was pinned by a 600 ms long-press. */
   const [pinnedToolbar, setPinnedToolbar] = useState(false);
@@ -421,1268 +289,44 @@ export default function SheetEditor({
     return () => onExportSource(null);
   }, [onExportSource, exportSheets, exportSheetId]);
 
-  // ---- canvas lifecycle + input routing + project open -------------------------
+  // ---- canvas lifecycle + input routing + project open (R6: `EditorController`) ----
+  const controllerRef = useRef<EditorController | null>(null);
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    let alive = true;
-
-    const canvas = new EditorCanvas(host, {
-      onZoom: (scale) => {
-        sceneRef.current?.setScale(scale);
-        const percent = Math.round(scale * 100);
-        if (percent !== zoomRef.current) {
-          zoomRef.current = percent;
-          setZoomPercent(percent);
-        }
+    const controller = new EditorController(host, {
+      projectId,
+      folderName,
+      sheetId,
+      onSceneReady,
+      loadSheet,
+      refs: {
+        angleRef, bitmapRef, canvasRef, channelRef, dimRef, eraseRef, freehandRef, highlightRef,
+        historyRef, insetAssetsRef, insetRef, leaseRef, persistRef, projectDirRef, readOnlyRef,
+        sceneRef, schedulerRef, selectRef, shapeToolsRef, sheetIdRef, textRef, toolIdRef, zoomRef,
+        activeToolRef, placementPendingRef,
+      },
+      set: {
+        setAngleSheet, setExportSheetId, setExportSheets, setInsetPickerOpen, setKeypadRequest,
+        setPinnedToolbar, setPlacement, setPolygon, setReadOnly, setReplacePrompt, setSceneTick,
+        setSheetCount, setSheetTitle, setStatus, setTextAnchor, setTextEditId, setZoomPercent,
+        setInputKind,
       },
     });
-    canvasRef.current = canvas;
-
-    const resizeObserver = new ResizeObserver(() => {
-      canvas.resize(host.clientWidth, host.clientHeight);
-    });
-    resizeObserver.observe(host);
-
-    const router = createInputRouter({
-      touchPlaces: () => {
-        const s = useAppStore.getState();
-        return s.touchPlaces && !s.penOnly;
-      },
-      fingerDraws: () => {
-        const s = useAppStore.getState();
-        return s.fingerDraws && !s.penOnly;
-      },
-    });
-
-    // ---- the dimension flagship's live objects ----
-    const history = new History();
-    historyRef.current = history;
-    const scene = new MarkupScene({
-      layer: canvas.markupLayer,
-      // §8.1/§20.2: insets render BELOW markup, so every object created outside Focus
-      // renders above all insets. Without this the layering rule is not guaranteed.
-      insetLayer: canvas.insetLayer,
-      ctx: appLabelContext(),
-      ghostText: STRINGS.dimension.ghostLabel,
-      // §19.3: `assets/<sha256hex>.jpg`, decoded once per session and cached.
-      assetProvider: insetAssetsRef.current.provider,
-    });
-    sceneRef.current = scene;
-    // Tools draw through a Focus-aware facade: inside Focus their sheet-space geometry
-    // becomes children in the inset's ASSET px (§8.5). Transparent otherwise.
-    const toolScene = createFocusAwareScene(scene, {
-      getFocusId: () => useEditorStore.getState().focusInsetId,
-      getAssetSize: (assetId) => insetAssetsRef.current.sizeOf(assetId),
-    });
-    onSceneReady?.({ scene, canvas });
-
-    // ---- slice 1.8: publish the selection's shared style to the shell -------------
-    // The shell (`EditorLayout`) mounts the props-driven `StylePanel`, but the live
-    // document lives here, so this file is the only writer of the mirror
-    // (`editorStore.selectionStyle`). It recomputes on every selection change, on ANY
-    // scene mutation (a style edit / undo / redo fires `onChange`), after a style apply,
-    // and on unmount — that is what makes the panel's indeterminate state react to a
-    // real edit, not only to a prop the shell guessed.
-    const publishSelectionStyle = (): void => {
-      const keys = useEditorStore.getState().selection;
-      const anns = keys
-        .map((key) => scene.get(key))
-        .filter((ann): ann is Annotation => ann !== undefined);
-      const shared = selectionStyleState(anns.map((ann) => ann.style));
-      useEditorStore.getState().setSelectionStyle({
-        mode: shared.mode,
-        style: shared.style,
-        count: anns.length,
-        scope: selectionScope(anns),
-      });
-    };
-    publishSelectionStyle();
-
-    // ---- slice 1.6 step 9: markup.json persistence (the D70 carry-in) ----
-    // The document is in memory only; this is the writer. Writes are coalesced 400 ms
-    // and atomic (tmp → move) inside `persistQueue` / `writeJsonAtomic`, under the
-    // per-project Web Lock, addressed by the D51 runtime key `projectId`.
-    //
-    // Slice 1.10: the queue OWNS the autosave chip's status and the app store is its
-    // mirror. A fresh editor starts `saved` (nothing pending — the chip still renders
-    // nothing until a write resolves), so a previous project's status cannot leak in.
-    useAppStore.getState().setStorageStatus('saved');
-    const persist = createPersistQueue({
-      onStatus: (status) => {
-        // A read-only project is not a write failure: keep the chip's `Read-only` state
-        // instead of letting a queue transition speak for the app (§11.2:688).
-        if (readOnlyRef.current) return;
-        useAppStore.getState().setStorageStatus(status);
-      },
-    });
-    persistRef.current = persist;
-    // Slice 1.11: bridge the queue's busy flag onto the session signal that suppresses
-    // the update toast. `subscribe` fires on every status transition; the explicit
-    // `setPersistenceBusy` calls after each enqueue also catch a re-arm from a parked
-    // state, where the status — and so the subscription — does not fire.
-    const unsubscribeBusy = persist.subscribe(() => setPersistenceBusy(persist.inFlight));
-    setPersistenceBusy(persist.inFlight);
-    scene.onChange = () => {
-      // A style edit, an undo/redo or any other mutation may change the selection's
-      // shared style — refresh the mirror BEFORE the early return (the shell's panel must
-      // react even before the sheet id is known, e.g. during a restore).
-      publishSelectionStyle();
-      const sid = sheetIdRef.current;
-      if (!sid) return;
-      persist.queueSheet(projectId, sid, scene.markupFile(sid, 1));
-      setPersistenceBusy(persist.inFlight);
-      // Re-derive the Layers rows only while the flyout is open (avoids a full
-      // SheetEditor re-render on every drag/property tick otherwise).
-      if (useEditorStore.getState().layersOpen) setSceneTick((n) => n + 1);
-    };
-    const loupe = new Loupe({
-      layer: canvas.overlayLayer,
-      getImage: () => bitmapRef.current,
-      getScale: () => canvas.scale,
-      screenToImage: (p) => canvas.screenToImage(p),
-      getViewport: () => ({ width: host.clientWidth, height: host.clientHeight }),
-      getHandedness: () => useAppStore.getState().handedness,
-    });
-    const tool = new DimensionTool({
-      canvas,
-      scene: toolScene,
-      history,
-      loupe,
-      getSettings: () => {
-        const s = useAppStore.getState();
-        return {
-          precisionDenominator: s.precisionDenominator,
-          unitSystem: s.unitSystem,
-          unitFormat: s.unitFormat,
-          handedness: s.handedness,
-          magnifierOnTap: s.magnifierOnTap,
-          glovedTouch: s.glovedTouch,
-        };
-      },
-      onKeypadOpen: (request) => {
-        setKeypadRequest(request);
-        useEditorStore.getState().setKeypadOpen(request !== null);
-      },
-      onSnapshot: (snapshot) => {
-        setPlacement(snapshot);
-        useEditorStore.getState().setPendingOp(snapshot.phase !== 'idle' ? 'dimension' : 'none');
-      },
-      labels: {
-        add: STRINGS.toasts.actionAddDimension,
-        move: STRINGS.toasts.actionMoveDimension,
-        delete: STRINGS.toasts.actionDeleteDimension,
-        setValue: STRINGS.toasts.actionSetValue,
-        adjust: STRINGS.toasts.actionAdjustDimension,
-      },
-    });
-    tool.selectedKeys = () => useEditorStore.getState().selection;
-    dimRef.current = tool;
-
-    // ---- slice 1.6 markup tools ----
-    const mkSettings = () => {
-      const s = useAppStore.getState();
-      return {
-        precisionDenominator: s.precisionDenominator,
-        unitSystem: s.unitSystem,
-        unitFormat: s.unitFormat,
-        glovedTouch: s.glovedTouch,
-        fingerDraws: s.fingerDraws,
-        touchPlaces: s.touchPlaces,
-        penOnly: s.penOnly,
-      };
-    };
-    const markupPending = (pending: boolean): void => {
-      // `PendingOp` has no generic-shape member; a generic placement borrows 'polygon'
-      // (the plan's sanctioned generic placement precedent) so Escape cancels it instead
-      // of exiting the editor. Recorded in DECISIONS.
-      const id = toolIdRef.current;
-      const op = !pending
-        ? 'none'
-        : id === 'angle'
-          ? 'angle'
-          : id === 'text'
-            ? 'text'
-            : id === 'erase'
-              ? 'erase'
-              : 'polygon';
-      useEditorStore.getState().setPendingOp(op);
-    };
-
-    function cancelActiveMarkup(): void {
-      for (const shape of shapeToolsRef.current.values()) shape.onToolChange();
-      angleRef.current?.onToolChange();
-      freehandRef.current?.cancel();
-      highlightRef.current?.cancel();
-      textRef.current?.cancel();
-      eraseRef.current?.onToolChange();
-      selectRef.current?.onToolChange();
-      insetRef.current?.onToolChange();
-      // F5: the dimension machine shares the coarse `'place'` prop with every markup
-      // tool, so a dimension→rect switch never changed the prop and its 450 ms settle
-      // survived — the keypad then opened over the rectangle tool. `onToolChange` clears
-      // the settle timer while keeping a committed B and discarding an uncommitted A.
-      dimRef.current?.onToolChange();
-    }
-
-    for (const kind of ['line', 'arrow', 'rect', 'ellipse', 'polygon'] as ShapeKind[]) {
-      const shape = new ShapeTool(kind, {
-        canvas,
-        scene: toolScene,
-        history,
-        getSettings: mkSettings,
-        onSnapshot: (pending) => {
-          if (kind === 'polygon') setPolygon(pending ? { count: shape.points.length } : null);
-          markupPending(pending);
-        },
-        labels: {
-          add: STRINGS.toasts.actionAddShape,
-          move: STRINGS.toasts.actionMoveDimension,
-          delete: STRINGS.select.delete,
-        },
-        newId: () => crypto.randomUUID(),
-      });
-      shapeToolsRef.current.set(kind, shape);
-    }
-
-    angleRef.current = new AngleTool({
-      canvas,
-      scene: toolScene,
-      history,
-      onSheetOpen: (request) => {
-        setAngleSheet(request);
-        useEditorStore.getState().setKeypadOpen(request !== null);
-      },
-      onSnapshot: (phase) => markupPending(phase !== 'idle'),
-      labels: {
-        add: STRINGS.toasts.actionAddAngle,
-        delete: STRINGS.select.delete,
-        setValue: STRINGS.toasts.actionSetValue,
-      },
-      newId: () => crypto.randomUUID(),
-    });
-
-    const inkCommon = {
-      canvas,
-      scene: toolScene,
-      history,
-      getSettings: mkSettings,
-      onSnapshot: markupPending,
-      highlightStyle: () => ({
-        ...DEFAULT_STYLE,
-        strokeColor: '#FFD400',
-        strokeWidthMu: HIGHLIGHT_CHISEL_TOUCH_MU,
-      }),
-      newId: () => crypto.randomUUID(),
-    };
-    freehandRef.current = new FreehandTool('freehand', {
-      ...inkCommon,
-      labels: { add: STRINGS.toasts.actionAddInk, delete: STRINGS.select.delete },
-    });
-    highlightRef.current = new FreehandTool('highlight', {
-      ...inkCommon,
-      labels: { add: STRINGS.toasts.actionAddHighlight, delete: STRINGS.select.delete },
-    });
-
-    textRef.current = new TextTool({
-      canvas,
-      scene: toolScene,
-      history,
-      onRequestEntry: (at) => {
-        setTextAnchor(at);
-        setTextDraft('');
-        markupPending(true);
-      },
-      onSnapshot: markupPending,
-      labels: { add: STRINGS.toasts.actionAddText, delete: STRINGS.select.delete },
-      newId: () => crypto.randomUUID(),
-    });
-
-    eraseRef.current = new EraseTool({
-      canvas,
-      scene: toolScene,
-      history,
-      objectName: (ann) => eraseObjectName(ann),
-      onDeleteToast: (name, undo) =>
-        emitToast({
-          // §13.3 recoverable delete: name the object and offer the real undo.
-          text: `${STRINGS.select.delete} ${name}`,
-          action: { label: STRINGS.editor.undo, run: undo },
-        }),
-      onSnapshot: markupPending,
-      labels: { delete: STRINGS.select.delete, split: STRINGS.toasts.actionSplitStroke },
-    });
-
-    selectRef.current = new SelectTool({
-      canvas,
-      scene: toolScene,
-      history,
-      getSelection: () => useEditorStore.getState().selection,
-      setSelection: (keys) => useEditorStore.getState().setSelection(keys),
-      onSelectionChange: (keys) => {
-        if (keys.length === 0) setPinnedToolbar(false);
-        selectRef.current?.refresh();
-      },
-      onPinnedToolbar: (pinned) => setPinnedToolbar(pinned),
-      labels: {
-        move: STRINGS.toasts.actionMoveDimension,
-        rotate: STRINGS.a11y.rotate,
-        delete: STRINGS.select.delete,
-        locked: STRINGS.editor.lockedToast,
-      },
-      onLockedToast: () => emitToast(STRINGS.editor.lockedToast),
-      onDeleteToast: (label, undo) =>
-        emitToast({
-          // §13.3 recoverable delete: immediate, with a real undo (§13.4 10 s window).
-          text: label,
-          action: { label: STRINGS.editor.undo, run: undo },
-        }),
-    });
-
-    // ---- slice 1.7: the image-inset tool (insert flow + §8.5 manipulation + Focus) ----
-    insetRef.current = new InsetTool({
-      canvas,
-      scene: toolScene,
-      history,
-      getSheetSize: () => {
-        const size = canvas.photoSize;
-        return { width: size.width || 1, height: size.height || 1 };
-      },
-      getSelection: () => useEditorStore.getState().selection,
-      setSelection: (keys) => useEditorStore.getState().setSelection(keys),
-      onRequestPicker: () => {
-        setInsetPickerOpen(true);
-        useEditorStore.getState().setPendingOp('inset');
-      },
-      onPickerDismissed: () => {
-        setInsetPickerOpen(false);
-        useEditorStore.getState().setPendingOp('none');
-      },
-      onPlaced: () => {
-        setInsetPickerOpen(false);
-        useEditorStore.getState().setPendingOp('none');
-      },
-      onFocusChange: (insetId) => useEditorStore.getState().setFocusInsetId(insetId),
-      getAssetSize: (assetId) => insetAssetsRef.current.sizeOf(assetId),
-    });
-
-    // Track the real tool id (the prop is the coarse seam) and cancel on switch.
-    toolIdRef.current = useEditorStore.getState().activeTool;
-    const unsubscribeTool = useEditorStore.subscribe((state, prev) => {
-      if (state.activeTool === prev.activeTool) return;
-      cancelActiveMarkup();
-      toolIdRef.current = state.activeTool;
-      // A pending picker belongs to the inset tool: switching away discards it.
-      setInsetPickerOpen(false);
-      if (state.activeTool === 'select') selectRef.current?.refresh();
-      else {
-        selectRef.current?.onToolChange();
-        setPinnedToolbar(false);
-      }
-      // Handles belong to the Inset tool alone (the Select tool draws its own).
-      if (state.activeTool === 'inset') insetRef.current?.refresh();
-    });
-    const unsubscribeSelection = useEditorStore.subscribe((state, prev) => {
-      if (state.selection === prev.selection) return;
-      publishSelectionStyle();
-      if (state.selection.length === 0) setPinnedToolbar(false);
-      selectRef.current?.refresh();
-      if (useEditorStore.getState().activeTool === 'inset') insetRef.current?.refresh();
-    });
-    // The store is the mirror; this keeps the InsetFocus owner (the dim + the one-level
-    // guard) in lockstep with it, so the shell's Esc rung can exit Focus by name alone.
-    const unsubscribeFocus = useEditorStore.subscribe((state, prev) => {
-      if (state.focusInsetId === prev.focusInsetId) return;
-      const inset = insetRef.current;
-      if (!inset) return;
-      if (state.focusInsetId === null) {
-        if (inset.focusId !== null) inset.exitFocus();
-      } else if (inset.focusId !== state.focusInsetId) {
-        inset.enterFocus(state.focusInsetId);
-      }
-    });
-
-    // Bridge the shell's chrome to the imperative canvas (undo/redo/delete/✓/adjust).
-    const session: EditorSession = {
-      undo: () => {
-        const cmd = history.undo();
-        return cmd ? { label: cmd.label } : null;
-      },
-      redo: () => {
-        const cmd = history.redo();
-        return cmd ? { label: cmd.label } : null;
-      },
-      deleteSelection: () => {
-        const keys = [...useEditorStore.getState().selection];
-        if (keys.length === 0) return null;
-        return selectRef.current?.deleteSelection() ?? null;
-      },
-      nudgeSelection: (dx: number, dy: number) => {
-        const keys = [...useEditorStore.getState().selection];
-        if (keys.length === 0) return null;
-        return selectRef.current?.nudgeSelection(dx, dy) ?? null;
-      },
-      cancelPending: () => {
-        // F3: the shell's Esc rung 1 must actually cancel the pending DIMENSION.
-        // `tool.cancelPending()` discards an uncommitted A (or keeps a committed B as the
-        // Valueless ghost); clearing the store flag alone left the machine in `anchorA`
-        // so the next tap committed the dimension the user escaped away from. The markup
-        // tools that share the rung are cancelled too (their own Escape path normally
-        // wins first, but the rung must be complete on its own).
-        tool.cancelPending();
-        if (markupToolPending()) cancelActiveMarkup();
-      },
-      requestValue: () => tool.requestKeypad(),
-      adjustEndpoints: () => tool.adjustEndpoints(),
-      // Slice 1.10: the autosave chip's Error-state Retry. `flush()` clears the parked
-      // flag and re-attempts at once (§5.4). It does not touch `storageStatus` — the
-      // queue reports the outcome, and only the queue ever sets that value.
-      retrySave: () => {
-        void persistRef.current?.flush();
-      },
-      // Slice 1.11: the update prompt's flush-first reload. `persistQueue.flush()`
-      // resolves even when a write failed (the queue parks instead of throwing), so wait
-      // for it to stop being busy and classify a parked failure as a rejection — a
-      // reload must never run over an edit that did not reach disk.
-      flush: async () => {
-        const queue = persistRef.current;
-        if (!queue) return;
-        await queue.flush();
-        await new Promise<void>((resolve) => {
-          if (!queue.inFlight) {
-            resolve();
-            return;
-          }
-          const off = queue.subscribe(() => {
-            if (!queue.inFlight) {
-              off();
-              resolve();
-            }
-          });
-        });
-        const settled = queue.status;
-        if (settled === 'full' || settled === 'pending' || settled === 'error') {
-          throw new Error(`autosave did not settle cleanly (${settled})`);
-        }
-      },
-      // ---- slice 1.8: the style-system commands --------------------------------
-      applyStylePatch: (patch, label) => {
-        const keys = [...useEditorStore.getState().selection];
-        // No selection: the patch belongs to the TOOL style only; the caller owns that.
-        if (keys.length === 0) return;
-        // §8.3 coalescing: a held scrubber is ONE undo step, not one per input tick
-        // (`styleCoalesceKey` above). A full-style apply (`applyStyle`) stays `exec` —
-        // a preset/recent tap is a discrete action, not a continuous one.
-        history.execCoalesced(
-          scene.patchStyleCommand(keys, patch, label),
-          styleCoalesceKey(keys, patch),
-          STYLE_COALESCE_MS,
-        );
-        publishSelectionStyle();
-      },
-      applyStyle: (style, label) => {
-        const keys = [...useEditorStore.getState().selection];
-        if (keys.length === 0) return;
-        history.exec(scene.styleCommand(keys, style, label));
-        publishSelectionStyle();
-      },
-      applyProjectPrecision: (denominator) => {
-        // The project file is the source of truth for the project-level value; the loaded
-        // one is in `projectDirRef`. No project open → nothing to edit.
-        const state = projectDirRef.current;
-        if (!state) return;
-        const ctx = applyProjectPrecisionFn({
-          projectFile: state.file,
-          ctx: currentMeasureContext(),
-          denominator,
-          scene,
-          // The atomic, lock-guarded `project.json` write stays owned by `persistQueue`.
-          queueProject: (file) => {
-            persist.queueProject(projectId, file);
-            setPersistenceBusy(persist.inFlight);
-          },
-        });
-        // Keep the in-memory project file fresh so a second change never re-applies from a
-        // stale snapshot (the helper returns the next context, not the next file).
-        state.file = {
-          ...state.file,
-          project: {
-            ...state.file.project,
-            // `applyProject*` validated the denominator against `VALID_DENOMINATORS`, so
-            // this narrows a value that is already legal (the domain union has no alias).
-            precisionDenominator:
-              ctx.precisionDenominator as ProjectFile['project']['precisionDenominator'],
-            unitFormat: ctx.unitFormat,
-          },
-        };
-        // Mirror into the app store so every label re-derives (`unsubscribeCtx` below
-        // subscribes appStore → `scene.setContext`, and the panel confirms the new value).
-        useAppStore.getState().setPrecisionDenominator(ctx.precisionDenominator);
-      },
-      applyProjectUnitFormat: (format) => {
-        const state = projectDirRef.current;
-        if (!state) return;
-        const ctx = applyProjectUnitFormatFn({
-          projectFile: state.file,
-          ctx: currentMeasureContext(),
-          format,
-          scene,
-          queueProject: (file) => {
-            persist.queueProject(projectId, file);
-            setPersistenceBusy(persist.inFlight);
-          },
-        });
-        state.file = {
-          ...state.file,
-          project: {
-            ...state.file.project,
-            // `applyProject*` validated the denominator against `VALID_DENOMINATORS`, so
-            // this narrows a value that is already legal (the domain union has no alias).
-            precisionDenominator:
-              ctx.precisionDenominator as ProjectFile['project']['precisionDenominator'],
-            unitFormat: ctx.unitFormat,
-          },
-        };
-        useAppStore.getState().setUnitFormat(ctx.unitFormat);
-      },
-    };
-    setEditorSession(session);
-
-    /** The project measurement context as the app currently renders it. */
-    function currentMeasureContext(): {
-      unitSystem: 'imperial' | 'metric';
-      unitFormat: UnitFormat;
-      precisionDenominator: number;
-    } {
-      const s = useAppStore.getState();
-      return {
-        unitSystem: s.unitSystem,
-        unitFormat: s.unitFormat,
-        precisionDenominator: s.precisionDenominator,
-      };
-    }
-
-    // Precision / unit-format changes re-derive every label (no stored labels).
-    const unsubscribeCtx = useAppStore.subscribe((state) => {
-      scene.setContext({
-        unitSystem: state.unitSystem,
-        unitFormat: state.unitFormat,
-        precisionDenominator: state.precisionDenominator,
-      });
-    });
-
-    const contacts = new Map<number, Contact>();
-    const objectDrags = new Map<number, ObjectDrag>();
-    let lastTap: { point: ScreenPoint; at: number } | null = null;
-
-    const placementArmed = (): boolean =>
-      activeToolRef.current !== 'select' && activeToolRef.current !== 'pan';
-
-    /**
-     * Slice 1.6 dispatch. The coarse `activeTool` prop says "some placement tool"; the
-     * store's real `activeTool` says which. Returns `'none'` when the contact is not the
-     * markup layer's (the dimension machine and the object-first drag keep their paths).
-     */
-    const markupPointerDown = (
-      imagePoint: Px,
-      pointerType: string,
-      pressure: number,
-      contact: Contact,
-    ): 'consume' | 'pan' | 'none' => {
-      const id = toolIdRef.current;
-      if (id === 'select') {
-        // Only handle drags are routed here; taps/marquee keep the existing path.
-        return selectRef.current?.hitHandleAt(imagePoint, pointerType)
-          ? selectRef.current!.onPointerDown(imagePoint, pointerType)
-          : 'none';
-      }
-      const shape = shapeToolsRef.current.get(id as ShapeKind);
-      if (shape) return shape.onPointerDown(imagePoint, pointerType);
-      if (id === 'angle') return angleRef.current!.onPointerDown(imagePoint, pointerType);
-      if (id === 'text') return textRef.current!.onPointerDown(imagePoint);
-      if (id === 'erase') {
-        const erase = eraseRef.current!;
-        // Object mode (the only mode touch gets): the `--err` preview is driven by the
-        // shell's 600 ms timer (A3), not shown eagerly. Stroke mode (pen) is unchanged.
-        if (effectiveEraseMode(erase.eraseMode, pointerType) === 'object') {
-          contact.eraseObject = true;
-          return 'consume';
-        }
-        return erase.onPointerDown(imagePoint, pointerType);
-      }
-      if (id === 'inset') {
-        // The tool returns `'pan'` for a non-handle contact, but its TAP must still reach
-        // `onPointerUp` (the one-tap insert). Take the contact; a real drag is released
-        // back to the pan path by `onPointerMove` returning `'pan'`.
-        insetRef.current!.onPointerDown(imagePoint, pointerType);
-        return 'consume';
-      }
-      if (id === 'freehand' || id === 'highlight') {
-        const ink = id === 'freehand' ? freehandRef.current! : highlightRef.current!;
-        if (id === 'freehand' && pointerType === 'touch' && !isFingerInkAllowed(mkSettings())) {
-          return 'pan';
-        }
-        if (ink.usePlacementMachine(pointerType)) {
-          return ink.placement().onPointerDown(imagePoint, pointerType);
-        }
-        ink.begin(imagePoint, pressure, pointerType);
-        contact.freehandKind = id;
-        return 'consume';
-      }
-      return 'none';
-    };
-
-    const markupPointerMove = (imagePoint: Px, moved: boolean): 'consume' | 'pan' | null => {
-      const id = toolIdRef.current;
-      const shape = shapeToolsRef.current.get(id as ShapeKind);
-      if (shape) return shape.onPointerMove(imagePoint, moved);
-      if (id === 'angle') return angleRef.current!.onPointerMove(imagePoint);
-      if (id === 'erase') return eraseRef.current!.onPointerMove();
-      if (id === 'select') return selectRef.current!.onPointerMove(imagePoint, moved);
-      if (id === 'inset') return insetRef.current!.onPointerMove(imagePoint, moved);
-      if (id === 'text') return textRef.current!.onPointerMove();
-      return null;
-    };
-
-    const markupPointerUp = (imagePoint: Px, tapped: boolean, pointerType: string): void => {
-      const id = toolIdRef.current;
-      const shape = shapeToolsRef.current.get(id as ShapeKind);
-      if (shape) {
-        shape.onPointerUp(imagePoint, tapped, pointerType);
-        return;
-      }
-      if (id === 'angle') {
-        angleRef.current!.onPointerUp(imagePoint, tapped, pointerType);
-        return;
-      }
-      if (id === 'erase') {
-        eraseRef.current!.onPointerUp(imagePoint, tapped, pointerType);
-        return;
-      }
-      if (id === 'select') {
-        selectRef.current!.onPointerUp(imagePoint, tapped, pointerType);
-        return;
-      }
-      if (id === 'inset') {
-        insetRef.current!.onPointerUp(imagePoint, tapped, pointerType);
-        return;
-      }
-      if (id === 'freehand' || id === 'highlight') {
-        const ink = id === 'freehand' ? freehandRef.current! : highlightRef.current!;
-        if (ink.usePlacementMachine(pointerType)) ink.placement().onPointerUp(imagePoint, tapped, pointerType);
-        return;
-      }
-      if (id === 'text') textRef.current!.onPointerUp();
-    };
-
-    const onPointerDown = (e: PointerEvent): void => {
-      const point = canvas.pointerPosition(e);
-      setInputKind(e.pointerType);
-      if (e.pointerType === 'pen') router.notePenEvent();
-      if (e.pointerType === 'touch') {
-        router.noteTouchDown(e.pointerId, isAtEdge(point, host));
-      }
-      const intent = router.classify(e);
-      // §8.2/§11.4: a pen contact that is not the tip (`button === 2` = the barrel
-      // button) is the radial quick-menu's *optional accelerator*. The radial is not
-      // built, so the documented degrade is a no-op — register no contact at all, so
-      // the barrel produces no geometry, no ink and no pan (not even the ignored-contact
-      // pan path). The tip (`button === 0`) is unaffected and still draws.
-      if (e.pointerType === 'pen' && intent === 'ignore') return;
-      const panTool = activeToolRef.current === 'pan';
-      const hit = canvas.hitObject(point);
-      const dragSession: DragSession = {
-        target: decideDragTarget({ panTool, intent, hit }),
-        preDragPosition: null,
-      };
-      const contact: Contact = {
-        intent,
-        session: dragSession,
-        start: point,
-        startImage: { x: 0, y: 0 },
-        startAt: performance.now(),
-        last: point,
-        toolAction: 'none',
-        forcePan: false,
-        objectKey: null,
-        freehandKind: null,
-        owner: null,
-        pressure: e.pressure,
-        marqueeCandidate: false,
-        longPressTimer: null,
-        eraseObject: false,
-        eraseMoved: false,
-        eraseTimer: null,
-      };
-      contacts.set(e.pointerId, contact);
-
-      const imagePoint = canvas.screenToImage(point);
-      contact.startImage = { ...imagePoint };
-      const keypadOpen = useEditorStore.getState().keypadOpen;
-
-      // Select + a real object + long press (600 ms) → select and pin the mini-toolbar
-      // (touch model §3.3). Locked objects only shake + toast; they never pin.
-      if (intent !== 'ignore' && !keypadOpen && toolIdRef.current === 'select' && hit) {
-        const key = scene.keyForAnnotationId(hit.id);
-        if (key && hit.locked) {
-          emitToast(STRINGS.editor.lockedToast);
-        } else if (key) {
-          contact.longPressTimer = window.setTimeout(() => {
-            contact.longPressTimer = null;
-            selectRef.current?.longPress(key);
-          }, LONG_PRESS_MS);
-        }
-      }
-
-      // Select on EMPTY canvas with a non-touch pointer (pen/mouse) is a marquee
-      // candidate; touch keeps one-finger pan (tests/sheetEditor.browser F1). It only
-      // becomes a marquee once the contact actually moves (so taps still clear/double-tap).
-      if (
-        intent !== 'ignore' &&
-        !keypadOpen &&
-        toolIdRef.current === 'select' &&
-        !hit &&
-        e.pointerType !== 'touch'
-      ) {
-        contact.marqueeCandidate = true;
-      }
-
-      // Keypad-open (touch model §5.1): pan + pinch only; taps do nothing.
-      if (keypadOpen) {
-        contact.forcePan = true;
-        contact.session.target = 'pan';
-      } else if (
-        intent !== 'ignore' &&
-        toolIdRef.current === 'select' &&
-        selectRef.current?.hitHandleAt(imagePoint, e.pointerType)
-      ) {
-        selectRef.current.onPointerDown(imagePoint, e.pointerType);
-        contact.toolAction = 'consume';
-        contact.forcePan = true;
-        contact.owner = 'markup';
-      } else if (intent !== 'ignore' && placementArmed()) {
-        const dispatched = markupPointerDown(imagePoint, e.pointerType, e.pressure, contact);
-        if (dispatched !== 'none') {
-          contact.toolAction = dispatched;
-          contact.forcePan = true;
-          contact.owner = 'markup';
-          if (dispatched === 'pan') contact.session.target = 'pan';
-        } else {
-          // The dimension machine (the coarse `'place'` prop's original owner).
-          const action = tool.onPointerDown(imagePoint, e.pointerType);
-          contact.toolAction = action;
-          contact.forcePan = true;
-          contact.owner = 'dimension';
-          if (action === 'pan') contact.session.target = 'pan';
-        }
-      } else if (intent !== 'ignore' && tool.state.phase !== 'idle') {
-        const action = tool.onPointerDown(imagePoint, e.pointerType);
-        contact.toolAction = action;
-        contact.forcePan = true;
-        contact.owner = 'dimension';
-        if (action === 'pan') contact.session.target = 'pan';
-      } else if (contact.session.target === 'object' && hit) {
-        const key = scene.keyForAnnotationId(hit.id);
-        const geometry = key ? scene.geometryCopy(key) : null;
-        const bounds = key ? scene.boundsAt(key) : null;
-        if (key && geometry && bounds) {
-          contact.objectKey = key;
-          objectDrags.set(e.pointerId, {
-            key,
-            geometry,
-            startImage: imagePoint,
-          });
-          // D63: record the pre-drag position for the second-finger restore.
-          contact.session.preDragPosition = canvas.imageToScreen({ x: bounds.x, y: bounds.y });
-        }
-      }
-
-      // Erase object mode (A3): reveal the `--err` outline only after a 600 ms hold.
-      if (contact.eraseObject) {
-        contact.eraseTimer = window.setTimeout(() => {
-          contact.eraseTimer = null;
-          eraseRef.current?.beginPreview(imagePoint);
-        }, LONG_PRESS_MS);
-      }
-
-      if (contacts.size >= 2) {
-        for (const [pointerId, other] of contacts) {
-          const resolution = onSecondFinger(other.session);
-          if (!resolution.cancelled) continue;
-          // D63 — restore the object's pre-drag position; never commit at the displaced spot.
-          const drag = objectDrags.get(pointerId);
-          if (drag) {
-            scene.setGeometry(drag.key, drag.geometry);
-            objectDrags.delete(pointerId);
-          }
-          other.session.target = 'pan';
-          other.forcePan = true;
-          other.toolAction = 'none';
-        }
-      }
-      try {
-        host.setPointerCapture(e.pointerId);
-      } catch {
-        // Pointer capture is a nicety; the handlers still work without it.
-      }
-    };
-
-    const onPointerMove = (e: PointerEvent): void => {
-      const contact = contacts.get(e.pointerId);
-      if (!contact) return;
-      const point = canvas.pointerPosition(e);
-      const imagePoint = canvas.screenToImage(point);
-      const moved = Math.hypot(point.x - contact.start.x, point.y - contact.start.y) > TAP_SLOP;
-
-      if (contact.freehandKind) {
-        const ink = contact.freehandKind === 'freehand' ? freehandRef.current! : highlightRef.current!;
-        ink.extend(imagePoint, e.pressure);
-        contact.last = point;
-        return;
-      }
-
-      // Any real movement cancels a pending select long-press (A2).
-      if (contact.longPressTimer !== null && moved) {
-        window.clearTimeout(contact.longPressTimer);
-        contact.longPressTimer = null;
-      }
-
-      // Erase object mode (A3): moving beyond the slop cancels the preview and the delete.
-      if (contact.eraseObject) {
-        if (moved && !contact.eraseMoved) {
-          contact.eraseMoved = true;
-          if (contact.eraseTimer !== null) {
-            window.clearTimeout(contact.eraseTimer);
-            contact.eraseTimer = null;
-          }
-          eraseRef.current?.onPointerCancel();
-        }
-        contact.last = point;
-        return;
-      }
-
-      if (contact.toolAction !== 'none') {
-        const markupAction =
-          contact.owner === 'markup' ? markupPointerMove(imagePoint, moved) : null;
-        const action = markupAction ?? tool.onPointerMove(imagePoint, moved);
-        if (action === 'consume') {
-          contact.last = point;
-          return;
-        }
-        contact.toolAction = 'none';
-        contact.session.target = 'pan';
-      }
-
-      // Select marquee: arm the tool on the first real move across empty canvas (A2).
-      // Arming on move (not down) keeps a tap's clear-selection/double-tap intact.
-      if (
-        contact.toolAction === 'none' &&
-        contact.marqueeCandidate &&
-        moved &&
-        toolIdRef.current === 'select'
-      ) {
-        const select = selectRef.current;
-        if (select) {
-          select.onPointerDown(contact.startImage, e.pointerType);
-          select.onPointerMove(imagePoint, true);
-          contact.toolAction = 'consume';
-          contact.forcePan = true;
-          contact.owner = 'markup';
-          contact.last = point;
-          return;
-        }
-      }
-
-      if (contacts.size === 1) {
-        if (contact.session.target === 'pan' && (contact.forcePan || !placementPendingRef.current)) {
-          canvas.panBy(point.x - contact.last.x, point.y - contact.last.y);
-        } else if (
-          contact.session.target === 'object' &&
-          !placementPendingRef.current &&
-          contact.objectKey
-        ) {
-          const drag = objectDrags.get(e.pointerId);
-          if (drag) {
-            const dx = imagePoint.x - drag.startImage.x;
-            const dy = imagePoint.y - drag.startImage.y;
-            scene.setGeometry(drag.key, translateGeometry(drag.geometry, dx, dy));
-          }
-        }
-      }
-      contact.last = point;
-    };
-
-    const endContact = (e: PointerEvent): void => {
-      const contact = contacts.get(e.pointerId);
-      if (!contact) return;
-      const point = canvas.pointerPosition(e);
-      const imagePoint = canvas.screenToImage(point);
-      const duration = performance.now() - contact.startAt;
-      const tapped = isTap(point.x - contact.start.x, point.y - contact.start.y, duration);
-      contacts.delete(e.pointerId);
-      if (e.pointerType === 'pen') router.penStrokeEnd();
-      if (e.pointerType === 'touch') router.noteTouchUp(e.pointerId);
-
-      // Clear any pending select long-press.
-      if (contact.longPressTimer !== null) {
-        window.clearTimeout(contact.longPressTimer);
-        contact.longPressTimer = null;
-      }
-
-      // The tool owns this contact's lift (commit B / end refine).
-      if (contact.freehandKind) {
-        const ink = contact.freehandKind === 'freehand' ? freehandRef.current! : highlightRef.current!;
-        ink.end(tapped);
-        return;
-      }
-
-      // Erase object mode (A3): a short press deletes and toasts; a 600 ms hold (preview)
-      // or a move cancels. The tool's own `onPointerUp` already owns the delete + toast.
-      if (contact.eraseObject) {
-        if (contact.eraseTimer !== null) {
-          window.clearTimeout(contact.eraseTimer);
-          contact.eraseTimer = null;
-        }
-        const erase = eraseRef.current;
-        if (erase) {
-          if (!contact.eraseMoved && !isErasePreview(duration)) {
-            erase.beginPreview(imagePoint);
-            erase.onPointerUp(imagePoint, true, e.pointerType);
-          } else {
-            erase.onPointerCancel();
-          }
-        }
-        return;
-      }
-
-      if (contact.toolAction === 'consume') {
-        if (contact.owner === 'markup') markupPointerUp(imagePoint, tapped, e.pointerType);
-        else tool.onPointerUp(imagePoint, tapped, e.pointerType);
-        return;
-      }
-
-      // Object-first move: commit one undo step, or treat a tap as a selection.
-      if (contact.objectKey) {
-        const drag = objectDrags.get(e.pointerId);
-        objectDrags.delete(e.pointerId);
-        if (drag) {
-          const dx = imagePoint.x - drag.startImage.x;
-          const dy = imagePoint.y - drag.startImage.y;
-          const to = translateGeometry(drag.geometry, dx, dy);
-          // F6: the pointermove path already mutated the geometry on EVERY move,
-          // including moves below the 8 px tap slop. Record a step whenever the geometry
-          // ACTUALLY changed (pre-drag vs. current), not only once `drag.moved` cleared
-          // the slop — otherwise the mutation is persisted but unreachable by history,
-          // and the first undo deletes the object instead of restoring it. A contact
-          // that never moved keeps the tap/selection behaviour and creates no step.
-          const current = scene.geometryCopy(drag.key);
-          const changed =
-            current !== null && JSON.stringify(current) !== JSON.stringify(drag.geometry);
-          if (changed) {
-            history.exec({
-              label: STRINGS.toasts.actionMoveDimension,
-              do: () => scene.setGeometry(drag.key, to),
-              undo: () => scene.setGeometry(drag.key, drag.geometry),
-            });
-          } else if (tapped) {
-            // A second tap on an already-selected object opens its actions (A2). For an
-            // inset it enters Focus (UI §9:588/627).
-            if (selectRef.current?.tapObject(drag.key) === 'action') {
-              if (sceneRef.current?.get(drag.key)?.type === 'image') insetRef.current?.enterFocus(drag.key);
-              else setPinnedToolbar(true);
-            }
-          }
-        }
-      }
-
-      if (!tapped || contact.intent === 'ignore') return;
-      if (contact.toolAction !== 'none') return;
-      if (placementArmed()) return; // a tap would place a point — never deferred
-
-      // Select tool: tap an object selects it (locked objects only toast); empty clears.
-      if (activeToolRef.current === 'select') {
-        const hit = canvas.hitObject(point);
-        const key = hit ? scene.keyForAnnotationId(hit.id) : null;
-        if (key) {
-          // A locked object already toasted on pointerdown (touch model §3.3 shake);
-          // selecting it is still allowed so it can be unlocked in Layers.
-          if (selectRef.current?.tapObject(key) === 'action') {
-            if (sceneRef.current?.get(key)?.type === 'image') insetRef.current?.enterFocus(key);
-            else setPinnedToolbar(true);
-          }
-          return;
-        }
-        useEditorStore.getState().clearSelection();
-        setPinnedToolbar(false);
-      }
-
-      const now = performance.now();
-      if (
-        lastTap &&
-        now - lastTap.at <= DOUBLE_TAP_MS &&
-        Math.hypot(point.x - lastTap.point.x, point.y - lastTap.point.y) <= DOUBLE_TAP_SLOP
-      ) {
-        lastTap = null;
-        canvas.toggleFitOrFull();
-      } else {
-        lastTap = { point, at: now };
-      }
-    };
-
-    const cancelContact = (e: PointerEvent): void => {
-      const contact = contacts.get(e.pointerId);
-      if (!contact) return;
-      contacts.delete(e.pointerId);
-      // An interrupted object-first drag RESTORES the pre-drag geometry — the same rule
-      // the D63 second-finger cancel above follows. `onPointerMove` has been writing every
-      // intermediate position through `scene.setGeometry` (persisted via `scene.onChange`),
-      // while the only history step is recorded in `endContact`; dropping the drag record
-      // alone therefore left the document mutated, saved to markup.json and unreachable by
-      // undo (session-13 review F1). `pointercancel` is the palm-rejection / browser-
-      // interrupt case — exactly what a gloved hand on a Surface produces.
-      const cancelledDrag = objectDrags.get(e.pointerId);
-      if (cancelledDrag) {
-        scene.setGeometry(cancelledDrag.key, cancelledDrag.geometry);
-        objectDrags.delete(e.pointerId);
-      }
-      if (e.pointerType === 'pen') router.penStrokeEnd();
-      if (e.pointerType === 'touch') router.noteTouchUp(e.pointerId);
-      if (contact.longPressTimer !== null) {
-        window.clearTimeout(contact.longPressTimer);
-        contact.longPressTimer = null;
-      }
-      if (contact.eraseTimer !== null) {
-        window.clearTimeout(contact.eraseTimer);
-        contact.eraseTimer = null;
-      }
-      if (contact.eraseObject) {
-        eraseRef.current?.onPointerCancel();
-        return;
-      }
-      if (contact.freehandKind) {
-        const ink = contact.freehandKind === 'freehand' ? freehandRef.current! : highlightRef.current!;
-        ink.cancel();
-        return;
-      }
-      if (contact.toolAction !== 'none') {
-        if (contact.owner === 'markup') {
-          // A Select handle drag is markup-owned. Call the tool's own cancel FIRST: it
-          // restores the pre-drag geometry and clears `transform` (F1). `cancelActiveMarkup`
-          // then still runs for whatever else was armed — it routes through the SAME
-          // restore-and-clear helper (`SelectTool.onToolChange`), so this is idempotent and
-          // the shell is correct even if the two ever get out of order again.
-          selectRef.current?.onPointerCancel();
-          cancelActiveMarkup();
-          // `onToolChange` drops the overlay; the selection itself survives an interrupted
-          // contact, so put its handles back.
-          if (toolIdRef.current === 'select') selectRef.current?.refresh();
-        } else tool.onPointerCancel(e.pointerType);
-      }
-    };
-
-    const markupToolPending = (): boolean => {
-      for (const shape of shapeToolsRef.current.values()) if (shape.pending) return true;
-      return Boolean(
-        angleRef.current?.pending ||
-          freehandRef.current?.pending ||
-          highlightRef.current?.pending ||
-          textRef.current?.pending ||
-          eraseRef.current?.pending ||
-          insetRef.current?.pending,
-      );
-    };
-
-    // Keyboard: Escape cancels a markup op; Enter/Backspace drive Polygon; Delete removes
-    // the selection (a11y §19.6 — every tool operable from the keyboard).
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (useEditorStore.getState().keypadOpen) return;
-      const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-        return;
-      }
-      const id = toolIdRef.current;
-      if (event.key === 'Escape') {
-        if (id !== 'dimension' && markupToolPending()) {
-          event.preventDefault();
-          cancelActiveMarkup();
-          useEditorStore.getState().setPendingOp('none');
-        }
-        return;
-      }
-      if (id === 'polygon' && event.key === 'Enter') {
-        event.preventDefault();
-        shapeToolsRef.current.get('polygon')?.done();
-        return;
-      }
-      // Enter while a single inset is selected enters Focus (UI §9:627).
-      if (event.key === 'Enter' && !useEditorStore.getState().focusInsetId) {
-        const selected = useEditorStore.getState().selection;
-        if (selected.length === 1 && sceneRef.current?.get(selected[0])?.type === 'image') {
-          event.preventDefault();
-          insetRef.current?.enterFocus(selected[0]);
-          return;
-        }
-      }
-      if (id === 'polygon' && event.key === 'Backspace') {
-        event.preventDefault();
-        shapeToolsRef.current.get('polygon')?.undoPoint();
-        return;
-      }
-      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-      const keys = useEditorStore.getState().selection;
-      if (keys.length === 0) return;
-      event.preventDefault();
-      session.deleteSelection();
-    };
-
-    // Arrow-key nudge (UI §8.2 #9, touch model §2.6): 1 px per press, 10 px with Shift. This is
-    // the keyboard escape hatch for the finger's systematic contact offset — the Nudge Pad's job
-    // on glass — and the reason UI §8.2#9 wants the canvas focusable after a TOUCH selection.
-    // Scoped to the canvas host, so it cannot steal arrows from the chrome's own controls.
-    const onCanvasArrow = (event: KeyboardEvent): void => {
-      const step = event.shiftKey ? 10 : 1;
-      const delta: Record<string, { dx: number; dy: number }> = {
-        ArrowLeft: { dx: -step, dy: 0 },
-        ArrowRight: { dx: step, dy: 0 },
-        ArrowUp: { dx: 0, dy: -step },
-        ArrowDown: { dx: 0, dy: step },
-      };
-      const move = delta[event.key];
-      if (!move) return;
-      if (useEditorStore.getState().selection.length === 0) return;
-      event.preventDefault();
-      session.nudgeSelection(move.dx, move.dy);
-    };
-    host.addEventListener('keydown', onCanvasArrow);
-    host.addEventListener('pointerdown', onPointerDown);
-    host.addEventListener('pointermove', onPointerMove);
-    host.addEventListener('pointerup', endContact);
-    host.addEventListener('pointercancel', cancelContact);
-    window.addEventListener('keydown', onKeyDown);
-
-    void (async () => {
-      try {
-        registerOpenProject(projectId, folderName);
-        const lease = await acquireWriterLease(projectId);
-        if (!alive) {
-          lease?.release();
-          return;
-        }
-        leaseRef.current = lease;
-        setReadOnly(!lease);
-        readOnlyRef.current = !lease;
-        // Slice 1.10: the read-only project case is the chip's `Read-only` state, not a
-        // failure — and no later queue transition may overwrite it (see `onStatus`).
-        if (!lease) useAppStore.getState().setStorageStatus('readonly');
-        channelRef.current = openProjectChannel(projectId);
-
-        const projectDir = await resolveOpenProjectDir(projectId);
-        await cleanStaleTmp(projectDir, projectId);
-        const file = await readProjectFile(projectDir);
-        if (!alive) return;
-        projectDirRef.current = { dir: projectDir, file };
-
-        const sheets = file.sheets.filter((s) => !s.deletedAt);
-        setSheetCount(sheets.length);
-        // Slice 1.9: the export seam's sheet list (working-image px, never screen px).
-        setExportSheets(
-          sheets.map((s) => ({
-            id: s.id,
-            title: s.title,
-            imageWidthPx: s.imageWidth,
-            imageHeightPx: s.imageHeight,
-          })),
-        );
-        if (sheets.length === 0) {
-          setStatus('empty');
-          return;
-        }
-        const sheet = (sheetId ? sheets.find((s) => s.id === sheetId) : undefined) ?? sheets[0];
-        setSheetTitle(sheet.title);
-        setExportSheetId(sheet.id);
-        const loaded = await loadSheet(canvas, projectDir, sheet);
-        if (!alive) return;
-        setStatus(loaded);
-      } catch {
-        if (alive) {
-          setStatus('error');
-          // Slice 1.10: the chip/toast layer makes the failure visible beyond the
-          // inline panel. The same approved wording the panel already shows.
-          emitToast({ text: STRINGS.errors.projectUnavailable, urgent: true });
-        }
-      }
-    })();
-
+    controllerRef.current = controller;
     return () => {
-      alive = false;
-      resizeObserver.disconnect();
-      host.removeEventListener('pointerdown', onPointerDown);
-      host.removeEventListener('pointermove', onPointerMove);
-      host.removeEventListener('pointerup', endContact);
-      host.removeEventListener('pointercancel', cancelContact);
-      window.removeEventListener('keydown', onKeyDown);
-      host.removeEventListener('keydown', onCanvasArrow);
-      unsubscribeCtx();
-      unsubscribeTool();
-      unsubscribeSelection();
-      unsubscribeFocus();
-      unsubscribeBusy();
-      setPersistenceBusy(false);
-      setEditorSession(null);
-      // D137: land any coalesced markup write BEFORE the lease and channel go. The flush's write
-      // resolves the project directory after an await, so nothing it needs may be released
-      // synchronously here. The lease and channel are captured now and released once it settles.
-      const closingLease = leaseRef.current;
-      const closingChannel = channelRef.current;
-      leaseRef.current = null;
-      channelRef.current = null;
-      void persist.flush().finally(() => {
-        closingChannel?.close();
-        closingLease?.release();
-      });
-      scene.onChange = null;
-      persistRef.current = null;
-      sheetIdRef.current = null;
-      for (const shape of shapeToolsRef.current.values()) shape.dispose();
-      shapeToolsRef.current.clear();
-      angleRef.current?.dispose();
-      angleRef.current = null;
-      freehandRef.current?.dispose();
-      freehandRef.current = null;
-      highlightRef.current?.dispose();
-      highlightRef.current = null;
-      textRef.current?.dispose();
-      textRef.current = null;
-      eraseRef.current?.dispose();
-      eraseRef.current = null;
-      selectRef.current?.dispose();
-      selectRef.current = null;
-      insetRef.current?.dispose();
-      insetRef.current = null;
-      insetAssetsRef.current.dispose();
-      schedulerRef.current?.cancel();
-      schedulerRef.current = null;
-      bitmapRef.current?.close();
-      bitmapRef.current = null;
-      projectDirRef.current = null;
-      canvasRef.current = null;
-      historyRef.current = null;
-      sceneRef.current = null;
-      dimRef.current = null;
-      useEditorStore.getState().setKeypadOpen(false);
-      useEditorStore.getState().setLayersOpen(false);
-      useEditorStore.getState().setFocusInsetId(null);
-      // The scene is being torn down; the shell must not keep reading its selection style.
-      useEditorStore.getState().setSelectionStyle(createInitialSelectionStyle());
-      setPinnedToolbar(false);
-      setInsetPickerOpen(false);
-      setReplacePrompt(null);
-      useEditorStore.getState().setPendingOp('none');
-      tool.dispose();
-      loupe.destroy();
-      canvas.destroy();
+      controllerRef.current = null;
+      controller.dispose();
     };
-  }, [projectId, folderName, retryToken, sheetId]);
+    // D145: `sheetId` is deliberately NOT a dependency. The mount reads it once for the first
+    // sheet; later changes go through `controller.loadSheet` below, on the same canvas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, folderName, retryToken]);
+
+  // D145: a sheet change is a load on the live controller, not a remount.
+  useEffect(() => {
+    if (sheetId) void controllerRef.current?.loadSheet(sheetId);
+  }, [sheetId]);
 
   // --- keypad focus management (a11y §19.6) -------------------------------------
   const keypadOpen = keypadRequest !== null;
@@ -1726,159 +370,15 @@ export default function SheetEditor({
   // ---- slice 1.7 (image insets): asset decode, picker callbacks, Focus, replace ----
   const focusInsetId = useEditorStore((s) => s.focusInsetId);
 
-  const syncRecents = (): void => {
-    setInsetRecents(insetAssetsRef.current.recentsList());
-  };
+  // R6: the inset handlers live in `src/ui/insetActions.ts`.
+  const {
+    syncRecents, ensureInsetAsset, hydrateInsetAssets, placePickedFiles, handleInsetDeviceChange, handleInsetCameraChange, pickRecent, enterFocusInset, exitFocusInset, cancelReplacePrompt, applyReplace, startReplaceHold, cancelReplaceHold, handleReplaceChange, beginReplace,
+  } = createInsetActions({
+    projectId, sceneRef, insetRef, insetAssetsRef, projectDirRef, replaceHoldTimerRef, replacePrompt,
+    setReplacePrompt, setReplaceHolding, setInsetRecents,
+  });
 
-  /**
-   * Decode + cache one stored asset (`assets/<sha256hex>.jpg`). Off the main thread via
-   * the shipped decode worker; a miss is swallowed (the placeholder stays).
-   */
-  async function ensureInsetAsset(assetId: string, name?: string): Promise<void> {
-    const state = projectDirRef.current;
-    if (!state || insetAssetsRef.current.has(assetId)) return;
-    const entry = await insetAssetsRef.current.load(state.dir, assetId, name);
-    if (entry) sceneRef.current?.refreshInsets();
-    syncRecents();
-  }
 
-  /** §8.5: a restored `markup.json` may already contain insets — decode their assets. */
-  async function hydrateInsetAssets(objects: readonly Annotation[]): Promise<void> {
-    const state = projectDirRef.current;
-    if (!state) return;
-    const ids = new Set<string>();
-    for (const object of objects) {
-      if (object.type === 'image' && object.assetId) ids.add(object.assetId);
-    }
-    for (const id of ids) await ensureInsetAsset(id);
-  }
-
-  /** Store + decode every picked file, then insert them as one cascaded batch. */
-  async function placePickedFiles(files: File[]): Promise<void> {
-    const state = projectDirRef.current;
-    if (!state) return;
-    const assets: InsetAssetInput[] = [];
-    for (const file of files) {
-      let stored: { assetId: string; width: number; height: number };
-      try {
-        stored = await storeInsetAsset(state.dir, projectId, file);
-      } catch {
-        continue;
-      }
-      // Decode the STORED bytes (normalized JPEG), not the picked file (may be HEIC).
-      await ensureInsetAsset(stored.assetId, file.name);
-      assets.push({ assetId: stored.assetId, width: stored.width, height: stored.height });
-    }
-    syncRecents();
-    if (assets.length > 0) insetRef.current?.placeFromAssets(assets);
-  }
-
-  const handleInsetDeviceChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    const input = event.currentTarget;
-    const files = Array.from(input.files ?? []);
-    input.value = '';
-    void placePickedFiles(files);
-  };
-
-  const handleInsetCameraChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    const input = event.currentTarget;
-    const file = input.files?.[0];
-    input.value = '';
-    if (file) void placePickedFiles([file]);
-  };
-
-  const pickRecent = (assetId: string): void => {
-    void (async () => {
-      let size = insetAssetsRef.current.sizeOf(assetId);
-      if (!size) {
-        await ensureInsetAsset(assetId);
-        size = insetAssetsRef.current.sizeOf(assetId);
-      }
-      if (!size) return;
-      insetRef.current?.placeFromAssets([{ assetId, width: size.width, height: size.height }]);
-    })();
-  };
-
-  const enterFocusInset = (key: string): void => {
-    // Inside Focus the user draws with any markup tool; the Inset tool is unavailable.
-    useEditorStore.getState().setActiveTool('select');
-    insetRef.current?.enterFocus(key);
-  };
-
-  /** Exits Focus WITHOUT touching the selection (UI §9:633 / the 1.7 gate). */
-  const exitFocusInset = (): void => {
-    insetRef.current?.exitFocus();
-    useEditorStore.getState().setFocusInsetId(null);
-  };
-
-  const cancelReplacePrompt = (): void => {
-    cancelReplaceHold();
-    setReplacePrompt(null);
-  };
-
-  const applyReplace = (choice: 'keep' | 'remove'): void => {
-    const prompt = replacePrompt;
-    if (!prompt) return;
-    insetRef.current?.replacePhoto(prompt.key, prompt.asset, choice);
-    setReplacePrompt(null);
-  };
-
-  const startReplaceHold = (): void => {
-    if (replaceHoldTimerRef.current !== null) return;
-    setReplaceHolding(true);
-    replaceHoldTimerRef.current = window.setTimeout(() => {
-      replaceHoldTimerRef.current = null;
-      setReplaceHolding(false);
-      applyReplace('remove');
-    }, LONG_PRESS_MS);
-  };
-
-  function cancelReplaceHold(): void {
-    if (replaceHoldTimerRef.current !== null) {
-      window.clearTimeout(replaceHoldTimerRef.current);
-      replaceHoldTimerRef.current = null;
-    }
-    setReplaceHolding(false);
-  }
-
-  const handleReplaceChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    const input = event.currentTarget;
-    const file = input.files?.[0];
-    input.value = '';
-    if (file) void beginReplace(file);
-  };
-
-  /** Replace-photo: identical dimensions swap silently; a different size warns. */
-  async function beginReplace(file: File): Promise<void> {
-    const state = projectDirRef.current;
-    const scene = sceneRef.current;
-    const key = useEditorStore.getState().selection[0];
-    if (!state || !scene || !key) return;
-    const ann = scene.get(key);
-    if (!ann || ann.type !== 'image') return;
-    let stored: { assetId: string; width: number; height: number };
-    try {
-      stored = await storeInsetAsset(state.dir, projectId, file);
-    } catch {
-      return;
-    }
-    await ensureInsetAsset(stored.assetId, file.name);
-    syncRecents();
-    const newAsset: InsetAssetInput = {
-      assetId: stored.assetId,
-      width: stored.width,
-      height: stored.height,
-    };
-    const oldAsset = insetAssetsRef.current.sizeOf(ann.assetId ?? '') ?? { width: 0, height: 0 };
-    if (replacePhotoDecision(oldAsset, newAsset) === 'swap') {
-      insetRef.current?.replacePhoto(key, newAsset, 'keep');
-    } else {
-      setReplacePrompt({ key, asset: newAsset });
-    }
-  }
-
-  // The warned Replace-photo dialog is a real modal (§19.6): focus in on open, back on
-  // close, Escape cancels (never a keyboard trap). Mirrors the keypad-sheet pattern.
   const replaceOpen = replacePrompt !== null;
   useEffect(() => {
     if (!replaceOpen) return;
@@ -2000,18 +500,22 @@ export default function SheetEditor({
   };
 
   // ---- slice 1.6 sheet/HUD handlers ------------------------------------------
-  const commitText = (): void => {
-    if (textAnchor) textRef.current?.commit(textDraft);
+  // D160: the text-box editor commits a new note or an edit, and remembers the look it used.
+  const commitText = (text: string, style: AnnotationStyle): void => {
+    if (textEditId) textRef.current?.edit(textEditId, text, style);
+    else if (textAnchor) textRef.current?.commit(text, style);
+    useStyleByTool.getState().replaceToolStyle('text', style);
     setTextAnchor(null);
-    setTextDraft('');
+    setTextEditId(null);
     useEditorStore.getState().setPendingOp('none');
   };
   const cancelText = (): void => {
-    textRef.current?.cancel();
+    if (!textEditId) textRef.current?.cancel();
     setTextAnchor(null);
-    setTextDraft('');
+    setTextEditId(null);
     useEditorStore.getState().setPendingOp('none');
   };
+  const editingNote = textEditId ? sceneRef.current?.get(textEditId) ?? null : null;
   const commitAngle = (chain: boolean): void => {
     const request = angleSheet;
     if (!request) return;
@@ -2038,258 +542,15 @@ export default function SheetEditor({
     ? buildLayerRows(sceneRef.current.list(), { ctx: labelCtx, hasPhoto: status === 'ready' })
     : [];
 
-  const panelSelect = (key: string): void => {
-    if (key === PHOTO_ROW_KEY) return;
-    useEditorStore.getState().setSelection([key]);
-    const scene = sceneRef.current;
-    const canvas = canvasRef.current;
-    if (!scene || !canvas) return;
-    const bounds = scene.boundsAt(key);
-    if (!bounds) return;
-    const scale = canvas.scale;
-    canvas.stage.position({
-      x: canvas.stage.width() / 2 - (bounds.x + bounds.width / 2) * scale,
-      y: canvas.stage.height() / 2 - (bounds.y + bounds.height / 2) * scale,
-    });
-    canvas.stage.batchDraw();
-  };
-
-  const panelToggleVisible = (key: string): void => {
-    const scene = sceneRef.current;
-    const history = historyRef.current;
-    if (!scene || !history || key === PHOTO_ROW_KEY) return;
-    const ann = scene.get(key);
-    if (!ann) return;
-    const next = ann.visible === false; // hidden → show, otherwise hide
-    const name = annotationName(ann, labelCtx);
-    history.exec({
-      label: `${STRINGS.layers.actionToggleVisible} ${name}`.trim(),
-      do: () => scene.setVisible(key, next),
-      undo: () => scene.setVisible(key, !next),
-    });
-    setSceneTick((n) => n + 1); // refresh the row/eye regardless of the persistence seam
-  };
-
-  const panelToggleLock = (key: string): void => {
-    const scene = sceneRef.current;
-    const history = historyRef.current;
-    if (!scene || !history || key === PHOTO_ROW_KEY) return;
-    const ann = scene.get(key);
-    if (!ann) return;
-    const next = !ann.locked;
-    const name = annotationName(ann, labelCtx);
-    history.exec({
-      label: `${STRINGS.layers.actionToggleLock} ${name}`.trim(),
-      do: () => scene.setLocked(key, next),
-      undo: () => scene.setLocked(key, !next),
-    });
-    setSceneTick((n) => n + 1);
-  };
-
-  /**
-   * The Layers panel's reorder seam. `toIndex` is the panel's rest index INSIDE the row's
-   * own group block (front-first, after the dragged row is removed) — the contract of
-   * `LayersPanel.resolveDrop`, the row menu and `Alt`+`Arrow` (`onReorder(key, toIndex)`).
-   *
-   * TRANSLATION (the crux). The panel's groups (`layerGroupFor` → dimensions|shapes|ink|
-   * text|insets|photo) are finer than §20.2's two z-bands, so the index cannot be handed
-   * to the scene as-is. Re-express it as an ANCHOR ROW of the same block:
-   *   - `toIndex < reduced.length`: anchor on the row currently at that index; the dragged
-   *     row is placed immediately IN FRONT of it, so it comes to rest at `toIndex` and the
-   *     anchor moves one slot back. Because the anchor is a row of the SAME group, a row
-   *     dragged to the top of its group can never jump over another group's rows (the
-   *     defect this replaces: the old index-based primitive read `toIndex` in band space,
-   *     so with ≥2 groups in a band the row landed in the wrong slot).
-   *   - `toIndex >= reduced.length`: "at/after the end of the group" → the back of it.
-   * If the scene refuses (the anchor is in the other §20.2 band) nothing has changed and we
-   * raise the same approved copy the panel itself uses. That path exists because a single
-   * `ink` block spans `freehand` (main band) and `highlight` (lower band).
-   */
-  const panelReorder = (key: string, toIndex: number): void => {
-    const scene = sceneRef.current;
-    const history = historyRef.current;
-    if (!scene || !history || key === PHOTO_ROW_KEY) return;
-    const ann = scene.get(key);
-    if (!ann) return;
-    const block = blockFor(layerRows, key);
-    if (!block) return;
-    const reduced = block.rows.filter((r) => r.key !== key);
-    if (reduced.length === 0) return; // nothing else in the group to reorder against
-
-    // Snapshot both sides through serialize/load so undo restores the exact z-order.
-    const before = scene.serialize();
-    const applied =
-      toIndex >= reduced.length
-        ? scene.moveInBandToBack(key)
-        : scene.moveInBandBefore(key, reduced[Math.max(0, toIndex)].key);
-    if (!applied) {
-      // §20.2: cross-band target — change nothing, say why (never apply the drop).
-      emitToast(STRINGS.editor.highlighterBandMessage);
-      return;
-    }
-    const after = scene.serialize();
-    if (JSON.stringify(after) === JSON.stringify(before)) {
-      // A legal but no-op reorder (e.g. dropping a row onto the row directly behind it):
-      // leave the document alone and do not fabricate an undo step.
-      setSceneTick((n) => n + 1);
-      return;
-    }
-    history.exec({
-      label: annotationName(ann, labelCtx),
-      do: () => scene.load(after),
-      undo: () => scene.load(before),
-    });
-    setSceneTick((n) => n + 1);
-  };
-
-  const panelRename = (key: string, name: string): void => {
-    // Annotations carry no name field (AGENTS #2): a documented no-op. The editable
-    // title lives on `SheetFile.title`, never on an annotation. Reported as owed.
-    sceneRef.current?.rename(key, name);
-  };
-
-  const panelDelete = (key: string): void => {
-    const scene = sceneRef.current;
-    const history = historyRef.current;
-    if (!scene || !history || key === PHOTO_ROW_KEY) return;
-    const ann = scene.get(key);
-    if (!ann) return;
-    const snapshot = JSON.parse(JSON.stringify(ann)) as Annotation;
-    const name = annotationName(ann, labelCtx);
-    history.exec({
-      label: `${STRINGS.select.delete} ${name}`.trim(),
-      do: () => scene.removeObject(key),
-      undo: () => scene.addAnnotation(snapshot),
-    });
-    setSceneTick((n) => n + 1);
-  };
-
-  const closeLayers = (): void => {
-    useEditorStore.getState().setLayersOpen(false);
-  };
-
-  const toolbarRotate = (deg: number): void => {
-    selectRef.current?.rotateBy(deg);
-  };
-
-  const toolbarDelete = (): void => {
-    selectRef.current?.deleteSelection();
-    setPinnedToolbar(false);
-  };
-
-  const toolbarToggleLock = (): void => {
-    const scene = sceneRef.current;
-    const history = historyRef.current;
-    if (!scene || !history) return;
-    const keys = useEditorStore.getState().selection;
-    if (keys.length === 0) return;
-    const captures = keys
-      .map((k) => scene.get(k))
-      .filter((a): a is Annotation => Boolean(a))
-      .map((a) => ({ key: a.id, locked: a.locked, name: annotationName(a, labelCtx) }));
-    if (captures.length === 0) return;
-    const next = !captures[0].locked;
-    history.exec({
-      label: `${STRINGS.layers.actionToggleLock} ${captures[0].name}`.trim(),
-      do: () => captures.forEach((c) => scene.setLocked(c.key, next)),
-      undo: () => captures.forEach((c) => scene.setLocked(c.key, c.locked)),
-    });
-  };
-
-  /** D133 (§4.2): a fresh id for the clone AND, recursively, every child — an inset's
-   *  children are addressed `${insetId}/${childId}` (scene.ts's `keyForAnnotationId`
-   *  resolves a bare child id by linear scan), so two insets sharing a child id would
-   *  make that lookup silently resolve to whichever inset comes first. */
-  const cloneWithFreshIds = (ann: Annotation): Annotation => ({
-    ...ann,
-    id: crypto.randomUUID(),
-    children: ann.children?.map(cloneWithFreshIds),
+  // R6: the Layers panel and mini-toolbar actions live in `src/editor/sceneActions.ts`.
+  const {
+    panelSelect, panelToggleVisible, panelToggleLock, panelReorder, panelRename, panelDelete,
+    closeLayers, toolbarRotate, toolbarDelete, toolbarToggleLock, toolbarDuplicate,
+    reorderSelection, toolbarCopyStyle, toolbarPasteStyle,
+  } = createSceneActions({
+    sceneRef, historyRef, canvasRef, selectRef, labelCtx, layerRows, styleClipboard,
+    setStyleClipboard, setPinnedToolbar, setSceneTick,
   });
-
-  const toolbarDuplicate = (): void => {
-    const scene = sceneRef.current;
-    const history = historyRef.current;
-    if (!scene || !history) return;
-    const keys = useEditorStore.getState().selection;
-    const sources = keys.map((k) => scene.get(k)).filter((a): a is Annotation => Boolean(a));
-    if (sources.length === 0) return;
-    const clones = sources.map((a) => {
-      const clone = cloneWithFreshIds(a);
-      clone.geometry = translateGeometry(clone.geometry, DUPLICATE_OFFSET_PX, DUPLICATE_OFFSET_PX);
-      clone.locked = false; // a duplicate is a new object, never inherits the source's lock
-      return clone;
-    });
-    history.exec({
-      label: STRINGS.select.duplicate,
-      do: () => {
-        clones.forEach((c) => scene.addAnnotation(c));
-        useEditorStore.getState().setSelection(clones.map((c) => c.id));
-      },
-      undo: () => {
-        clones.forEach((c) => scene.removeObject(c.id));
-        useEditorStore.getState().setSelection(sources.map((a) => a.id));
-      },
-    });
-  };
-
-  /**
-   * §4.2 bring-to-front / send-to-back, for a (possibly multi-object) selection.
-   * `moveInBandBefore(key, null)` / `moveInBandToBack(key)` each move ONE key immediately;
-   * applying them in the right order keeps the selection's own RELATIVE order intact —
-   * ascending current zIndex for "front" (the item already most-front is processed last,
-   * so it ends up truly frontmost), descending for "back" (mirrored). Child keys
-   * (`insetId/childId`) are excluded: `moveInBandBefore`/`moveInBandToBack` refuse them
-   * (a child's order lives inside its inset, not a sheet z-band), and the exclusion
-   * itself is not silent — a toolbar action must not surface no error for a selection it
-   * partially ignored, so it is recorded as owed in D133 rather than assumed harmless.
-   */
-  const reorderSelection = (direction: 'front' | 'back'): void => {
-    const scene = sceneRef.current;
-    const history = historyRef.current;
-    if (!scene || !history) return;
-    const keys = useEditorStore.getState().selection.filter((k) => !k.includes('/'));
-    const withZ = keys
-      .map((k) => ({ key: k, ann: scene.get(k) }))
-      .filter((e): e is { key: string; ann: Annotation } => Boolean(e.ann))
-      .sort((a, b) => a.ann.zIndex - b.ann.zIndex);
-    if (withZ.length === 0) return;
-    const ordered = direction === 'back' ? [...withZ].reverse() : withZ;
-
-    const before = scene.serialize();
-    for (const { key } of ordered) {
-      if (direction === 'front') scene.moveInBandBefore(key, null);
-      else scene.moveInBandToBack(key);
-    }
-    const after = scene.serialize();
-    if (JSON.stringify(after) === JSON.stringify(before)) return; // already at the target edge
-    history.exec({
-      label: direction === 'front' ? STRINGS.select.bringFront : STRINGS.select.sendBack,
-      do: () => scene.load(after),
-      undo: () => scene.load(before),
-    });
-    setSceneTick((n) => n + 1);
-  };
-
-  /** §4.2: the FIRST selected object's style — matches "copy style" reading as one
-   *  definite thing to copy even from a heterogeneous selection, the same reading the
-   *  §7.4 mixed-selection rules already use elsewhere in this panel/toolbar pairing. */
-  const toolbarCopyStyle = (): void => {
-    const scene = sceneRef.current;
-    const keys = useEditorStore.getState().selection;
-    const first = keys.map((k) => scene?.get(k)).find((a): a is Annotation => Boolean(a));
-    if (!first) return;
-    setStyleClipboard(first.style);
-    emitToast(STRINGS.toasts.styleCopied);
-  };
-
-  const toolbarPasteStyle = (): void => {
-    const scene = sceneRef.current;
-    const history = historyRef.current;
-    if (!scene || !history || !styleClipboard) return;
-    const keys = useEditorStore.getState().selection;
-    if (keys.length === 0) return;
-    history.exec(scene.styleCommand(keys, styleClipboard, STRINGS.style.panelLabel));
-  };
 
   const showMiniToolbar = pinnedToolbar && selection.length > 0 && !keypadOpen && activeToolId === 'select';
 
@@ -2622,6 +883,16 @@ export default function SheetEditor({
             >
               {STRINGS.select.duplicate}
             </button>
+            {selection.length === 1 && sceneRef.current?.get(selection[0])?.geometry.kind === 'text' ? (
+              <button
+                type="button"
+                className="placement-hud-button"
+                data-testid="mini-toolbar-edit-text"
+                onClick={() => setTextEditId(selection[0])}
+              >
+                {STRINGS.select.editText}
+              </button>
+            ) : null}
             {ROTATE_STOPS.filter((deg) => deg !== 0).map((deg) => (
               <button
                 key={deg}
@@ -2829,34 +1100,16 @@ export default function SheetEditor({
         </div>
       ) : null}
 
-      {/* Text entry sheet (plan step 4): tap-to-type at the anchor. */}
-      {textAnchor ? (
-        <div className="keypad-sheet-mount" data-testid="text-entry">
-          <div className="text-entry" role="dialog" aria-modal="true" aria-label={STRINGS.tool.textNote}>
-            <label className="visually-hidden" htmlFor="text-note-input">
-              {STRINGS.tool.textNote}
-            </label>
-            <input
-              id="text-note-input"
-              className="text-entry-input"
-              autoFocus
-              value={textDraft}
-              onChange={(e) => setTextDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitText();
-                else if (e.key === 'Escape') cancelText();
-              }}
-            />
-            <div className="text-entry-actions">
-              <button type="button" className="btn btn-secondary hit-slop" onClick={cancelText}>
-                {STRINGS.editor.cancel}
-              </button>
-              <button type="button" className="btn btn-primary hit-slop" onClick={commitText}>
-                {STRINGS.editor.done}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* D160: the text-box editor (a new note at the tap, or an existing note). */}
+      {textAnchor || editingNote ? (
+        <TextBoxSheet
+          key={textEditId ?? 'new'}
+          mode={editingNote ? 'edit' : 'new'}
+          initialText={editingNote?.geometry.kind === 'text' ? editingNote.geometry.text : ''}
+          initialStyle={editingNote ? textBoxStyleFor(editingNote) : styleForTool(useStyleByTool.getState(), 'text')}
+          onCommit={commitText}
+          onCancel={cancelText}
+        />
       ) : null}
 
       {/* Image-inset picker (slice 1.7). Positioning wrapper ONLY — the sheet supplies its
@@ -2929,15 +1182,3 @@ function placementArmedAnnouncement(activeTool: EditorTool): string {
   return activeTool === 'place' ? STRINGS.placement.firstPoint : '';
 }
 
-function appLabelContext(): {
-  unitSystem: 'imperial' | 'metric';
-  unitFormat: 'ft-in' | 'in' | 'ft-decimal';
-  precisionDenominator: number;
-} {
-  const s = useAppStore.getState();
-  return {
-    unitSystem: s.unitSystem,
-    unitFormat: s.unitFormat,
-    precisionDenominator: s.precisionDenominator,
-  };
-}

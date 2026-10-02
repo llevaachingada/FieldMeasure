@@ -1837,3 +1837,243 @@ editor (no error line, 1 card), the unsupported-browser notice, and the sheet ca
 
 **Next:** Wave 2 of `docs/beta-readiness-fix-plan.md` (R1-R4 behaviour-preserving refactors), after the owed clickthru
 and the H27-H29 hardware rows.
+
+## Wave 1 verification on the Windows build machine (session 27 continued) — merge, gate, clickthru
+
+**Date:** 2026-09-25 · **Commit:** fast-forward of `claude/quirky-ramanujan-4xn374` into `main`
+
+**Built:** nothing new — this entry discharges the verification the cloud session owed. Wave 1 was brought into the
+local clone, re-run on Windows, merged to `main` and pushed. `main` sat exactly at the branch's merge-base
+(`246c97a`), so the merge was a clean fast-forward with **no conflict resolution** and the lockfile was never
+regenerated or hand-edited. PR #4 was merged by the owner as a fast-forward to the same commit
+(`merge_commit_sha` = `aeac3eb`), so no separate close was needed.
+
+**Machine gates (this machine, Windows; `PW_CHROMIUM_PATH` unset, real browser):**
+- `tsc` 0
+- vitest **112 files / 1571 tests** (node + jsdom + browser) — agrees with the cloud count
+- `build` 0 (28 precache, 1650.68 KiB)
+- `playwright` **8 passed / 5 skipped** (the baseline 5/5 + the 3 journey cases)
+- **clickthru 20 PASS / 0 FAIL / 0 UNREACHED** — the owed run: real Chrome, `surfaceLandscape` 1440x960 DPR2,
+  started 2026-09-25T11:43:51Z. Discharges §5 step 6 of the plan's integration list.
+
+**Clickthru observations (contact sheet and `run.json` evidence read, not only the statuses):** first run step 1 →
+step 2 → Home; the sheet's `thumb.jpg` (4971 B) is present in the OPFS evidence from the capture step onward; the
+grid after leaving the editor shows the sheet card and **no `.project-error-line`** (F2's fix visible in the pixels,
+not only in the journey test); the export writes a real `%PDF` (331966 B) with 2 objects; reload → Home → project →
+sheet persists. Two notes, neither a defect:
+- the harness **asserts nothing** about the old «1 sheets» text, the removed disabled card, or the unsupported
+  notice, so **no harness step needed fixing** (the plan's §5 step 6 flagged this as the first thing to check);
+- the grid card's meta still reads «1 dimensions». That is **approved copy** (`appendix-strings.md:61`,
+  `project.sheetMeta`), pre-existing and untouched by Wave 1 — D142's pluralization covered
+  `project.sheetCount` («1 sheet»), not `sheetMeta`. Logged as a watch item; approved copy is never changed silently.
+
+**The D137 review (a substitution, and weaker for it).** The independent `@oracle` lane could not run
+(`Insufficient Balance` — delegation was unavailable this whole session), so the save-on-exit review was done
+in-session. What was traced, by reading the code paths, and found sound: `persistQueue.flush()` resolves **even when
+a write fails** (`attempt()` catches and parks instead of throwing — `src/state/persistQueue.ts:186-221`), so a
+naive `await flush()` would leave the editor on a failed save. D137 does not have that bug, because the session's
+`flush` (`src/ui/SheetEditor.tsx:847`) awaits the queue's flush, waits for `!inFlight`, then **throws** when the
+status settled `full` / `pending` / `error`; `EditorLayout.exitAfterSave` therefore rejects, the app stays and
+toasts, and a second tap leaves (`forceExitRef`). The `SheetEditor` cleanup captures the lease and channel and
+releases them in `flush().finally()`, so nothing the write needs is released synchronously, and under StrictMode
+the `.finally` releases only the handles the first mount captured. **This is not an independent verification** — a
+`@oracle` pass over D137 is still owed.
+
+**Deferred to hardware:** unchanged — H27-H29, and H1-H26 before them. A green clickthru **never** promotes a
+`[Surface]` row.
+
+**Checkpoints fired:** none.
+
+**Decisions recorded:** none (verification only).
+
+**Surprises:**
+- The plan expected `main` to have moved and asked for conflicts to be resolved keeping both sides; it had not, so
+  that step was a no-op. Nothing was hand-merged.
+- The cloud session's "524 suites" is a *suite* count (112 files × the vitest projects). Both machines agree at
+  **1571 tests**.
+- The «1 dimensions» wording is approved copy, not a D142 leftover — worth the content owner's eye, but not a
+  builder fix.
+
+## Wave 2 (beta readiness, session 28): R1-R4 behaviour-preserving refactors
+
+**Lanes:** R1 (orchestrator, in-session) and R2 (orchestrator), plus R3 and R4 (two parallel sub-agent lanes). All
+four worked in one tree with disjoint files (plan §6); `git diff --name-only` per lane matched the ownership
+table. There is one commit per refactor: `6fcdcea` R1, `81b8c65` R2, `f8a4e4f` R3, and the R4 commit after it.
+
+| Lane | Moved | File before → after | New tests |
+|---|---|---|---|
+| R1 | pointer gesture engine → `src/editor/gestureArbiter.ts` (`GestureArbiter`, `GestureDeps`) | `SheetEditor.tsx` 2943 → 2380 | `tests/gestureArbiter.test.ts` (6) |
+| R2 | route → `src/ui/appRoute.ts` reducer; card actions → `src/ui/useProjectActions.ts` | `App.tsx` 599 → 437 | `tests/appRoute.test.ts` (56) |
+| R3 | drag-reorder and autoscroll → `src/ui/useSheetReorderDrag.ts` | `ProjectScreen.tsx` 1707 → 1374 | none (gate is the unchanged grid browser tests) |
+| R4 | camera acquisition/zoom/capture/teardown → `src/media/cameraSession.ts` (`CameraSession`) | `CameraFlow.tsx` 1432 → 1237 | `tests/cameraSession.test.ts` (11) |
+
+**Gates (Windows build machine, after integration):** `tsc` 0 | vitest **115 files / 1644 tests** (node + jsdom +
+browser) | build 0 (28 precache, 1654.95 KiB) | playwright 8 passed / 5 skipped (journey gate green) | **clickthru 20 PASS /
+0 FAIL / 0 UNREACHED**. The gesture-lab evidence was read, not only the statuses: a one-finger pan and a two-finger pan
+leave the geometry unchanged, pinch zooms 97% → 254%, palm + tap changes nothing, and the pen barrel draws nothing.
+No existing test was edited.
+
+**Deferred to hardware:** unchanged (H1-H29). A refactor promotes no `[Surface]` row.
+
+**Decisions recorded:** none. These are behaviour-preserving refactors. The interface deviations below are recorded here
+instead.
+
+**Surprises:**
+- **R1: `history` resolved to `window.history`.** Once the handlers were cut out of the effect, the effect-local `history`
+  (the undo `History`) silently bound to the DOM global in the new module. `tsc` caught it only because `.exec` doesn't
+  exist on the DOM type. Any future closure extraction should check effect-local names that shadow browser globals
+  (`history`, `status`, `name`, `open`, `close`).
+- **R1 passes refs as ref objects** (`{ current }`), not the plan's `getFoo()` getters. That keeps the pasted bodies
+  byte-identical, and a read still sees the live `.current`. `GestureArbiter.dispose()` is a no-op on purpose: the old
+  cleanup never cleared in-flight contacts or their long-press timers either. R6 is the place to change that, as a decision.
+- **R2: `useProjectActions` takes a third callback, `onSheetDeleted`.** The delete handler also filtered the batch
+  selection, which `App` still owns. `goHome` is legal from every route, because the route error boundary's reset used
+  to `setRoute('home')` from anywhere. The boundary is keyed on `route.name`, so switching sheets inside the editor
+  keeps the same boundary, as before.
+- **R3: the hook takes `bodyRef` and `renamingId` too.** The plan's signature omitted them: the autoscroll container is
+  `.project-body`, not the grid, and a focused rename field must suppress the press-start.
+- **R4: `start(video, constraints)` and `capture(video, fallbackSize) → {blob, width, height}`.** The review screen,
+  the write and the thumbnail need the captured size, and the session assigns `srcObject` itself. The one outer
+  `startCamera` catch became two: `CameraSession.start` marks the session `unavailable` (only when a newer start has
+  not superseded it, preserving the old generation guard), and a thin wrapper in `CameraFlow` sets the view. Same
+  behaviour; `cameraFallback.test.tsx` passes unmodified.
+- **A load-sensitive browser flake.** The first full browser run failed 4 tests in `sheetEditor.dimension.browser.test.ts`
+  (D63, F6 undo, and two F4 coalesce-window tests, all ~570 ms near the 600 ms `STYLE_COALESCE_MS` window). The file
+  passed 12/12 alone, and the next full run passed 228/228. It joins the `insetWire` flake on the watch list. If it
+  recurs, give those tests fake timers rather than more slack.
+
+## Wave 3 (beta readiness, session 28): R5 `ProjectSession` (D144) and R6 `EditorController` (D145)
+
+**Commits:** `5d1d862` R5 · `bc7fa39` R6 step 1 (mount effect → `EditorController`) · `db1f6fd` R6 step 2 (tool
+registry, no remount on a sheet switch) · the R6 step 3 commit (scene and inset actions out). Serial, orchestrator
+in-session.
+
+**Results:** `SheetEditor.tsx` **2943 → 1186 lines** across R1 and R6 (target under 1,200). The mount effect is about 35
+lines (target under 150). New modules: `src/fs/projectSession.ts`, `src/editor/editorController.ts`,
+`src/editor/sceneActions.ts`, `src/ui/insetActions.ts`. New tests: `tests/projectSession.test.ts` (5, node) and
+`tests/editorController.browser.test.ts` (2).
+
+**Gates (Windows, final tree):** `tsc` 0 | vitest **1649/1651** (the 2 are the F4 flake below; the same file passed
+230/230 in the preceding browser run) | build 0 (28 precache, 1660.74 KiB) | playwright 8 passed / 5 skipped | **clickthru
+20 PASS / 0 FAIL / 0 UNREACHED**. Evidence read: pans leave geometry unchanged, pinch zooms, and reload → project → sheet
+persists. The R5 tree separately passed the full gate with 1649/1649.
+
+**Deferred to hardware:** unchanged (H1-H29). The sheet switch without a remount (D145) is worth a look on the Surface
+during the next `[Surface]` pass: switch sheets from the editor after a capture, then undo, and confirm nothing from the
+old sheet comes back.
+
+**Decisions recorded:** D144, D145.
+
+**Surprises:**
+- **The dimension-suite flake is pre-existing, not a refactor regression, and is currently frequent.**
+  `sheetEditor.dimension.browser.test.ts` (D63, F6, F4) failed 3/3 in isolation on the R6 step 1 commit. **On the Wave 1
+  baseline `c322bf4` it failed 4, 3, then 0**, so it predates Wave 2. The tests use `sleep(10)` and a real 600 ms coalesce
+  window, so they are machine-load sensitive. Recommended fix (not done; it would edit test timing, which needs a
+  brief): fake timers for the F4 block, and `waitFor` instead of fixed sleeps around the drag assertions.
+- **The R5 plan's `ProjectSessionContext` was not needed.** Refcounting by key gives the editor the shell's session
+  without a provider, and bare-mount test suites keep the old lifecycle unmodified (see D144).
+- **`appGridReturn.test.tsx` pins `App`'s synchronous `clearOpenProject` on «Back»**, so the session's writes had to stop
+  depending on the registry (a dir cached once per session) rather than moving the clear into the session.
+- **R6's registry does not replace the nine refs.** React-side handlers call tool-specific methods, so a
+  `Map<ToolId, Tool>` with only the shared `{ onToolChange, dispose }` cannot serve them. The map drives teardown; the
+  refs stay (D145).
+- An extraction script's unused-import pruner treated `...DEFAULT_STYLE` (a spread) as a member access; `tsc` caught it.
+
+## Session 28 (continued): owner requests D146-D152
+
+**Handoff: [`docs/handoff-session-28.md`](handoff-session-28.md)** has the commits, gates, the test changes the
+requests forced, and the owed list. Two Sonnet lanes built the camera (D146) and the export (D147) changes; the
+orchestrator built the rest and integrated.
+
+**Gates (final tree):** tsc 0 | vitest 1670/1671 (the 1 is the `layersReorder` load flake; it passes alone) | build 0 |
+playwright 8/5 | clickthru 20/20.
+
+**Surprises:**
+- **The clickthru screenshot caught a bug the tests missed:** committed dimensions had no arrowheads, because the scene
+  built every new dimension from `DEFAULT_STYLE` and never read the per-tool style. Fixed for dimensions
+  (`scene.dimensionStyle`). Shapes, ink and text have the same pre-existing gap; it is owed.
+- The first one-column rail used 44 px buttons to fit 1916x960, and `editorA11y` rejected them (48 px floor). The
+  fix was 48 px buttons with tighter gaps. The floor held and the test was not edited.
+- The new "no sideways overflow" assertion immediately found four real overflows in the narrow panel.
+- «Remember this destination» persists nothing (pre-existing; owed).
+
+## Session 29: owner requests D154-D161, and GitHub Pages
+
+**Handoff: [`docs/handoff-session-29.md`](handoff-session-29.md).** Commits on `beta-readiness-wave-2`:
+`4bdec6c` (D154-D157), `9d6c2d6` (D158), `6278750` (D159), `fac8309` (Pages workflow and base-relative assets),
+`fe108a1` (D160), and the D161 commit.
+
+**Gates (final tree):** tsc 0 | vitest 1688/1688 | build 0 | playwright 8/5 | clickthru 20/20.
+
+**Surprises:**
+- The first Pages deploy was overwritten by a leftover "Deploy from a branch" run that published the raw source.
+  Source is now GitHub Actions. An empty commit redeployed it.
+- Git Bash rewrites `FM_BASE=/FieldMeasure/` into a Windows path. Build locally with `MSYS_NO_PATHCONV=1`. CI is
+  unaffected.
+- The camera screen had no z-index, so the grid cards' ⋯ buttons painted through it as stray tiles.
+- The Dimension tool's refine snapped to the dragged dimension's own old end (a self-stick). D161 excludes the edited
+  mark.
+- Before D160, `TextTool.commit` was called without a style, so the style panel never applied to text.
+
+### Session 29 (continued): D162, text boxes could not be dragged
+
+Owner report: once a text box was created, it could not be moved. **Cause:** `renderText` built the note's glyphs and box
+with `listening: false`. Konva hit-tests shapes, never bare groups, so `hitObject` never found a note, and no select,
+drag or long-press could start on one. **Fix:** the glyphs and box listen. The new `markupTools.browser` D162 test
+creates a note, switches to Select, drags it 120x60 and undoes. It fails on the old renderer and passes on the fix.
+Gates: tsc 0 | vitest 1688/1689. The one failure is `appNewProject` under load; it passes alone (7/7).
+
+### Session 29 (continued): D163, folder re-authorize keeps breaking / not saving
+
+Owner report: re-authorizing the folder kept breaking, and saves did not land. **Causes:**
+1. `ProjectSession.dir()` cached the project folder handle for the whole session. After a re-pick, the new root handle
+   had the grant but autosave kept writing through the old handle, whose permission had lapsed, so every save failed
+   silently.
+2. The autosave chip's «Retry» only re-ran `flush()` and never re-asked for the grant, so it could not succeed.
+3. A sheet switch re-read `project.json` through the editor's handle from open time.
+
+**Fix:**
+- `projectStore.projectsRootGeneration()` is bumped on every `adoptProjectsRoot`, and `dir()` re-resolves when it
+  changes.
+- «Retry» calls `ensureRootAccess({ request: true })` inside the tap, then flushes.
+- `doSwitch` re-resolves the folder.
+
+The new test in `projectSession.test.ts` fails without the fix (the save lands in the old folder).
+Gates: tsc 0 | vitest 1690/1690 | build 0. Clickthru stalled on this run and was not re-run.
+
+### Session 29 (continued): D164, dimension label size in the left style panel
+
+Owner request: a clean way to resize dimension text from the left toolbar.
+- **Applicability:** the Dimension tool now applies to `fontSizeMu` and `bold`, so the existing Size section appears
+  for dimensions and for selected dimensions. A selection edit is one coalesced undo step, like width and colour.
+  New dimensions take the size through `scene.dimensionStyle`.
+- **Controls:** the Size section (text and dimensions) gained − / + steppers and S / M / L quick sizes (14 / 18 / 28)
+  above the slider. They sit in 3-column, 48 px rows that fit the 176 px dock.
+- **Shared steps:** `src/ui/textSize.ts` holds the steps and sizes used by both the panel and the text-box editor.
+- **Test changes:** `styleByTool` expects dimensions to have size and bold, and its recents test uses a fill so the
+  text look stays text-only. `editorChromeFit` expects the Dimension panel to include Size. There is a new
+  `stylePanel` test.
+
+Gates: tsc 0 | vitest 1691/1691 | build 0 | clickthru 20/20.
+
+The clickthru camera step («Use photo» never appears) failed intermittently twice this session. Each time a re-run
+passed 20/20. Owed: find the flake in the harness's fake camera.
+
+### Session 29 (continued): D165, the loupe zooms a third less
+
+Owner request. Pen magnification 3.5× → 2.35× and touch 4× → 2.7×; window sizes are unchanged, so the source region
+is derived and larger (touch 50 → 74.07 px). `tests/loupe.test.ts` expects the new numbers. vitest 1691/1691.
+
+## Session 30: D166, handoff to the shop
+
+The owner asked for a clean handoff of the app as it is now. **Found:** the live site was built from
+`beta-readiness-wave-2` (`6a91972`, D165), and `main` was 33 commits behind it. The manifest's `start_url`/`scope` were
+pinned to `/FieldMeasure/`, so a copy under any other path would not install. **Done (D166):** beta merged into the
+handoff branch; `pages.yml` deploys `main` only and takes `FM_BASE` from `configure-pages`; `id`/`start_url`/`scope`
+follow the base; the README was rewritten as the owner's guide; the install runbook was corrected; AGENTS.md has a
+handoff paragraph. The branch merges into `main` through PR #5.
+
+Gates: tsc 0 | vitest node+jsdom **1455/1455 on Node 24** | build 0 (also with `FM_BASE=/Renamed/` and `/`) |
+playwright 8 passed / 5 skipped. The container's default Node 22 fails two `projectSession.test.ts` cases (on the
+pre-change tree too), and they pass on Node 24, which `engines` requires. The vitest browser project cannot launch the
+container's Chromium (1194 vs Playwright 1.63's 1243), so CI is its gate. Clickthru was not run (no UI change).

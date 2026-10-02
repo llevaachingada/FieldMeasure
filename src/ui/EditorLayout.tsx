@@ -764,6 +764,7 @@ export default function EditorLayout({
           retryFile={exportSession.retryFile}
           revealFolder={exportSession.revealFolder}
           copyPath={exportSession.copyPath}
+          openFile={exportSession.openFile}
         />
       ) : null}
     </div>

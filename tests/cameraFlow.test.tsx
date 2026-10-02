@@ -21,6 +21,13 @@ vi.mock('@/fs/projectStore', async (importOriginal) => ({
   pickRoot: vi.fn(async () => undefined),
 }));
 
+// D146: AE/AF lock default off (owner request). Defaults to `false`; individual tests that
+// exercise the long-press lock override this to `true` first.
+vi.mock('@/settings/capture', () => ({
+  getAeAfLockEnabled: vi.fn(async () => false),
+  DEFAULT_AE_AF_LOCK_ENABLED: false,
+}));
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -33,6 +40,7 @@ import CameraFlow, {
   savingLabel,
 } from '../src/ui/CameraFlow';
 import { pickRoot, queryRootWritePermission, RootMismatchError } from '../src/fs/projectStore';
+import { getAeAfLockEnabled } from '@/settings/capture';
 import { initStore } from '../src/fs/projectStore';
 import { parseProjectFile, type ProjectFile } from '../src/domain/schema';
 import {
@@ -144,6 +152,7 @@ beforeEach(() => {
   hoisted.flush.mockClear();
   hoisted.cancel.mockClear();
   vi.mocked(createThumbnailScheduler).mockClear();
+  vi.mocked(getAeAfLockEnabled).mockClear();
 });
 
 afterEach(() => {
@@ -420,10 +429,15 @@ describe('a11y — keyboard operability and labelling', () => {
   });
 
   it('tap-to-focus shows a reticle; long-press shows the AE/AF lock chip', async () => {
+    // D146: AE/AF lock default off (owner request) — this test exercises the long-press lock,
+    // so it turns the setting on first (the setting itself is pinned off-by-default separately).
+    vi.mocked(getAeAfLockEnabled).mockResolvedValueOnce(true);
     await setup();
     installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
     renderFlow();
     await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+    // The setting is read async on mount — let it land before exercising the long-press.
+    await waitFor(() => expect(getAeAfLockEnabled).toHaveBeenCalled());
 
     const surface = document.querySelector('.camera-surface') as HTMLElement;
     expect(surface).not.toBeNull();
@@ -441,6 +455,35 @@ describe('a11y — keyboard operability and labelling', () => {
         vi.advanceTimersByTime(700);
       });
       expect(screen.getByRole('button', { name: STRINGS.capture.aeAfLock })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('D146: AE/AF lock default off (owner request) — a long-press does nothing while the setting is off', async () => {
+    // Default from the mocked module below is `false`; nothing here turns it on.
+    await setup();
+    installMedia(vi.fn(async () => fakeStream(fakeTrack(1920, 1080, 'cam-back'))));
+    renderFlow();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+    await waitFor(() => expect(getAeAfLockEnabled).toHaveBeenCalled());
+
+    const surface = document.querySelector('.camera-surface') as HTMLElement;
+    expect(surface).not.toBeNull();
+
+    // Tap-to-focus still works with the setting off.
+    fireEvent.pointerDown(surface, { clientX: 120, clientY: 90 });
+    fireEvent.pointerUp(surface, { clientX: 120, clientY: 90 });
+    expect(document.querySelector('.camera-reticle circle')).not.toBeNull();
+
+    // A long-press: no lock, no chip, no announcement.
+    vi.useFakeTimers();
+    try {
+      fireEvent.pointerDown(surface, { clientX: 60, clientY: 60 });
+      await act(async () => {
+        vi.advanceTimersByTime(700);
+      });
+      expect(screen.queryByRole('button', { name: STRINGS.capture.aeAfLock })).toBeNull();
     } finally {
       vi.useRealTimers();
     }

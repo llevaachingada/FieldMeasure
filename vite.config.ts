@@ -15,12 +15,14 @@ import { VitePWA } from 'vite-plugin-pwa';
  * version plus a build timestamp, which is unique per build and needs no extra
  * dependency or Node typings.
  */
+const BASE = process.env.FM_BASE ?? '/';
+
 const BUILD_ID =
   process.env.FM_BUILD_ID ??
   `${process.env.npm_package_version ?? '0.1.0'}+${new Date().toISOString()}`;
 
 export default defineConfig({
-  base: process.env.FM_BASE ?? '/',
+  base: BASE,
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   resolve: {
     alias: {
@@ -36,21 +38,26 @@ export default defineConfig({
       manifest: {
         name: 'Field Measure',
         short_name: 'FieldMeasure',
+        description: 'Photograph a site, draw feet-inch dimensions on it, and export a marked-up PDF or PNG.',
         display: 'standalone',
-        // Exact strings fixed by slice 0.0 / build spec §21.1 (default host).
-        start_url: '/FieldMeasure/',
-        scope: '/FieldMeasure/',
+        // D166: start_url and scope follow the build base, so the app installs at
+        // whatever path it is hosted under (a renamed repo, a custom domain, a root
+        // host, or `vite preview` at /). They were pinned to '/FieldMeasure/', which
+        // made any other host install an out-of-scope, broken app.
+        id: BASE,
+        start_url: BASE,
+        scope: BASE,
         theme_color: '#1a1a1a',
         background_color: '#1a1a1a',
         icons: [
           {
-            src: '/icons/icon.svg',
+            src: 'icons/icon.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any',
           },
           {
-            src: '/icons/icon-512.png',
+            src: 'icons/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any',

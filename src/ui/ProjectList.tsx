@@ -31,6 +31,8 @@ import {
   type ScannedProject,
 } from '@/fs/projectStore';
 import { clockLabel } from '@/fs/projectSheets';
+import TopBarLogo from './TopBarLogo';
+import HelpButton from './HelpButton';
 import { STRINGS, sheetCountLabel, t } from './strings';
 import './home.css';
 
@@ -338,8 +340,11 @@ export default function ProjectList({
   return (
     <main className="home">
       <header className="home-bar">
+        <TopBarLogo />
         <h1 className="home-mark">{STRINGS.home.appName}</h1>
         <div className="home-bar-spacer" />
+        {/* D152: Help is reachable from Home too. */}
+        <HelpButton />
         <button type="button" className="btn btn-primary hit-slop" onClick={onNewProject}>
           {STRINGS.home.newProject}
         </button>

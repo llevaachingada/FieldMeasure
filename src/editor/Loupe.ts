@@ -1,8 +1,8 @@
 /**
  * `src/editor/Loupe.ts` — the magnifier (build spec §8.4; UI §8.1; touch model §2.1).
  *
- * **Two loupes, one class.** The pen loupe (160 px by default, **3.5×**, 112 px offset)
- * and the touch loupe (200 px, **4×**, 136 px offset, contact disc, dashed leader,
+ * **Two loupes, one class.** The pen loupe (160 px by default, **2.35×** (D165; was 3.5×), 112 px offset)
+ * and the touch loupe (200 px, **2.7×** (D165; was 4×), 136 px offset, contact disc, dashed leader,
  * freeze-on-lift) differ only by the numbers in their spec.
  *
  * **The derived-number rule (D65 / §19.5, twice-bitten).** Never state a loupe's window,
@@ -11,10 +11,10 @@
  *
  *     sourcePx = diameterPx / magnification
  *
- *   Pen:    112 / 3.5 = 32 px          (arithmetic: 112 ÷ 3.5 = 32)
- *           160 / 3.5 = 45.714… px     (160 ÷ 3.5 = 45.7142857…)
- *           200 / 3.5 = 57.142… px     (200 ÷ 3.5 = 57.1428571…)
- *   Touch:  200 / 4   = 50 px          (200 ÷ 4   = 50)
+ *   Pen:    112 / 2.35 = 47.66 px      (D165; was 3.5×)
+ *           160 / 2.35 = 68.09 px
+ *           200 / 2.35 = 85.11 px
+ *   Touch:  200 / 2.7  = 74.07 px      (D165; was 4×)
  *
  * Fixing magnification (not the source size) keeps endpoint precision constant when the
  * user changes the loupe size, which is the point of the loupe.
@@ -33,12 +33,14 @@
 import Konva from 'konva';
 import type { Px } from '@/domain/types';
 import type { ScreenPoint } from './EditorCanvas';
+import type { LoupeOverlay } from './snapTargets';
 
 /* ------------------------------------------------------------------ *
  * Specs
  * ------------------------------------------------------------------ */
 
-export const PEN_LOUPE_MAGNIFICATION = 3.5;
+// Owner (session 29, D165): a third less zoom. Were 3.5 (pen) and 4 (touch).
+export const PEN_LOUPE_MAGNIFICATION = 2.35;
 /** UI §8.1 setting values (Off / 112 / 160 / 200). */
 export const PEN_LOUPE_SIZES = [112, 160, 200] as const;
 export const PEN_LOUPE_OFFSET_PX = 112;
@@ -46,7 +48,7 @@ export const LOUPE_EDGE_PX = 24; // §8.4 "flips quadrant within 24 px of a view
 export const CROSSHAIR_GAP_PX = 12; // §8.4 crosshair centre gap
 
 export const TOUCH_LOUPE_DIAMETER_PX = 200;
-export const TOUCH_LOUPE_MAGNIFICATION = 4;
+export const TOUCH_LOUPE_MAGNIFICATION = 2.7;
 export const TOUCH_LOUPE_OFFSET_PX = 136;
 export const TOUCH_CONTACT_DISC_PX = 44;
 export const TOUCH_FREEZE_MS = 700;
@@ -198,7 +200,16 @@ export interface LoupeOptions {
   getAnchorScreen?: () => ScreenPoint | null;
   getViewport: () => { width: number; height: number };
   getHandedness: () => 'left' | 'right';
+  /**
+   * D161: the marks to draw over the magnified photo (thin vector paths + snap rings), and the
+   * live segment of a mark being placed. Omitted = photo only (the old behaviour).
+   */
+  getOverlay?: (excludeKey: string | null) => LoupeOverlay | null;
 }
+
+/** D161: the snap ring (green, like a confirmed hit) and the target dots. */
+const SNAP_COLOR = '#2ECC71';
+const TARGET_COLOR = 'rgba(255,255,255,0.9)';
 
 const RING_COLOR = '#2FD4E0';
 
@@ -221,6 +232,9 @@ export class Loupe {
   private visible = false;
   private frozenUntil = 0;
   private fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  private snapped: Px | null = null;
+  private live: Px[] | null = null;
+  private excludeKey: string | null = null;
 
   constructor(options: LoupeOptions) {
     this.layer = options.layer;
@@ -260,8 +274,21 @@ export class Loupe {
     this.render();
   }
 
+  /**
+   * D161: the point the contact is snapped to (drawn as a green ring), or `null`; and the live
+   * segment of the mark being placed or dragged. Both redraw the window if it is showing.
+   */
+  setSnap(point: Px | null, live: Px[] | null = null, excludeKey: string | null = null): void {
+    this.excludeKey = excludeKey;
+    this.snapped = point ? { ...point } : null;
+    this.live = live ? live.map((q) => ({ ...q })) : null;
+  }
+
   /** Pen lift: the loupe disappears (the pen can hover). */
   hide(): void {
+    this.snapped = null;
+    this.live = null;
+    this.excludeKey = null;
     this.visible = false;
     this.frozenUntil = 0;
     this.clearFadeTimer();
@@ -426,16 +453,73 @@ export class Loupe {
   private drawCrop(): void {
     const image = this.options.getImage();
     const ctx = this.source?.getContext('2d');
-    if (!image || !this.source || !ctx) return;
+    if (!this.source || !ctx) return;
     const d = this.spec.diameterPx;
     const s = this.spec.sourcePx;
     const centre = this.options.screenToImage(this.point);
     ctx.clearRect(0, 0, d, d);
     try {
-      ctx.drawImage(image, centre.x - s / 2, centre.y - s / 2, s, s, 0, 0, d, d);
+      // No photo yet (still decoding) still shows the marks (D161).
+      if (image) ctx.drawImage(image, centre.x - s / 2, centre.y - s / 2, s, s, 0, 0, d, d);
     } catch {
       // A detached/closed bitmap can throw; the ring still renders.
     }
+    this.drawOverlay(ctx, centre, s, d);
     this.image?.image(this.source);
+  }
+
+  /**
+   * D161: the marks, the snap targets and the snapped ring, drawn in the loupe's own pixels
+   * (image point → `(p - origin) × d / s`), so lines stay thin and crisp at any zoom.
+   */
+  private drawOverlay(ctx: CanvasRenderingContext2D, centre: Px, s: number, d: number): void {
+    const overlay = this.options.getOverlay?.(this.excludeKey) ?? null;
+    if (!overlay && !this.snapped && !this.live) return;
+    const k = d / s;
+    const ox = centre.x - s / 2;
+    const oy = centre.y - s / 2;
+    const map = (p: Px): [number, number] => [(p.x - ox) * k, (p.y - oy) * k];
+    const inView = (p: Px): boolean => Math.abs(p.x - centre.x) <= s && Math.abs(p.y - centre.y) <= s;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const stroke = (points: Px[], closed: boolean, color: string, width: number): void => {
+      if (points.length < 2) return;
+      ctx.beginPath();
+      const [x0, y0] = map(points[0]);
+      ctx.moveTo(x0, y0);
+      for (let i = 1; i < points.length; i += 1) {
+        const [x, y] = map(points[i]);
+        ctx.lineTo(x, y);
+      }
+      if (closed) ctx.closePath();
+      // A dark under-stroke keeps a light colour readable on a light photo.
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = width + 2;
+      ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    };
+    for (const path of overlay?.paths ?? []) stroke(path.points, path.closed, path.color, 2);
+    if (this.live) stroke(this.live, false, RING_COLOR, 2);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = TARGET_COLOR;
+    for (const t of overlay?.targets ?? []) {
+      if (!inView(t)) continue;
+      const [x, y] = map(t);
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (this.snapped) {
+      const [x, y] = map(this.snapped);
+      ctx.strokeStyle = SNAP_COLOR;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, 11, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }

@@ -26,6 +26,8 @@ import {
 } from '@/settings/units';
 import { getTheme, setTheme, type Theme } from '@/settings/theme';
 import { getDensity, setDensity, type Density } from '@/settings/density';
+import { getAeAfLockEnabled, setAeAfLockEnabled } from '@/settings/capture';
+import { getExportLocation, setExportLocation, type ExportLocation } from '@/settings/exportLocation';
 import { getWatermarkEnabled, setWatermarkEnabled } from '@/settings/watermark';
 import { getProjectsRoot, pickProjectsFolder, SUGGESTED_PROJECTS_PATH } from '@/settings/projectsRoot';
 import { adoptProjectsRoot } from '@/fs/projectStore';
@@ -137,7 +139,7 @@ export default function Settings({ onBack }: SettingsProps) {
     let alive = true;
     void (async () => {
       try {
-        const [handedness, input, unitSystem, unitFormat, theme, density, watermarkEnabled] =
+        const [handedness, input, unitSystem, unitFormat, theme, density, watermarkEnabled, aeAfLockEnabled, exportLocation] =
           await Promise.all([
             getHandedness(),
             getInputToggles(),
@@ -146,6 +148,8 @@ export default function Settings({ onBack }: SettingsProps) {
             getTheme(),
             getDensity(),
             getWatermarkEnabled(),
+            getAeAfLockEnabled(),
+            getExportLocation(),
           ]);
         if (alive) {
           useAppStore.getState().applySettings({
@@ -156,6 +160,8 @@ export default function Settings({ onBack }: SettingsProps) {
             theme,
             density,
             watermarkEnabled,
+            aeAfLockEnabled,
+            exportLocation,
           });
         }
       } catch {
@@ -243,6 +249,25 @@ export default function Settings({ onBack }: SettingsProps) {
     state.setWatermarkEnabled(next);
     try {
       await setWatermarkEnabled(next);
+    } catch {
+      /* best-effort persistence */
+    }
+  }
+
+  async function changeAeAfLock(): Promise<void> {
+    const next = !state.aeAfLockEnabled;
+    state.setAeAfLockEnabled(next);
+    try {
+      await setAeAfLockEnabled(next);
+    } catch {
+      /* best-effort persistence */
+    }
+  }
+
+  async function changeExportLocation(next: ExportLocation): Promise<void> {
+    state.setExportLocation(next);
+    try {
+      await setExportLocation(next);
     } catch {
       /* best-effort persistence */
     }
@@ -390,6 +415,37 @@ export default function Settings({ onBack }: SettingsProps) {
               checked={state.watermarkEnabled}
               onToggle={() => void changeWatermark()}
               description={STRINGS.settings.watermarkHint}
+            />
+          </div>
+        </section>
+
+        <section className="settings-group" aria-labelledby="settings-camera">
+          <h2 id="settings-camera" className="settings-group-title">
+            {STRINGS.settings.headingCamera}
+          </h2>
+          <div className="settings-rows">
+            <SwitchRow
+              label={STRINGS.settings.rowAeAfLock}
+              checked={state.aeAfLockEnabled}
+              onToggle={() => void changeAeAfLock()}
+              description={STRINGS.settings.aeAfLockHint}
+            />
+          </div>
+        </section>
+
+        <section className="settings-group" aria-labelledby="settings-export">
+          <h2 id="settings-export" className="settings-group-title">
+            {STRINGS.settings.headingExport}
+          </h2>
+          <div className="settings-rows">
+            <ChoiceRow<ExportLocation>
+              label={STRINGS.settings.rowExportLocation}
+              value={state.exportLocation}
+              onChange={(next) => void changeExportLocation(next)}
+              options={[
+                { value: 'dated', label: STRINGS.settings.exportLocationDated },
+                { value: 'project', label: STRINGS.settings.exportLocationProject },
+              ]}
             />
           </div>
         </section>

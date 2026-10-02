@@ -9,6 +9,11 @@ multi-user.
 been through many adversarial review rounds — the count and the current state live in
 `docs/CONTINUITY.md`.
 
+**Handoff (D166).** The owner of this repo may direct agents without reading code (`README.md` is
+their guide). Follow this file exactly as before, and explain every result in plain English: what
+changed, what to try on a Surface, what you could not test. **`main` is the live app**: every push
+to it redeploys to the crews, so work on a branch and open a pull request.
+
 **Never trust this file for project state.** This file is the *contract* — the rules that do not
 change. State lives in two places: `docs/CONTINUITY.md` (the live snapshot) and the last entry of
 `docs/BUILD-LOG.md` (where the previous session stopped). Read both before your first decision, and

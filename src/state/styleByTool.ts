@@ -133,7 +133,8 @@ const APPLICABILITY: Record<ToolId, Applicability> = {
   // Select lists the selection's shared style and edits it in place (§7.4); it creates nothing.
   select: only({}),
   pan: only({}),
-  dimension: only({ strokeColor: true, strokeWidthMu: true, arrowheads: true }),
+  // D164: a dimension's label size and weight are set from the same Size section as text.
+  dimension: only({ strokeColor: true, strokeWidthMu: true, arrowheads: true, fontSizeMu: true, bold: true }),
   angle: only({ strokeColor: true, strokeWidthMu: true }),
   line: only({ strokeColor: true, strokeWidthMu: true, lineStyle: true, arrowheads: true }),
   arrow: only({ strokeColor: true, strokeWidthMu: true, lineStyle: true, arrowheads: true }),
@@ -142,7 +143,8 @@ const APPLICABILITY: Record<ToolId, Applicability> = {
   polygon: only({ strokeColor: true, strokeWidthMu: true, lineStyle: true, fillColor: true, fillAlpha: true }),
   freehand: only({ strokeColor: true, strokeWidthMu: true }),
   highlight: only({ strokeColor: true, strokeWidthMu: true, fillAlpha: true }),
-  text: only({ strokeColor: true, fontSizeMu: true, bold: true }),
+  // D160: a text box also has a background colour and its opacity.
+  text: only({ strokeColor: true, fontSizeMu: true, bold: true, fillColor: true, fillAlpha: true }),
   // D133: the inset row was `only({})` — see tests/typeToolMap.test.ts's own note that
   // this is where a real inset control set gets added, deliberately, with a DECISIONS
   // entry. `renderInset.ts` now consumes exactly these three.
@@ -284,7 +286,7 @@ export interface StyleByToolActions {
   setToolStyle(tool: ToolId, patch: Partial<AnnotationStyle>): void;
   /** Replace one tool's style wholesale (applying a preset / a selection style). Records a recent. */
   replaceToolStyle(tool: ToolId, style: AnnotationStyle): void;
-  /** Back to `DEFAULT_STYLE` for one tool (the sheet's `Reset to defaults`). Does not record. */
+  /** Back to the tool's default style (`toolDefaultStyle`) for one tool (the sheet's `Reset to defaults`). Does not record. */
   resetToolStyle(tool: ToolId): void;
   /** Record a style as used (the shell calls this after applying a style to a selection). */
   recordRecent(style: AnnotationStyle): void;
@@ -294,9 +296,20 @@ export interface StyleByToolActions {
 
 export type StyleByToolStore = StyleByToolState & StyleByToolActions;
 
+/**
+ * A tool's fresh style. D150 (owner request): a dimension starts with slim arrowheads at
+ * both ends; every other tool starts from `DEFAULT_STYLE`.
+ */
+export function toolDefaultStyle(tool: ToolId): AnnotationStyle {
+  if (tool === 'dimension') return { ...DEFAULT_STYLE, arrowheads: 'both' };
+  // D160: a new text box starts as white text on a dark box at 85% (the old auto pill's look).
+  if (tool === 'text') return { ...DEFAULT_STYLE, strokeColor: '#FFFFFF', fillColor: '#0B0E12', fillAlpha: 0.85 };
+  return { ...DEFAULT_STYLE };
+}
+
 function defaultRecord(): Record<ToolId, AnnotationStyle> {
   const record = {} as Record<ToolId, AnnotationStyle>;
-  for (const tool of TOOL_IDS) record[tool] = { ...DEFAULT_STYLE };
+  for (const tool of TOOL_IDS) record[tool] = toolDefaultStyle(tool);
   return record;
 }
 
@@ -307,7 +320,7 @@ export function createInitialStyleState(): StyleByToolState {
 
 /** The style the next mark from `tool` will use (per-tool memory, §7.4 #6). */
 export function styleForTool(state: Pick<StyleByToolState, 'styleByTool'>, tool: ToolId): AnnotationStyle {
-  return state.styleByTool[tool] ?? DEFAULT_STYLE;
+  return state.styleByTool[tool] ?? toolDefaultStyle(tool);
 }
 
 export const useStyleByTool = create<StyleByToolStore>()(
@@ -330,7 +343,7 @@ export const useStyleByTool = create<StyleByToolStore>()(
 
     resetToolStyle: (tool) =>
       set((state) => {
-        state.styleByTool[tool] = { ...DEFAULT_STYLE };
+        state.styleByTool[tool] = toolDefaultStyle(tool);
       }),
 
     recordRecent: (style) =>

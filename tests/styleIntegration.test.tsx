@@ -59,6 +59,7 @@ import { createInitialStyleState, useStyleByTool } from '../src/state/styleByToo
 import { setEditorSession, type EditorSession } from '../src/editor/session';
 import { DEFAULT_STYLE } from '../src/domain/types';
 import { STRINGS, t } from '../src/ui/strings';
+import { strokeStyleLabel } from '../src/ui/StylePanel';
 import { PresetsBindingError, loadPresets, savePresets } from '../src/fs/presets';
 
 function setViewport(w: number, h: number): void {
@@ -184,11 +185,12 @@ describe('EditorLayout — mixed selection is indeterminate and announced', () =
     expect(
       (screen.getByTestId('style-swatch-#2ECC71') as HTMLButtonElement).disabled,
     ).toBe(false);
-    // `fillColor` exists only on Rect → disabled (in the layout) and named with the reason.
-    const noFill = screen.getByTestId('style-fill-none') as HTMLButtonElement;
-    expect(noFill.disabled).toBe(true);
-    expect(noFill.getAttribute('aria-label')).toBe(
-      `${STRINGS.style.noFill}. ${STRINGS.style.disabledForSelection}`,
+    // `lineStyle` exists only on Rect → disabled (in the layout) and named with the reason.
+    // (D160: fill is now shared, since a text box has a background colour.)
+    const dashed = screen.getByTestId('style-line-dashed') as HTMLButtonElement;
+    expect(dashed.disabled).toBe(true);
+    expect(dashed.getAttribute('aria-label')).toBe(
+      `${strokeStyleLabel('dashed')}. ${STRINGS.style.disabledForSelection}`,
     );
   });
 });

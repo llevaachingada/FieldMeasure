@@ -3752,3 +3752,134 @@ element's own `position` found only `absolute` (three, now correct) and `relativ
 reopen, and a save racing an exit) that 1,302 green unit tests missed. The clickthru stays an inspection tool, never a
 gate; this spec is separate from it. `PW_CHROMIUM_PATH` lets a container whose Playwright has no matching bundled browser
 use a local Chromium; unset, nothing changes. In a headless container add `--browser.headless` for Vitest.
+
+### D144 - `ProjectSession`: one refcounted owner per open project for the queue, lease, channel and registration
+
+**Status: shipped (session 28, Wave 3, R5).** `src/fs/projectSession.ts` removes the class of bug behind F1 and F2 at its
+root. Before, every `SheetEditor` mount built its own persist queue, took its own lease and deregistered on unmount. Now a
+session per D51 key owns all four, and it is **refcounted**: the shell (`App`) holds a reference while a project is open
+(the grid and the editor alike, released by an effect cleanup on every exit path), and each editor mount holds one too.
+Only the **last** release runs the D137 order: flush → close channel → release lease → deregister. With the shell holding
+its reference, a sheet switch no longer tears anything down, and a parked write survives it. Deviations from the plan text:
+- **No `ProjectSessionContext`.** Refcounting by key makes it unnecessary: the editor calls `acquireProjectSession(key, folder)`
+  and gets the shell's session. A bare `SheetEditor` (the browser suites) holds the only reference and keeps the old
+  per-mount lifecycle, so those suites pass unmodified.
+- **`acquireProjectSession` is synchronous** (the queue must exist before the mount effect's closures run). The lease
+  arrives with `session.ready`. The plan's async `openProjectSession` is kept as `acquire + await ready`.
+- **Writes resolve the directory through the session, once, and cache it** (a failed resolve is not cached). The first
+  resolve still goes through `resolveOpenProjectDir` (the gesture re-grant, and the seam six browser suites mock). After
+  that, no write depends on the registry, so `App`'s synchronous `clearOpenProject` on «Back» can no longer race the
+  final flush. `App` keeps its explicit register (every grid load) and clear («Back») calls because
+  `tests/appGridReturn.test.tsx` pins them (D137). They are now redundant with the session's own, and harmless.
+- **The autosave chip starts from the queue's real status**, not a hard-coded `saved`. A shared queue may still be
+  `pending` when the editor remounts. This is the only observable change, and it is a correction.
+- A re-open racing a close waits for that close before requesting the lease, and the old close does not deregister a key a
+  newer session owns. `writerLease.browser.test.ts` passes unmodified: two-tab semantics are unchanged.
+
+### D145 - a sheet switch is `EditorController.loadSheet`, not a remount; undo history is per sheet
+
+**Status: shipped (session 28, Wave 3, R6).** `SheetEditor`'s mount effect no longer depends on `sheetId`. A change calls
+`controller.loadSheet(id)` on the same canvas, scene, tools and persist queue. The switch replays what the old remount's
+cleanup reset: markup ops cancelled, the keypad/Layers/Focus/mini-toolbar/inset picker closed, the selection and its
+style cleared, the thumbnail scheduler cancelled. It clears the undo history **explicitly** (`history.clear()`); the
+remount used to clear it as a side effect, and one sheet's steps must never undo another's. It also re-reads
+`project.json`, because a capture from the editor writes the new sheet outside the controller. Switches run one at a time,
+and a superseded request is skipped. A repeat of the loaded sheet is a no-op. The nine tool refs are also held in a
+`Map<ToolId, Tool>` (`Tool = { onToolChange, dispose }`, the methods every tool already has) that drives teardown. The refs
+themselves stay, because the React-side handlers call tool-specific methods. Pinned by
+`tests/editorController.browser.test.ts` (same Konva stage after a switch; project re-read; no-op on a repeat).
+
+### D146-D152 - owner requests, session 28
+
+**Status: shipped (session 28).** All requested by the owner directly; details in `docs/handoff-session-28.md`.
+- **D146:** the camera opens on the rear camera (picked by device label, with `facingMode: environment` only as a hint
+  before labels exist). Long-press AE/AF lock only happens when Settings › Camera enables it (default off).
+- **D147:** the export dialog is one page (Scope, Format, Destination together). The default destination follows
+  Settings › Export (`<project>/exports/<stamp>/` or the project folder). The result view offers «Copy folder path»,
+  with a selectable fallback, and a per-file «Open». A browser cannot reveal a folder in File Explorer.
+- **D148:** «Use photo» opens the new sheet in the editor, from the grid or the editor.
+- **D149:** the tool rail is one 48 px column ordered Measure, Annotate, Mark, Insert, Erase, Move. The style dock is
+  176 px (three swatch tiles) and scrolls vertically, never sideways. This supersedes UI §6.2's two-column rail and
+  §7.2's 280 px panel.
+- **D150:** dimensions draw slim filled arrowheads per their `arrowheads` style, sized in markup units. New dimensions
+  default to both ends and take the Dimension tool's panel style. Saved dimensions keep their style.
+- **D151:** with one dimension selected, dragging its text sets `labelOffset` (perpendicular, image px). One undo step
+  per drag.
+- **D152:** a persistent «Help» button (editor top bar left of Export, the sheets grid, Home) opens the user guide.
+  The copy is in `STRINGS.help`, mirrored by `docs/USER-GUIDE.md`.
+
+### D153 - ask for the folder write grant when work starts, not after the shot
+
+**Status: shipped (session 28, owner report: «Folder permission expired» over and over when taking photos).** Chromium
+keeps the projects-folder handle across restarts but drops its write grant, and re-grants only inside a tap. The camera's
+first ask was at «Use photo», after the shot, where a missed or slow prompt failed the save. `App.requestFolderAccess()`
+now asks at the taps that start work: opening a project, Take photo, and Add sheet (New project already asks in
+`createProject`). That puts the one prompt per browser session before the camera. It queries first, so it is silent
+while the grant is held. The camera's own ask stays as the fallback. The browser remembers across restarts only if
+the user picks «Allow on every visit» (Chrome/Edge 122+), which installing the app encourages. That is now in Help and
+`docs/USER-GUIDE.md`. `[Surface]` check owed: restart the browser, open a project, take two photos, and expect no failure.
+
+### D154-D161 - owner requests, session 29
+
+**Status: shipped (session 29).** Each item is from the owner.
+
+- **D154:** exports draw marks at `mu × k` image units, `k = max(1, longEdge / 1280)`
+  (`exportMarkupScale`), so an export matches the fitted editor view. `k` does not depend on M, so the §4.2 invariance
+  across M holds. Photos up to 1280 px keep `k = 1`.
+- **D155:** the grid card thumbnail is a snapshot of the editor's photo, inset and markup layers (`sheetThumb.ts`). It
+  is taken 3 s after an edit and flushed on a sheet switch or teardown.
+- **D156:** there is an optional «Room name» field on the capture review screen. When filled, it becomes the sheet
+  title and `Sheet.roomName`, and it leads the export stamp («Kitchen · date · time»).
+- **D157:** the corner mark's opacity is 0.24 (was 0.14). A small centred VANGARDE mark appears in the editor, project
+  and Home bars and hides under 1100 px. Asset paths are relative to `BASE_URL`.
+- **D158:** export defaults are one sheet (the first sheet when nothing is selected in the grid), 1x, and no zip.
+- **D159:** the export watermark and stamp are 25% smaller: 0.18 of the width, capped at 0.135 of the height, and the
+  stamp font is 0.00975 of the width.
+- **D160:** a text-box editor (`TextBoxSheet`) with multi-line text, size, bold, text color, background color and
+  opacity, and a preview. New notes use background `box`: text is `strokeColor`, the box is `fillColor` at
+  `fillAlpha`, and a null fill means no box. The text tool's default is white on `#0B0E12` at 85%. Tapping a note with
+  the Text tool, «Edit text», or a second Select tap edits the note as one undo step. The text tool applies to Fill and
+  Transparency.
+- **D161:** MyMeasures-style editing:
+  - A single selected dimension, line or arrow shows two end grips in place of the box handles.
+  - A dragged end keeps the finger's grab offset, in both Select and Dimension refine.
+  - Ends snap to the ends and corners of every other visible mark (`snapTargets.ts`); the mark being edited is
+    excluded, which fixes the refine self-stick.
+  - The loupe draws the marks as thin vectors, plus snap rings, the live segment and a green snapped ring. It centres
+    on the dragged end.
+  - A selected text box shows an outline, not handles.
+
+  `[Surface]` check owed: drag ends and text with a finger and a pen.
+- **D162:** text-note shapes are hit-testable (`listening: true`), so a note can be selected, dragged and long-pressed.
+  Before this, a created note could never be moved.
+- **D163:** after a folder re-pick, cached project folder handles are re-resolved (`projectsRootGeneration`). Autosave
+  «Retry» re-asks the folder grant inside the tap. A sheet switch re-resolves the folder.
+- **D164:** the dimension label size and bold are set in the style panel's Size section. It has − / + steppers and
+  S / M / L quick sizes (`src/ui/textSize.ts`, shared with the text-box editor). They set new dimensions (per tool)
+  or the selection (one undo step).
+- **D165:** loupe magnification is a third less: pen 2.35× (was 3.5×) and touch 2.7× (was 4×).
+
+### D166 - handoff: `main` is the live app, the app installs under any host path, the README is the guide
+
+**Status: shipped (session 30).** The owner is handing the app to their boss at the shop, who directs AI tools and
+does not read code.
+
+- **`main` is the live app.** `beta-readiness-wave-2` (through D165) is merged into `main`, and `pages.yml` deploys
+  from `main` only. Before this, both branches deployed to the same site and the last push won.
+- **The manifest followed a fixed path.** `start_url` and `scope` were pinned to `/FieldMeasure/` while `base` came
+  from `FM_BASE`. A copy under any other path (a renamed repo, a custom domain, a root host, `vite preview` at `/`)
+  had its start URL outside the page's scope and would not install. Now `id`, `start_url` and `scope` all equal the
+  build base. For the existing `/FieldMeasure/` site the values are unchanged, and `id` equals the old computed id, so
+  installed apps keep their identity. Checked by building with `FM_BASE=/Renamed/` and `/`, and with Chromium's
+  `Page.getInstallabilityErrors` at `/` (only `in-incognito`, from the test context).
+- **`pages.yml` reads the path from GitHub:** `configure-pages` runs before the build, and
+  `FM_BASE = ${base_path}/`.
+- **The README is the handoff:** install on a Surface, where it's at, make your own copy ("Use this template", Pages
+  source = GitHub Actions, Run workflow), the AI change loop with two prompts and the rules, run on a PC,
+  troubleshooting. The stale status block (it still said "nine slices, 636 tests") and the `npm run dev` quick start
+  (it cannot render, D105) are gone.
+- **Install runbook corrections:** `npm run dev` cannot render the app, first run asks about handedness before the
+  folder, and the «moved» screen it described is still a stub (`src/data/originGuard.ts`). A changed address shows
+  first run again, and the fix is to pick the same folder.
+- The manifest and `package.json` descriptions no longer say "slice 0.1 scaffold". `AGENTS.md` gained a short handoff
+  paragraph. Its rules are unchanged.

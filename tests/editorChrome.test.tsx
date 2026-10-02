@@ -69,8 +69,9 @@ describe('tool rail glyphs - 14 real, legible, decorative marks', () => {
   it('renders exactly one inline <svg> per tool, in the rail\'s own bottom-anchored order', () => {
     const buttons = railButtons();
     expect(buttons).toHaveLength(14);
-    // DOM order is visual order: group 6 first (top), group 1 last (bottom), per UI §6.2.
-    const expected = [6, 5, 4, 3, 2, 1].flatMap((group) =>
+    // DOM order is visual order. D149 (owner request): Measure, Annotate, Mark, Insert, Erase,
+    // Move (was 6 → 1, UI §6.2).
+    const expected = [2, 4, 3, 5, 6, 1].flatMap((group) =>
       TOOL_DEFS.filter((def) => def.group === group).map((def) => def.id),
     );
     expect(buttons.map((b) => b.dataset.tool)).toEqual(expected);
@@ -79,22 +80,22 @@ describe('tool rail glyphs - 14 real, legible, decorative marks', () => {
     }
   });
 
-  it('orders the groups bottom-anchored as UI §6.2 lists them (6 -> 1)', () => {
+  it('orders the groups Measure, Annotate, Mark, Insert, Erase, Move (D149; was UI §6.2 6 -> 1)', () => {
     const view = render(createElement(ToolRail, { activeTool: 'select', onSelectTool: () => {}, side: 'right' }));
     const groups = Array.from(view.container.querySelectorAll<HTMLElement>('.tool-group')).map((g) =>
       Number(g.dataset.group),
     );
-    expect(groups).toEqual([6, 5, 4, 3, 2, 1]);
+    expect(groups).toEqual([2, 4, 3, 5, 6, 1]);
     // …and each group's header is the approved §6.1 copy.
     const headers = Array.from(view.container.querySelectorAll('.tool-group-header')).map(
       (h) => h.textContent,
     );
     expect(headers).toEqual([
-      GROUP_HEADERS[6],
-      GROUP_HEADERS[5],
+      GROUP_HEADERS[2],
       GROUP_HEADERS[4],
       GROUP_HEADERS[3],
-      GROUP_HEADERS[2],
+      GROUP_HEADERS[5],
+      GROUP_HEADERS[6],
       GROUP_HEADERS[1],
     ]);
   });
@@ -387,7 +388,8 @@ describe('density - the setting now compacts the editor chrome', () => {
 
   it('the stylesheet compacts the rail and panel under data-density="desk"', () => {
     const css = readFileSync('src/styles.css', 'utf8');
-    expect(css).toMatch(/\.editor-layout\[data-density='desk'\]\s+\.tool-rail\s*\{[^}]*flex-basis:\s*108px/);
-    expect(css).toMatch(/\.editor-layout\[data-density='desk'\]\s+\.tool-grid[\s\S]*?grid-template-columns:\s*repeat\(2,\s*48px\)/);
+    // D149 (owner request): one column. Desk is 40 px buttons in a 48 px rail (was 2 x 48 in 108).
+    expect(css).toMatch(/\.editor-layout\[data-density='desk'\]\s+\.tool-rail\s*\{[^}]*flex-basis:\s*48px/);
+    expect(css).toMatch(/\.editor-layout\[data-density='desk'\]\s+\.tool-grid[\s\S]*?grid-template-columns:\s*40px/);
   });
 });

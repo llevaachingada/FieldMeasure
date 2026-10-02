@@ -32,6 +32,7 @@ import Konva from 'konva';
 import { getStroke } from 'perfect-freehand';
 import type { InputIntent } from './inputRouter';
 import { regenerateInkNode } from './shapes/renderInk';
+import { arrowHeadPoints, type ArrowHeadSpec } from './shapes/arrowHead';
 
 export interface ScreenPoint {
   x: number;
@@ -229,6 +230,11 @@ export function applyScreenRules(
       node.strokeScaleEnabled() === false
     ) {
       node.strokeWidth(strokeWidthMu);
+    }
+    // D150: a dimension arrowhead keeps its markup-unit size at every zoom.
+    if (node instanceof Konva.Line) {
+      const head = node.getAttr('arrowHead') as ArrowHeadSpec | undefined;
+      if (head) node.points(arrowHeadPoints(head, 1 / scale));
     }
     if (regenerateInk && node instanceof Konva.Line) {
       const inkPoints = node.getAttr('inkPoints');

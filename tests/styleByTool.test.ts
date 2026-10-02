@@ -38,8 +38,9 @@ describe('styleByTool — per-tool memory (§7.4 #6)', () => {
     setToolStyle('line', { strokeColor: '#2FD4E0' });
 
     const afterSwap = useStyleByTool.getState();
+    // D150 (owner request): a dimension's fresh style has arrowheads at both ends.
     expect(styleForTool(afterSwap, 'dimension')).toEqual(
-      style({ strokeColor: '#FFD400', strokeWidthMu: 8 }),
+      style({ strokeColor: '#FFD400', strokeWidthMu: 8, arrowheads: 'both' }),
     );
     expect(styleForTool(afterSwap, 'line')).toEqual(style({ strokeColor: '#2FD4E0' }));
 
@@ -63,13 +64,19 @@ describe('styleByTool — per-tool memory (§7.4 #6)', () => {
     expect(styleForTool(useStyleByTool.getState(), 'rect')).toEqual(style({ strokeColor: '#000000' }));
   });
 
-  it('resetToolStyle returns exactly DEFAULT_STYLE for that tool only', () => {
+  it('resetToolStyle returns exactly the tool default for that tool only', () => {
     const { setToolStyle, resetToolStyle } = useStyleByTool.getState();
     setToolStyle('text', { bold: true, fontSizeMu: 30 });
     setToolStyle('line', { strokeColor: '#FFFFFF' });
     resetToolStyle('text');
     const state = useStyleByTool.getState();
-    expect(styleForTool(state, 'text')).toEqual(DEFAULT_STYLE);
+    // D160: the text default is white text on a dark box at 85% (the old auto pill's look).
+    expect(styleForTool(state, 'text')).toEqual({
+      ...DEFAULT_STYLE,
+      strokeColor: '#FFFFFF',
+      fillColor: '#0B0E12',
+      fillAlpha: 0.85,
+    });
     expect(styleForTool(state, 'line').strokeColor).toBe('#FFFFFF');
   });
 });
@@ -99,7 +106,9 @@ describe('recents — dedupe, cap, newest-first, tool filter (§7.3)', () => {
 
   it('filters the raw list to styles valid for the current tool', () => {
     const { replaceToolStyle } = useStyleByTool.getState();
-    const textLook = style({ bold: true, fontSizeMu: 30 });
+    // D164: a dimension now has size + bold too, so the text look is made text-only by its
+    // background fill (which a dimension cannot express).
+    const textLook = style({ bold: true, fontSizeMu: 30, fillColor: '#123B6B' });
     const dimensionLook = style({ strokeColor: '#FFD400', arrowheads: 'both' });
     replaceToolStyle('text', textLook);
     replaceToolStyle('dimension', dimensionLook);
@@ -160,7 +169,8 @@ describe('applicableFor — the §7.2 table over STYLE_KEYS', () => {
   // STYLE_KEYS; every non-inset row is false on all three (only `inset` sets them).
   const NO_INSET_KEYS = { insetBorder: false, insetRadius: false, insetShadow: false };
 
-  it('Dimension exposes Color, Width, Arrowheads only', () => {
+  // D164: plus the label's Size and Bold.
+  it('Dimension exposes Color, Width, Arrowheads, Size, Bold only', () => {
     expect(applicableFor('dimension')).toEqual({
       strokeColor: true,
       strokeWidthMu: true,
@@ -168,18 +178,19 @@ describe('applicableFor — the §7.2 table over STYLE_KEYS', () => {
       fillAlpha: false,
       lineStyle: false,
       arrowheads: true,
-      fontSizeMu: false,
-      bold: false,
+      fontSizeMu: true,
+      bold: true,
       ...NO_INSET_KEYS,
     });
   });
 
-  it('Text exposes Color, Size, Bold only', () => {
+  // D160: a text box also has a background colour and its opacity.
+  it('Text exposes Color, Size, Bold, Fill, Transparency only', () => {
     expect(applicableFor('text')).toEqual({
       strokeColor: true,
       strokeWidthMu: false,
-      fillColor: false,
-      fillAlpha: false,
+      fillColor: true,
+      fillAlpha: true,
       lineStyle: false,
       arrowheads: false,
       fontSizeMu: true,

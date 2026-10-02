@@ -23,7 +23,8 @@ import type Konva from 'konva';
 import type { Annotation } from '@/domain/types';
 import { DEFAULT_STYLE } from '@/domain/types';
 import { pixelDistance } from '@/domain/geometry';
-import { snapAngle, snapPoint, type SnapTarget } from '@/domain/snapping';
+import { snapAngle, snapPoint } from '@/domain/snapping';
+import { collectSnapTargets } from '@/editor/snapTargets';
 import {
   composeEnteredText,
   isCommittableInches,
@@ -224,6 +225,8 @@ export class DimensionTool {
   private autoOpenCancelled = false;
   private settleTimer: ReturnType<typeof setTimeout> | null = null;
   private provisionalGroup: Konva.Group | null = null;
+  /** D161: the contact point where a refine began (the grab offset is kept during the drag). */
+  private refineGrab: Px | null = null;
   private refineStartGeometry: { a: Px; b: Px } | null = null;
   private refineWhich: 'a' | 'b' | null = null;
   private snappedAngle: number | null = null;
@@ -272,18 +275,24 @@ export class DimensionTool {
         ? decideContact(point, anchors, REFINE_RADIUS_PX, this.deps.canvas.scale)
         : null;
       if (decision) {
+        this.refineGrab = { ...point };
         this.beginRefine(decision);
         return 'consume';
       }
       return 'pan';
     }
 
-    if (this.phase === 'refine') return 'consume';
+    if (this.phase === 'refine') {
+      // The HUD's «Adjust» armed the refine; this contact is the grab (D161 relative drag).
+      this.refineGrab = { ...point };
+      return 'consume';
+    }
 
     // Post-place refinement: a selected dimension's anchors are permanently grabbable.
     if (this.phase === 'idle') {
       const decision = this.hitSelectedAnchor(point);
       if (decision) {
+        this.refineGrab = { ...point };
         this.beginRefine(decision);
         return 'consume';
       }
@@ -332,8 +341,15 @@ export class DimensionTool {
       return 'consume';
     }
     if (this.contactRole === 'refining' && this.refineWhich && this.pendingKey) {
-      this.deps.scene.setAnchor(this.pendingKey, this.refineWhich, this.snap(point));
-      this.deps.loupe.track(this.toScreen(point), this.toScreen(this.a ?? point));
+      // D161: the end moves WITH the finger (the grab offset is kept), so it never jumps to
+      // under the fingertip where it cannot be seen; then it snaps to other marks' ends.
+      const start = this.refineStartGeometry?.[this.refineWhich];
+      const grab = this.refineGrab;
+      const target = start && grab ? { x: start.x + point.x - grab.x, y: start.y + point.y - grab.y } : point;
+      const placed = this.snap(target, this.pendingKey);
+      this.deps.scene.setAnchor(this.pendingKey, this.refineWhich, placed);
+      // The loupe looks at the END being moved (offset from the finger), not under the finger.
+      this.deps.loupe.track(this.toScreen(placed), this.toScreen(point));
       return 'consume';
     }
     return 'pan';
@@ -525,6 +541,7 @@ export class DimensionTool {
     const which = this.refineWhich;
     this.refineWhich = null;
     this.refineStartGeometry = null;
+    this.refineGrab = null;
     // A refine armed by the HUD button (D77/F2) has no pointer-up to clear the role; drop
     // it here so no stale `refining` survives into the next contact.
     this.contactRole = 'none';
@@ -643,20 +660,19 @@ export class DimensionTool {
 
   /* ---- snapping ---- */
 
-  private snapTargets(): SnapTarget[] {
-    const targets: SnapTarget[] = [];
-    for (const ann of this.deps.scene.list()) {
-      if (ann.geometry.kind !== 'dimension') continue;
-      targets.push({ p: ann.geometry.a, kind: 'endpoint' });
-      targets.push({ p: ann.geometry.b, kind: 'endpoint' });
-    }
-    return targets;
-  }
-
-  private snap(point: Px): Px {
+  /**
+   * D161: snap to the end points and corners of every OTHER visible mark (dimensions, lines,
+   * arrows, angles, polygons, rectangles). `excludeKey` is the dimension being refined, so an
+   * end can never stick to its own old position. The result is shown in the loupe.
+   */
+  private snap(point: Px, excludeKey: string | null = null): Px {
     const settings = this.deps.getSettings();
     const acquireImage = snapAcquirePx(this.lastPointerType, settings.glovedTouch) / this.deps.canvas.scale;
-    const { p } = snapPoint(point, this.snapTargets(), acquireImage);
+    const { p, hit } = snapPoint(point, collectSnapTargets(this.deps.scene.list(), excludeKey), acquireImage);
+    const other = this.contactRole === 'refining' && this.refineWhich && this.refineStartGeometry
+      ? this.deps.scene.geometryAt(excludeKey ?? '')?.[this.refineWhich === 'a' ? 'b' : 'a'] ?? null
+      : this.a;
+    this.deps.loupe.setSnap(hit ? hit.p : null, other ? [other, p] : null, excludeKey);
     return p;
   }
 
