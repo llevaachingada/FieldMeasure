@@ -348,24 +348,17 @@ describe('ExportWizard — format', () => {
 
   it('offers the PDF option set by default and the PNG set on switch, with zip OFF', () => {
     openWizard();
-    expect(screen.getByTestId('export-wizard-include-sheet-names')).toBeTruthy();
     expect(screen.queryByTestId('export-wizard-zip')).toBeNull();
 
     click('export-wizard-format-png');
     const zip = screen.getByTestId('export-wizard-zip') as HTMLInputElement;
     expect(zip.checked).toBe(false); // D158 (owner): no zip by default (was ON, UI §12:717)
-    expect(screen.queryByTestId('export-wizard-include-sheet-names')).toBeNull();
   });
 
-  it('«Include sheet names in pages» is disabled, never a dead live control (review F1)', () => {
-    // v1 is flatten-only and nothing consumes `includeSheetNames`, so the spec's checkbox
-    // is honestly disabled (the D102 beta-honesty rule) rather than looking live.
+  it('«Include sheet names in pages» no longer renders (nothing consumed it)', () => {
     openWizard();
-    const checkbox = screen.getByTestId('export-wizard-include-sheet-names') as HTMLInputElement;
-    expect(checkbox.disabled).toBe(true);
-    expect(checkbox.getAttribute('aria-disabled')).toBe('true');
-    // Copy is kept — the control is not hidden and not deleted.
-    expect(checkbox.getAttribute('aria-label')).toBe(COPY.includeSheetNames);
+    expect(screen.queryByTestId('export-wizard-include-sheet-names')).toBeNull();
+    expect(document.body.textContent ?? '').not.toContain(COPY.includeSheetNames);
   });
 
   it('never renders the v1-CUT checkboxes or the impossible Open folder action', () => {
@@ -461,7 +454,6 @@ describe('ExportWizard — happy path', () => {
       format: 'png',
       multiplier: 3,
       zip: true, // D158: default OFF, so the one click turns it on
-      includeSheetNames: false, // PDF-only, normalised away on a PNG plan
       conflictPolicy: 'overwrite',
       rememberDestination: true,
     };

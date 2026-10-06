@@ -38,6 +38,8 @@ import {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_PRECISION_DENOMINATOR,
   DEFAULT_UNIT_FORMAT,
+  migrateMarkupFile,
+  migrateProjectFile,
 } from '../domain/migrate';
 import {
   parseMarkupFile,
@@ -468,6 +470,34 @@ export class StorageReadError extends Error {
   }
 }
 
+/**
+ * D169: thrown when a file was written by a NEWER build (`schemaVersion` above
+ * `CURRENT_SCHEMA_VERSION`). It is deliberately NOT routed to `.history/` recovery:
+ * loading an older snapshot and then autosaving would silently overwrite the newer file
+ * (two Surfaces on different builds sharing a folder through Dropbox). The project
+ * shows as unreadable until this Surface updates. It extends `StorageReadError` so every
+ * existing read-failure path (Retry, the unreadable card) handles it unchanged.
+ */
+export class NewerFileVersionError extends StorageReadError {
+  constructor(name_: string, public fileVersion: number) {
+    super(name_, 'corrupt');
+    this.message = `${name_} was saved by a newer version of Field Measure (schema ${fileVersion}; this build reads up to ${CURRENT_SCHEMA_VERSION}). Update the app, then retry.`;
+  }
+}
+
+/** D169: refuse a newer-build file BEFORE validation, so it never reaches recovery. */
+function assertNotNewerVersion(name: string, raw: string): void {
+  let version: unknown;
+  try {
+    version = (JSON.parse(raw) as { schemaVersion?: unknown } | null)?.schemaVersion;
+  } catch {
+    return; // not JSON: the guarded parse reports it as corrupt and recovery runs
+  }
+  if (typeof version === 'number' && version > CURRENT_SCHEMA_VERSION) {
+    throw new NewerFileVersionError(name, version);
+  }
+}
+
 export async function readJsonValidated<T>(
   dir: FileSystemDirectoryHandle,
   name: string,
@@ -491,6 +521,7 @@ export async function readJsonValidated<T>(
     }
     return recoverFromHistory<T>(name, parse, opts, 'corrupt'); // NotReadableError etc. → recovery
   }
+  assertNotNewerVersion(name, raw);
   const res = await parse(raw);
   if (!res.success) return recoverFromHistory<T>(name, parse, opts, 'corrupt');
   return res.data!;
@@ -543,9 +574,13 @@ export async function readProjectFile(
   onMissing?: () => ProjectFile,
 ): Promise<ProjectFile> {
   const historyDir = await tryResolveHistoryDir(projectDir, '_project');
-  return readJsonValidated<ProjectFile>(projectDir, 'project.json', parseProjectFile, onMissing, {
-    historyDir,
-  });
+  // D169: normalize (fill pre-v0.3 defaults, stamp the version). The newer-build refusal
+  // already happened inside readJsonValidated.
+  return migrateProjectFile(
+    await readJsonValidated<ProjectFile>(projectDir, 'project.json', parseProjectFile, onMissing, {
+      historyDir,
+    }),
+  );
 }
 
 /**
@@ -560,9 +595,11 @@ export async function readSheetMarkup(
 ): Promise<MarkupFile> {
   const sheetDir = await resolveSheetDir(projectDir, sheetId);
   const historyDir = await tryResolveHistoryDir(projectDir, sheetId);
-  return readJsonValidated<MarkupFile>(sheetDir, 'markup.json', parseMarkupFile, onMissing, {
-    historyDir,
-  });
+  return migrateMarkupFile(
+    await readJsonValidated<MarkupFile>(sheetDir, 'markup.json', parseMarkupFile, onMissing, {
+      historyDir,
+    }),
+  );
 }
 
 /** `.history/<scope>/` if it exists, else `undefined` (never creates it on a read). */

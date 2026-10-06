@@ -20,9 +20,7 @@ import {
   getUnitFormat,
   getUnitSystem,
   setUnitFormat,
-  setUnitSystem,
   type UnitFormat,
-  type UnitSystem,
 } from '@/settings/units';
 import { getTheme, setTheme, type Theme } from '@/settings/theme';
 import { getDensity, setDensity, type Density } from '@/settings/density';
@@ -208,15 +206,6 @@ export default function Settings({ onBack }: SettingsProps) {
     }
   }
 
-  async function changeUnitSystem(next: UnitSystem): Promise<void> {
-    state.setUnitSystem(next);
-    try {
-      await setUnitSystem(next);
-    } catch {
-      /* best-effort persistence */
-    }
-  }
-
   async function changeUnitFormat(next: UnitFormat): Promise<void> {
     state.setUnitFormat(next);
     try {
@@ -352,15 +341,6 @@ export default function Settings({ onBack }: SettingsProps) {
             {STRINGS.settings.headingUnits}
           </h2>
           <div className="settings-rows">
-            <ChoiceRow<UnitSystem>
-              label={STRINGS.settings.rowUnitSystem}
-              value={state.unitSystem}
-              onChange={(next) => void changeUnitSystem(next)}
-              options={[
-                { value: 'imperial', label: STRINGS.settings.unitSystemImperial },
-                { value: 'metric', label: STRINGS.settings.unitSystemMetric, disabled: true },
-              ]}
-            />
             <ChoiceRow<UnitFormat>
               label={STRINGS.settings.rowUnitFormat}
               value={state.unitFormat}
@@ -377,9 +357,6 @@ export default function Settings({ onBack }: SettingsProps) {
                   denominator: fractionLabel(state.precisionDenominator),
                 })}
               </span>
-              <button type="button" className="link-button" disabled aria-label={STRINGS.editor.menuProjectSettings}>
-                {STRINGS.editor.menuProjectSettings}
-              </button>
             </div>
           </div>
         </section>
@@ -472,18 +449,6 @@ export default function Settings({ onBack }: SettingsProps) {
                 </button>
               )}
             </div>
-            {/* Review F6: this row had NO handler — an enabled, approved-copy button that did
-                nothing, in a wave that shipped a real «Trash…» entry point on the grid. Disabled
-                honestly until it is wired to something true (D102). */}
-            <button
-              type="button"
-              className="settings-row settings-row-button hit-slop"
-              aria-label={STRINGS.trash.open}
-              disabled
-              aria-disabled="true"
-            >
-              <span className="settings-row-label">{STRINGS.trash.open}</span>
-            </button>
           </div>
         </section>
 
@@ -497,17 +462,15 @@ export default function Settings({ onBack }: SettingsProps) {
                 {t(STRINGS.settings.buildVersion, buildParts())}
               </span>
             </div>
-            {/* Review F6: same as the «Trash…» row — an enabled button with no handler (it
-                predates this wave). Disabled honestly rather than left looking live. */}
-            <button
-              type="button"
+            <a
               className="settings-row settings-row-button hit-slop"
+              href={`${import.meta.env.BASE_URL}third-party-notices.txt`}
+              target="_blank"
+              rel="noopener"
               aria-label={STRINGS.settings.thirdPartyNotices}
-              disabled
-              aria-disabled="true"
             >
               <span className="settings-row-label">{STRINGS.settings.thirdPartyNotices}</span>
-            </button>
+            </a>
           </div>
         </section>
       </div>

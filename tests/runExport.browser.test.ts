@@ -263,7 +263,6 @@ function basePlan(overrides: Partial<ExportPlan> = {}): ExportPlan {
     format: 'pdf',
     multiplier: 2,
     zip: false,
-    includeSheetNames: false,
     conflictPolicy: 'add',
     rememberDestination: false,
     ...overrides,

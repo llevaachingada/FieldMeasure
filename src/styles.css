@@ -447,6 +447,7 @@ pre,
   font: inherit;
   text-align: left;
   cursor: pointer;
+  text-decoration: none;
 }
 .settings-segmented {
   display: flex;

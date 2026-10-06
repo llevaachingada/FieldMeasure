@@ -359,6 +359,12 @@ export default function App() {
               requestFolderAccess();
               setCaptureOpen(true);
             }}
+            onSheetAdded={(id) => {
+              // D170: an in-editor «Import file» opened a new sheet; keep the route in step
+              // (the same `openSheet` the camera's «Use photo» dispatches) and refresh the grid.
+              setProjectRefresh((n) => n + 1);
+              dispatch({ type: 'openSheet', sheetId: id });
+            }}
             onExit={() => {
               // The editor's `‹ Projects` returns to the sheet grid it belongs to.
               setCaptureOpen(false);

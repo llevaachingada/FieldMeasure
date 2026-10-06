@@ -210,9 +210,9 @@ describe('slice 1.6 tool wiring through SheetEditor', () => {
   it('Erase: stroke mode is hidden under touch and no pen-required note is shown (D167)', async () => {
     useEditorStore.getState().setActiveTool('erase');
     const { host, at } = await mountEditor();
-    // Before any contact the input kind is unknown and the Objects/Stroke switch is offered.
-    // Asserting that first makes the "hidden" check below non-vacuous.
-    await screen.findByRole('radio', { name: STRINGS.erase.modeStroke });
+    // Touch is the default before any contact, so the Objects/Stroke switch is never offered,
+    // not even briefly (it used to show until the first canvas touch); the whole panel is omitted.
+    expect(screen.queryByRole('radio', { name: STRINGS.erase.modeStroke })).toBeNull();
     // First touch contact: the panel reports the input kind.
     pointer('pointerdown', host, at.x, at.y);
     pointer('pointerup', host, at.x, at.y);

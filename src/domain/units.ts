@@ -81,12 +81,19 @@ export function formatInchesOnly(totalIn: number, denom = 16): string {
   let num = ticks - inches * denom;
   let den = denom;
   while (num > 0 && num % 2 === 0 && den % 2 === 0) { num /= 2; den /= 2; }
-  const frac = num ? ` ${num}/${den}` : '';
-  return `${sign}${inches}${frac}"`;
+  const frac = num ? `${num}/${den}` : '';
+  // D170: a sub-inch value reads `1/2"`, never `0 1/2"` (as formatInches already does).
+  const body = frac ? (inches ? `${inches} ${frac}` : frac) : String(inches);
+  return `${sign}${body}"`;
 }
+
+/** D170: what a label shows for a value that is not a finite number (only a damaged or
+ *  hand-edited file can produce one). Never print `NaN'-NaN"` on a drawing. */
+export const INVALID_LENGTH_LABEL = '—';
 
 /** Format a canonical mm value for display in the given system + format. */
 export function formatLength(valueMm: number, system: 'imperial' | 'metric', denom = 16, unitFormat: 'ft-in' | 'in' | 'ft-decimal' = 'ft-in'): string {
+  if (!Number.isFinite(valueMm)) return INVALID_LENGTH_LABEL;
   if (system === 'metric') return `${valueMm.toFixed(0)} mm`;
   const inches = valueMm / MM_PER_IN;
   if (unitFormat === 'in') return formatInchesOnly(inches, denom);

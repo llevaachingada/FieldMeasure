@@ -64,6 +64,23 @@ describe('Settings', () => {
     expect(screen.queryByRole('switch', { name: /pen/i })).toBeNull();
   });
 
+  it('has no dead controls: no unit-system row, no Metric, no Trash row, no Project settings link', async () => {
+    await renderSettings();
+    expect(screen.queryByText(STRINGS.settings.rowUnitSystem)).toBeNull();
+    expect(screen.queryByText(STRINGS.settings.unitSystemMetric)).toBeNull();
+    expect(screen.queryByText(STRINGS.trash.open)).toBeNull();
+    expect(screen.queryByText(STRINGS.editor.menuProjectSettings)).toBeNull();
+    expect(document.querySelectorAll('main.settings button:disabled')).toHaveLength(0);
+  });
+
+  it('links Third-party notices to the shipped text file in a new window', async () => {
+    await renderSettings();
+    const link = screen.getByRole('link', { name: STRINGS.settings.thirdPartyNotices });
+    expect(link.getAttribute('href')).toBe(`${import.meta.env.BASE_URL}third-party-notices.txt`);
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener');
+  });
+
   it('persists handedness and reads it back on reload', async () => {
     const user = userEvent.setup();
     await renderSettings();

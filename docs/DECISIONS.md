@@ -3977,3 +3977,59 @@ owner asked for pen-related material to be removed from the instructions and the
     - the unwired file-version guard (`migrate.ts` is never called on load);
     - two disabled controls;
     - five `test.fixme` end-to-end tests.
+
+### D169 - file safety: the version guard and the recovery snapshots are connected
+
+**Status: shipped (session 31).** Both safety nets existed and were tested, but nothing in the app called them.
+
+- **Version guard.** `readJsonValidated` (`src/fs/projectStore.ts`) peeks at `schemaVersion` before validating. A
+  file written by a newer build throws `NewerFileVersionError`, which extends `StorageReadError`, so every existing
+  read-failure path (Retry, the unreadable card) handles it. It is deliberately **not** routed to `.history/`
+  recovery: loading an older snapshot and then autosaving would silently overwrite the newer file. That is the
+  Dropbox case, where two Surfaces on different builds share a folder. `readProjectFile` and `readSheetMarkup` now
+  run `migrateProjectFile`/`migrateMarkupFile` (fill pre-v0.3 defaults, stamp the version). Corrupt JSON still goes
+  to recovery. Help's "folder cannot be read" line, and the user guide, say to update the app first if another
+  Surface saved it with a newer version.
+- **Recovery snapshots.** `writeHistorySnapshot` had no caller, so `.history/` was always empty and a corrupt
+  `markup.json` or `project.json` had nothing to recover from. `writeToProjectDir` (`src/state/persistQueue.ts`), the
+  one function every autosave goes through, now snapshots what it just wrote:
+  - on the first save of each scope (`_project` or a sheet) in a session;
+  - then at most every 10 minutes (§5.8e cadence);
+  - with the existing 20-per-scope cap.
+
+  A failed snapshot is swallowed, so it never fails a save that already landed.
+- `tests/fileSafety.test.ts` (8 tests): newer project and markup files are refused even when a valid snapshot exists;
+  current and pre-v0.3 files load with defaults; corrupt JSON still recovers; the snapshot cadence holds at 10 min - 1
+  ms and at exactly 10 min; sheet and project scopes are independent; a torn `markup.json` recovers from the snapshot
+  autosave wrote; a snapshot failure doesn't fail the save.
+
+### D170 - bug fixes from the senior functional review
+
+**Status: shipped (session 31).**
+
+- **Critical: «Import file» inside the editor misfiled work.** `handleFile` (`src/ui/SheetEditor.tsx`) added the new
+  sheet and swapped the photo, but never switched sheets. The old sheet's marks stayed on screen, and every later edit
+  autosaved into the OLD sheet's `markup.json`; from an empty project, edits were never saved at all. It now opens the
+  new sheet through `controller.loadSheet` (the switch path: clear marks, clear undo, point autosave at the new sheet)
+  and tells the shell through a new `onSheetAdded` prop, which dispatches the same `openSheet` as the camera's «Use
+  photo». `tests/editorImport.browser.test.ts` fails on the old handler (sheet A's mark is still on the canvas) and
+  passes on the fix: the old marks leave, and the next edit is written to the new sheet only.
+- **Labels:**
+  - The inches-only format printed `0 1/2"` for sub-inch values; it now prints `1/2"`, like the ft-in format.
+  - A non-finite value (only a damaged or hand-edited file can hold one) printed `NaN'-NaN"`; every format now shows
+    `—`.
+
+  Both have tests in `tests/units.test.ts`.
+- **No dead controls** (STATUS item 7):
+  - «Third-party notices» now works: the build emits `third-party-notices.txt` (a small plugin in `vite.config.ts`)
+    and the row opens it.
+  - Removed:
+    - Settings «Trash…» (the grid's Trash works);
+    - the «Project settings» link;
+    - the whole unit-system row (Metric was its only alternative, and metric display isn't built; the stored setting
+      and the parser are untouched);
+    - the export wizard's «Include sheet names». Nothing in `src/export` ever read it, so the PDF never drew names.
+
+  Tests now assert that each removed control is absent.
+- **The eraser's Objects/Stroke switch** no longer shows before the first touch: a null input kind is treated as
+  touch.
