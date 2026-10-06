@@ -4033,3 +4033,47 @@ owner asked for pen-related material to be removed from the instructions and the
   Tests now assert that each removed control is absent.
 - **The eraser's Objects/Stroke switch** no longer shows before the first touch: a null input kind is treated as
   touch.
+
+### D171 - 1.0 sign-off: the autosave stall, robust tests, and every open item decided
+
+**Status: shipped (session 31).** The owner asked for the app to be buttoned up with no open questions, and delegated
+every open decision.
+
+- **Critical, caught before merge: D169's snapshot wiring stalled autosave.** `writeHistorySnapshot` pruned under
+  `fm:project:<id>`, the lease lock an open project holds for its whole session (`acquireWriterLease`). The first
+  save's snapshot therefore waited forever, and every later save sat on «Saving…»; Web Locks queue with no timeout.
+  The unit test missed it because it held no lease. The prune now runs under `withWriteLock`, the per-write mutex with
+  a timeout. A new test in `tests/fileSafety.test.ts` holds the real lease and fails with "save stalled" on the old
+  lock. An end-to-end probe found the stall.
+- **Flaky tests are deterministic. No assertion was loosened or skipped.**
+  - `appNewProject`: the lazy `CameraFlow` import outran a 1 s wait under load. It is now pre-imported. Before: 2/10
+    loaded runs failed. After: 0/22.
+  - `sheetEditor.dimension` and `gridReorder`: fixed `sleep`s were replaced by waits on the real condition (the keypad
+    open and focused, the lift chip present, a renumber landed). Negative checks wait on measured elapsed time.
+  - `gridScroll`: geometry is polled until the menu's Web Animations anchor lands. Before: 1/3 full browser runs
+    failed. After: 0/3.
+- **End-to-end:**
+  - Three kill-switch crash tests now run. `Page.crash` is fired, not awaited, because the renderer that would answer
+    is the one being killed.
+  - The real-touch Layers reorder runs, with a real seeded JPEG and the journey spec's folder shim.
+  - The app-level power-loss test's outcome is recorded in `docs/STATUS.md`.
+- **Every open item, decided:**
+  - **Offset Nudge Pad:** not built. Dragging an end grip with the magnifier and snapping is the touch method, and
+    keyboard arrows cover the rest.
+  - **History panel:** not built. Snapshots now exist (D169), and recovery from them is automatic; a manual
+    restore screen adds little for the crews.
+  - **«Moved to a new address» screen:** not built. Re-picking the same folder recovers everything, and INSTALL,
+    README and Help say so.
+  - **Proposed wording:** signed off as shipping copy. The `⚠ PROPOSED` markers stay, only as provenance for
+    `tests/strings.test.ts`.
+  - **Mixed-selection side panel:** kept. The panel body scrolls (`overflow-y: auto`), so no control is cut off.
+  - **Left-handed tab order:** kept. Tab order only matters with a keyboard; the crews use touch.
+  - **The Dimension tool grabbing an existing end:** kept as select-then-drag, which stops a resting palm from moving
+    a finished dimension.
+  - **Per-tool styles for shapes and ink:** kept as they are.
+  - **«Remember this destination»:** already covered by the default export location in Settings → Export.
+  - **Arrowheads on the preview line:** not built. Cosmetic only, and the committed line shows them.
+  - **The eraser switch flicker:** fixed (D170).
+- **GitHub housekeeping the session could not do** (repository-settings and branch-delete writes are blocked
+  through its proxy): tick Settings → General → «Template repository», and delete the merged branches. Both are in
+  the README for the owner.

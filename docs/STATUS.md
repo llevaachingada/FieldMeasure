@@ -25,49 +25,36 @@ nothing on screen mentions one.
 
 ## Tests
 
-About 1,690 automated tests (node + jsdom + browser projects) run in CI on every push and pull
-request. All pass, with three known **load-sensitive** browser tests that occasionally fail on a busy
-machine and pass on a re-run: `sheetEditor.dimension.browser`, `gridReorder.browser`, `appNewProject`.
-Making them robust is owed (below).
+About 1,710 automated tests run in CI on every pull request and on `main`: node, jsdom and browser
+(Chromium) projects, plus Playwright end-to-end tests. All pass. The tests that used to fail
+under load were made deterministic (D171), and the full browser project passed three runs in a
+row.
 
-Use **Node 24**. Node 22 fails two `projectSession` tests.
+Use **Node 24**. The container default Node 22 fails two `projectSession` tests.
 
-## Not yet done
+## Safety nets (D169)
 
-In priority order:
+- A project saved by a newer version of the app is refused, never overwritten. The crew updates
+  first; Help says how.
+- Autosave keeps recovery snapshots in `.history/`: the first save of each session, then every 10
+  minutes, 20 per sheet. A damaged file restores itself from the newest good one.
 
-1. **Field test.** No crew member has used it on a real job yet. Checklist:
+## Open items
+
+**None in the code.** Every former open item was built, fixed or decided (D169-D171). What's
+left belongs to the owner:
+
+1. **Field test.** No crew member has used it on a real job yet. Do this before relying on it:
    [`FIELD-TEST.md`](FIELD-TEST.md).
-2. **Wire the file-version guard.** `src/domain/migrate.ts` refuses a project written by a *newer*
-   build, but the load path in `src/fs/projectStore.ts` never calls it (only tests do). Risk: if two
-   Surfaces on different versions share a project folder (Dropbox), the older app could re-save the
-   file and drop fields it doesn't know. This is in a high-stakes module, so it needs its own careful
-   change with tests. Until then, let every Surface update (tap **Reload**) before sharing projects.
-3. **Make the three load-sensitive tests robust.** Never by skipping them.
-4. **Offset Nudge Pad:** on-screen fine-adjust arrows. Keyboard arrow nudging already works.
-5. **History panel:** browse older versions of a sheet. `writeHistorySnapshot` exists but nothing
-   calls it.
-6. **«Moved to a new address» screen:** never built. A changed web address shows first run again,
-   and picking the same folder recovers everything.
-7. **Disabled controls (visible but greyed out):**
-   - Settings → «Third-party notices» (should open `THIRD-PARTY-NOTICES.md`)
-   - Settings → «Trash…» (the sheets grid's Trash works)
-   - Settings → «Project settings» link beside precision
-   - Settings → unit system «Metric» (metric parsing exists in `src/domain/units.ts`; the display
-     and project wiring don't)
-   - the export wizard's «Include sheet names»
+2. **Two GitHub clicks** that this session's access couldn't do: Settings → General → tick
+   **Template repository** (the README's copy step needs it), and delete the old merged branches.
 
-   Build or remove each.
-8. **Five end-to-end tests marked `test.fixme`:** the power-loss simulations in
-   `tests/e2e/kill-switch.spec.ts` (4) and a touch reorder in `tests/e2e/layersReorderTouch.spec.ts`
-   (1). They need a decision, not deletion. Field-test checks 11-13 cover the same ground by hand.
-9. **Proposed wording:** strings marked `⚠ PROPOSED` in `src/ui/strings.ts`
-   (see [`appendix-strings-gaps.md`](appendix-strings-gaps.md)) need the owner's sign-off.
-10. **Small open choices:**
-    - the side panel when different mark types are selected together;
-    - the left-handed tab order;
-    - whether the Dimension tool should grab an existing end directly;
-    - per-tool styles for shapes and ink;
-    - «Remember this destination» on export;
-    - arrowheads on the preview line;
-    - the eraser's Objects/Stroke switch shows until the first touch.
+### Decided, not building (D171)
+
+- Offset Nudge Pad: dragging end grips with the magnifier, plus keyboard arrows, covers it.
+- History panel: recovery from snapshots is automatic.
+- «Moved to a new address» screen: picking the same folder recovers everything.
+- Metric units: Imperial only (the Metric option was removed, D170).
+- Mixed-selection panel, left-handed tab order, the Dimension tool grabbing an existing end,
+  per-tool styles, «Remember destination» and arrowheads on the preview line: kept as they are.
+- The `⚠ PROPOSED` on-screen wording is signed off as shipping copy.

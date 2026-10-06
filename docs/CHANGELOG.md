@@ -4,6 +4,17 @@ One entry per merged change, newest first: what changed for the user, the decisi
 checks that ran. The full build-era log (sessions 1-30) is
 [`archive/BUILD-LOG.md`](archive/BUILD-LOG.md).
 
+## 2026-10-06: 1.0 sign-off
+
+- Fixed: «Import file» inside the editor saved later edits into the previous sheet (or nowhere) (**D170**).
+- Safety: newer-version projects are refused instead of overwritten; autosave keeps recovery snapshots (**D169**).
+- Fixed before merge: the snapshot wiring's lock stalled autosave after the first save (**D171**).
+- Labels: `1/2"` instead of `0 1/2"`; a damaged number shows `—` (**D170**).
+- No dead buttons: «Third-party notices» works; Trash (in Settings), Project settings, Metric and «Include sheet
+  names» are removed; the eraser switch no longer flickers (**D170**).
+- Tests: the load-sensitive tests are deterministic; four switched-off end-to-end tests run (**D171**).
+- Every open item decided (**D171**).
+
 ## 1.0.0 (2026-10-02): handoff
 
 - `main` is the live app (beta merged; only `main` deploys) (**D166**).
