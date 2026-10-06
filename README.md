@@ -29,7 +29,7 @@ A one-page version to print for the shop: [`docs/INSTALL.md`](docs/INSTALL.md).
 | | |
 |---|---|
 | **Works** | New project → camera → room name → dimensions (calculator keypad, snapping, magnifier) → 14 markup tools (shapes, arrows, angles, freehand drawing, highlighter, text boxes, eraser, photo-in-photo) → one-page PDF/PNG with a date stamp and the VANGARDE watermark. Autosave, undo, offline. Touch only. |
-| **Tested** | About 1,710 automated tests (including real-browser and end-to-end crash tests) run on every change, and all pass. Autosave keeps recovery backups, and a project saved by a newer version is never overwritten. |
+| **Tested** | About 1,720 automated tests (including real-browser and end-to-end crash tests) run on every change, and all pass. Autosave keeps recovery backups, and a project saved by a newer version is never overwritten. |
 | **Not yet** | A real crew member using it on a real job. Do this first: [`docs/FIELD-TEST.md`](docs/FIELD-TEST.md) (17 checks; most take about an hour). |
 | **Unfinished** | Nothing in the code. Every open item was decided or built; see [`docs/STATUS.md`](docs/STATUS.md). |
 

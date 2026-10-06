@@ -4056,7 +4056,9 @@ every open decision.
   - Three kill-switch crash tests now run. `Page.crash` is fired, not awaited, because the renderer that would answer
     is the one being killed.
   - The real-touch Layers reorder runs, with a real seeded JPEG and the journey spec's folder shim.
-  - The app-level power-loss test's outcome is recorded in `docs/STATUS.md`.
+  - The app-level power-loss test now runs. It draws, waits for «Saved», kills the renderer mid-publish of the next
+    save, reopens, and requires the exact pre-kill `markup.json` (5/5 alone, 5/5 under load). No end-to-end test is
+    `fixme` any more.
 - **Every open item, decided:**
   - **Offset Nudge Pad:** not built. Dragging an end grip with the magnifier and snapping is the touch method, and
     keyboard arrows cover the rest.

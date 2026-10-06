@@ -25,8 +25,9 @@ nothing on screen mentions one.
 
 ## Tests
 
-About 1,710 automated tests run in CI on every pull request and on `main`: node, jsdom and browser
-(Chromium) projects, plus Playwright end-to-end tests. All pass. The tests that used to fail
+About 1,720 automated tests run in CI on every pull request and on `main`: node, jsdom and browser
+(Chromium) projects, plus 13 Playwright end-to-end tests, including a real crash in the middle of an autosave. All pass;
+none are skipped or switched off. The tests that used to fail
 under load were made deterministic (D171), and the full browser project passed three runs in a
 row.
 
