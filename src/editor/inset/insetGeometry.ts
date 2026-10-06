@@ -187,18 +187,6 @@ export function insetCorners(geometry: InsetImageGeometry): [Px, Px, Px, Px] {
  * Handles (§9:621 — corners scale, edges crop, one rotate)
  * ------------------------------------------------------------------ */
 
-export const INSET_HANDLE_IDS: readonly InsetHandleId[] = [
-  'nw',
-  'n',
-  'ne',
-  'e',
-  'se',
-  's',
-  'sw',
-  'w',
-  'rotate',
-];
-
 /** All 9 handle positions in sheet px. `rotateGapSheetPx` is the rotate arm length. */
 export function insetHandlePositions(
   geometry: InsetImageGeometry,
@@ -479,11 +467,6 @@ export function rotateInset(
   const cy = geometry.y + geometry.height / 2;
   const raw = (Math.atan2(pointer.y - cy, pointer.x - cx) * 180) / Math.PI + 90;
   return { ...geometry, rotation: snap ? snapRotation(raw) : ((raw % 360) + 360) % 360 };
-}
-
-/** Relative rotation (two-finger twist; UI §9:623). */
-export function rotateInsetBy(geometry: InsetImageGeometry, deltaDeg: number): InsetImageGeometry {
-  return { ...geometry, rotation: (((geometry.rotation + deltaDeg) % 360) + 360) % 360 };
 }
 
 /* ------------------------------------------------------------------ *

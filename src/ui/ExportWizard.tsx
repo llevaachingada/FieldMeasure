@@ -81,7 +81,6 @@ export interface ExportPlan {
   format: ExportFormat;
   multiplier: ExportMultiplier;
   zip: boolean; // PNG only
-  includeSheetNames: boolean; // PDF only
   conflictPolicy: ConflictPolicy;
   rememberDestination: boolean;
 }
@@ -293,7 +292,6 @@ function ExportWizardDialog({
   const [multiplier, setMultiplier] = useState<ExportMultiplier>(DEFAULT_MULTIPLIER);
   // Owner (session 29, D158): no zip by default (was ON per UI §12:717).
   const [zip, setZip] = useState(false);
-  const [includeSheetNames, setIncludeSheetNames] = useState(false);
 
   // ---- destination ---------------------------------------------------------
   const [destination, setDestination] = useState<{ name: string; path: string } | null>(
@@ -312,8 +310,8 @@ function ExportWizardDialog({
 
   // ---- the plan ------------------------------------------------------------
   // Built in ONE place so the object handed to `estimate`, `checkMultiplier` and
-  // `runExport` cannot drift apart. `zip` is PNG-only and `includeSheetNames` is PDF-only,
-  // so the irrelevant one is normalised to `false` rather than leaking a stale checkbox.
+  // `runExport` cannot drift apart. `zip` is PNG-only,
+  // so it is normalised to `false` on a PDF plan rather than leaking a stale checkbox.
   const plan: ExportPlan = useMemo(
     () => ({
       scope,
@@ -321,11 +319,10 @@ function ExportWizardDialog({
       format,
       multiplier,
       zip: format === 'png' ? zip : false,
-      includeSheetNames: format === 'pdf' ? includeSheetNames : false,
       conflictPolicy,
       rememberDestination,
     }),
-    [scope, sheetIds, format, multiplier, zip, includeSheetNames, conflictPolicy, rememberDestination],
+    [scope, sheetIds, format, multiplier, zip, conflictPolicy, rememberDestination],
   );
 
   // ---- §19.4b memory guard -------------------------------------------------
@@ -516,14 +513,12 @@ function ExportWizardDialog({
                   format={format}
                   multiplier={multiplier}
                   zip={zip}
-                  includeSheetNames={includeSheetNames}
                   checks={multiplierChecks}
                   blocked={blocked}
                   largestAllowed={largestAllowed}
                   onFormat={setFormat}
                   onMultiplier={setMultiplier}
                   onZip={setZip}
-                  onIncludeSheetNames={setIncludeSheetNames}
                 />
 
                 <DestinationStep
@@ -709,26 +704,22 @@ function FormatStep({
   format,
   multiplier,
   zip,
-  includeSheetNames,
   checks,
   blocked,
   largestAllowed,
   onFormat,
   onMultiplier,
   onZip,
-  onIncludeSheetNames,
 }: {
   format: ExportFormat;
   multiplier: ExportMultiplier;
   zip: boolean;
-  includeSheetNames: boolean;
   checks: ReadonlyMap<ExportMultiplier, { ok: true } | { ok: false; largest: ExportMultiplier | null }>;
   blocked: boolean;
   largestAllowed: ExportMultiplier | null;
   onFormat(next: ExportFormat): void;
   onMultiplier(next: ExportMultiplier): void;
   onZip(next: boolean): void;
-  onIncludeSheetNames(next: boolean): void;
 }): JSX.Element {
   const sizeGroupLabel = format === 'png' ? C.pngSize : C.quality;
 
@@ -816,28 +807,6 @@ function FormatStep({
           <p className="export-wizard-note" data-testid="export-wizard-page-size">
             {C.pageSizeFit}
           </p>
-          <label className="export-wizard-check-row">
-            <input
-              type="checkbox"
-              className="export-wizard-checkbox"
-              data-testid="export-wizard-include-sheet-names"
-              aria-label={C.includeSheetNames}
-              checked={includeSheetNames}
-              // DEAD CONTROL, honestly disabled (review F1 — the D77/D87 class). Nothing
-              // consumes `includeSheetNames`: v1 exports are flatten-only (build spec §2.4),
-              // `runExport`/`pdf.ts` never read it, and the exported PDF carries no sheet
-              // captions. Rendering the spec's checkbox as if it worked is a lie, so it is
-              // disabled with `disabled` + `aria-disabled="true"` and `onChange` retained
-              // (the D102 beta-honesty rule) — copy kept, no new copy invented, keyboard
-              // skipped. Captions are NOT implemented here: where a caption sits relative
-              // to a full-bleed sheet image is a UI-spec question (un-reviewed design), not
-              // a lane fix. The orchestrator records the decision this points at.
-              disabled
-              aria-disabled="true"
-              onChange={(event) => onIncludeSheetNames(event.target.checked)}
-            />
-            <span className="export-wizard-check-label">{C.includeSheetNames}</span>
-          </label>
         </div>
       ) : (
         <div className="export-wizard-options" role="group" aria-label={C.formatPng}>

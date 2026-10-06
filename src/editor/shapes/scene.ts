@@ -50,13 +50,6 @@ export function pathToKey(p: AnnotationPath): string {
   return p.kind === 'top' ? p.annotationId : `${p.insetId}/${p.annotationId}`;
 }
 
-export function keyToPath(key: string): AnnotationPath {
-  const i = key.indexOf('/');
-  return i < 0
-    ? { kind: 'top', annotationId: key }
-    : { kind: 'child', insetId: key.slice(0, i), annotationId: key.slice(i + 1) };
-}
-
 /* ------------------------------------------------------------------ *
  * zIndex bands (§20.2)
  * ------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 // tests/units.test.ts — §6.1 strict parser + formatters.
 // The accepts/rejects tables are carried forward verbatim from the spec's §6.1
-// test block (docs/preflight-handoff-v0.3-hardened.md lines ~1155–1311).
+// test block (docs/archive/preflight-handoff-v0.3-hardened.md lines ~1155–1311).
 import { describe, it, expect } from 'vitest';
 import {
   parseImperialToInches,
@@ -44,6 +44,23 @@ describe('formatLength (unit formats)', () => {
   it('ft-in default', () => expect(formatLength(mm, 'imperial', 16, 'ft-in')).toBe(`10'-4 1/2"`));
   it('inches only (independent of feet decomposition)', () => expect(formatLength(mm, 'imperial', 16, 'in')).toBe(`124 1/2"`));
   it('decimal feet', () => expect(formatLength(mm, 'imperial', 16, 'ft-decimal')).toBe(`10.38'`));
+  // D170: sub-inch values in the inches-only format drop the leading `0 `, matching ft-in.
+  // 12.7 mm / 25.4 = 0.5 in; 0.396875 mm / 25.4 = 1/64 in.
+  it('inches only: a sub-inch value reads 1/2", not 0 1/2"', () =>
+    expect(formatLength(12.7, 'imperial', 16, 'in')).toBe(`1/2"`));
+  it('inches only: 1/64 at 64ths reads 1/64"', () =>
+    expect(formatLength(0.396875, 'imperial', 64, 'in')).toBe(`1/64"`));
+  it('inches only: whole and zero values are unchanged', () => {
+    expect(formatLength(0, 'imperial', 16, 'in')).toBe(`0"`);
+    expect(formatLength(25.4 * 3, 'imperial', 16, 'in')).toBe(`3"`);
+  });
+  // D170: a non-finite value (only a damaged or hand-edited file) never prints NaN on a label.
+  it('a non-finite value shows a dash in every format', () => {
+    for (const f of ['ft-in', 'in', 'ft-decimal'] as const) {
+      expect(formatLength(Number.NaN, 'imperial', 16, f)).toBe('—');
+      expect(formatLength(Number.POSITIVE_INFINITY, 'imperial', 16, f)).toBe('—');
+    }
+  });
 });
 
 describe('negative-value contract (session 4, F2)', () => {

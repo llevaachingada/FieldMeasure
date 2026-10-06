@@ -1,13 +1,17 @@
+// No @types/node in this repo (the runtime dependency list is closed); the import is real at build time.
+// @ts-expect-error TS2307: node typings absent
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 /**
  * Origin-agnostic build (build spec §21.1 part 3).
  * `FM_BASE` is the only thing that changes when the app moves hosts: the deployed
- * base path is `process.env.FM_BASE ?? '/'`. The default production value is
- * `/FieldMeasure/` (GitHub Pages); dev/preview use `/`.
+ * base path is `process.env.FM_BASE ?? '/'`. The default (FM_BASE unset: local builds,
+ * `vite preview`) is `/`; the GitHub Pages workflow sets FM_BASE to the repo's own Pages
+ * path (`/FieldMeasure/` for this repo; D34, D166).
  *
  * §19.2 build id: stamped at build time and rendered in Settings, so a field bug
  * report can name the exact build it came from. `FM_BUILD_ID` is the CI override
@@ -21,6 +25,21 @@ const BUILD_ID =
   process.env.FM_BUILD_ID ??
   `${process.env.npm_package_version ?? '0.1.0'}+${new Date().toISOString()}`;
 
+/** Ships THIRD-PARTY-NOTICES.md as `third-party-notices.txt` (Settings → About links to it).
+ *  Deliberately not in the workbox precache globs (.txt is not matched). */
+function thirdPartyNotices(): Plugin {
+  return {
+    name: 'fm-third-party-notices',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'third-party-notices.txt',
+        source: readFileSync(fileURLToPath(new URL('./THIRD-PARTY-NOTICES.md', import.meta.url))) as Uint8Array,
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: BASE,
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
@@ -31,9 +50,10 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    thirdPartyNotices(),
     VitePWA({
       // §19.2 / D25: prompt on update — never autoUpdate. A reload mid-measurement
-      // is a data-risk; the update toast is slice 1.11.
+      // is a data-risk; `UpdateToast` (src/ui/UpdateToast.tsx) asks first.
       registerType: 'prompt',
       manifest: {
         name: 'Field Measure',

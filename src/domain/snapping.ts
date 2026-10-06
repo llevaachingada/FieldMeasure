@@ -1,4 +1,4 @@
-// Snapping — §6.3 of docs/preflight-handoff-v0.3-hardened.md (copied verbatim).
+// Snapping — §6.3 of docs/archive/preflight-handoff-v0.3-hardened.md (copied verbatim).
 
 import type { Px } from './types';
 

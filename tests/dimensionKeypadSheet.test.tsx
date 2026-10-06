@@ -488,7 +488,9 @@ describe('preview is a pure function of the slots', () => {
     // STORED text keeps the user's own fraction.
     expect(composeEnteredText(slots)).toBe(`8/16"`);
     expect(previewText()).toContain(`1/2"`);
-    expect(previewText()).toContain(`= 0 1/2"`);
+    // D170: the inches-only line drops the leading `0 ` for a sub-inch value (8/16 in = 1/2 in).
+    expect(previewText()).toContain(`= 1/2"`);
+    expect(previewText()).not.toContain(`0 1/2"`);
 
     act(() => {
       commitButton().click();

@@ -23,7 +23,6 @@ import { snapAcquirePx } from './DimensionTool';
 import {
   AXIS_LOCK_DEG,
   AXIS_LOCK_PX,
-  MINI_TOOLBAR_H,
   ROTATE_SNAPS,
   SELECT_EDGE_SUPPRESS_PX,
   SELECT_HANDLE_HIT_PEN,
@@ -170,17 +169,6 @@ export function marqueeRect(a: Px, b: Px): Bounds {
     width: Math.abs(b.x - a.x),
     height: Math.abs(b.y - a.y),
   };
-}
-
-/** Mini-toolbar anchor: centred above the selection, pinned under the top edge. */
-export function miniToolbarPosition(
-  bounds: Bounds,
-  viewport: { x: number; y: number; scale: number; height: number },
-): Px {
-  const topScreen = viewport.y + bounds.y * viewport.scale;
-  const centreScreen = viewport.x + (bounds.x + bounds.width / 2) * viewport.scale;
-  const y = Math.max(MINI_TOOLBAR_H / 2 + 8, topScreen - 48);
-  return { x: (centreScreen - viewport.x) / viewport.scale, y: (y - viewport.y) / viewport.scale };
 }
 
 /** Rotate a geometry about a pivot by `deg` (image space). */

@@ -111,6 +111,12 @@ export interface SheetEditorProps {
   onSheetTitleChange?: (title: string) => void;
   sheetId?: string;
   /**
+   * D170: a sheet was added from INSIDE the editor («Import file»). The editor has already
+   * switched to it; the shell updates its route so its `sheetId` agrees (the same
+   * `openSheet` the camera's «Use photo» dispatches).
+   */
+  onSheetAdded?: (sheetId: string) => void;
+  /**
    * Slice 1.7 integration seam (the `onImportReady` precedent): the live imperative
    * scene + canvas, handed out once they exist. Lets an in-browser test drive geometry
    * through the REAL editor without reaching into Konva globals.
@@ -155,6 +161,7 @@ export default function SheetEditor({
   onTakePhoto,
   onSheetTitleChange,
   sheetId,
+  onSheetAdded,
   onSceneReady,
   onExportSource,
 }: SheetEditorProps) {
@@ -439,7 +446,6 @@ export default function SheetEditor({
     const file = input.files?.[0];
     input.value = '';
     if (!file || !canvasRef.current) return;
-    const canvas = canvasRef.current;
     setBusy(true);
     try {
       const state = projectDirRef.current;
@@ -461,32 +467,22 @@ export default function SheetEditor({
       );
       state.file = nextFile;
 
+      // D170: open the new sheet through the controller's sheet switch, exactly like a
+      // grid tap or the camera's «Use photo». It clears the old sheet's marks and undo
+      // history and points autosave at the NEW sheet. Before this, an in-editor import
+      // only swapped the photo: the old sheet's marks stayed on screen and every later
+      // edit autosaved into the OLD sheet (or, from an empty project, was never saved).
+      const controller = controllerRef.current;
+      if (!controller) throw new Error('editor is not ready');
+      await controller.loadSheet(sheet.id);
+      onSheetAdded?.(sheet.id);
+
+      // The switch cancels any pending thumbnail, so the new sheet's is scheduled after it.
       schedulerRef.current?.cancel();
       schedulerRef.current = createThumbnailScheduler({
         write: (blob) => writeAtomic(sheetDir, 'thumb.jpg', blob, projectId),
       });
       schedulerRef.current.schedule(normalized.blob);
-
-      const bitmap = await createImageBitmap(normalized.blob, { imageOrientation: 'from-image' });
-      bitmapRef.current?.close();
-      bitmapRef.current = bitmap;
-      canvas.setPhoto(bitmap, normalized.width, normalized.height);
-      canvas.fit();
-      setSheetTitle(sheet.title);
-      setSheetCount(nextFile.sheets.filter((s) => !s.deletedAt).length);
-      // Slice 1.9: the added sheet joins the export seam's list and becomes current.
-      setExportSheets(
-        nextFile.sheets
-          .filter((s) => !s.deletedAt)
-          .map((s) => ({
-            id: s.id,
-            title: s.title,
-            imageWidthPx: s.imageWidth,
-            imageHeightPx: s.imageHeight,
-          })),
-      );
-      setExportSheetId(sheet.id);
-      setStatus('ready');
     } catch {
       setStatus('error');
     } finally {
@@ -534,7 +530,7 @@ export default function SheetEditor({
   };
 
   const eraseAvailable = activeToolId === 'erase';
-  const strokeMode = strokeModeAvailable(inputKind ?? 'pen');
+  const strokeMode = strokeModeAvailable(inputKind ?? 'touch');
 
   // ---- slice 1.6 wiring: Layers flyout + select mini-toolbar ------------------
   const labelCtx = { unitSystem, unitFormat, precisionDenominator };
@@ -819,42 +815,38 @@ export default function SheetEditor({
           </div>
         ) : null}
 
-        {/* Erase panel (plan step 6 / touch model §4.1): under touch stroke-scope is
-            hidden and the pen-required note is shown. */}
-        {eraseAvailable ? (
+        {/* Erase panel (plan step 6 / touch model §4.1): its only content is the
+            Objects/Stroke mode switch. Under touch stroke-scope is unavailable (D167: the
+            crews use only the touchscreen), so the whole panel is omitted — rendering it
+            would leave an empty dark chip. */}
+        {eraseAvailable && strokeMode ? (
           <div className="erase-panel" role="group" aria-label={STRINGS.tool.erase}>
-            {strokeMode ? (
-              <div className="erase-modes" role="radiogroup" aria-label={STRINGS.tool.erase}>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={eraseMode === 'object'}
-                  className={eraseMode === 'object' ? 'is-active' : undefined}
-                  onClick={() => {
-                    setEraseMode('object');
-                    eraseRef.current?.setMode('object');
-                  }}
-                >
-                  {STRINGS.erase.modeObject}
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={eraseMode === 'stroke'}
-                  className={eraseMode === 'stroke' ? 'is-active' : undefined}
-                  onClick={() => {
-                    setEraseMode('stroke');
-                    eraseRef.current?.setMode('stroke');
-                  }}
-                >
-                  {STRINGS.erase.modeStroke}
-                </button>
-              </div>
-            ) : (
-              <p className="erase-pen-note" role="note">
-                {STRINGS.erase.strokeNeedsPen}
-              </p>
-            )}
+            <div className="erase-modes" role="radiogroup" aria-label={STRINGS.tool.erase}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={eraseMode === 'object'}
+                className={eraseMode === 'object' ? 'is-active' : undefined}
+                onClick={() => {
+                  setEraseMode('object');
+                  eraseRef.current?.setMode('object');
+                }}
+              >
+                {STRINGS.erase.modeObject}
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={eraseMode === 'stroke'}
+                className={eraseMode === 'stroke' ? 'is-active' : undefined}
+                onClick={() => {
+                  setEraseMode('stroke');
+                  eraseRef.current?.setMode('stroke');
+                }}
+              >
+                {STRINGS.erase.modeStroke}
+              </button>
+            </div>
           </div>
         ) : null}
 

@@ -2,8 +2,8 @@
  * Decode worker — `src/media/decodeWorker.ts` (build spec §7.3).
  *
  * §7.3: "Konva cannot run in a worker: **decode in a worker**, render on the main
- * thread throttled to idle." Slice 0.1 proved the Vite worker build with an echo
- * stub; slice 1.3 replaces the body with the real decode and keeps the convention
+ * thread throttled to idle." This worker does the real decode (it began as a
+ * Vite worker-build echo stub in slice 0.1) and keeps the construction convention
  * verbatim:
  *
  *   new Worker(new URL('./decodeWorker.ts', import.meta.url), { type: 'module' })

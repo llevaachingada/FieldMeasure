@@ -1,10 +1,9 @@
 # Decisions (ADR log)
 
-One entry per architectural decision. Add a line here whenever you make a decision the spec doesn't
-already cover (see build spec §15, rule 11).
-
-**Canonical spec:** `docs/preflight-handoff-v0.3-hardened.md` (v0.3, hardened after adversarial
-review). Its **§2.4 v1 scope table** is the single authority on what ships in v1.
+Why the app is the way it is. Add a new `### D<next number> - <title>` section **at the end** for
+every decision a change makes (numbers are unique and ascending; `tests/documents.test.ts` checks
+it). Older entries are history: they cite the build-era docs, now in `docs/archive/`, and may
+describe things later decisions changed. The latest decision on a topic wins.
 
 Status: **Accepted** · Superseded · Proposed.
 
@@ -155,7 +154,7 @@ into the canonical docs:
 
 ## Session 3 — plan verification & flush-out (2026-09-21)
 
-Adversarial verification of `docs/implementation-plan.md` against the canonical specs, then flush-out of
+Adversarial verification of `docs/archive/implementation-plan.md` against the canonical specs, then flush-out of
 the plan into per-slice build packets. Findings were fixed **in the spec first, then propagated to the
 plan** — the two never left disagreeing:
 
@@ -184,7 +183,7 @@ plan** — the two never left disagreeing:
 
 ## Session 3 — UI/UX & layout review (2026-09-21)
 
-Senior adversarial + architecture review of `docs/ui-spec-field-measure-v2-hardened.md` against the
+Senior adversarial + architecture review of `docs/archive/ui-spec-field-measure-v2-hardened.md` against the
 build spec (§2.4 scope, §11, §8) and UNITS/DECISIONS. Findings fixed in the UI spec (the subordinate doc):
 
 - **Rail customization drift (UI §6.5 + §15).** "Rail side (…Bottom…)", "Pin order", and "Quick Pair"
@@ -201,7 +200,7 @@ build spec (§2.4 scope, §11, §8) and UNITS/DECISIONS. Findings fixed in the U
 
 ## Session 4 — senior adversarial & hardening review (2026-09-21)
 
-Full register with evidence: **`docs/review-session-4-hardening.md`**. Method: the specs' reference
+Full register with evidence: **`docs/archive/review-session-4-hardening.md`**. Method: the specs' reference
 code was extracted into a JS runtime and **executed** against its own committed tables, the storage
 failure paths were attacked, and the build plan was audited for work no slice owned. Code-level
 fixes are marked `SESSION-4 FIX (…)` in the build spec; new normative rules are in **§5.8** and
@@ -314,8 +313,8 @@ contradiction register (C1–C14) was applied to the canonical docs. The decisio
 
 ## Session 5 — touch-first input model & pre-code design review (2026-09-21)
 
-Full analysis: **`docs/gui-ux-readiness-and-design-handoff.md`**. Implementable interaction design:
-**`docs/touch-first-interaction-model.md`**. Eight research lanes (4 × `librarian`, 3 × `designer`,
+Full analysis: **`docs/archive/gui-ux-readiness-and-design-handoff.md`**. Implementable interaction design:
+**`docs/archive/touch-first-interaction-model.md`**. Eight research lanes (4 × `librarian`, 3 × `designer`,
 1 × `explorer`) plus a source-verified check of the Claude Design product claims.
 
 ### D35 — Touch is the primary input (supersedes M4's pen-first framing)
@@ -449,7 +448,7 @@ Corrected using `D30`'s sanctioned formula, `sourcePx = diameterPx / magnificati
 | **Touch loupe** | **200px** | **4×** | `200 / 4` = **50px** |
 
 Applied to `U §8.1` (the touch-variant bullet), `U`'s changelog row 19, and
-`docs/touch-first-interaction-model.md` §2.1. All three now state the **derived** source rather than an
+`docs/archive/touch-first-interaction-model.md` §2.1. All three now state the **derived** source rather than an
 independent number, so they can no longer disagree. The touch loupe genuinely does show slightly more
 context than the pen loupe (50px vs ≈45.7px) *at a higher magnification*, because the window grew too.
 
@@ -621,7 +620,7 @@ browser provider — an optional peer, not auto-installed). Corrected the browse
 **Decision row taken:** "If you have no Surface" → PROVISIONAL.
 
 **Action:** recorded provisional; added "re-measure C3 device caps on the target Surface" to
-`docs/HARDWARE-TEST-CHECKLIST.md` (slice 0.2 + H10); slice 1.4 builds against provisional labels and
+`docs/archive/HARDWARE-TEST-CHECKLIST.md` (slice 0.2 + H10); slice 1.4 builds against provisional labels and
 reads the §21.7 row after the on-device measurement. The probe is committed at
 `tests/e2e/device-caps.spec.ts` so hardware re-measurement is a one-command run.
 
@@ -640,8 +639,8 @@ genuinely decoded, not header-patched.
 
 **Action:** slice 1.3 built and passed its EXIF/normalize gates against these fixtures. The
 `[Surface]` half — a real phone photo, GPS tag confirmed present before import and confirmed absent
-in Explorer file properties after — is logged in `docs/HARDWARE-TEST-CHECKLIST.md` (slice 1.3 rows
-+ H4). Status flipped to ✅ in `docs/CHECKPOINTS.md` (orchestrator, slice 1.4/1.4.5 batch).
+in Explorer file properties after — is logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` (slice 1.3 rows
++ H4). Status flipped to ✅ in `docs/archive/CHECKPOINTS.md` (orchestrator, slice 1.4/1.4.5 batch).
 
 **Correction carried from D55:** the earlier claim that `tiny-2x2.jpg` was a "SOF-patched 1×1 seed"
 was false — the old 631-byte file was a genuine encoder JPEG of a 2×2 solid-white image and decoded
@@ -924,7 +923,7 @@ and disagree with the plan:
 | Source | Touch loupe | Arithmetic |
 |---|---|---|
 | UI spec §8.1 (and its changelog row 19) | 200 px, **4×**, **50×50** source | `sourcePx = diameterPx / 4` → 200 / 4 = 50 ✓ |
-| `docs/touch-first-interaction-model.md` §2.1 | 200 px, **4×**, **50 px** source | same ✓ |
+| `docs/archive/touch-first-interaction-model.md` §2.1 | 200 px, **4×**, **50 px** source | same ✓ |
 | D30 + the round-5 correction table | 200px, **4×**, `200 / 4` = **50px** | same ✓ |
 | **implementation plan** (before this fix) | 200 px, 4×, **100×100** source | 4× of 100 px needs a **400** px window ✗ |
 
@@ -944,7 +943,7 @@ must be checked for **both** loupes.
 for markup-layer redraw time while panning a 4096-px sheet carrying ~50 annotations. Slice 1.3 shipped
 **no annotation model** — dimensions arrive in 1.5, shapes and ink in 1.6 — so the measurement cannot
 run yet. No number was invented to fill the gap: `min(devicePixelRatio, 2)` (already implemented) ships
-until hardware says otherwise, the row is in `docs/HARDWARE-TEST-CHECKLIST.md`, and `CHECKPOINTS.md` C4
+until hardware says otherwise, the row is in `docs/archive/HARDWARE-TEST-CHECKLIST.md`, and `CHECKPOINTS.md` C4
 now carries that status plus the re-run point (after 1.6).
 
 ****★ Correction — to my own correction. This is the sharpest lesson of the pass.** The reflect report
@@ -953,7 +952,7 @@ binary-safe: at `1975860` the C1/C2 headings end in **U+2B1C (⬜)**; at `a6a12d
 **U+2705 (✅)** — a *concurrently running lane* measured C2 and refreshed both headings while this pass
 was being written.
 
-I first declared that finding false, because `git diff -- docs/CHECKPOINTS.md` showed only my own C4
+I first declared that finding false, because `git diff -- docs/archive/CHECKPOINTS.md` showed only my own C4
 edit. That check was **invalid**: HEAD had already moved (the lane’s commit had landed), so comparing the
 working tree against the *current* HEAD could not reveal the historical state.
 
@@ -976,7 +975,7 @@ shipped. It now (a) states that code exists and sends the reader to `CONTINUITY.
 wording counted review rounds and would have gone stale again immediately). `CLAUDE.md` was a stale
 second copy — with a mojibake header — and is now a deliberate pointer; nothing referenced it.
 
-**New: `docs/review-brief.md`.** The eight questions every review lane must answer, each carrying the
+**New: `docs/archive/review-brief.md`.** The eight questions every review lane must answer, each carrying the
 real defect that put it there (proves-nothing tests, trivially-true gates, unfaithful DECISIONS claims,
 stale arithmetic in a subordinate doc, faked or unlogged deferral, a flattened invariant, an unpinned
 boundary, environment coupling). It is the pasteable brief for `@oracle` / adversarial lanes;
@@ -1012,7 +1011,7 @@ it is the only file guaranteed to be in an agent’s context. The proposed `task
 **Not applied, deliberately:** the reflect pass also proposed extending the *global*
 `verification-planning` skill with a "does the path test the wiring, or only the decision?" section.
 The evidence is one repository, and it is a global asset, so it stays un-applied until a second repo
-shows the pattern. `docs/review-brief.md` covers the need in-repo.
+shows the pattern. `docs/archive/review-brief.md` covers the need in-repo.
 
 ### D67 — the copy-contract gate broke the typecheck gate (fixed without weakening it)
 
@@ -1118,7 +1117,7 @@ section, and the copy-contract gate (`tests/strings.test.ts`) passes on the fold
 **Write failure keeps the photo in memory** and offers «Save a copy…», so a field photo is never
 trapped. The sheet is not appended to `project.json` until `photo.jpg` is on disk.
 
-**Deferrals logged, not faked:** five `[Surface]` rows in `docs/HARDWARE-TEST-CHECKLIST.md`, every one
+**Deferrals logged, not faked:** five `[Surface]` rows in `docs/archive/HARDWARE-TEST-CHECKLIST.md`, every one
 PENDING with its machine-verifiable half stated (capture→disk→thumbnail, kill-mid-write, camera-denied
 copy, the real device max, and the on-device target/focus walk).
 
@@ -1134,7 +1133,7 @@ driven in the browser project against a real `Konva.Stage`.
 **not measurable without hardware** (the same treatment C4 got) — never as a pass, and no
 number was invented to fill the gap.
 
-**Action:** the ten `[Surface]` rows are logged in `docs/HARDWARE-TEST-CHECKLIST.md` under
+**Action:** the ten `[Surface]` rows are logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` under
 slice 1.5, and `CHECKPOINTS.md` C10 carries the machine-half wording. The failure mode this
 checkpoint guards is "wrong-looking drawing, right number" — it informs UX and cannot
 corrupt a measured value.
@@ -1226,7 +1225,7 @@ renders at the constant **8-mu** floor with `thinning: 0`.
 
 **Decision row taken:** "No pen present (touch-only run) → Mark **PENDING (pen-only)** — never FAIL."
 
-**Action:** the pen half is logged in `docs/HARDWARE-TEST-CHECKLIST.md` (slice 1.6) and
+**Action:** the pen half is logged in `docs/archive/HARDWARE-TEST-CHECKLIST.md` (slice 1.6) and
 `CHECKPOINTS.md` C9 carries the pen-pending wording. Freehand ships on touch at the constant
 width floor by design; no number was invented.
 
@@ -1305,7 +1304,7 @@ argument for keeping the build in the gate even when every test is green.**
 
 ### D74 — three UI-spec corrections (two impossible numbers, one self-contradicting gesture)
 
-Three claims in `docs/ui-spec-field-measure-v2-hardened.md` were wrong and are corrected in that
+Three claims in `docs/archive/ui-spec-field-measure-v2-hardened.md` were wrong and are corrected in that
 file (AGENTS.md: fix the subordinate document, log it here). The shipped code was right in all three
 cases; **no application code changed**.
 
@@ -1715,7 +1714,7 @@ handle directly", fails for exactly the same reason — seeding it is what cause
 handle — what a user actually picks — behaves the same was **not** established; only OPFS handles are
 testable headlessly. If real handles also kill the next load, this is a **product** defect in
 `src/settings/projectsRoot.ts` (the app would be unusable after a reload), not a harness limitation.
-Recorded as a hardware check in `docs/HARDWARE-TEST-CHECKLIST.md`. `tests/e2e/layersReorderTouch.spec.ts`
+Recorded as a hardware check in `docs/archive/HARDWARE-TEST-CHECKLIST.md`. `tests/e2e/layersReorderTouch.spec.ts`
 stays **`fixme`** with a corrected header, and **the product is not declared exonerated** — the
 session-12 sentence "the product is not implicated" is withdrawn as unsupported.
 
@@ -1723,7 +1722,7 @@ session-12 sentence "the product is not implicated" is withdrawn as unsupported.
 
 ### D82 — slice 1.8 (style system): per-tool memory, recents, presets IO, and the one place precision is edited
 
-**Shipped** (packet `docs/implementation-plan.md` 1205-1258; build spec §11.5; UI spec §7):
+**Shipped** (packet `docs/archive/implementation-plan.md` 1205-1258; build spec §11.5; UI spec §7):
 - `src/state/styleByTool.ts` — `Record<ToolId, AnnotationStyle>` per-tool memory where a tool swap is
   a **return, never a reset** (§7.4 #6), plus **recents** (last 8, deduped, newest-first, filtered to
   those valid for the current tool — §7.3) and the pure derivations the shell needs:
@@ -1909,7 +1908,7 @@ That is the first evidence on the question **D81** left open, and it points **aw
 the renderer death reproduced in session 13 was with an **OPFS** handle written directly by a probe.
 > It is **evidence, not proof**: a different Chromium invocation (the review browser, not Playwright's),
 > a handle that was *auto-granted* rather than *user-picked*, and a single run.
-> The check in `docs/HARDWARE-TEST-CHECKLIST.md` therefore stays, **narrowed** to *"does a user-picked
+> The check in `docs/archive/HARDWARE-TEST-CHECKLIST.md` therefore stays, **narrowed** to *"does a user-picked
 > folder survive a reload?"*, and that row now records this positive data point so the next session does not
 > re-derive it.
 
@@ -1985,8 +1984,8 @@ to the sheets grid with a toast «Added «Sheet 05»» + ↶ «Undo»."*
 
 **What actually happened.** Slice 1.2 built `src/ui/ProjectList.tsx` — *Home's* project-card list — and the
 plan recorded that work as "create/open project". The Project screen appears in **no slice's file list** in
-`docs/implementation-plan.md`, and the miss was recorded **nowhere**: it is absent from DECISIONS, from
-`docs/handoff-session-13.md` §9, and from CONTINUITY's watch items. This is the same class as **D87** — *work
+`docs/archive/implementation-plan.md`, and the miss was recorded **nowhere**: it is absent from DECISIONS, from
+`docs/archive/handoff-session-13.md` §9, and from CONTINUITY's watch items. This is the same class as **D87** — *work
 that no slice owned* — and it is invisible to every gate, because nothing asserts it. The plan is the
 authority on order and done-ness; the build spec's reassignment of this screen to 1.2 was simply never carried
 into it.
@@ -2189,7 +2188,7 @@ Everything else on the export side keeps its number (`D89`–`D95`; `D90`'s owed
 `D95`). Why this direction: it is the smallest blast radius — four headings move and **no source or test
 comment is touched**. The alternative (shifting all eleven export entries to `D89`–`D99`) rewrites ~16
 comment lines across `src/fs/presets.ts` and six browser suites for the same result. The only external
-reference updated is `docs/HARDWARE-TEST-CHECKLIST.md` H21 (the C6 ceiling row, which cites the 512 MB
+reference updated is `docs/archive/HARDWARE-TEST-CHECKLIST.md` H21 (the C6 ceiling row, which cites the 512 MB
 figure). Historical commits that used the old branch numbers are left exactly as written; this entry is
 the map.
 
@@ -2446,7 +2445,7 @@ exists for. Recorded here so the choice is deliberate rather than accidental.
 ### D108 — the torch toggle must reflect the hardware (and the "work light" is not in v1 scope)
 
 Both items come from the owner-requested read-only investigation in
-`docs/investigation-torch-and-capture.md`, which asked the next session touching this file to number them.
+`docs/archive/investigation-torch-and-capture.md`, which asked the next session touching this file to number them.
 
 **1. The torch toggle could report success when nothing happened — fixed.** `applyAdvanced` swallowed every
 rejected constraint and returned `void`, and `toggleTorch` flipped its own state *before* the call, so on a
@@ -2809,7 +2808,7 @@ row is not resurrected into a half-sheet (a photo, no markup) behind a card that
 Two reviews ran against `249754e`.
 
 **An executed correctness register** (`@oracle`, in a clean worktree pinned to that commit, per
-`docs/review-brief.md`) reproduced the gate itself — tsc 0, **91 files / 1293 tests** across node + jsdom +
+`docs/archive/review-brief.md`) reproduced the gate itself — tsc 0, **91 files / 1293 tests** across node + jsdom +
 browser — and found **no wrong-measurement and no data-loss defect**. Six items: one genuine claim-fidelity
 inversion (F1, fixed), one wiring-seam gap (F2, closed), two false comments (F3/F5, fixed), and two
 cosmetic/spec-fidelity items (F4, fixed; F6, recorded).
@@ -2903,7 +2902,7 @@ pinned.
 ### D119 — the owner-reported capture dead end: the failure overlay said nothing, and «Retry» could never work
 
 **Reported from a real run** — *"when I take a photo and hit use photo it gets stuck at 'save as a copy…'
-'retry' button"* — which is exactly the class `docs/handoff-session-21.md` §2 predicted only a real run would
+'retry' button"* — which is exactly the class `docs/archive/handoff-session-21.md` §2 predicted only a real run would
 find.
 
 **What was wrong.** `CameraFlow`'s failure overlay was a blank `role="alert"` holding two buttons: no line
@@ -2975,7 +2974,7 @@ is the reliable escape and is the first thing the hardware row asks for.
 
 **Test honesty, and one gap stated plainly:** the first attempt to pin the watchdog drove the capture flow under
 fake timers, which fought the component's own async path **and leaked a queued mock implementation into the next
-test** — the environment-coupling trap `docs/review-brief.md` §8 names. Restructured: the timer mechanism is
+test** — the environment-coupling trap `docs/archive/review-brief.md` §8 names. Restructured: the timer mechanism is
 pinned as a timer (`createSaveWatchdog`, no camera), the label mapping as a pure function, and the owner's
 symptom (a hung pipeline keeps its stage label and never traps the photo) with **real** timers. The 30 s exit's
 post-timeout button set is *not* machine-verified end to end; the hardware row covers it.
@@ -3065,9 +3064,9 @@ re-pick action lives in Settings and in the capture failure overlay, and §5.3's
 
 Every owner-visible defect in this project's recent history was found by **running the app** — D85 (the
 handedness cards), D103 (a dead button), D110 (Home cards stating fiction), D119/D120/D122 (the capture path) —
-and never by a green gate. `docs/handoff-session-21.md` §2 put the gap plainly: *"No agent has ever driven the
+and never by a green gate. `docs/archive/handoff-session-21.md` §2 put the gap plainly: *"No agent has ever driven the
 app end to end."* This wave adds the machine-checkable half of closing it: `npm run clickthru`
-(`playwright.clickthru.config.ts` + `tests/clickthru/**`), documented in **`docs/clickthru-harness.md`**, which
+(`playwright.clickthru.config.ts` + `tests/clickthru/**`), documented in **`docs/archive/clickthru-harness.md`**, which
 drives the **built** app in a real headed browser with **real CDP touch and pen input** on the Surface geometry
 (1440×960 DPR 2 primary, portrait and desk profiles) and screenshots every step into
 `test-results/clickthru/latest/` (contact sheet, per-step PNGs, `run.json`, video, and export artifacts read
@@ -3078,7 +3077,7 @@ never wired into `playwright.config.ts` or `npm run e2e`, and a green run **neve
 the contact sheet prints what it can never prove (contact geometry, palm physics, the digitiser curve, OS
 gesture delays, camera optics, thermals, sunlight) and `run.json` records that list with every run. The
 orchestrator runs it on the **reconciled** tree after any wave that changes what the user sees
-(`docs/BUILD-RUNBOOK.md` §11, `AGENTS.md`).
+(`docs/archive/BUILD-RUNBOOK.md` §11, `AGENTS.md`).
 
 **Its first two runs earned it** (findings in §10 of its doc): **D125** below, the pen barrel button not being
 distinguished from the tip (evidence for H13), a dimension's midpoint being a handle rather than the body, and
@@ -3352,7 +3351,7 @@ layer has no gate today, which is why this survived four review rounds and a gre
 
 ### D132 — the VANGARDE watermark: settings-gated, a light mark in-app, the vector lockup on exports
 
-**Owner request, not a numbered spec section.** `docs/handoff-ui-pass-for-claude.md` is the UI/GUI pass this
+**Owner request, not a numbered spec section.** `docs/archive/handoff-ui-pass-for-claude.md` is the UI/GUI pass this
 session works from; the watermark was asked for separately in the same message, with two source logos (a raster
 brand lockup and a Bluebeam-traced vector PDF of "VANGARDE woodworks") and explicit latitude on layout: *"I will
 let you lay it out but it just needs to be visible like a watermark not obnoxious."*
@@ -3408,7 +3407,7 @@ in the corner of the printed sheet, clear of the markup it was drawn over.
 
 ### D133 — §4.1 (the handoff's own priority #1): the inset controls get a real data channel; five others stay owed, and why
 
-`docs/handoff-ui-pass-for-claude.md` §4.1 names the missing per-tool controls' schema problem as "the single
+`docs/archive/handoff-ui-pass-for-claude.md` §4.1 names the missing per-tool controls' schema problem as "the single
 highest-value change" in the whole pass — without it, any panel button that used one of them would be a stub.
 Its own suggested key list (§4.1 step 1) is fifteen names across seven tools. This session shipped three,
 wired end to end (schema → render → panel → tests), and is explicit about why the other twelve are not all in
@@ -3519,7 +3518,7 @@ unchanged. New pure tests: `tests/geometry.test.ts` (`elbowPoints`, 6 cases with
 
 ### D134 — §4.2: the mini-toolbar grows from 3 buttons to 9, gets a computed anchor, and one owed simplification
 
-`docs/handoff-ui-pass-for-claude.md` §4.2/§8 names the mini-toolbar as priority #2: "ship the full pill" and
+`docs/archive/handoff-ui-pass-for-claude.md` §4.2/§8 names the mini-toolbar as priority #2: "ship the full pill" and
 "use `element.animate()` for the anchor" (the CSP forbids inline `style=""`, so a computed position cannot be
 a plain `style={{left,top}}`).
 
@@ -3791,7 +3790,7 @@ themselves stay, because the React-side handlers call tool-specific methods. Pin
 
 ### D146-D152 - owner requests, session 28
 
-**Status: shipped (session 28).** All requested by the owner directly; details in `docs/handoff-session-28.md`.
+**Status: shipped (session 28).** All requested by the owner directly; details in `docs/archive/handoff-session-28.md`.
 - **D146:** the camera opens on the rear camera (picked by device label, with `facingMode: environment` only as a hint
   before labels exist). Long-press AE/AF lock only happens when Settings › Camera enables it (default off).
 - **D147:** the export dialog is one page (Scope, Format, Destination together). The default destination follows
@@ -3883,3 +3882,200 @@ does not read code.
   first run again, and the fix is to pick the same folder.
 - The manifest and `package.json` descriptions no longer say "slice 0.1 scaffold". `AGENTS.md` gained a short handoff
   paragraph. Its rules are unchanged.
+
+### D167 - touch only: pen-specific screens and wording removed
+
+**Status: shipped (session 30, owner request).** Every Surface in the shop is used by touch; nobody uses a pen. The
+owner asked for pen-related material to be removed from the instructions and the app.
+
+- **Removed from what the user sees:** the «Pen only» setting (removed end to end, so nobody can be stuck with finger
+  input disabled), the eraser's "needs the pen" note, the unused "Freehand is most precise with the pen" hint, and
+  "freehand pen" in Help and `docs/USER-GUIDE.md`. The README, `docs/INSTALL.md` and `docs/FIELD-TEST.md` are
+  touch-only. The field test drops the pen-only hardware rows (pressure, barrel button, hover).
+- **Kept:** the input router's pen handling (pointerType routing, pressure, the barrel button). It is invisible,
+  shared with the touch path, and covered by tests, and removing it would risk touch behaviour for no user benefit. An
+  agent must not build pen-only features or wording (`AGENTS.md`).
+- **«Finger draws» now defaults ON.** It was OFF under the pen-first design, and with it off, a finger drag with the
+  Freehand tool selected only panned (`gestureArbiter.ts`). On a touch-only fleet that left Freehand looking broken.
+  Anyone who set the toggle explicitly keeps their stored value. The palm risk with no pen (no palm window, archived
+  hardware row H1b) is now `docs/FIELD-TEST.md` check 6.
+- **The erase panel renders only when stroke mode is available.** Under touch, the removed note was its only
+  content, so dropping the note alone would have left an empty chip.
+- **Copy contract:** the three removed keys are struck through in `docs/appendix-strings.md` and marked «Removed
+  (D167)», keeping the line count so the `appendix-strings.md:<line>` citations in code stay valid. The string count
+  is now 220.
+- **Tests, only where they asserted the removed things:**
+  - `settings.test.tsx`: no «Pen only» switch (with a new assertion that none renders); «Finger draws» defaults ON,
+    and the persist test flips it ON → OFF.
+  - `markupTools.test.ts`: dropped the `penOnly: true` case; the `fingerDraws` cases stay.
+  - `markupTools.browser.test.ts`: the touch erase test asserts stroke mode is hidden and that no note renders.
+  - `shapeToolHold` / `sheetEditor` browser tests: dropped the `penOnly` field from their settings literals.
+
+  Every other assertion is unchanged.
+
+### D168 - docs for the handoff: a small live set, the build-era docs archived
+
+**Status: shipped (session 30, owner request).** The owner asked for every document made to *build* the software
+(specs, plans, process, session handoffs, reviews) to be archived, leaving the repo tidy for the shop.
+
+- **Moved to `docs/archive/` (frozen, with an index README):** the build and UI specs, the touch-first model, the
+  implementation and fix plans, the runbook, checkpoints, the clickthru process doc, every session handoff and review,
+  the old file index, `CONTINUITY.md`, `BUILD-LOG.md` and the full `HARDWARE-TEST-CHECKLIST.md`. Every relative link
+  and every `docs/<file>` mention in the moved and live docs was rewritten to the new path, and a link check over all
+  markdown found nothing broken.
+- **Live:** `README.md` (the owner's guide), `AGENTS.md` (rewritten lean: the non-negotiables are unchanged; the
+  slice/lane process is gone; each change is branch → checks → DECISIONS + CHANGELOG + STATUS → pull request),
+  `CLAUDE.md` (pointer), `docs/STATUS.md` (new; replaces CONTINUITY), `docs/CHANGELOG.md` (new; replaces BUILD-LOG
+  going forward), `docs/DECISIONS.md`, `docs/UNITS.md`, `docs/USER-GUIDE.md`, `docs/INSTALL.md` (was
+  `install-runbook.md`, rewritten touch-only), `docs/FIELD-TEST.md` (new: 17 touch checks distilled from the
+  hardware ledger), and `docs/appendix-strings*.md` (the copy contract that `tests/strings.test.ts` reads).
+- `tests/documents.test.ts` reads the archived CONTINUITY and BUILD-LOG from their new paths and also scans STATUS and
+  CHANGELOG, so the gate is wider, not weaker.
+- Version 1.0.0 marks the handoff.
+- **Senior cleanup from a read-only audit (same change set):**
+  - **Third-party notices:** `THIRD-PARTY-NOTICES.md` was an unfilled template (8 of 11 licenses "verify at
+    scaffold", no license texts, no font OFL). It is now generated by `tools/third-party-notices.mjs` from the
+    installed tree: every shipped package, including pdf-lib's dependencies and the Workbox service-worker runtime,
+    with its full license text, plus both fonts' OFL 1.1. The OFL texts also ship next to the font files. CI runs the
+    script with `--check` instead of `test -f`.
+  - **Deploy gate:** `pages.yml` deploys on a successful CI run on `main` (`workflow_run`, checking out the exact
+    commit CI tested) or by hand. Before this, every push to `main` deployed even when the tests were red. `ci.yml`
+    runs on pull requests and on `main` (no double runs), with read-only permissions.
+  - **License field:** `package.json` said `UNLICENSED`, contradicting the README's grant; it is now
+    `SEE LICENSE IN README.md`. Added `.nvmrc` = 24.
+  - **Dead code removed:**
+    - 22 unused exports, each grep-verified to have no reference in src, tests, tools or configs, plus the two
+      helpers only they used (`MINI_TOOLBAR_H`, `SwatchNameKey`).
+    - The unwired `src/data/originGuard.ts` stub and its TODO.
+    - Four unused CSS rules.
+
+    No test referenced any of it, and no test was removed.
+  - **Stale comments fixed:** about a dozen that described unbuilt or "later slice" states that no longer hold.
+  - **Clutter:**
+    - `public/icons/make-icon.mjs` was being served publicly from the site; it moved to `tools/`, and its output is
+      byte-identical.
+    - The tool-specific `.ignore` file and the `.slim/deepwork` ignore are gone.
+  - **Help text:** it named a «Copy folder path» button. The button reads «Copy path», so Help and the user guide
+    now match.
+  - **Favicon:** `index.html` gained an icon link (it 404'd).
+  - **Fresh-eyes review fixes:**
+    - `pages.yml` deploys only for a CI run triggered by a *push* to `main`: a fork pull request from a branch
+      named `main` would otherwise match the branch filter.
+    - Every remaining `docs/<moved file>` mention in code comments now points into `docs/archive/`. The edits
+      are in-line, so `appendix-strings.md` keeps its 457 lines and the `:line` citations hold.
+    - The «Finger draws» default and the unshipped `tips.freehand` wording are made touch-only in both
+      appendices.
+    - Help and the user guide say "the tool bar at the side of the screen", since the rail follows
+      handedness; two guide steps were re-aligned to the Help text.
+    - `FIELD-TEST.md` check 7 now uses the real keypad keys and label format (`12'-6 3/8"`), and check 13 uses
+      a forced shutdown (a battery tablet can't have its power pulled).
+    - AGENTS gained the first-run `npx playwright install chromium`, the notices regeneration step, the
+      CHANGELOG entry format, append-only field-test numbering, and a note that slice/lane/§ references
+      point into the archive.
+    - STATUS lists all five disabled controls, and UNITS marks metric input as not yet switched on.
+  - **Not fixed here, listed in `docs/STATUS.md`:**
+    - the unwired file-version guard (`migrate.ts` is never called on load);
+    - two disabled controls;
+    - five `test.fixme` end-to-end tests.
+
+### D169 - file safety: the version guard and the recovery snapshots are connected
+
+**Status: shipped (session 31).** Both safety nets existed and were tested, but nothing in the app called them.
+
+- **Version guard.** `readJsonValidated` (`src/fs/projectStore.ts`) peeks at `schemaVersion` before validating. A
+  file written by a newer build throws `NewerFileVersionError`, which extends `StorageReadError`, so every existing
+  read-failure path (Retry, the unreadable card) handles it. It is deliberately **not** routed to `.history/`
+  recovery: loading an older snapshot and then autosaving would silently overwrite the newer file. That is the
+  Dropbox case, where two Surfaces on different builds share a folder. `readProjectFile` and `readSheetMarkup` now
+  run `migrateProjectFile`/`migrateMarkupFile` (fill pre-v0.3 defaults, stamp the version). Corrupt JSON still goes
+  to recovery. Help's "folder cannot be read" line, and the user guide, say to update the app first if another
+  Surface saved it with a newer version.
+- **Recovery snapshots.** `writeHistorySnapshot` had no caller, so `.history/` was always empty and a corrupt
+  `markup.json` or `project.json` had nothing to recover from. `writeToProjectDir` (`src/state/persistQueue.ts`), the
+  one function every autosave goes through, now snapshots what it just wrote:
+  - on the first save of each scope (`_project` or a sheet) in a session;
+  - then at most every 10 minutes (§5.8e cadence);
+  - with the existing 20-per-scope cap.
+
+  A failed snapshot is swallowed, so it never fails a save that already landed.
+- `tests/fileSafety.test.ts` (8 tests): newer project and markup files are refused even when a valid snapshot exists;
+  current and pre-v0.3 files load with defaults; corrupt JSON still recovers; the snapshot cadence holds at 10 min - 1
+  ms and at exactly 10 min; sheet and project scopes are independent; a torn `markup.json` recovers from the snapshot
+  autosave wrote; a snapshot failure doesn't fail the save.
+
+### D170 - bug fixes from the senior functional review
+
+**Status: shipped (session 31).**
+
+- **Critical: «Import file» inside the editor misfiled work.** `handleFile` (`src/ui/SheetEditor.tsx`) added the new
+  sheet and swapped the photo, but never switched sheets. The old sheet's marks stayed on screen, and every later edit
+  autosaved into the OLD sheet's `markup.json`; from an empty project, edits were never saved at all. It now opens the
+  new sheet through `controller.loadSheet` (the switch path: clear marks, clear undo, point autosave at the new sheet)
+  and tells the shell through a new `onSheetAdded` prop, which dispatches the same `openSheet` as the camera's «Use
+  photo». `tests/editorImport.browser.test.ts` fails on the old handler (sheet A's mark is still on the canvas) and
+  passes on the fix: the old marks leave, and the next edit is written to the new sheet only.
+- **Labels:**
+  - The inches-only format printed `0 1/2"` for sub-inch values; it now prints `1/2"`, like the ft-in format.
+  - A non-finite value (only a damaged or hand-edited file can hold one) printed `NaN'-NaN"`; every format now shows
+    `—`.
+
+  Both have tests in `tests/units.test.ts`.
+- **No dead controls** (STATUS item 7):
+  - «Third-party notices» now works: the build emits `third-party-notices.txt` (a small plugin in `vite.config.ts`)
+    and the row opens it.
+  - Removed:
+    - Settings «Trash…» (the grid's Trash works);
+    - the «Project settings» link;
+    - the whole unit-system row (Metric was its only alternative, and metric display isn't built; the stored setting
+      and the parser are untouched);
+    - the export wizard's «Include sheet names». Nothing in `src/export` ever read it, so the PDF never drew names.
+
+  Tests now assert that each removed control is absent.
+- **The eraser's Objects/Stroke switch** no longer shows before the first touch: a null input kind is treated as
+  touch.
+
+### D171 - 1.0 sign-off: the autosave stall, robust tests, and every open item decided
+
+**Status: shipped (session 31).** The owner asked for the app to be buttoned up with no open questions, and delegated
+every open decision.
+
+- **Critical, caught before merge: D169's snapshot wiring stalled autosave.** `writeHistorySnapshot` pruned under
+  `fm:project:<id>`, the lease lock an open project holds for its whole session (`acquireWriterLease`). The first
+  save's snapshot therefore waited forever, and every later save sat on «Saving…»; Web Locks queue with no timeout.
+  The unit test missed it because it held no lease. The prune now runs under `withWriteLock`, the per-write mutex with
+  a timeout. A new test in `tests/fileSafety.test.ts` holds the real lease and fails with "save stalled" on the old
+  lock. An end-to-end probe found the stall.
+- **Flaky tests are deterministic. No assertion was loosened or skipped.**
+  - `appNewProject`: the lazy `CameraFlow` import outran a 1 s wait under load. It is now pre-imported. Before: 2/10
+    loaded runs failed. After: 0/22.
+  - `sheetEditor.dimension` and `gridReorder`: fixed `sleep`s were replaced by waits on the real condition (the keypad
+    open and focused, the lift chip present, a renumber landed). Negative checks wait on measured elapsed time.
+  - `gridScroll`: geometry is polled until the menu's Web Animations anchor lands. Before: 1/3 full browser runs
+    failed. After: 0/3.
+- **End-to-end:**
+  - Three kill-switch crash tests now run. `Page.crash` is fired, not awaited, because the renderer that would answer
+    is the one being killed.
+  - The real-touch Layers reorder runs, with a real seeded JPEG and the journey spec's folder shim.
+  - The app-level power-loss test now runs. It draws, waits for «Saved», kills the renderer mid-publish of the next
+    save, reopens, and requires the exact pre-kill `markup.json` (5/5 alone, 5/5 under load). No end-to-end test is
+    `fixme` any more.
+- **Every open item, decided:**
+  - **Offset Nudge Pad:** not built. Dragging an end grip with the magnifier and snapping is the touch method, and
+    keyboard arrows cover the rest.
+  - **History panel:** not built. Snapshots now exist (D169), and recovery from them is automatic; a manual
+    restore screen adds little for the crews.
+  - **«Moved to a new address» screen:** not built. Re-picking the same folder recovers everything, and INSTALL,
+    README and Help say so.
+  - **Proposed wording:** signed off as shipping copy. The `⚠ PROPOSED` markers stay, only as provenance for
+    `tests/strings.test.ts`.
+  - **Mixed-selection side panel:** kept. The panel body scrolls (`overflow-y: auto`), so no control is cut off.
+  - **Left-handed tab order:** kept. Tab order only matters with a keyboard; the crews use touch.
+  - **The Dimension tool grabbing an existing end:** kept as select-then-drag, which stops a resting palm from moving
+    a finished dimension.
+  - **Per-tool styles for shapes and ink:** kept as they are.
+  - **«Remember this destination»:** already covered by the default export location in Settings → Export.
+  - **Arrowheads on the preview line:** not built. Cosmetic only, and the committed line shows them.
+  - **The eraser switch flicker:** fixed (D170).
+- **GitHub housekeeping the session could not do** (repository-settings and branch-delete writes are blocked
+  through its proxy): tick Settings → General → «Template repository», and delete the merged branches. Both are in
+  the README for the owner.

@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
  *
  * Read the logged lines and transcribe them into docs/DECISIONS.md (C3 format)
  * at slice 0.2 merge. If no Surface is available, record PROVISIONAL and add
- * "re-measure C3 device caps" to docs/HARDWARE-TEST-CHECKLIST.md.
+ * "re-measure C3 device caps" to docs/archive/HARDWARE-TEST-CHECKLIST.md.
  */
 test('records device camera capabilities', async ({ page }, testInfo) => {
   await page.goto('/');

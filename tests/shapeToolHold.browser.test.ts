@@ -55,7 +55,6 @@ function setup() {
       glovedTouch: false,
       fingerDraws: false,
       touchPlaces: true,
-      penOnly: false,
     }),
     onSnapshot: () => {},
     labels: { add: 'Add shape', move: 'Move shape', delete: 'Delete shape' },

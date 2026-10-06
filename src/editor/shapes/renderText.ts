@@ -16,9 +16,6 @@ import Konva from 'konva';
 import type { AnnotationStyle, Px } from '@/domain/types';
 import { screenFontSize } from '@/editor/EditorCanvas';
 
-/** §8.5: the auto-contrast sample region is 48×48. */
-export const TEXT_BG_SAMPLE_PX = 48;
-
 /**
  * D160 `box`: the text-box note. Text in `style.strokeColor`; a box in `style.fillColor` at
  * `style.fillAlpha` opacity, or no box when `fillColor` is null. The older modes stay readable.

@@ -206,6 +206,8 @@ export interface EditorLayoutProps {
    * capture flow's `onCaptured` so the new sheet is the one shown.
    */
   sheetId?: string;
+  /** D170: the editor added and opened a sheet itself («Import file»); the shell follows. */
+  onSheetAdded?: (sheetId: string) => void;
 }
 
 export default function EditorLayout({
@@ -220,6 +222,7 @@ export default function EditorLayout({
   onInitialExportConsumed,
   autosaveChip,
   sheetId,
+  onSheetAdded,
 }: EditorLayoutProps) {
   const handedness = useAppStore((s) => s.handedness);
   const density = useAppStore((s) => s.density);
@@ -726,6 +729,7 @@ export default function EditorLayout({
             onTakePhoto={onAddSheet}
             onSheetTitleChange={onSheetTitleChange}
             sheetId={sheetId}
+            onSheetAdded={onSheetAdded}
             onExportSource={onExportSource}
           />
           {dock === 'bottom' ? (

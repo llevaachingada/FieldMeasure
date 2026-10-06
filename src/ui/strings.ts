@@ -72,10 +72,6 @@ export const STRINGS = {
     fingerDraws: 'Finger draws (freehand)',
     magnifierOnTap: 'Magnifier when you tap',
     glovedTouch: 'Gloved touch (bigger touch targets)',
-    penOnly: 'Pen only',
-    // ⚠ PROPOSED (C14) — not approved copy (wording from appendix-strings.md
-    // `settings.penOnly` "Where it appears"; no guillemet string exists)
-    penOnlyHint: 'Limits finger gestures to two-finger pan/zoom',
 
     // ── ⚠ PROPOSED (C14) — not approved copy (appendix-strings-gaps.md §1) ────
     headingInput: 'Input',
@@ -659,8 +655,6 @@ export const STRINGS = {
   },
 
   erase: {
-    // APPROVED inventory (appendix-strings.md) — slice 1.6.
-    strokeNeedsPen: 'Splitting a stroke needs the pen. Touch can delete the whole stroke.',
     // ⚠ PROPOSED (C14) — not approved copy (slice 1.6: appendix-strings-gaps.md).
     modeObject: 'Objects',
     modeStroke: 'Stroke',
@@ -682,11 +676,6 @@ export const STRINGS = {
     copyStyle: 'Copy style',
     pasteStyle: 'Paste style',
     noStyleCopied: 'Copy a style first',
-  },
-
-  touch: {
-    // APPROVED inventory (appendix-strings.md) — slice 1.6.
-    freehandPenBetter: 'Freehand is most precise with the pen.',
   },
 
   style: {
@@ -882,7 +871,7 @@ export const STRINGS = {
       dimensions: {
         heading: 'Add dimensions',
         steps: {
-          s1: 'In the tool bar on the right, tap Dimension (at the top, under Measure).',
+          s1: 'In the tool bar at the side of the screen, tap Dimension (at the top, under Measure).',
           s2: 'Tap where the measurement starts, then tap where it ends. The keypad opens.',
           s3: 'Type the size (for example 12 FT 6 IN 3/8) and tap the check mark.',
           s4: 'To move the numbers off the line, tap Select, tap the dimension, then drag its numbers.',
@@ -894,7 +883,7 @@ export const STRINGS = {
       markup: {
         heading: 'Mark up the photo',
         steps: {
-          s1: 'Annotate: freehand pen, highlighter and text notes.',
+          s1: 'Annotate: freehand drawing, highlighter and text notes.',
           s2: 'Mark: lines, arrows, rectangles, ellipses and shapes.',
           s3: 'Change color, line width and arrowheads in the style panel on the left before or after you draw.',
           s4: 'Use Select to move, rotate, lock or delete a mark. The Layers button (top bar) lists every mark.',
@@ -906,7 +895,7 @@ export const STRINGS = {
         steps: {
           s1: 'Tap Export (top bar). Choose which sheets, the format (PDF or image) and where to save, all on one page.',
           s2: 'By default, exports go into a dated folder inside the project (exports, then the date and time). Settings > Export can send them straight to the project folder instead.',
-          s3: 'When the export finishes, tap Copy folder path and paste it into File Explorer, or tap Open next to a file to view it.',
+          s3: 'When the export finishes, tap Copy path and paste it into File Explorer, or tap Open next to a file to view it.',
         },
       },
       troubleshooting: {
@@ -915,7 +904,7 @@ export const STRINGS = {
           s1: 'Camera will not start: close other apps that use the camera, then check Windows Settings > Privacy & security > Camera and allow your browser.',
           s2: 'Wrong camera: tap Flip camera on the capture screen.',
           s3: 'Focus or exposure keeps locking: long-press locking is off by default. Check Settings > Camera.',
-          s4: 'A project folder cannot be read: tap Retry. If it still fails, check the folder still exists in your projects folder.',
+          s4: 'A project folder cannot be read: tap Retry. If it still fails, check the folder still exists in your projects folder. If another Surface saved it with a newer version, update this app first (tap Reload when Update ready appears).',
           s5: 'Read-only: the project is open in another window or tab. Close the other one, then reopen the project.',
           s6: 'Something went wrong: tap Reload. Work that was already saved stays in your projects folder.',
           s7: 'Folder permission keeps expiring: when the browser asks to let Field Measure edit your projects folder, choose Allow on every visit. Installing the app (Install in the address bar) also helps the browser remember. The app asks once when you open a project, so the camera never has to.',
