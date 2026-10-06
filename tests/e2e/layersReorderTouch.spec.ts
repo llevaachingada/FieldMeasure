@@ -1,9 +1,6 @@
 /**
  * `tests/e2e/layersReorderTouch.spec.ts` — D77/F1 real-input regression gate.
  *
- * ⚠ WRITTEN HERE, DELIBERATELY NOT RUN by the remediation lane: the lane protocol forbids
- * Playwright (`dist/` and the preview port are shared). The orchestrator runs it.
- *
  * WHY THIS EXISTS
  *   The machine half of this gate was green while the feature was dead. The prior tests
  *   drove a synthetic `pointerover` on the target row — an event real touch never delivers,
@@ -12,49 +9,35 @@
  *   faithfully and would have failed before the fix (the drop was a silent no-op).
  *
  * WHAT IT DOES
- *   Seeds a real project in OPFS (a 1×1 PNG + `markup.json` with two dimensions), drives
- *   first-run once (a stubbed `showDirectoryPicker` returns the OPFS root, a real handle),
- *   opens the sheet, opens Layers, then holds the grip and drags it over the OTHER row with
- *   CDP touch, asserting the two rows swap order.
+ *   Seeds a real project in OPFS (a decodable 800x600 JPEG + `markup.json` with two dimensions),
+ *   drives first-run once through the journey spec's folder shim, opens the project, then the
+ *   sheet, opens Layers, holds the grip and drags it over the OTHER row with CDP touch, and
+ *   asserts the two rows swap order.
  *
- * ⚠ OBSERVED BLOCKER — `fixme`, NOT a pass. Root cause EXECUTED in session 13 (three probes,
- *   deleted once the finding was recorded); this CORRECTS the session-12 diagnosis.
- *   The blocker is NOT "`disabled={busy}` never clears". **A page that LOADS with an OPFS
- *   `FileSystemDirectoryHandle` stored under the app's root key (`fm:projects-root`,
- *   idb-keyval) kills the renderer** in this Chromium build (Playwright 1.63 / Chrome 153,
- *   headless) — Playwright reports `Target page, context or browser has been closed` and
- *   cannot even snapshot the page.
- *   Measured, in order:
- *     A (control) `navigator.storage.getDirectory()` + a plain-object IndexedDB write → fine,
- *       page alive; `structuredClone(opfsHandle)` also succeeds.
- *     B (control) a bare `page.reload()` → fine (a service worker is registered, not
- *       controlling).
- *     C  `structuredClone(opfsHandle)` OK → `put(handle, 'fm:projects-root')` OK → page STILL
- *       ALIVE → the NEXT page load dies. So the crash is on deserialising the stored handle at
- *       boot, not on the write and not on reload itself.
- *   `FirstRun`'s only completion path persists the picked handle, so this harness cannot reach
- *   the editor at all. (The original report's "both buttons `[disabled]`" was a misreading of
- *   an ambiguous failure and is withdrawn.)
- *   ⚠ UNVERIFIED, AND IT MATTERS: whether a REAL on-disk directory handle — what a user
- *   actually picks — behaves the same is NOT established; only OPFS handles were testable
- *   headlessly. If real handles also kill the next load, this is a **product** defect in
- *   `src/settings/projectsRoot.ts`, not a harness limitation. Logged as a hardware check
- *   (`docs/archive/HARDWARE-TEST-CHECKLIST.md`) — do not claim the product is exonerated.
- *   The real-touch proof therefore remains **OWED** (D78). F1's *mechanism* is covered by
- *   `tests/layersPanel.test.tsx` (pure `dropKeyAtPoint`/`rowKeyFromElement`) and
- *   `tests/layersReorder.browser.test.ts` (real `elementFromPoint` against laid-out rows) —
- *   but neither is a real touch, which is precisely what made F1 invisible before.
- *   Do not delete this spec: seeding the root handle is the shortest path to the gate once
- *   the handle-storage behaviour is understood.
+ * HISTORY OF THE OLD `fixme` (both causes fixed in the test, not in the app):
+ *   1. The old harness stubbed `showDirectoryPicker` to return the OPFS root, so the app persisted
+ *      a real OPFS `FileSystemDirectoryHandle` under `fm:projects-root`, and the NEXT page load
+ *      died in this Chromium (renderer gone, "Target page, context or browser has been closed").
+ *      `clickthruInitScript` (shared with `journey.spec.ts`) stores a string sentinel there and
+ *      turns it back into the OPFS root on read, so no handle is ever deserialised at boot.
+ *      (Still unverified, and still worth a hardware look: whether a REAL on-disk handle behaves
+ *      the same on a Surface; OPFS handles are all a headless run can test.)
+ *   2. Two stale assumptions: Home now opens the project's sheets grid, so the sheet card has to
+ *      be tapped to reach the editor; and the 1x1 PNG stub is judged «Photo damaged» by the
+ *      loader, so the seed writes a real JPEG (which also made the Layers panel stay empty).
+ *   F1's mechanism is also covered by `tests/layersPanel.test.tsx` (pure `dropKeyAtPoint` /
+ *   `rowKeyFromElement`) and `tests/layersReorder.browser.test.ts` (real `elementFromPoint`
+ *   against laid-out rows); this spec is the one with a real touch.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { clickthruInitScript } from '../clickthru/harness';
 
 // Touch-primary: real touch input and a tablet-ish viewport (the reorder grip is 56 px).
 test.use({ hasTouch: true, viewport: { width: 1280, height: 900 } });
 
-/** 1×1 PNG — enough for `createImageBitmap` and `isPhotoDamaged` (size > 0). */
-const PNG_1X1_BASE64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+/** Working-image size of the seeded photo (geometry below is in these pixels, never normalised). */
+const PHOTO_W = 800;
+const PHOTO_H = 600;
 
 const STYLE = {
   strokeColor: '#FF3B30',
@@ -74,7 +57,7 @@ const SHEET_ID = 'sheet-1';
 /** Writes the seeded project into the origin's OPFS root (a real FSA directory handle). */
 async function seedProject(page: Page): Promise<void> {
   await page.evaluate(
-    async ({ png, style, projectId, folder, sheetId }) => {
+    async ({ width, height, style, projectId, folder, sheetId }) => {
       const root = await navigator.storage.getDirectory();
       const projectDir = await root.getDirectoryHandle(folder, { create: true });
       const sheetsDir = await projectDir.getDirectoryHandle('sheets', { create: true });
@@ -87,12 +70,15 @@ async function seedProject(page: Page): Promise<void> {
         await writable.close();
       };
 
-      const binary = atob(png);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      // A real, decodable JPEG: the editor's loader treats a 1x1 stub as a damaged photo.
+      const canvas = new OffscreenCanvas(width, height);
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#556677';
+      ctx.fillRect(0, 0, width, height);
+      const jpeg = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
       const photo = await sheetDir.getFileHandle('photo.jpg', { create: true });
       const photoWriter = await photo.createWritable();
-      await photoWriter.write(bytes);
+      await photoWriter.write(jpeg);
       await photoWriter.close();
 
       const now = new Date().toISOString();
@@ -113,8 +99,8 @@ async function seedProject(page: Page): Promise<void> {
               id: sheetId,
               title: 'Sheet 01',
               sortIndex: 0,
-              imageWidth: 1,
-              imageHeight: 1,
+              imageWidth: width,
+              imageHeight: height,
               calibrationPxPerFoot: null,
               createdAt: now,
               updatedAt: now,
@@ -135,7 +121,7 @@ async function seedProject(page: Page): Promise<void> {
             {
               id: 'dim-front',
               type: 'dimension',
-              geometry: { kind: 'dimension', a: { x: 0.1, y: 0.1 }, b: { x: 0.9, y: 0.1 } },
+              geometry: { kind: 'dimension', a: { x: width * 0.1, y: height * 0.1 }, b: { x: width * 0.9, y: height * 0.1 } },
               valueMm: null,
               enteredText: null,
               style,
@@ -148,7 +134,7 @@ async function seedProject(page: Page): Promise<void> {
             {
               id: 'dim-back',
               type: 'dimension',
-              geometry: { kind: 'dimension', a: { x: 0.1, y: 0.5 }, b: { x: 0.9, y: 0.5 } },
+              geometry: { kind: 'dimension', a: { x: width * 0.1, y: height * 0.5 }, b: { x: width * 0.9, y: height * 0.5 } },
               valueMm: null,
               enteredText: null,
               style,
@@ -162,24 +148,22 @@ async function seedProject(page: Page): Promise<void> {
         }),
       );
     },
-    { png: PNG_1X1_BASE64, style: STYLE, projectId: PROJECT_ID, folder: FOLDER, sheetId: SHEET_ID },
+    { width: PHOTO_W, height: PHOTO_H, style: STYLE, projectId: PROJECT_ID, folder: FOLDER, sheetId: SHEET_ID },
   );
 }
 
 /** First-run once: stub the folder picker to the OPFS root, choose a hand. */
 async function completeFirstRun(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    Object.defineProperty(window, 'showDirectoryPicker', {
-      configurable: true,
-      writable: true,
-      value: () => navigator.storage.getDirectory(),
-    });
-  });
+  // The clickthru/journey shim: `showDirectoryPicker` returns the OPFS root, and the root-handle
+  // key in IndexedDB holds a STRING sentinel that is turned back into the OPFS root on read.
+  // Storing a real OPFS `FileSystemDirectoryHandle` under that key kills the renderer on the NEXT
+  // load in this Chromium (the old blocker), so the handle itself is never persisted.
+  await page.addInitScript(clickthruInitScript);
   await page.goto('/');
   await page.getByRole('radio').first().click();
   await page.locator('.first-run-actions .btn-primary').click();
   // Home is reached once the root handle is persisted; it may start empty.
-  await expect(page.getByRole('heading', { level: 1, name: 'FieldMeasure' })).toBeVisible();
+  await expect(page.locator('h1.home-mark')).toBeVisible();
 }
 
 async function dimensionRowKeys(page: Page): Promise<string[]> {
@@ -188,9 +172,7 @@ async function dimensionRowKeys(page: Page): Promise<string[]> {
     .evaluateAll((els) => els.map((el) => el.getAttribute('data-layer-row') ?? ''));
 }
 
-// `fixme` = written and wired, but its harness cannot yet reach the editor (see the header).
-// It is a DEFERRED gate, never a pass, and it must not be deleted.
-test.fixme('a real touch drag of the grip reorders the row (D77/F1)', async ({ page, context }) => {
+test('a real touch drag of the grip reorders the row (D77/F1)', async ({ page, context }) => {
   await completeFirstRun(page);
 
   // Seed AFTER first-run (the handle is now persisted), then reload so Home rescans.
@@ -198,6 +180,8 @@ test.fixme('a real touch drag of the grip reorders the row (D77/F1)', async ({ p
   await page.reload();
 
   await page.getByRole('button', { name: 'Seeded Site' }).click();
+  // Home opens the project's sheets grid (UI §11.2); the editor is one more tap away.
+  await page.getByRole('button', { name: /^Sheet 01/ }).first().click();
 
   // The editor mounts, loads photo + markup, and offers Layers in the top bar.
   const layersButton = page.getByRole('button', { name: 'Layers' });
@@ -228,6 +212,8 @@ test.fixme('a real touch drag of the grip reorders the row (D77/F1)', async ({ p
   // touch, so Chromium captures the pointer to the grip — the case the old `pointerover`
   // mechanism could never see.
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+  // The hold IS the gesture (400 ms lift): holding longer is always safe, so 550 ms has no upper
+  // race, unlike an assertion that something has NOT happened yet.
   await page.waitForTimeout(550);
   await cdp.send('Input.dispatchTouchEvent', {
     type: 'touchMove',

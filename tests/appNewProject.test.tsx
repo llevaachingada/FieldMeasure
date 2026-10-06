@@ -15,7 +15,7 @@
  * testing — the grid has its own 20 jsdom tests) — and the persisted root is provided
  * through the fake File System Access tree: the same approach as `editorShell.test.tsx`.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -89,6 +89,15 @@ async function setup(hooks: FakeHooks = {}): Promise<void> {
   await initStore();
 }
 
+// `App` loads CameraFlow with `React.lazy(() => import(...))`. The first dynamic import has to
+// transform + evaluate that whole module graph (normalizeImage, exif, ...), which under CPU load
+// took longer than testing-library's 1 s findBy default, so the capture panel had not mounted
+// when the assertion timed out. Importing it once up front puts the module in the cache, so the
+// lazy() resolves on the next microtask whatever the machine is doing. No sleep, no weaker check.
+beforeAll(async () => {
+  await import('../src/ui/CameraFlow');
+}, 60_000);
+
 afterEach(() => {
   cleanup();
   restoreNavigator?.();
@@ -142,7 +151,7 @@ describe('Home «New project» wiring (name pop-up, D135)', () => {
     // `empty` is the transitive D51 proof (the loader resolves through the registry key).
     await waitFor(() => expect(grid.getAttribute('data-state')).toBe('empty'));
     // The capture flow was launched (jsdom has no getUserMedia, so its fallback panel shows).
-    expect(await screen.findByText(STRINGS.capture.embeddedFallback)).toBeTruthy();
+    expect(await screen.findByText(STRINGS.capture.embeddedFallback, {}, { timeout: 10_000 })).toBeTruthy();
     // The dialog closed.
     expect(screen.queryByRole('dialog')).toBeNull();
 

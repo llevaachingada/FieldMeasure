@@ -633,8 +633,12 @@ export async function writeHistorySnapshot(
   const scopeDir = await resolveHistoryDir(projectDir, scope, { create: true });
   // The snapshot write itself uses the atomic path, lock included.
   await writeJsonAtomic(scopeDir, `${Date.now()}-${name}`, data, projectId);
-  // Prune under its own (sequential, never nested — Web Locks are NOT reentrant) request.
-  await navigator.locks.request('fm:project:' + projectId, async () => {
+  // Prune under the per-write mutex (sequential, never nested — Web Locks are NOT reentrant).
+  // D171: this used to request `fm:project:<id>`, the LEASE lock an open project holds for its
+  // whole session (`acquireWriterLease`), so once D169 connected snapshots to autosave the prune
+  // waited forever and every save after the first stalled on «Saving…». The write mutex is the
+  // lock every other file operation uses, and it has a timeout.
+  await withWriteLock(projectId, async () => {
     const snapshots: Array<{ entry: string; at: number }> = [];
     for await (const [entry, h] of entriesOf(scopeDir)) {
       if (h.kind !== 'file' || !entry.endsWith(name)) continue;

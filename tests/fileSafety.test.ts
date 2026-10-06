@@ -11,6 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   NewerFileVersionError,
+  acquireWriterLease,
   StorageReadError,
   readProjectFile,
   readSheetMarkup,
@@ -143,6 +144,24 @@ describe('recovery snapshots on autosave (D169)', () => {
     dir.putFile('sheets/sheet-1/markup.json', '{"schemaVersion":1,"sheetId":'); // torn file
 
     expect(await readSheetMarkup(asDir(dir), 'sheet-1')).toEqual(saved);
+  });
+
+  it('D171: saves keep landing while the project is open (the session lease lock is held)', async () => {
+    // The open editor holds `fm:project:<id>` for the whole session. D169's first wiring pruned
+    // snapshots under that same lock, so the first save's snapshot waited forever and every
+    // later save stalled on «Saving…». This reproduces the real lock state.
+    const lease = await acquireWriterLease('p1');
+    expect(lease).not.toBeNull();
+    const dir = projectWithSheet();
+    const within = <T,>(p: Promise<T>): Promise<T> =>
+      Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('save stalled')), 2000))]);
+
+    await within(writeToProjectDir(asDir(dir), sheetTarget, validMarkupFile('sheet-1')));
+    const second = { ...validMarkupFile('sheet-1'), objects: [] };
+    await within(writeToProjectDir(asDir(dir), sheetTarget, second));
+
+    expect(snapshots(dir, 'sheet-1')).toHaveLength(1);
+    lease!.release();
   });
 
   it('a failed snapshot never fails the save', async () => {
