@@ -1,7 +1,7 @@
 # Install Field Measure on a Surface
 
 Print this for the shop. It takes 2 minutes and needs Wi-Fi **once**. After that the app works with
-no signal.
+no signal. The illustrated version is the [Quick Start PDF](guides/Field-Measure-Quick-Start.pdf).
 
 **App link:** https://llevaachingada.github.io/FieldMeasure/
 (If the shop has made its own copy, use that link instead. Ask whoever looks after the app.)

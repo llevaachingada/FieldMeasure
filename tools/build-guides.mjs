@@ -3,6 +3,7 @@
  * Builds the printable guides in docs/guides/ from their Markdown sources.
  *
  *   npm run guides        (or: node tools/build-guides.mjs)
+ *   node tools/build-guides.mjs AI-GUIDE.md      (just one guide)
  *
  *   docs/guides/QUICK-START.md -> docs/guides/Field-Measure-Quick-Start.pdf  (for the crews)
  *   docs/guides/AI-GUIDE.md    -> docs/guides/Field-Measure-AI-Guide.pdf     (for the owner)
@@ -193,6 +194,8 @@ body { font-family: Archivo, 'Segoe UI', Arial, sans-serif; color: var(--ink); f
 h2 { font-size: 14pt; margin: 20px 0 6px; padding-top: 6px; border-top: 1px solid var(--rule); break-after: avoid; }
 h3 { font-size: 11.5pt; margin: 14px 0 4px; break-after: avoid; }
 p { margin: 6px 0; }
+p:has(+ pre), p:has(+ table), p:has(+ figure), p:has(+ ol), p:has(+ ul) { break-after: avoid; }
+figure:has(+ ol), figure:has(+ p) { break-after: avoid; }
 ol, ul { margin: 6px 0 6px 0; padding-left: 22px; }
 li { margin: 3px 0; }
 strong { font-weight: 700; }
@@ -228,7 +231,8 @@ const executablePath = process.env.PW_CHROMIUM_PATH || undefined;
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
 const work = mkdtempSync(join(tmpdir(), 'fm-guides-'));
 try {
-  for (const job of JOBS) {
+  const only = process.argv.slice(2);
+  for (const job of JOBS.filter((j) => only.length === 0 || only.includes(j.source))) {
     const src = join(GUIDES, job.source);
     const md = readFileSync(src, 'utf8');
     const title = (md.match(/^# (.*)$/m) ?? [, job.source])[1];
