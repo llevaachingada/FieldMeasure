@@ -592,6 +592,11 @@ export const STRINGS = {
     destination: 'Destination', // appendix-strings.md:236
     writeSummary: 'Will write {fileCount} files ({size}) to:  {path}', // appendix-strings.md:237
     resultSummary: 'Exported {fileCount} files ({size})', // appendix-strings.md:238
+    // ⚠ PROPOSED (C14) — D172: the singular forms. The approved rows read "Exported 1 files".
+    writeSummaryOne: 'Will write 1 file ({size}) to:  {path}',
+    resultSummaryOne: 'Exported 1 file ({size})',
+
+    // APPROVED inventory (appendix-strings.md), continued.
     copyPath: 'Copy path', // appendix-strings.md:239
     revealFolder: 'Reveal folder', // appendix-strings.md:240
     exportAgain: 'Export again', // appendix-strings.md:242
@@ -864,8 +869,9 @@ export const STRINGS = {
         steps: {
           s1: 'On Home, tap New project and type a name. The camera opens using the rear camera.',
           s2: 'Line up the shot and tap the round shutter button. Use the zoom chips to zoom in.',
-          s3: 'Check the photo, then tap Use photo. The photo opens straight away, ready for dimensions. Tap Retake to try again.',
+          s3: 'Check the photo, type a Room name if you like (it is printed on the export), then tap Use photo. The photo opens straight away, ready for dimensions. Tap Retake to try again.',
           s4: 'To add another photo later, use Take photo on the project page, or Add sheet in the editor’s More actions (…) menu.',
+          s5: 'To use a photo that is already on the Surface, tap Import on the camera screen, or Import file in the editor’s More actions (…) menu.',
         },
       },
       dimensions: {
@@ -885,9 +891,18 @@ export const STRINGS = {
         steps: {
           s1: 'Annotate: freehand drawing, highlighter and text notes.',
           s2: 'Mark: lines, arrows, rectangles, ellipses and shapes.',
-          s3: 'Change color, line width and arrowheads in the style panel on the left before or after you draw.',
+          s3: 'Change color, line width and arrowheads in the style panel beside the photo, before or after you draw. More styles… opens the rest.',
           s4: 'Use Select to move, rotate, lock or delete a mark. The Layers button (top bar) lists every mark.',
-          s5: 'Everything saves automatically as you work.',
+          s5: 'Insert: tap Image inset (under Insert) to put a close-up photo inside this one. Erase: tap Erase, then tap a mark to remove it. Undo brings it back.',
+          s6: 'Everything saves automatically as you work.',
+        },
+      },
+      sheets: {
+        heading: 'Sheets and trash',
+        steps: {
+          s1: 'Each photo is a sheet. On the project page, tap ⋯ on a sheet to open, rename, duplicate, replace its photo or delete it.',
+          s2: 'To change the order, press and hold a sheet, then drag it.',
+          s3: 'Deleted sheets stay in Trash… (the ⋯ menu at the top of the project page) for 14 days. Open it to restore one.',
         },
       },
       export: {
@@ -908,6 +923,7 @@ export const STRINGS = {
           s5: 'Read-only: the project is open in another window or tab. Close the other one, then reopen the project.',
           s6: 'Something went wrong: tap Reload. Work that was already saved stays in your projects folder.',
           s7: 'Folder permission keeps expiring: when the browser asks to let Field Measure edit your projects folder, choose Allow on every visit. Installing the app (Install in the address bar) also helps the browser remember. The app asks once when you open a project, so the camera never has to.',
+          s8: 'Update ready: tap Reload when you are between photos. Your work is saved first.',
         },
       },
     },

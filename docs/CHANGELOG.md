@@ -4,6 +4,16 @@ One entry per merged change, newest first: what changed for the user, the decisi
 checks that ran. The full build-era log (sessions 1-30) is
 [`archive/BUILD-LOG.md`](archive/BUILD-LOG.md).
 
+## 2026-10-10: ship pass
+
+- Fixed: «More styles…» was outside the side panel and could not be tapped (**D172**).
+- No do-nothing controls: the editor and project ⋯ menus list only working items; Group/Ungroup and «Locate» are
+  gone (**D172**).
+- «Exported 1 file» (was «1 files») (**D172**).
+- Help and the user guide are corrected and extended (sheets and trash, import, inset, erase), and a test keeps them
+  identical (**D172**).
+- New guides with PDFs: `docs/guides/` Quick Start (crews) and AI guide (owner) (**D172**).
+
 ## 2026-10-06: 1.0 sign-off
 
 - Fixed: «Import file» inside the editor saved later edits into the previous sheet (or nowhere) (**D170**).

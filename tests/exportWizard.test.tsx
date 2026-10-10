@@ -75,11 +75,13 @@ const COPY = {
 /** `Will write 3 files (18.4 MB) to:  <path>` — note the DOUBLE SPACE after `to:`
  *  (appendix-strings.md:237 says so explicitly). */
 const writeSummary = (fileCount: number, size: string, path: string): string =>
-  `Will write ${fileCount} files (${size}) to:  ${path}`;
+  fileCount === 1 // D172: singular
+    ? `Will write 1 file (${size}) to:  ${path}`
+    : `Will write ${fileCount} files (${size}) to:  ${path}`;
 
 /** `Exported 3 files (18.4 MB)` — appendix-strings.md:238. */
 const resultSummary = (fileCount: number, size: string): string =>
-  `Exported ${fileCount} files (${size})`;
+  fileCount === 1 ? `Exported 1 file (${size})` : `Exported ${fileCount} files (${size})`; // D172: singular
 
 /** `N sheets exported without their photo` — appendix-strings.md:245 ({sheetCount}). */
 const damagedSummary = (sheetCount: number): string =>

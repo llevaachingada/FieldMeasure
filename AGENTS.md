@@ -49,7 +49,10 @@ Where the archive and the code disagree, the code and its tests win.
    - **`docs/CHANGELOG.md`:** a new `## <YYYY-MM-DD>: <title>` entry at the top. Bump the
      `package.json` version only when the owner asks for a release.
    - **`docs/STATUS.md`:** update it if what works or what's owed changed.
-   - **`docs/USER-GUIDE.md`:** update it if Help text changed (it mirrors `STRINGS.help`).
+   - **`docs/USER-GUIDE.md`:** update it if Help text changed. It mirrors `STRINGS.help`, and
+     `tests/userGuide.test.ts` fails if they differ.
+   - **`docs/guides/`:** if a change alters what the crews see or do, update `QUICK-START.md` (and
+     `AI-GUIDE.md` if the workflow changed), then run `npm run guides` to rebuild the PDFs.
 6. Open a pull request whose description says, in plain English, what changed, what to try on a
    Surface, and what you couldn't test.
 
@@ -97,6 +100,8 @@ you copy:
 - **Copy:** all on-screen text lives in `src/ui/strings.ts`. `tests/strings.test.ts` checks it
   against `docs/appendix-strings.md` (approved wording) and `docs/appendix-strings-gaps.md` (new
   wording, marked `⚠ PROPOSED` until the owner signs it off). Add new strings to the gaps file.
+- **No dead controls (D172).** Never ship a button, menu item or link that looks tappable and does
+  nothing or is permanently disabled. If a feature isn't built, don't show its control.
 - **Touch first.** 48 px minimum targets, an `aria-label` on every control, a visible focus ring,
   no keyboard trap. There's no pen in the field (D167). Pen code paths stay because they're shared
   with touch input, but don't build pen-only features or wording.

@@ -4079,3 +4079,51 @@ every open decision.
 - **GitHub housekeeping the session could not do** (repository-settings and branch-delete writes are blocked
   through its proxy): tick Settings → General → «Template repository», and delete the merged branches. Both are in
   the README for the owner.
+
+### D172 - ship pass: no do-nothing controls, the side-dock header, plural copy, guides
+
+**Status: shipped (session 32).**
+
+- **«More styles…» was unreachable.** D149 narrowed the side dock to 176 px but kept the 280 px one-row header, so the
+  header chip overflowed and «More styles…» rendered entirely outside the 174 px panel (x 221-326), at every
+  landscape size. It was found by looking at the clickthru screenshots, not by a test. The vertical-dock header now
+  wraps:
+  - row one: icon and preview;
+  - row two: the tool name;
+  - below them: «More styles…» as a full-width 48 px button.
+
+  A D149 rule meant for option chips also matched the header button (`.style-panel-chip`), which stopped it
+  shrinking; that rule now targets `.style-panel-chip-option`. `tests/editorChromeFit.browser.test.ts` gained a header
+  gate (chip, name and button inside the panel for four tools at both owner sizes) that fails on the old CSS, 8 of 8
+  cases. A hit test in the real built app confirms the button is the element under its centre at 1280, 1440 and 1920
+  px.
+- **No control may look tappable and do nothing.** A feature that isn't built is removed, not shown disabled. This
+  supersedes D102's "disabled, never hidden" for rows that will never be built. D102 still applies to rows that are
+  only temporarily unavailable.
+  - Editor «⋯» menu: Export, Add sheet, Import file. Seven silent no-ops were removed: Duplicate sheet, Insert image,
+    Sheet info, Project settings, Settings, Help and Keyboard shortcuts. Each has a real home elsewhere: the grid card
+    menu, the Insert tool, the Help button, and Home's Settings.
+  - Project page «⋯» menu: Export, Trash…. Removed Rename, Copy path, Reveal folder, Delete project and Project
+    settings, which were permanently disabled.
+  - Home card: «Folder not found» with no disabled «Locate» link (D141).
+  - Layers row menu: removed the permanently disabled Group / Ungroup.
+
+  The tests assert that each removed item is absent.
+- **Plural copy:** «Exported 1 files» / «Will write 1 files» now read «Exported 1 file» / «Will write 1 file», using
+  new `export.resultSummaryOne` / `writeSummaryOne` strings, marked ⚠ and signed off under D171.
+- **Help and the user guide:**
+  - The Help said the style panel is "on the left"; it follows handedness, so Help now says "beside the photo".
+  - New steps:
+    - Import an existing photo;
+    - the room name;
+    - Image inset and Erase;
+    - «More styles…»;
+    - a «Sheets and trash» section (card ⋯ menu, reorder, 14-day Trash);
+    - «Update ready».
+
+  `tests/userGuide.test.ts` now requires every Help heading and step to appear in `docs/USER-GUIDE.md` (formatting
+  ignored), and fails if a single word drifts. Until now the two were kept in step by a comment only, and drifted
+  twice.
+- **Guides:** `docs/guides/QUICK-START.md` (the crews, with real screenshots) and `docs/guides/AI-GUIDE.md` (the owner:
+  fixing and changing the app with AI agents, in the browser or on a PC). `npm run guides` (`tools/build-guides.mjs`, no
+  new dependency) prints both to PDF with the Playwright Chromium.

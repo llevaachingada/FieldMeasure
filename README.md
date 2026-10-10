@@ -8,6 +8,12 @@ Built by Hunter Singleton. It's yours to use, copy and change.
 
 **Live app:** https://llevaachingada.github.io/FieldMeasure/
 
+**Guides (printable PDFs):**
+- [Quick Start for the crews](docs/guides/Field-Measure-Quick-Start.pdf): install and use, with screenshots
+  ([text version](docs/guides/QUICK-START.md)).
+- [Fixing and changing Field Measure with AI](docs/guides/Field-Measure-AI-Guide.pdf): for whoever looks
+  after the app ([text version](docs/guides/AI-GUIDE.md)).
+
 ---
 
 ## 1. Put it on a Surface (2 minutes, needs Wi-Fi once)
@@ -56,7 +62,9 @@ automatic checks pass. Surfaces show **"Update ready"**, and tapping **Reload** 
 
 ## 4. Change it with AI
 
-The whole app was built with AI coding agents, and the repo is set up for the next one.
+The whole app was built with AI coding agents, and the repo is set up for the next one. The full
+walkthrough, including pulling the code onto a PC, is the
+[AI guide](docs/guides/Field-Measure-AI-Guide.pdf); the essentials are below.
 `AGENTS.md` holds the rules; `docs/STATUS.md`, `docs/CHANGELOG.md` and `docs/DECISIONS.md` are
 the project's memory. Use **Claude Code** (claude.ai/code works in a browser with nothing to
 install; connect it to your repo), or Cursor, Codex or Copilot.
@@ -137,7 +145,8 @@ shortcut. Don't do real work on a `localhost` copy; it can't move to the real li
   [`docs/DECISIONS.md`](docs/DECISIONS.md) (why things are the way they are) ·
   [`docs/UNITS.md`](docs/UNITS.md) (feet-inch input and rounding rules) ·
   [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) (mirrors in-app Help) · [`docs/INSTALL.md`](docs/INSTALL.md) ·
-  [`docs/FIELD-TEST.md`](docs/FIELD-TEST.md) · `docs/appendix-strings*.md` (the on-screen wording contract).
+  [`docs/FIELD-TEST.md`](docs/FIELD-TEST.md) · `docs/appendix-strings*.md` (the on-screen wording contract) ·
+  [`docs/guides/`](docs/guides/) (Quick Start and AI guide; `npm run guides` rebuilds the PDFs).
 - **Build history:** [`docs/archive/`](docs/archive/README.md) holds the original specs, plans, session
   handoffs and reviews. It's frozen; read it for background only.
 - **Stack:** React 19, TypeScript, Konva (imperative, never react-konva), zustand + immer, zod,

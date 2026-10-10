@@ -204,6 +204,13 @@ function errorLabel(error: NonNullable<ExportFileResult['error']>): string {
  * nothing, so it must not inflate «Exported {fileCount} files ({size})» — the count is of
  * WRITTEN files (review F4).
  */
+/** D172: «Exported 1 file», never «Exported 1 files». */
+function resultSummaryText(fileCount: number, size: string): string {
+  return fileCount === 1
+    ? t(C.resultSummaryOne, { size })
+    : t(C.resultSummary, { fileCount, size });
+}
+
 function writtenFileCount(files: readonly ExportFileResult[]): number {
   return files.filter((file) => file.skipped !== true).length;
 }
@@ -448,10 +455,7 @@ function ExportWizardDialog({
     step === 'running' && progress !== null
       ? t(C.progress, { done: progress.done, total: progress.total })
       : step === 'result' && result !== null
-        ? t(C.resultSummary, {
-            fileCount: writtenFileCount(result.files),
-            size: formatBytes(result.totalBytes),
-          })
+        ? resultSummaryText(writtenFileCount(result.files), formatBytes(result.totalBytes))
         : '';
 
   return (
@@ -906,11 +910,9 @@ function DestinationStep({
           string and must survive byte-for-byte (appendix-strings.md:237). */}
       {destination !== null ? (
         <p className="export-wizard-summary" data-testid="export-wizard-write-summary">
-          {t(C.writeSummary, {
-            fileCount,
-            size: formatBytes(bytes),
-            path: destination.path,
-          })}
+          {fileCount === 1
+            ? t(C.writeSummaryOne, { size: formatBytes(bytes), path: destination.path })
+            : t(C.writeSummary, { fileCount, size: formatBytes(bytes), path: destination.path })}
         </p>
       ) : null}
 
@@ -990,10 +992,7 @@ function ResultStep({
   return (
     <section className="export-wizard-step" data-testid="export-wizard-step-result">
       <p className="export-wizard-result-summary" data-testid="export-wizard-result-summary">
-        {t(C.resultSummary, {
-          fileCount: writtenFileCount(files),
-          size: formatBytes(result.totalBytes),
-        })}
+        {resultSummaryText(writtenFileCount(files), formatBytes(result.totalBytes))}
       </p>
 
       {/* Selectable text, never an image (§19.6 gate row). */}

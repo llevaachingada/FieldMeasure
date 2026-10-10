@@ -188,10 +188,11 @@ describe('project cards (§5.6 identity, §5.8c duplicates)', () => {
 
     expect(await screen.findByText(STRINGS.home.folderNotFound)).toBeTruthy();
     // «Locate…» is the same unbuilt adoption path: the state is shown, the affordance is not
-    // faked (a moved folder is recovered in Explorer until adoption ships).
-    const locate = screen.getByRole('button', { name: STRINGS.home.locate }) as HTMLButtonElement;
-    expect(locate.disabled).toBe(true);
-    expect(locate.getAttribute('aria-disabled')).toBe('true');
+    // faked (a moved folder is recovered in Explorer until adoption ships). D172: not even a
+    // disabled link, because a control that looks tappable and does nothing is not allowed.
+    expect(screen.queryByRole('button', { name: STRINGS.home.locate })).toBeNull();
+    expect(screen.queryByText(STRINGS.home.locate)).toBeNull();
+    expect(document.querySelector('.project-card-status button')).toBeNull();
   });
 
   it('every control has an accessible name (a11y §19.6)', async () => {

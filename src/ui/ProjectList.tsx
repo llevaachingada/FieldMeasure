@@ -64,6 +64,8 @@ export interface ProjectListProps {
    */
   access?: RootAccess;
   onNewProject?: () => void;
+  /** Unused since D141 / D172 removed the «Open existing folder…» card and the «Locate…» link
+   *  (adoption is unbuilt). Kept optional so existing callers still compile. */
   onOpenFolder?: () => void;
   /** `folderName` identifies WHICH folder on disk (duplicate ids share an id). */
   onOpenProject?: (id: string, folderName?: string) => void;
@@ -200,7 +202,6 @@ export default function ProjectList({
   separate,
   access,
   onNewProject,
-  onOpenFolder,
   onOpenProject,
   onOpenSettings,
   loadCover,
@@ -406,19 +407,10 @@ export default function ProjectList({
                   ) : null}
                   {card.status !== 'ok' ? (
                     <p className="project-card-status">
-                      {STRINGS.home.folderNotFound}{' '}
-                      {/* D141: locating a moved folder is the unbuilt adoption path, so the
-                          link is disabled, not dead — a moved folder is recovered in Explorer
-                          until adoption ships. */}
-                      <button
-                        type="button"
-                        className="link-button hit-slop"
-                        disabled
-                        aria-disabled="true"
-                        onClick={onOpenFolder}
-                      >
-                        {STRINGS.home.locate}
-                      </button>
+                      {/* D141 / D172: locating a moved folder is the unbuilt adoption path, so
+                          only the state is shown — no «Locate…» link that does nothing. A moved
+                          folder is recovered in Explorer until adoption ships. */}
+                      {STRINGS.home.folderNotFound}
                     </p>
                   ) : null}
                 </article>

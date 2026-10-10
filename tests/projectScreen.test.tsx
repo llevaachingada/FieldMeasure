@@ -8,7 +8,7 @@
  * asserted is the model, the copy contract, the interaction contract and the a11y contract.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ProjectScreen, {
   MENU_MAX_HEIGHT,
@@ -286,15 +286,36 @@ describe('accessibility', () => {
     }
   });
 
-  it('renders unbuilt ⋯ items disabled + aria-disabled, never as live affordances (D102)', async () => {
+  it('⋯ menu lists only working items: no never-built row is rendered, disabled or not (D102, D172)', async () => {
     const user = userEvent.setup();
     renderScreen({ onToggleSelected: () => {} });
 
     await user.click(screen.getByRole('button', { name: STRINGS.a11y.moreActions }));
 
+    // D172: Rename, Copy path, Reveal folder, Delete project and Project settings are gone
+    // (they were disabled forever); only Export and Trash… remain.
+    const keys = [...document.querySelectorAll('.project-menu-item')].map((el) =>
+      el.getAttribute('data-menu-item'),
+    );
+    expect(keys).toEqual(['export', 'trash']);
+    for (const key of ['rename', 'copyPath', 'revealFolder', 'deleteProject', 'projectSettings']) {
+      expect(document.querySelector(`[data-menu-item="${key}"]`), key).toBeNull();
+    }
+    const menu = within(screen.getByRole('menu', { name: STRINGS.a11y.moreActions }));
+    for (const label of [
+      STRINGS.projectMenu.rename,
+      STRINGS.projectMenu.copyPath,
+      STRINGS.export.revealFolder,
+      STRINGS.projectMenu.deleteProject,
+      STRINGS.editor.menuProjectSettings,
+    ]) {
+      expect(menu.queryByRole('menuitem', { name: label }), label).toBeNull();
+    }
+
+    // Trash… is rendered disabled here only because this render gives the screen no
+    // `onOpenTrash` (the shell always supplies it); it is the lone disabled row.
     const disabled = document.querySelectorAll('.project-menu-item[aria-disabled="true"]');
-    // Rename, Copy path, Reveal folder, Trash…, Delete project, Project settings.
-    expect(disabled).toHaveLength(6);
+    expect(disabled).toHaveLength(1);
     for (const item of disabled) {
       expect((item as HTMLButtonElement).disabled).toBe(true);
     }

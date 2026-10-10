@@ -852,7 +852,7 @@ function SheetCardRow({
 interface OverflowItem {
   key: string;
   label: string;
-  /** Unbuilt in v1 → rendered disabled with `aria-disabled` (D102), never hidden. */
+  /** Not usable right now → rendered disabled with `aria-disabled` (D102). Never for a row that is never built (D172). */
   disabled: boolean;
   run?: () => void;
 }
@@ -1112,19 +1112,16 @@ export default function ProjectScreen({
       disabled: false,
       run: () => onExport(selectedInOrder),
     },
-    { key: 'rename', label: STRINGS.projectMenu.rename, disabled: true },
-    { key: 'copyPath', label: STRINGS.projectMenu.copyPath, disabled: true },
-    { key: 'revealFolder', label: STRINGS.export.revealFolder, disabled: true },
     {
-      // UI §11.2:711 — `Trash…` is live once the shell can load `.trash/` (D102: disabled
-      // and labelled otherwise, never hidden).
+      // UI §11.2:711 — `Trash…` is live once the shell can load `.trash/` (the shell always
+      // wires it; the disabled state only covers an isolated render without `onOpenTrash`).
+      // D172: the five never-built rows (Rename, Copy path, Reveal folder, Delete project,
+      // Project settings) were removed rather than shown disabled forever.
       key: 'trash',
       label: STRINGS.trash.open,
       disabled: !trashAvailable,
       run: openTrash,
     },
-    { key: 'deleteProject', label: STRINGS.projectMenu.deleteProject, disabled: true },
-    { key: 'projectSettings', label: STRINGS.editor.menuProjectSettings, disabled: true },
   ];
 
   return (

@@ -1007,10 +1007,36 @@
   max-width: 100%;
   white-space: normal;
 }
-/* D149: in the narrow dock a wrapping row must never squeeze a chip below the 48 px touch floor. */
-.style-dock[data-orientation='vertical'] .style-panel-chip {
+/* D149: in the narrow dock a wrapping row must never squeeze a chip below the 48 px touch floor.
+   D172: this targets the option chips; it used to say `.style-panel-chip`, which is the HEADER
+   button, and stopped the header from shrinking into the 176 px dock. */
+.style-dock[data-orientation='vertical'] .style-panel-chip-option {
   flex-shrink: 0;
   min-width: 48px;
+}
+
+/* D172: the header in the 176 px side dock. The 280 px one-row header (icon, 96 px preview,
+   name, «More styles…») overflowed it, pushing «More styles…» entirely outside the panel.
+   Here it wraps: icon + preview on row one, the tool name on row two, and «More styles…» as
+   a full-width 48 px button beneath. Widths: 8 + 8 header padding leaves 158; the chip row is
+   4 + 2 + 32 + 6 + 96 + 2 + 4 = 146. */
+.style-dock[data-orientation='vertical'] .style-panel-header {
+  flex-wrap: wrap;
+  row-gap: 6px;
+  padding: 6px 8px;
+}
+.style-dock[data-orientation='vertical'] .style-panel-header > .style-panel-chip {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 6px;
+  row-gap: 2px;
+  padding: 4px;
+}
+.style-dock[data-orientation='vertical'] .style-panel-chip-text {
+  flex: 1 1 100%;
+}
+.style-dock[data-orientation='vertical'] .style-panel-more {
+  flex: 1 1 100%;
 }
 
 /* D164: the Size steppers and S/M/L quick sizes, as tidy 3-column rows that fit the 176 px dock

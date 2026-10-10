@@ -396,7 +396,7 @@ describe('long-press vs tap', () => {
 // ---------------------------------------------------------------------------
 
 describe('row context menu', () => {
-  it('lists the gaps-appendix items, with Group/Ungroup disabled', () => {
+  it('lists the working items; Group/Ungroup are not shown (D172)', () => {
     mount();
     act(() => {
       menuEl('dim-1').click();
@@ -404,15 +404,14 @@ describe('row context menu', () => {
     const menu = screen.getByRole('menu');
     expect(within(menu).getByText(STRINGS.layers.menuBringFront)).toBeTruthy();
     expect(within(menu).getByText(STRINGS.layers.menuSendBack)).toBeTruthy();
-    expect(within(menu).getByText(STRINGS.layers.menuGroup)).toBeTruthy();
-    expect(within(menu).getByText(STRINGS.layers.menuUngroup)).toBeTruthy();
     expect(within(menu).getByText(STRINGS.layers.menuRename)).toBeTruthy();
     expect(within(menu).getByText(STRINGS.layers.menuDelete)).toBeTruthy();
 
-    // The pinned props carry no `onGroup`/`onUngroup` channel, so those two are disabled
-    // rather than silently doing nothing.
-    expect(q<HTMLButtonElement>('[data-menu-action="group"]').disabled).toBe(true);
-    expect(q<HTMLButtonElement>('[data-menu-action="ungroup"]').disabled).toBe(true);
+    // D172: grouping does not exist in v1, so Group/Ungroup are absent rather than disabled.
+    expect(within(menu).queryByText(STRINGS.layers.menuGroup)).toBeNull();
+    expect(within(menu).queryByText(STRINGS.layers.menuUngroup)).toBeNull();
+    expect(document.querySelector('[data-menu-action="group"]')).toBeNull();
+    expect(document.querySelector('[data-menu-action="ungroup"]')).toBeNull();
     expect(q<HTMLButtonElement>('[data-menu-action="front"]').disabled).toBe(false);
   });
 
