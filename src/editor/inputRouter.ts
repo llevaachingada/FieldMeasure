@@ -7,7 +7,7 @@
  * 'ignore', never a draw, because §11.4/§20.6 make the barrel hold only an *optional
  * accelerator* for the radial quick-menu and that radial is not built — the documented
  * degrade is "radial absent rather than broken" (no-op, never ink). The orchestrator
- * should fold this row into §8.2. Design source: `docs/touch-first-interaction-model.md`
+ * should fold this row into §8.2. Design source: `docs/archive/touch-first-interaction-model.md`
  * §1, §3, §9.
  *
  * Intent is decided once, at `pointerdown`, and is sticky for the whole contact.
@@ -43,7 +43,7 @@ export type InputIntent = 'draw' | 'navigate' | 'ignore';
 export interface InputRouterOptions {
   palmWindowMs?: number;          // default 1200; refreshed by every pen event
   touchPlaces?: () => boolean;    // «Touch places and moves» — default ON
-  fingerDraws?: () => boolean;    // «Finger draws (freehand)» — default OFF
+  fingerDraws?: () => boolean;    // «Finger draws (freehand)»; the app default is ON (D167), this fallback stays off
 }
 const EDGE_REJECT_PX = 24;        // pen-free path (a): outer band a contact can never place from
 const PALM_BURST_COUNT = 3;       // pen-free path (b): contacts in a burst that read as a palm/heel

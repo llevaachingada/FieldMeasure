@@ -16,6 +16,7 @@ import { useEffect, useId, useRef, useState, type JSX, type KeyboardEvent } from
 import { Bold, Minus, Plus } from 'lucide-react';
 
 import type { Annotation, AnnotationStyle } from '@/domain/types';
+import { TEXT_NOTE_FONT_FAMILY } from '@/editor/shapes/renderText';
 import { PALETTE, colorName } from './StylePanel';
 import { STRINGS } from './strings';
 import { TEXT_SIZE_PRESETS, stepTextSize as stepShared } from './textSize';
@@ -294,7 +295,7 @@ function TextPreview({ text, style }: { text: string; style: AnnotationStyle }):
           fill={style.strokeColor}
           fontSize={font}
           fontWeight={style.bold ? 700 : 400}
-          fontFamily="Inter, Archivo, sans-serif"
+          fontFamily={TEXT_NOTE_FONT_FAMILY}
         >
           {lines.map((line, i) => (
             <tspan key={i} x={pad} y={pad + font * 0.9 + i * lineH}>

@@ -187,40 +187,53 @@ describe('the bottom-row card menu is not clipped by the scroller (D118 H2 coupl
     panel.scrollTop -= gap + overhang;
     await settle();
 
+    // D171: every geometry read below is POLLED until it holds (same assertions, no loosening).
+    // Two fixed rAFs were not enough on a loaded machine: the scroll and the menu's Web
+    // Animations anchor can land a frame or two later, so a single read sometimes saw the
+    // pre-anchor position and failed (1 in 3 full browser-project runs).
+    const settled = { timeout: 5000, interval: 16 };
+
     // The ⋯ is the handle the user actually taps; it must be on screen for this to be a real
     // reachable case rather than a drive-by of an off-screen control.
-    const triggerRect = trigger!.getBoundingClientRect();
-    expect(triggerRect.top).toBeGreaterThanOrEqual(0);
-    expect(triggerRect.bottom).toBeLessThanOrEqual(window.innerHeight);
+    await vi.waitFor(() => {
+      const triggerRect = trigger!.getBoundingClientRect();
+      expect(triggerRect.top).toBeGreaterThanOrEqual(0);
+      expect(triggerRect.bottom).toBeLessThanOrEqual(window.innerHeight);
+    }, settled);
 
     trigger!.click();
     await settle();
 
-    const menu = document.querySelector<HTMLElement>('.sheet-card-menu');
-    expect(menu).toBeTruthy();
+    const menu = await vi.waitFor(() => {
+      const m = document.querySelector<HTMLElement>('.sheet-card-menu');
+      expect(m).toBeTruthy();
+      return m;
+    }, settled);
     // Portaled out of the scrolling subtree: the clip is structurally impossible.
     expect(menu!.parentElement).toBe(document.body);
     expect(document.querySelector('.project-body')?.contains(menu!)).toBe(false);
     // CSP-safe anchor: Web Animations adds no `[style]` attribute.
     expect(menu!.hasAttribute('style')).toBe(false);
 
-    const rect = menu!.getBoundingClientRect();
-    expect(rect.top).toBeGreaterThanOrEqual(0);
-    expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight);
-    expect(rect.left).toBeGreaterThanOrEqual(0);
-    expect(rect.right).toBeLessThanOrEqual(window.innerWidth);
+    await vi.waitFor(() => {
+      const rect = menu!.getBoundingClientRect();
+      expect(rect.top).toBeGreaterThanOrEqual(0);
+      expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight);
+      expect(rect.left).toBeGreaterThanOrEqual(0);
+      expect(rect.right).toBeLessThanOrEqual(window.innerWidth);
 
-    // The real invariant behind finding 1: the LAST item — «Delete» — is hittable, not just
-    // present in the DOM. `elementFromPoint` accounts for clipping in a way a rect does not.
-    const menuitems = Array.from(menu!.querySelectorAll<HTMLElement>('[role="menuitem"]'));
-    const deleteItem = menuitems[menuitems.length - 1];
-    expect(deleteItem.textContent).toBe(STRINGS.sheetMenu.delete);
-    const itemRect = deleteItem.getBoundingClientRect();
-    const hit = document.elementFromPoint(
-      itemRect.left + itemRect.width / 2,
-      itemRect.top + itemRect.height / 2,
-    );
-    expect(hit).not.toBeNull();
-    expect(menu!.contains(hit)).toBe(true);
+      // The real invariant behind finding 1: the LAST item — «Delete» — is hittable, not just
+      // present in the DOM. `elementFromPoint` accounts for clipping in a way a rect does not.
+      const menuitems = Array.from(menu!.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+      const deleteItem = menuitems[menuitems.length - 1];
+      expect(deleteItem.textContent).toBe(STRINGS.sheetMenu.delete);
+      const itemRect = deleteItem.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        itemRect.left + itemRect.width / 2,
+        itemRect.top + itemRect.height / 2,
+      );
+      expect(hit).not.toBeNull();
+      expect(menu!.contains(hit)).toBe(true);
+    }, settled);
   });
 });

@@ -30,16 +30,6 @@ export const HIGHLIGHT_BLEND: GlobalCompositeOperation = 'multiply';
 /** §4.3 touch model: the highlighter's chisel width default. */
 export const HIGHLIGHT_CHISEL_TOUCH_MU = 24;
 
-/** The node attrs `EditorCanvas.applyScreenRules` reads to regenerate the outline. */
-export interface InkNodeAttrs {
-  inkPoints: Px[];
-  pressure: number[];
-  strokeWidthMu: number;
-  inkThinning: number;
-  inkSmoothing: number;
-  inkStreamline: number;
-}
-
 export function inkParamsFor(style: AnnotationStyle, scale: number, chisel: boolean): InkParams {
   return {
     size: style.strokeWidthMu / scale,

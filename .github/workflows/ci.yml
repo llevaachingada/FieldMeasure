@@ -1,8 +1,15 @@
 name: CI
 
+# Runs on every pull request and on main. A successful run on main is what deploys the app
+# (pages.yml waits for it), so a red CI never reaches the crews.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -36,5 +43,5 @@ jobs:
       - name: End-to-end tests (Chromium only)
         run: npx playwright test
 
-      - name: Third-party notices exist (spec §2.2)
-        run: test -f THIRD-PARTY-NOTICES.md
+      - name: Third-party notices are up to date
+        run: node tools/third-party-notices.mjs --check

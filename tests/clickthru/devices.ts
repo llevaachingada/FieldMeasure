@@ -1,8 +1,8 @@
 /**
  * `tests/clickthru/devices.ts` — the Surface target profiles the app is designed around.
  *
- * Canonical source: `docs/ui-spec-field-measure-v2-hardened.md:35-38` (the device table) and
- * `docs/gui-ux-readiness-and-design-handoff.md:459-460` (the exact canvas sizes). These are
+ * Canonical source: `docs/archive/ui-spec-field-measure-v2-hardened.md:35-38` (the device table) and
+ * `docs/archive/gui-ux-readiness-and-design-handoff.md:459-460` (the exact canvas sizes). These are
  * Playwright `use` fragments — spread one into a `test.use(...)` or the config's `use`.
  *
  * WHY A DESKTOP UA AND `isMobile: false`

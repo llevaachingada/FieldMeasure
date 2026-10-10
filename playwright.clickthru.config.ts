@@ -10,7 +10,7 @@ import { PRIMARY_PROFILE, surfaceLandscape } from './tests/clickthru/devices';
  * walks the beta-critical path while screenshotting every step. It is deliberately separate
  * from `playwright.config.ts` (the e2e GATE) and never touches it.
  *
- * WHY IT EXISTS (docs/handoff-session-21.md §6 item 3): the machine gate proves the wiring
+ * WHY IT EXISTS (docs/archive/handoff-session-21.md §6 item 3): the machine gate proves the wiring
  * it asserts; it has never driven the built app end to end. This harness drives the BUILT
  * app (`vite preview`, port 4173) because `npm run dev` can never render styled — the
  * shipped CSP `style-src 'self'` blocks Vite's dev-injected inline styles (D105).

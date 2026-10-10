@@ -30,6 +30,7 @@ import {
   resolveOpenProjectDir,
   resolveSheetDir,
   StorageWriteError,
+  writeHistorySnapshot,
   writeJsonAtomic,
 } from '../fs/projectStore';
 
@@ -118,6 +119,43 @@ async function defaultWrite(target: PersistTarget, data: unknown): Promise<void>
   await writeToProjectDir(await resolveOpenProjectDir(target.projectId), target, data);
 }
 
+/**
+ * D169 (§5.5 / §5.8e): the recovery snapshot cadence. After a successful save, a scope
+ * (`_project` or a sheet) gets a `.history/` snapshot of what was just written if it has
+ * had none in the last 10 minutes of this session; the first save of a session always
+ * snapshots. Before D169 `writeHistorySnapshot` had no caller, so a corrupt file had no
+ * snapshot to recover from.
+ */
+export const HISTORY_SNAPSHOT_INTERVAL_MS = 10 * 60_000;
+const lastSnapshotAt = new Map<string, number>();
+
+/** Test seam: forget the per-scope snapshot clock. */
+export function resetSnapshotClock(): void {
+  lastSnapshotAt.clear();
+}
+
+async function maybeSnapshot(
+  projectDir: FileSystemDirectoryHandle,
+  target: PersistTarget,
+  data: unknown,
+): Promise<void> {
+  const key = keyFor(target);
+  const now = Date.now();
+  const last = lastSnapshotAt.get(key);
+  if (last !== undefined && now - last < HISTORY_SNAPSHOT_INTERVAL_MS) return;
+  lastSnapshotAt.set(key, now);
+  try {
+    if (target.kind === 'project') {
+      await writeHistorySnapshot(projectDir, '_project', 'project.json', data, target.projectId);
+    } else {
+      await writeHistorySnapshot(projectDir, target.sheetId, 'markup.json', data, target.projectId);
+    }
+  } catch {
+    // A snapshot is a safety net, never a reason to fail the save that already landed.
+    // The next interval tries again.
+  }
+}
+
 /** Write one target into an already-resolved project directory (a `ProjectSession` resolves it once). */
 export async function writeToProjectDir(
   projectDir: FileSystemDirectoryHandle,
@@ -126,10 +164,11 @@ export async function writeToProjectDir(
 ): Promise<void> {
   if (target.kind === 'project') {
     await writeJsonAtomic(projectDir, 'project.json', data, target.projectId);
-    return;
+  } else {
+    const sheetDir = await resolveSheetDir(projectDir, target.sheetId);
+    await writeJsonAtomic(sheetDir, 'markup.json', data, target.projectId);
   }
-  const sheetDir = await resolveSheetDir(projectDir, target.sheetId);
-  await writeJsonAtomic(sheetDir, 'markup.json', data, target.projectId);
+  await maybeSnapshot(projectDir, target, data);
 }
 
 export function createPersistQueue(deps?: Partial<PersistQueueDeps>): PersistQueue {

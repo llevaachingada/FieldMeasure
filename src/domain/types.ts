@@ -1,4 +1,4 @@
-// Domain types — §3.3 of docs/preflight-handoff-v0.3-hardened.md (copied verbatim).
+// Domain types — §3.3 of docs/archive/preflight-handoff-v0.3-hardened.md (copied verbatim).
 // Pure module: no DOM, no I/O, no Konva.
 
 export type UUID = string;

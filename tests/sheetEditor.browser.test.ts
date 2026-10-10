@@ -173,7 +173,7 @@ describe('D88 — the editor empty state offers the add pair', () => {
 describe('F2 — double-tap fit↔100% is not gated on the touch toggle', () => {
   it('still toggles when «Touch places and moves» is OFF (router intent = navigate)', async () => {
     const spy = vi.spyOn(EditorCanvas.prototype, 'toggleFitOrFull');
-    useAppStore.setState({ touchPlaces: false, penOnly: false });
+    useAppStore.setState({ touchPlaces: false });
     try {
       const { host, origin } = await mountEditor();
       // Two taps inside the 320 ms / 24 px double-tap window.

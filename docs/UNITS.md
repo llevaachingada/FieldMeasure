@@ -47,6 +47,9 @@ as a broken app in the field.
 
 ## Accepted metric input (when unit system = metric)
 
+> Not switched on in the app yet: the «Metric» option in Settings is disabled. The parser below
+> exists and is tested; the display and project wiring are owed (`docs/STATUS.md`).
+
 `1245 mm` · `124.5 cm` · `1.245 m` — a bare number is treated as millimeters.
 
 ## Keypad input model (v0.3)

@@ -75,11 +75,13 @@ const COPY = {
 /** `Will write 3 files (18.4 MB) to:  <path>` — note the DOUBLE SPACE after `to:`
  *  (appendix-strings.md:237 says so explicitly). */
 const writeSummary = (fileCount: number, size: string, path: string): string =>
-  `Will write ${fileCount} files (${size}) to:  ${path}`;
+  fileCount === 1 // D172: singular
+    ? `Will write 1 file (${size}) to:  ${path}`
+    : `Will write ${fileCount} files (${size}) to:  ${path}`;
 
 /** `Exported 3 files (18.4 MB)` — appendix-strings.md:238. */
 const resultSummary = (fileCount: number, size: string): string =>
-  `Exported ${fileCount} files (${size})`;
+  fileCount === 1 ? `Exported 1 file (${size})` : `Exported ${fileCount} files (${size})`; // D172: singular
 
 /** `N sheets exported without their photo` — appendix-strings.md:245 ({sheetCount}). */
 const damagedSummary = (sheetCount: number): string =>
@@ -348,24 +350,17 @@ describe('ExportWizard — format', () => {
 
   it('offers the PDF option set by default and the PNG set on switch, with zip OFF', () => {
     openWizard();
-    expect(screen.getByTestId('export-wizard-include-sheet-names')).toBeTruthy();
     expect(screen.queryByTestId('export-wizard-zip')).toBeNull();
 
     click('export-wizard-format-png');
     const zip = screen.getByTestId('export-wizard-zip') as HTMLInputElement;
     expect(zip.checked).toBe(false); // D158 (owner): no zip by default (was ON, UI §12:717)
-    expect(screen.queryByTestId('export-wizard-include-sheet-names')).toBeNull();
   });
 
-  it('«Include sheet names in pages» is disabled, never a dead live control (review F1)', () => {
-    // v1 is flatten-only and nothing consumes `includeSheetNames`, so the spec's checkbox
-    // is honestly disabled (the D102 beta-honesty rule) rather than looking live.
+  it('«Include sheet names in pages» no longer renders (nothing consumed it)', () => {
     openWizard();
-    const checkbox = screen.getByTestId('export-wizard-include-sheet-names') as HTMLInputElement;
-    expect(checkbox.disabled).toBe(true);
-    expect(checkbox.getAttribute('aria-disabled')).toBe('true');
-    // Copy is kept — the control is not hidden and not deleted.
-    expect(checkbox.getAttribute('aria-label')).toBe(COPY.includeSheetNames);
+    expect(screen.queryByTestId('export-wizard-include-sheet-names')).toBeNull();
+    expect(document.body.textContent ?? '').not.toContain(COPY.includeSheetNames);
   });
 
   it('never renders the v1-CUT checkboxes or the impossible Open folder action', () => {
@@ -461,7 +456,6 @@ describe('ExportWizard — happy path', () => {
       format: 'png',
       multiplier: 3,
       zip: true, // D158: default OFF, so the one click turns it on
-      includeSheetNames: false, // PDF-only, normalised away on a PNG plan
       conflictPolicy: 'overwrite',
       rememberDestination: true,
     };

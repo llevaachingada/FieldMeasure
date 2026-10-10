@@ -2,9 +2,11 @@
 
 A short, step-by-step guide for people using Field Measure on a Surface. The same guide is in the
 app: tap **Help** at the top of any screen (Home, a project's sheets, or the photo editor).
+Installing the app is covered in [`INSTALL.md`](INSTALL.md) and the printable
+[Quick Start](guides/Field-Measure-Quick-Start.pdf).
 
-> Keep this file and the in-app Help (`STRINGS.help` in `src/ui/strings.ts`) in step. If one
-> changes, change the other.
+> Keep this file and the in-app Help (`STRINGS.help` in `src/ui/strings.ts`) in step:
+> `tests/userGuide.test.ts` fails if a Help step is missing here.
 
 ---
 
@@ -19,51 +21,64 @@ app: tap **Help** at the top of any screen (Home, a project's sheets, or the pho
 
 1. On **Home**, tap **New project** and type a name. The camera opens using the rear camera.
 2. Line up the shot and tap the round shutter button. Use the zoom chips to zoom in.
-3. Check the photo, then tap **Use photo**. The photo opens straight away, ready for dimensions.
-   Tap **Retake** to try again.
+3. Check the photo, type a **Room name** if you like (it is printed on the export), then tap
+   **Use photo**. The photo opens straight away, ready for dimensions. Tap **Retake** to try again.
 4. To add another photo later, use **Take photo** on the project page, or **Add sheet** in the
    editor's **More actions (…)** menu.
+5. To use a photo that is already on the Surface, tap **Import** on the camera screen, or
+   **Import file** in the editor's **More actions (…)** menu.
 
 ## 3. Add dimensions
 
-1. In the tool bar on the right, tap **Dimension** (at the top, under **Measure**).
+1. In the tool bar at the side of the screen, tap **Dimension** (at the top, under **Measure**).
 2. Tap where the measurement starts, then tap where it ends. The keypad opens.
-3. Type the size (for example `12 FT 6 IN 3/8`) and tap the check mark.
+3. Type the size (for example `12 FT 6 IN 3/8`) and tap **Use this value**.
 4. To move the numbers off the line, tap **Select**, tap the dimension, then drag its numbers.
 5. To fix an end, tap **Select**, tap the dimension, then drag one of its round end grips. The
-   end follows your finger (it is never hidden under it) and the magnifier shows it, with your
-   other dimensions and marks. It snaps to their ends and corners; a green ring means it snapped.
-6. **Text**: tap **Text**, then tap the photo to type. Choose size, bold, text color, background
-   color and background opacity in the box. To change a note, tap it again (or select it and tap
-   it a second time).
+   end follows your finger and the magnifier shows it. It snaps to the ends of other dimensions
+   and marks (a green ring).
+6. **Text**: tap **Text**, then tap the photo to type. Choose size, colors and background in the
+   box. To change a note, tap it again.
 7. **Undo** and **Redo** are at the bottom of the tool bar.
 
 ## 4. Mark up the photo
 
-1. **Annotate**: freehand pen, highlighter and text notes.
+1. **Annotate**: freehand drawing, highlighter and text notes.
 2. **Mark**: lines, arrows, rectangles, ellipses and shapes.
-3. Change color, line width and arrowheads in the style panel on the left before or after you draw.
+3. Change color, line width and arrowheads in the style panel beside the photo, before or after
+   you draw. **More styles…** opens the rest.
 4. Use **Select** to move, rotate, lock or delete a mark. The **Layers** button (top bar) lists
    every mark.
-5. Everything saves automatically as you work.
+5. **Insert**: tap **Image inset** (under **Insert**) to put a close-up photo inside this one.
+   **Erase**: tap **Erase**, then tap a mark to remove it. **Undo** brings it back.
+6. Everything saves automatically as you work.
 
-## 5. Export
+## 5. Sheets and trash
+
+1. Each photo is a sheet. On the project page, tap **⋯** on a sheet to open, rename, duplicate,
+   replace its photo or delete it.
+2. To change the order, press and hold a sheet, then drag it.
+3. Deleted sheets stay in **Trash…** (the **⋯** menu at the top of the project page) for 14 days.
+   Open it to restore one.
+
+## 6. Export
 
 1. Tap **Export** (top bar). Choose which sheets, the format (PDF or image) and where to save, all
    on one page.
-2. By default, exports go into a dated folder inside the project (`exports\<date and time>`).
-   **Settings > Export** can send them straight to the project folder instead.
-3. When the export finishes, tap **Copy folder path** and paste it into File Explorer, or tap
+2. By default, exports go into a dated folder inside the project (exports, then the date and
+   time). **Settings > Export** can send them straight to the project folder instead.
+3. When the export finishes, tap **Copy path** and paste it into File Explorer, or tap
    **Open** next to a file to view it.
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | Problem | What to do |
 |---|---|
 | Camera will not start | Close other apps that use the camera, then check Windows **Settings > Privacy & security > Camera** and allow your browser. |
 | Wrong camera | Tap **Flip camera** on the capture screen. |
 | Focus or exposure keeps locking | Long-press locking is off by default. Check **Settings > Camera**. |
-| A project folder cannot be read | Tap **Retry**. If it still fails, check that the folder still exists in your projects folder. |
+| A project folder cannot be read | Tap **Retry**. If it still fails, check the folder still exists in your projects folder. If another Surface saved it with a newer version, update this app first (tap **Reload** when **Update ready** appears). |
 | Read-only | The project is open in another window or tab. Close the other one, then reopen the project. |
-| «Folder permission expired» keeps coming back | When the browser asks to let Field Measure edit your projects folder, choose **Allow on every visit**. Installing the app (the **Install** icon in the address bar) also helps the browser remember. The app asks once when you open a project, so the camera never has to. |
 | Something went wrong | Tap **Reload**. Work that was already saved stays in your projects folder. |
+| Folder permission keeps expiring | When the browser asks to let Field Measure edit your projects folder, choose **Allow on every visit**. Installing the app (**Install** in the address bar) also helps the browser remember. The app asks once when you open a project, so the camera never has to. |
+| Update ready | Tap **Reload** when you are between photos. Your work is saved first. |

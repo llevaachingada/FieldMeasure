@@ -780,13 +780,8 @@ export default function LayersPanel({
             >
               {STRINGS.layers.menuSendBack}
             </button>
-            {/* No `onGroup`/`onUngroup` channel exists in the pinned interface. */}
-            <button type="button" role="menuitem" className="layers-menu-item" data-menu-action="group" disabled>
-              {STRINGS.layers.menuGroup}
-            </button>
-            <button type="button" role="menuitem" className="layers-menu-item" data-menu-action="ungroup" disabled>
-              {STRINGS.layers.menuUngroup}
-            </button>
+            {/* D172: Group / Ungroup were permanently disabled (no grouping exists in v1), so they
+                are not shown: no control in the app may look tappable and do nothing. */}
             <button
               type="button"
               role="menuitem"

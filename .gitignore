@@ -25,6 +25,5 @@ coverage/
 playwright-report/
 test-results/
 
-# Deepwork state (git-local only)
-.slim/deepwork/
+# Vitest's shared artifact directory (attachments and reporter output)
 .vitest/

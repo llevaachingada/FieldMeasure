@@ -53,7 +53,6 @@ export const SETTLE_MS = 450;
 export const REFINE_RADIUS_PX = 40;
 /** touch model §2.2: acquire 32 px → lock 20 px under touch; pen stays 20 px. */
 export const SNAP_ACQUIRE_TOUCH_PX = 32;
-export const SNAP_LOCK_TOUCH_PX = 20;
 export const SNAP_PEN_PX = 20;
 /** §5.4 gloved touch: hit slop +8 px, snap acquire +4 px. */
 export const GLOVE_ACQUIRE_BONUS_PX = 4;

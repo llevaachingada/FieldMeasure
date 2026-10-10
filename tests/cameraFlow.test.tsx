@@ -762,3 +762,41 @@ describe('the card thumbnail is written before the sheet is handed off (D125)', 
     );
   });
 });
+
+describe('«Retake» brings the live picture back (the black-viewfinder bug)', () => {
+  // The review screen is an early return, so the viewfinder <video> UNMOUNTS on «Use/Retake»'s
+  // way in and Retake mounts a brand-new, empty one. `srcObject` used to be set only inside
+  // `session.start()`, so the new element never got the stream: measured before the fix, the
+  // video was {w:3840, paused:false, hasSrc:true} before the shutter and {w:0, paused:true,
+  // hasSrc:false} 2.5 s after Retake — a solid black screen the crew then shot blind (the
+  // still-capture path reads the TRACK, so the shutter kept firing).
+  it('the video that mounts after Retake is handed the same stream and told to play', async () => {
+    await setup();
+    const stream = fakeStream(fakeTrack(1920, 1080, 'cam-back'));
+    installMedia(vi.fn(async () => stream));
+    // jsdom cannot play media; record WHICH element was asked to.
+    const played: HTMLMediaElement[] = [];
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (this: HTMLMediaElement) {
+      played.push(this);
+      return Promise.resolve();
+    });
+    renderFlow();
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+
+    // Sanity: the FIRST viewfinder is fed by `session.start()`, which always worked.
+    const before = document.querySelector('video') as HTMLVideoElement;
+    expect(before.srcObject).toBe(stream);
+
+    await user.click(screen.getByRole('button', { name: STRINGS.a11y.shutter }));
+    await user.click(await screen.findByRole('button', { name: STRINGS.capture.retake }));
+    await screen.findByRole('button', { name: STRINGS.a11y.shutter });
+
+    // The review screen really did swap the element (that is the cause)…
+    const after = document.querySelector('video') as HTMLVideoElement;
+    expect(after).not.toBe(before);
+    // …so the new one must be re-attached to the still-live stream, and played.
+    expect(after.srcObject).toBe(stream);
+    expect(played).toContain(after);
+  });
+});

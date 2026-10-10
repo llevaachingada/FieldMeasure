@@ -2,22 +2,21 @@
  * Touch-first input toggles (implementation plan slice 0.3 step 1; build spec
  * §11.1 / §20.5(b); touch-first model §7.7).
  *
- * Five toggles, not one:
+ * Four toggles:
  *   - touchPlaces    «Touch places and moves»        default ON   (the F1/F2 capability)
- *   - fingerDraws    «Finger draws (freehand)»       default OFF  (finger ink only; pen always draws)
- *   - penOnly        «Pen only»                      default OFF  (input filter)
+ *   - fingerDraws    «Finger draws (freehand)»       default ON   (D167; finger freehand ink)
  *   - magnifierOnTap «Magnifier when you tap»        default ON
  *   - glovedTouch    «Gloved touch»                  default OFF
  *
- * `penOnly` is no longer the only input filter (§20.5(b)); finger freehand is
- * opt-in, touch placement is the default.
+ * D167: the «Pen only» toggle (`penOnly`) was removed — the crews use only the touchscreen.
+ * Finger freehand and touch placement are both on by default. A `fm:settings:input:penOnly`
+ * key left in IndexedDB by an earlier build is simply never read (no migration needed).
  */
 import { get, set } from 'idb-keyval';
 
 export const INPUT_KEYS = {
   touchPlaces: 'fm:settings:input:touchPlaces',
   fingerDraws: 'fm:settings:input:fingerDraws',
-  penOnly: 'fm:settings:input:penOnly',
   magnifierOnTap: 'fm:settings:input:magnifierOnTap',
   glovedTouch: 'fm:settings:input:glovedTouch',
 } as const;
@@ -28,8 +27,7 @@ export type InputToggles = Record<InputToggleKey, boolean>;
 
 export const INPUT_DEFAULTS = {
   touchPlaces: true,
-  fingerDraws: false,
-  penOnly: false,
+  fingerDraws: true, // D167: touch-only shop, so the Freehand tool draws with a finger out of the box
   magnifierOnTap: true,
   glovedTouch: false,
 } as const satisfies InputToggles;
@@ -44,7 +42,7 @@ export async function setInputToggle(key: InputToggleKey, value: boolean): Promi
   await set(INPUT_KEYS[key], value);
 }
 
-/** Read all five at once (Settings hydration). */
+/** Read all four at once (Settings hydration). */
 export async function getInputToggles(): Promise<InputToggles> {
   const keys = Object.keys(INPUT_KEYS) as InputToggleKey[];
   const values = await Promise.all(keys.map((key) => getInputToggle(key)));

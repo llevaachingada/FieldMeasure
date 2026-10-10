@@ -25,7 +25,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import ProjectScreen from '../src/ui/ProjectScreen';
 import type { ProjectSheetCard } from '../src/fs/projectSheets';
 import { STRINGS } from '../src/ui/strings';
@@ -33,6 +33,33 @@ import { STRINGS } from '../src/ui/strings';
 /** The component's 400 ms lift. */
 const LONG_PRESS_MS = 400;
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Wait for a real condition instead of a fixed sleep. The old helpers slept 460 ms for the lift,
+ * 20 ms for «React to commit», 40 ms for «the persist callback»: all of which are budgets that
+ * only hold on an idle machine. Under load the lift state, the document-level move/up listeners
+ * (attached in a passive effect AFTER the lift commits) or the renumber could land late, and a
+ * pointer event dispatched in the gap was silently lost.
+ */
+const until = (check: () => void): Promise<void> =>
+  vi.waitFor(check, { timeout: 5000, interval: 10 }) as Promise<void>;
+/** Drain React's pending (incl. passive) effects. */
+const flush = (): Promise<void> => act(async () => {});
+const chipEl = (): HTMLElement | null =>
+  document.querySelector<HTMLElement>('[data-testid="sheet-reorder-chip"]');
+
+/**
+ * Press and wait until the card is REALLY lifted: the chip is mounted (it only renders in the
+ * dragging phase) and the effects that attach the drag's document listeners have run. The
+ * 400 ms timer is the app's own; we wait for its outcome rather than racing it.
+ */
+async function pressAndLift(m: Mounted, id: string): Promise<{ x: number; y: number }> {
+  const from = m.centre(id);
+  pev('pointerdown', m.item(id), from.x, from.y);
+  await until(() => expect(chipEl()).not.toBeNull());
+  await flush();
+  return from;
+}
 
 /** A real `PointerEvent` at viewport coordinates — jsdom cannot do this (D40). */
 function pev(
@@ -116,16 +143,18 @@ function mount(sheetIds: readonly string[]): Mounted {
 
 /** Press, hold past the lift, drag onto `ontoId`'s real centre, release. */
 async function dragOnto(m: Mounted, fromId: string, ontoId: string): Promise<void> {
-  const from = m.centre(fromId);
-  pev('pointerdown', m.item(fromId), from.x, from.y);
-  await sleep(LONG_PRESS_MS + 60);
+  const startOrder = m.order();
+  await pressAndLift(m, fromId);
   const onto = m.centre(ontoId);
   // `pointermove` targets the pressed card on purpose: real touch is implicitly captured
   // to it (D77/F1), so this is the input the app actually receives.
   pev('pointermove', m.item(fromId), onto.x, onto.y);
-  await sleep(20); // let React commit the live renumber
+  // The live renumber: the dragged card now sits where the target was.
+  await until(() => expect(m.order().indexOf(fromId)).toBe(startOrder.indexOf(ontoId)));
   pev('pointerup', document.body, onto.x, onto.y);
-  await sleep(40); // the persist callback
+  // The drop ends the drag (chip gone) and hands the order to the shell.
+  await until(() => expect(chipEl()).toBeNull());
+  await until(() => expect(m.onReorderSheets).toHaveBeenCalledTimes(1));
 }
 
 afterEach(() => {
@@ -177,11 +206,9 @@ describe('grid reorder — real geometry, real pointer events', () => {
 
     expect(document.querySelector('[data-testid="sheet-reorder-chip"]')).toBeNull();
 
-    const from = m.centre('s1');
-    pev('pointerdown', m.item('s1'), from.x, from.y);
-    await sleep(LONG_PRESS_MS + 60);
+    await pressAndLift(m, 's1');
 
-    const chip = document.querySelector<HTMLElement>('[data-testid="sheet-reorder-chip"]');
+    const chip = chipEl();
     expect(chip).not.toBeNull();
     expect(chip?.textContent).toBe(STRINGS.project.reorderChip);
     // The chip is announced, and the CSP-as-a-test rule holds: Web Animations positions it
@@ -193,17 +220,20 @@ describe('grid reorder — real geometry, real pointer events', () => {
     // introduce an inline style either.
     const onto = m.centre('s3');
     pev('pointermove', m.item('s1'), onto.x, onto.y);
-    await sleep(30);
+    await flush();
     expect(document.querySelector('[data-testid="sheet-reorder-chip"]')?.hasAttribute('style')).toBe(
       false,
     );
 
     // …and at the LAST column of the grid the chip must still be fully on screen: unclamped
     // it ran 35–75 px past the right edge and clipped its own label (finding 11 of the
-    // session-22 UI review). The follow animation is 100 ms, so let it land before measuring.
+    // session-22 UI review). The follow animation is 100 ms: await the animation itself (its own
+    // `finished` promise) rather than guessing how long a frame takes.
     pev('pointermove', m.item('s1'), m.centre('s4').x, m.centre('s4').y);
-    await sleep(160);
-    const landed = document.querySelector<HTMLElement>('[data-testid="sheet-reorder-chip"]');
+    const landed = chipEl();
+    const running = landed?.getAnimations() ?? [];
+    expect(running.length).toBeGreaterThan(0); // the follow animation really exists
+    await Promise.allSettled(running.map((a) => a.finished));
     const box = landed?.getBoundingClientRect();
     expect(box).toBeTruthy();
     expect(box!.right).toBeLessThanOrEqual(window.innerWidth);
@@ -211,19 +241,25 @@ describe('grid reorder — real geometry, real pointer events', () => {
     expect(box!.top).toBeGreaterThanOrEqual(0);
 
     pev('pointerup', document.body, onto.x, onto.y);
-    await sleep(30);
-    expect(document.querySelector('[data-testid="sheet-reorder-chip"]')).toBeNull();
+    await until(() => expect(chipEl()).toBeNull());
   });
 
   it('a short tap opens the sheet and never reorders', async () => {
     const m = mount(['s1', 's2', 's3']);
     const at = m.centre('s2');
 
+    // Release as soon as React has armed the press (its document `pointerup` listener is attached
+    // in an effect, which a real tap always gives time to run between the two events). Draining
+    // effects with `act` takes microseconds, not a wall-clock budget, so nothing can stretch the
+    // hold past the 400 ms lift the way the old `sleep(120)` could on a stalled machine.
     pev('pointerdown', m.item('s2'), at.x, at.y);
-    await sleep(120); // far below the 400 ms lift
+    await flush();
     pev('pointerup', m.item('s2'), at.x, at.y);
     m.item('s2').querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await sleep(20);
+    // Let the lift timer's full length pass: it must have been cancelled by the release.
+    const released = performance.now();
+    while (performance.now() - released < LONG_PRESS_MS + 100) await sleep(20);
+    expect(chipEl()).toBeNull();
 
     expect(m.onReorderSheets).not.toHaveBeenCalled();
     expect(m.onOpenSheet).toHaveBeenCalledWith('s2');
@@ -232,19 +268,16 @@ describe('grid reorder — real geometry, real pointer events', () => {
   it('an Escape-cancelled lift restores the order and leaves the grid clickable', async () => {
     const m = mount(['s1', 's2', 's3']);
 
-    const from = m.centre('s1');
-    pev('pointerdown', m.item('s1'), from.x, from.y);
-    await sleep(LONG_PRESS_MS + 60);
+    await pressAndLift(m, 's1');
     const onto = m.centre('s3');
     pev('pointermove', m.item('s1'), onto.x, onto.y);
-    await sleep(20);
-    expect(m.order()).toEqual(['s2', 's3', 's1']); // the live renumber
+    await until(() => expect(m.order()).toEqual(['s2', 's3', 's1'])); // the live renumber
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await sleep(30);
+    await until(() => expect(m.order()).toEqual(['s1', 's2', 's3'])); // back to the pre-drag order
+    await until(() => expect(chipEl()).toBeNull());
 
     expect(m.onReorderSheets).not.toHaveBeenCalled();
-    expect(m.order()).toEqual(['s1', 's2', 's3']); // back to the pre-drag order
     // The cancelled gesture released its one-shot click suppression (the fix pinned in the
     // jsdom suite too): the next tap on a card still opens it.
     m.item('s1').querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));

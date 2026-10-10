@@ -16,14 +16,20 @@
  */
 import { describe, expect, it } from 'vitest';
 import decisionsRaw from '../docs/DECISIONS.md?raw';
-import continuityRaw from '../docs/CONTINUITY.md?raw';
-import buildLogRaw from '../docs/BUILD-LOG.md?raw';
+// D168: the build-era CONTINUITY and BUILD-LOG moved to docs/archive/ (frozen, still scanned);
+// STATUS and CHANGELOG are their live successors and are scanned too.
+import continuityRaw from '../docs/archive/CONTINUITY.md?raw';
+import buildLogRaw from '../docs/archive/BUILD-LOG.md?raw';
+import statusRaw from '../docs/STATUS.md?raw';
+import changelogRaw from '../docs/CHANGELOG.md?raw';
 
 const read = (raw: string): string => raw.replace(/^\uFEFF/, '');
 
 const decisions = read(decisionsRaw);
 const continuity = read(continuityRaw);
 const buildLog = read(buildLogRaw);
+const status = read(statusRaw);
+const changelog = read(changelogRaw);
 
 /** Every `### D<n>` heading, in file order, with its line number. */
 function decisionHeadings(text: string): Array<{ num: number; line: number; title: string }> {
@@ -92,13 +98,14 @@ describe('the document layer (D131)', () => {
     // A dangling `D<n>` reference is how a merge-or-renumber silently falsifies a document: the
     // prose keeps pointing at a number that no longer exists, and the reader trusts it.
     const refs = new Set<number>();
-    for (const text of [continuity, buildLog]) {
+    for (const text of [continuity, buildLog, status, changelog]) {
       for (const m of text.matchAll(/\*\*D(\d+)\*\*/g)) refs.add(Number(m[1]));
     }
     const dangling = [...refs].filter((n) => !defined.has(n)).sort((a, b) => a - b);
     expect(
       dangling.map((n) => `D${n}`),
-      'a bolded decision reference in CONTINUITY/BUILD-LOG has no definition in DECISIONS.md ' +
+      'a bolded decision reference in STATUS/CHANGELOG (or the archived CONTINUITY/BUILD-LOG) has no ' +
+        'definition in DECISIONS.md ' +
         '(as a heading, a registry table row, or a bold lead-in)',
     ).toEqual([]);
     // Non-triviality: the reference scan really found references.

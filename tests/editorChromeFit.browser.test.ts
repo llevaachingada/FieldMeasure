@@ -275,6 +275,42 @@ describe.each(TARGETS)('editor chrome fits $w x $h ($name)', ({ w, h }) => {
     host.remove();
   });
 
+  // D172: D149 narrowed the side dock to 176 px but the header kept its 280 px layout, so the
+  // chip overflowed and «More styles…» sat entirely OUTSIDE the panel (x 221-326 against a
+  // 174 px panel): invisible and untappable at every landscape size. The body gate above never
+  // looked at the header.
+  for (const tool of TOOLS) {
+    it(`the panel header (chip and «More styles…») fits inside the side dock for ${tool}`, async () => {
+      await page.viewport(w, h);
+      useEditorStore.setState(createInitialEditorState());
+      useAppStore.setState(createInitialAppState());
+      useStyleByTool.setState(createInitialStyleState());
+      useEditorStore.getState().setActiveTool(tool);
+      const host = document.createElement('div');
+      host.style.width = `${w}px`;
+      host.style.height = `${h}px`;
+      document.body.append(host);
+      const view = render(
+        createElement(EditorLayout, { projectId: 'p:f', folderName: 'Riverside', onExit: () => {} }),
+        { container: host },
+      );
+      const panel = view.container.querySelector('.style-dock[data-orientation="vertical"] .style-panel') as HTMLElement;
+      expect(panel, 'landscape uses the side dock').not.toBeNull();
+      const p = panel.getBoundingClientRect();
+      for (const sel of ['.style-panel-chip', '.style-panel-more', '.style-panel-chip-name']) {
+        const r = (panel.querySelector(sel) as HTMLElement).getBoundingClientRect();
+        expect(r.width, `${tool}: ${sel} has width`).toBeGreaterThan(0);
+        expect(r.left, `${tool}: ${sel} left edge inside the panel`).toBeGreaterThanOrEqual(p.left);
+        expect(r.right, `${tool}: ${sel} right edge ${Math.round(r.right)} vs panel ${Math.round(p.right)}`).toBeLessThanOrEqual(p.right);
+      }
+      // A touch target, not a sliver (48 px floor).
+      const more = (panel.querySelector('.style-panel-more') as HTMLElement).getBoundingClientRect();
+      expect(more.height).toBeGreaterThanOrEqual(48);
+      cleanup();
+      host.remove();
+    });
+  }
+
   it('fills the viewport, never scrolls the page, and keeps the rail\'s first group on screen', async () => {
     await page.viewport(w, h);
     // The production height chain, so a page-level scroll cannot hide the rail's top.

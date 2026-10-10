@@ -11,7 +11,7 @@
  * NEVER synthetic `dispatchEvent`. D77/F1 proved synthetic pointer events diverge from real
  *   input (Chromium's implicit pointer capture), and this repo treats them as non-evidence.
  *
- * Timings come from `docs/touch-first-interaction-model.md`:
+ * Timings come from `docs/archive/touch-first-interaction-model.md`:
  *   §1.4 settle 450 ms · §3.1 TAP_SLOP 8 / TAP_MAX_MS 400 / LONG_PRESS_MS 600.
  *
  * MULTI-TOUCH NOTE: CDP identifies a touch point by its index in `touchPoints`, so a finger is
@@ -301,7 +301,7 @@ export class Gestures {
 }
 
 /**
- * Timings from `docs/touch-first-interaction-model.md` §1.4 / §3.1 — the values the app
+ * Timings from `docs/archive/touch-first-interaction-model.md` §1.4 / §3.1 — the values the app
  * implements, exported here so the spec's comments can cite a single source.
  */
 export const TSettle = {

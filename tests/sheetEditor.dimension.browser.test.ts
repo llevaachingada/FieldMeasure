@@ -14,7 +14,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import Konva from 'konva';
 import SheetEditor from '../src/ui/SheetEditor';
 import EditorLayout from '../src/ui/EditorLayout';
@@ -73,6 +73,64 @@ vi.mock('@/fs/projectStore', async (importOriginal) => ({
 }));
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Wait for a REAL condition instead of a fixed sleep. Every `sleep(10) // React flush` and
+ * `sleep(520)` that used to sit here raced the machine: React's scheduler and the 450 ms settle
+ * timer are both late when the CPU is saturated, and a fixed budget can only be right on an idle
+ * box. The expectation passed in is the very thing the test goes on to rely on.
+ */
+const until = (check: () => void): Promise<void> =>
+  vi.waitFor(check, { timeout: 5000, interval: 10 }) as Promise<void>;
+
+/** Flush React effects/state after a synchronous act that has no observable DOM signal. */
+const flush = (): Promise<void> => act(async () => {});
+
+/**
+ * Wait until `ms` of REAL time have passed since `t0`, for the negative assertions («the settle
+ * timer must NOT fire», «the coalescing window has closed»). Time genuinely has to pass there, but
+ * the amount is measured on the same clock the app uses, not assumed from a `sleep` that a stalled
+ * event loop can stretch or (for the window) an early timer can undercut. Take `t0` AFTER the
+ * event that started the timer, so the timer's deadline is always <= t0 + its length.
+ */
+async function waitElapsed(t0: number, ms: number): Promise<void> {
+  while (performance.now() - t0 < ms) await sleep(10);
+  await sleep(0); // let any timer due at this instant run before the caller asserts
+}
+
+/**
+ * Wait until the open keypad is really ready for keys. The sheet's DOM appears in the render
+ * commit, but SheetEditor's Escape listener is attached in a passive effect that runs AFTER it
+ * (the same effect first moves focus into the sheet, immediately before `addEventListener`).
+ * An Escape dispatched in that gap is lost, so "focus is inside the keypad" is the observable
+ * signal that the listener is live.
+ */
+async function keypadReady(): Promise<HTMLElement> {
+  await until(() => expect(useEditorStore.getState().keypadOpen).toBe(true));
+  const sheet = await screen.findByTestId('keypad-sheet');
+  await until(() => expect(sheet.contains(document.activeElement)).toBe(true));
+  return sheet;
+}
+
+/** Escape the auto-opened keypad (geometry kept, phase idle), then switch to the Select tool. */
+async function closeKeypadAndSelectTool(
+  view: ReturnType<typeof render>,
+): Promise<void> {
+  await keypadReady();
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await until(() => expect(useEditorStore.getState().keypadOpen).toBe(false));
+  // Select tool so a one-finger drag is object-first. `rerender` is act-wrapped, so the tool
+  // change has been applied when it returns; `flush` drains any effect it queued.
+  view.rerender(
+    createElement(SheetEditor, {
+      projectId: 'p:f',
+      folderName: 'f',
+      onExit: () => {},
+      activeTool: 'select',
+    }),
+  );
+  await flush();
+}
 
 function pointer(type: string, target: Element, x: number, y: number, pointerId = 1): void {
   target.dispatchEvent(
@@ -173,31 +231,33 @@ describe('tap-tap through SheetEditor', () => {
     const { view, host, stage, at } = await mountEditor('place');
     tapTap(host, at, { x: at.x + 200, y: at.y });
 
-    await sleep(10); // React flush (the phase attribute is rendered from state)
-    expect(host.dataset.placementPhase).toBe('anchorB');
+    // The phase attribute and the live region are rendered from state, so wait for them.
+    await until(() => expect(host.dataset.placementPhase).toBe('anchorB'));
     expect(useEditorStore.getState().pendingOp).toBe('dimension');
     // Placement state announced (a11y). The empty-state panel is also role=status, so
     // target the live region by its own attribute.
     const live = view.container.querySelector('[aria-live="polite"]');
-    expect(live?.textContent).toBe(STRINGS.placement.adjusting);
+    await until(() => expect(live?.textContent).toBe(STRINGS.placement.adjusting));
     // Geometry committed but the keypad is not open yet.
     expect(useEditorStore.getState().keypadOpen).toBe(false);
     expect(stage.getLayers()[2].getChildren()).toHaveLength(1);
 
-    await sleep(520);
-    expect(useEditorStore.getState().keypadOpen).toBe(true);
-    expect(screen.getByTestId('keypad-sheet')).toBeTruthy();
+    // The 450 ms settle timer opens it; wait for the open, not for 520 ms to elapse.
+    await until(() => expect(useEditorStore.getState().keypadOpen).toBe(true));
+    expect(await screen.findByTestId('keypad-sheet')).toBeTruthy();
   });
 
   it('a contact cancels the auto-open permanently; geometry survives; ✓ Value re-opens it', async () => {
     const { host, stage, at } = await mountEditor('place');
     tapTap(host, at, { x: at.x + 200, y: at.y });
+    const settleStart = performance.now(); // after the commit that armed the 450 ms timer
 
     // Contact far from both anchors, before the 450 ms timer fires.
     pointer('pointerdown', host, at.x + 600, at.y + 400);
     pointer('pointerup', host, at.x + 600, at.y + 400);
 
-    await sleep(520);
+    // Negative assertion: the 450 ms settle window must really have elapsed before we check.
+    await waitElapsed(settleStart, 520);
     expect(useEditorStore.getState().keypadOpen).toBe(false);
     expect(screen.queryByTestId('keypad-sheet')).toBeNull();
     // Geometry survived.
@@ -207,23 +267,19 @@ describe('tap-tap through SheetEditor', () => {
     // The HUD's ✓ Value is the explicit re-entry.
     const valueButton = screen.getByText(STRINGS.keypad.useThisValue);
     valueButton.click();
-    await sleep(10);
-    expect(useEditorStore.getState().keypadOpen).toBe(true);
-    expect(screen.getByTestId('keypad-sheet')).toBeTruthy();
+    await until(() => expect(useEditorStore.getState().keypadOpen).toBe(true));
+    expect(await screen.findByTestId('keypad-sheet')).toBeTruthy();
   });
 
   it('Escape in the keypad keeps the geometry and returns focus to the canvas', async () => {
     const { host, at } = await mountEditor('place');
     tapTap(host, at, { x: at.x + 200, y: at.y });
-    await sleep(520);
-    expect(screen.getByTestId('keypad-sheet')).toBeTruthy();
+    await keypadReady();
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    // React state flush.
-    await sleep(10);
-    expect(useEditorStore.getState().keypadOpen).toBe(false);
-    expect(screen.queryByTestId('keypad-sheet')).toBeNull();
-    expect(document.activeElement).toBe(host);
+    await until(() => expect(useEditorStore.getState().keypadOpen).toBe(false));
+    await until(() => expect(screen.queryByTestId('keypad-sheet')).toBeNull());
+    await until(() => expect(document.activeElement).toBe(host));
   });
 });
 
@@ -231,21 +287,9 @@ describe('D63 — a second finger restores the pre-drag object position', () => 
   it('cancels the object drag and puts the dimension back', async () => {
     const { view, host, stage, at } = await mountEditor('place');
     tapTap(host, at, { x: at.x + 200, y: at.y });
-    // Cancel the keypad so the placement finishes (geometry kept, phase idle).
-    await sleep(520);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await sleep(10);
-
-    // Re-mount as the Select tool so a one-finger drag is object-first.
-    view.rerender(
-      createElement(SheetEditor, {
-        projectId: 'p:f',
-        folderName: 'f',
-        onExit: () => {},
-        activeTool: 'select',
-      }),
-    );
-    await sleep(10);
+    // Cancel the keypad so the placement finishes (geometry kept, phase idle), then re-mount
+    // as the Select tool so a one-finger drag is object-first.
+    await closeKeypadAndSelectTool(view);
 
     const group = markupGroup(stage);
     const before = linePoints(group);
@@ -278,23 +322,20 @@ describe('F3 — Escape cancels a pending dimension through the shell ladder', (
     // First tap authors A only — an uncommitted pending placement.
     pointer('pointerdown', host, at.x, at.y);
     pointer('pointerup', host, at.x, at.y);
-    await sleep(10);
-    expect(host.dataset.placementPhase).toBe('anchorA');
+    await until(() => expect(host.dataset.placementPhase).toBe('anchorA'));
     expect(useEditorStore.getState().pendingOp).toBe('dimension');
     expect(hasProvisional(stage)).toBe(true);
 
     // Rung 1 must CANCEL the pending dimension, not merely clear the store flag.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await sleep(10);
-    expect(useEditorStore.getState().pendingOp).toBe('none');
-    expect(host.dataset.placementPhase).toBe('idle');
+    await until(() => expect(useEditorStore.getState().pendingOp).toBe('none'));
+    await until(() => expect(host.dataset.placementPhase).toBe('idle'));
     expect(hasProvisional(stage)).toBe(false);
 
     // The next tap begins a NEW placement (A) — it must not commit from the stale A.
     pointer('pointerdown', host, at.x + 200, at.y);
     pointer('pointerup', host, at.x + 200, at.y);
-    await sleep(10);
-    expect(host.dataset.placementPhase).toBe('anchorA');
+    await until(() => expect(host.dataset.placementPhase).toBe('anchorA'));
     expect(stage.getLayers()[2].getChildren()).toHaveLength(0); // nothing committed
   });
 });
@@ -305,14 +346,21 @@ describe('F5 — a tool switch inside the settle window cancels the dimension se
     useEditorStore.getState().setActiveTool('dimension');
     const { host, stage, at } = await mountEditor('place');
     tapTap(host, at, { x: at.x + 200, y: at.y });
-    await sleep(10); // committed geometry, 450 ms settle running
-    expect(host.dataset.placementPhase).toBe('anchorB');
+    const settleStart = performance.now(); // the 450 ms settle was armed at or before this
     expect(useEditorStore.getState().keypadOpen).toBe(false);
+    // Precondition, observable synchronously: tap B committed the geometry (the Valueless ghost).
+    expect(stage.getLayers()[2].getChildren()).toHaveLength(1);
 
-    // Switch to the rectangle tool INSIDE the settle window. dimension → rect keeps the
-    // coarse prop at 'place', so the OLD wiring never reached `dimRef.onToolChange()`.
-    useEditorStore.getState().setActiveTool('rect');
-    await sleep(600);
+    // Switch to the rectangle tool INSIDE the settle window, with no await in between: nothing
+    // asynchronous may separate the commit from the switch, or a stalled machine could let the
+    // 450 ms close first and this test would silently prove nothing. `act` applies the tool
+    // change (and the effect that forwards it to the machine) before it returns.
+    // dimension → rect keeps the coarse prop at 'place', so the OLD wiring never reached
+    // `dimRef.onToolChange()`.
+    await act(async () => {
+      useEditorStore.getState().setActiveTool('rect');
+    });
+    await waitElapsed(settleStart, 600);
 
     expect(useEditorStore.getState().keypadOpen).toBe(false);
     expect(screen.queryByTestId('keypad-sheet')).toBeNull();
@@ -325,21 +373,9 @@ describe('F6 — a sub-slop object drag records exactly one history step', () =>
   it('undo restores the original position and the object still exists', async () => {
     const { view, host, stage, at } = await mountEditor('place');
     tapTap(host, at, { x: at.x + 200, y: at.y });
-    // Cancel the keypad so the placement finishes (geometry kept, phase idle).
-    await sleep(520);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await sleep(10);
-
-    // Select tool so a one-finger drag is object-first.
-    view.rerender(
-      createElement(SheetEditor, {
-        projectId: 'p:f',
-        folderName: 'f',
-        onExit: () => {},
-        activeTool: 'select',
-      }),
-    );
-    await sleep(10);
+    // Cancel the keypad so the placement finishes (geometry kept, phase idle), then switch to
+    // the Select tool so a one-finger drag is object-first.
+    await closeKeypadAndSelectTool(view);
 
     const before = linePoints(markupGroup(stage));
     expect(before).toHaveLength(4);
@@ -351,7 +387,7 @@ describe('F6 — a sub-slop object drag records exactly one history step', () =>
     pointer('pointermove', host, mid.x + 3, mid.y, 1);
     expect(linePoints(markupGroup(stage))[0]).toBeCloseTo(before[0] + 3, 3);
     pointer('pointerup', host, mid.x + 3, mid.y, 1);
-    await sleep(10);
+    await flush();
 
     const undone = editorSession()?.undo() ?? null;
     expect(undone).not.toBeNull();
@@ -373,19 +409,7 @@ describe('F1 — a cancelled object drag restores geometry and records no histor
   it('puts the dimension back and leaves the undo stack where it was', async () => {
     const { view, host, stage, at } = await mountEditor('place');
     tapTap(host, at, { x: at.x + 200, y: at.y });
-    await sleep(520);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await sleep(10);
-
-    view.rerender(
-      createElement(SheetEditor, {
-        projectId: 'p:f',
-        folderName: 'f',
-        onExit: () => {},
-        activeTool: 'select',
-      }),
-    );
-    await sleep(10);
+    await closeKeypadAndSelectTool(view);
 
     const before = linePoints(markupGroup(stage));
     expect(before).toHaveLength(4);
@@ -398,10 +422,9 @@ describe('F1 — a cancelled object drag restores geometry and records no histor
 
     // The browser takes the pointer away mid-drag.
     pointer('pointercancel', host, mid.x + 120, mid.y, 1);
-    await sleep(10);
 
     // Geometry is back, point for point.
-    expect(linePoints(markupGroup(stage))).toEqual(before);
+    await until(() => expect(linePoints(markupGroup(stage))).toEqual(before));
 
     // …and NOTHING was recorded: the one step on the stack is still the placement, so a
     // single undo removes the dimension (the F6 test above proves a real drag leaves a
@@ -424,24 +447,12 @@ describe('F4 — §8.3: style edits coalesce within 600 ms into ONE undo step', 
   async function selectedDimension() {
     const { view, host, stage, at } = await mountEditor('place');
     tapTap(host, at, { x: at.x + 200, y: at.y });
-    await sleep(520);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await sleep(10);
-    view.rerender(
-      createElement(SheetEditor, {
-        projectId: 'p:f',
-        folderName: 'f',
-        onExit: () => {},
-        activeTool: 'select',
-      }),
-    );
-    await sleep(10);
+    await closeKeypadAndSelectTool(view);
     // Tap the segment midpoint to select it (Select tool, tap = select).
     const mid = { x: at.x + 100, y: at.y };
     pointer('pointerdown', host, mid.x, mid.y, 1);
     pointer('pointerup', host, mid.x, mid.y, 1);
-    await sleep(10);
-    expect(useEditorStore.getState().selection).toHaveLength(1);
+    await until(() => expect(useEditorStore.getState().selection).toHaveLength(1));
     return { view, host, stage, at };
   }
 
@@ -502,8 +513,9 @@ describe('F4 — §8.3: style edits coalesce within 600 ms into ONE undo step', 
     const session = editorSession()!;
     session.applyStylePatch({ strokeWidthMu: 5 }, STRINGS.toasts.actionChangeStyle);
     session.applyStylePatch({ strokeWidthMu: 6 }, STRINGS.toasts.actionChangeStyle);
+    const lastTick = performance.now(); // history's clock is performance.now() too
     // STYLE_COALESCE_MS = 600; wait past it with real time, as a paused scrubber would.
-    await sleep(650);
+    await waitElapsed(lastTick, 650);
     session.applyStylePatch({ strokeWidthMu: 7 }, STRINGS.toasts.actionChangeStyle);
 
     session.undo();

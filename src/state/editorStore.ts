@@ -15,10 +15,10 @@
  *                      without losing the view.
  *   - `focusInsetId` — `null` when not in Focus mode (§8.5 inset focus).
  *
- * NOT here yet (each is owned by the slice that builds it, per the closed-scope
- * rule — do not add ahead of the slice):
- *   - `styleByTool`   — slice 1.8 (Shape/Ink style system).
- *   - `radialRecents` — the 8-slot recents radial (a later tool slice).
+ * NOT here:
+ *   - `styleByTool`   — its own store, `src/state/styleByTool.ts` (the per-tool style
+ *                       memory and style panel state).
+ *   - `radialRecents` — the 8-slot recents radial, which is not built.
  *
  * `activeTool` is typed as `ToolId` from `@/ui/ToolRail` via `import type` only, so
  * this module has no runtime dependency on React and stays importable by pure node

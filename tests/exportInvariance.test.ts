@@ -16,6 +16,7 @@ import {
   EXPORT_BITMAP_LIMIT_BYTES,
   bitmapBytes,
   canExportAt,
+  exportDash,
   exportFontSize,
   exportInkSize,
   exportStrokeWidth,
@@ -40,6 +41,27 @@ describe('§4.2 export scaling — the invariance arithmetic', () => {
     expect(exportStrokeWidth(4, 2)).toBe(8);
     expect(exportStrokeWidth(4, 3)).toBe(12);
     for (const m of MULTIPLIERS) expect(exportStrokeWidth(4, m)).toBe(4 * m);
+  });
+
+  it('a dash array takes the same factor as the stroke width: mu × M (× k)', () => {
+    // A `strokeScaleEnabled:false` stroke is drawn in raw bitmap px, dash included, so the
+    // on-screen arrays — dashed [8, 6], dotted [1, 5] — scale exactly like the 4-mu width.
+    //   M=1: [8,6]        M=2: [16,12]       M=3: [24,18]
+    expect(exportDash([8, 6], 1)).toEqual([8, 6]);
+    expect(exportDash([8, 6], 2)).toEqual([16, 12]);
+    expect(exportDash([8, 6], 3)).toEqual([24, 18]);
+    //   dotted at M=3: [1×3, 5×3] = [3,15]
+    expect(exportDash([1, 5], 3)).toEqual([3, 15]);
+    //   with the D154 markup scale k = 2 (a 2560 px photo) at M=3: [8×3×2, 6×3×2] = [48,36]
+    expect(exportDash([8, 6], 3, 2)).toEqual([48, 36]);
+    for (const m of MULTIPLIERS) {
+      // dash : width is the screen's 8 : 4 = 2 at every M, which is what keeps the gaps open.
+      expect(exportDash([8, 6], m)[0]! / exportStrokeWidth(4, m)).toBe(2);
+    }
+    // It is a pure function: the input array is not touched.
+    const screen = [8, 6];
+    exportDash(screen, 3, 2);
+    expect(screen).toEqual([8, 6]);
   });
 
   it('an 18-mu label is fontSize 18 at every multiplier — NEVER counter-scaled', () => {

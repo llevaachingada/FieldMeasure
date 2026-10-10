@@ -302,28 +302,47 @@ describe('TopBar', () => {
     expect(bare.querySelector('.crumb-sheet')?.textContent).toBe(STRINGS.editor.breadcrumbSheetSegment);
   });
 
-  it('lists the ten overflow items in UI §5.2 order', () => {
+  it('lists only the three working overflow items, in order (D172: no row that does nothing)', () => {
     render(createElement(TopBar, {}));
     act(() => {
       screen.getByRole('button', { name: STRINGS.a11y.moreActions }).click();
     });
-    const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
+    const menu = screen.getByRole('menu');
+    const items = within(menu).getAllByRole('menuitem');
     expect(items.map((i) => i.textContent)).toEqual([
       // Slice 1.9 wires `⋯ → Export` (UI §12:740); its label is the approved a11y row.
       STRINGS.a11y.export,
-      STRINGS.editor.menuDuplicateSheet,
-      STRINGS.editor.menuInsertImage,
       STRINGS.editor.menuAddSheet,
       STRINGS.editor.menuImportFile,
+    ]);
+    expect(items.map((i) => i.getAttribute('data-menu-item'))).toEqual(['export', 'addSheet', 'importFile']);
+
+    // The seven rows that had no action behind them no longer render at all.
+    for (const label of [
+      STRINGS.editor.menuDuplicateSheet,
+      STRINGS.editor.menuInsertImage,
       STRINGS.editor.menuSheetInfo,
       STRINGS.editor.menuProjectSettings,
       STRINGS.editor.menuSettings,
       STRINGS.editor.menuHelp,
       STRINGS.editor.menuKeyboardShortcuts,
-    ]);
+    ]) {
+      expect(within(menu).queryByRole('menuitem', { name: label }), label).toBeNull();
+    }
+    for (const key of [
+      'duplicateSheet',
+      'insertImage',
+      'sheetInfo',
+      'projectSettings',
+      'settings',
+      'help',
+      'keyboardShortcuts',
+    ]) {
+      expect(menu.querySelector(`[data-menu-item="${key}"]`), key).toBeNull();
+    }
   });
 
-  it('wires Add sheet / Import file to their callbacks and no-ops the rest safely', () => {
+  it('wires Add sheet / Import file to their callbacks and offers no Help row (Help has its own button)', () => {
     const onAddSheet = vi.fn();
     const onImportFile = vi.fn();
     render(createElement(TopBar, { onAddSheet, onImportFile }));
@@ -342,15 +361,12 @@ describe('TopBar', () => {
     });
     expect(onImportFile).toHaveBeenCalledTimes(1);
 
-    // An item with no feature behind it must not throw and must not navigate anywhere.
+    // D172: the old «Help» row was a silent no-op. It is gone from the menu; Help is the
+    // top bar's own button.
     act(() => {
       screen.getByRole('button', { name: STRINGS.a11y.moreActions }).click();
     });
-    expect(() => {
-      act(() => {
-        screen.getByRole('menuitem', { name: STRINGS.editor.menuHelp }).click();
-      });
-    }).not.toThrow();
+    expect(screen.queryByRole('menuitem', { name: STRINGS.editor.menuHelp })).toBeNull();
   });
 
   it('(a11y) every top-bar control has an accessible name', () => {

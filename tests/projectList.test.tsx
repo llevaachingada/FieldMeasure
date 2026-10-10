@@ -22,7 +22,7 @@ const newest: ScannedProject = {
   folderName: 'Riverside',
   title: 'Riverside Elementary',
   sheetCount: 12,
-  path: '…\\Riverside',
+  path: 'Riverside', // D173: the folder name; the card template adds `…\\`
   updatedAtMs: 300,
   isDuplicate: true,
   isMostRecent: true,
@@ -35,7 +35,7 @@ const olderCopy: ScannedProject = {
   folderName: 'Riverside - Copy',
   title: 'Riverside Elementary',
   sheetCount: 12,
-  path: '…\\Riverside - Copy',
+  path: 'Riverside - Copy',
   updatedAtMs: 200,
   isDuplicate: true,
   isMostRecent: false,
@@ -48,7 +48,7 @@ const solo: ScannedProject = {
   folderName: 'Elm Street',
   title: 'Elm Street Footings',
   sheetCount: 5,
-  path: '…\\Elm Street',
+  path: 'Elm Street',
   updatedAtMs: 100,
   isDuplicate: false,
   isMostRecent: true,
@@ -101,6 +101,10 @@ describe('project cards (§5.6 identity, §5.8c duplicates)', () => {
       el.getAttribute('data-project-key'),
     );
     expect(new Set(keys)).toEqual(new Set(['dup:Riverside', 'dup:Riverside - Copy', 'solo:Elm Street']));
+    // D173: the card path reads `…\Elm Street`, with exactly one leading `…\`.
+    const cardText = document.querySelector('[data-project-key="solo:Elm Street"]')!.textContent ?? '';
+    expect(cardText).toContain('…\\Elm Street');
+    expect(cardText).not.toContain('…\\…');
   });
 
   it('badges only the non-most-recent duplicate folder «Copy»', async () => {
@@ -188,10 +192,11 @@ describe('project cards (§5.6 identity, §5.8c duplicates)', () => {
 
     expect(await screen.findByText(STRINGS.home.folderNotFound)).toBeTruthy();
     // «Locate…» is the same unbuilt adoption path: the state is shown, the affordance is not
-    // faked (a moved folder is recovered in Explorer until adoption ships).
-    const locate = screen.getByRole('button', { name: STRINGS.home.locate }) as HTMLButtonElement;
-    expect(locate.disabled).toBe(true);
-    expect(locate.getAttribute('aria-disabled')).toBe('true');
+    // faked (a moved folder is recovered in Explorer until adoption ships). D172: not even a
+    // disabled link, because a control that looks tappable and does nothing is not allowed.
+    expect(screen.queryByRole('button', { name: STRINGS.home.locate })).toBeNull();
+    expect(screen.queryByText(STRINGS.home.locate)).toBeNull();
+    expect(document.querySelector('.project-card-status button')).toBeNull();
   });
 
   it('every control has an accessible name (a11y §19.6)', async () => {

@@ -287,3 +287,55 @@ describe('CameraSession.start', () => {
     expect(session.status).toBe('unavailable');
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * attach() — re-feeding a viewfinder <video> that mounted after start() (Retake)
+ * ------------------------------------------------------------------ */
+
+describe('CameraSession.attach', () => {
+  function fakeVideo() {
+    return { srcObject: null as unknown, play: vi.fn(async () => {}) };
+  }
+
+  it('hands a freshly mounted <video> the live stream and plays it', async () => {
+    const track = new FakeTrack({}, { width: 1920, height: 1080 });
+    const stream = new FakeStream([track]);
+    installFakeMediaDevices(() => stream as unknown as FakeStream);
+    const session = new CameraSession();
+    await session.start(null, { video: true });
+
+    const video = fakeVideo();
+    session.attach(video as unknown as HTMLVideoElement);
+
+    expect(video.srcObject).toBe(stream);
+    expect(video.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing before a stream exists (start() will attach it) or after stop()', async () => {
+    const session = new CameraSession();
+    const early = fakeVideo();
+    session.attach(early as unknown as HTMLVideoElement);
+    expect(early.srcObject).toBeNull();
+    expect(early.play).not.toHaveBeenCalled();
+
+    installFakeMediaDevices(() => new FakeStream([new FakeTrack({})]) as unknown as FakeStream);
+    await session.start(null, { video: true });
+    session.stop();
+    const late = fakeVideo();
+    session.attach(late as unknown as HTMLVideoElement);
+    expect(late.srcObject).toBeNull();
+    expect(late.play).not.toHaveBeenCalled();
+  });
+
+  it('survives a play() that rejects (autoplay policy) and a null element', async () => {
+    installFakeMediaDevices(() => new FakeStream([new FakeTrack({})]) as unknown as FakeStream);
+    const session = new CameraSession();
+    await session.start(null, { video: true });
+
+    const video = { srcObject: null as unknown, play: vi.fn(() => Promise.reject(new Error('blocked'))) };
+    expect(() => session.attach(video as unknown as HTMLVideoElement)).not.toThrow();
+    expect(() => session.attach(null)).not.toThrow();
+    // The rejection is swallowed inside attach(): give it a tick and make sure nothing leaks.
+    await Promise.resolve();
+  });
+});

@@ -21,7 +21,6 @@ export const DEFAULT_PRECISION_DENOMINATOR = 16;
 
 export const UNIT_SYSTEM_KEY = 'fm:settings:unitSystem';
 export const UNIT_FORMAT_KEY = 'fm:settings:unitFormat';
-export const PRECISION_DENOMINATOR_KEY = 'fm:settings:precisionDenominator';
 
 export async function getUnitSystem(): Promise<UnitSystem> {
   const stored = await get<UnitSystem>(UNIT_SYSTEM_KEY);
@@ -41,13 +40,4 @@ export async function getUnitFormat(): Promise<UnitFormat> {
 
 export async function setUnitFormat(value: UnitFormat): Promise<void> {
   await set(UNIT_FORMAT_KEY, value);
-}
-
-export async function getPrecisionDenominator(): Promise<number> {
-  const stored = await get<number>(PRECISION_DENOMINATOR_KEY);
-  return typeof stored === 'number' && stored > 0 ? stored : DEFAULT_PRECISION_DENOMINATOR;
-}
-
-export async function setPrecisionDenominator(value: number): Promise<void> {
-  await set(PRECISION_DENOMINATOR_KEY, value);
 }

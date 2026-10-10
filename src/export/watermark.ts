@@ -163,12 +163,24 @@ export const EXPORT_WATERMARK_ASPECT_RATIO = 1911 / 1039;
 let cachedImage: Promise<ImageBitmap> | null = null;
 
 /** Loads (and caches) the export watermark image once per session — every sheet in a
- *  multi-sheet export run reuses the same decoded bitmap rather than re-fetching. */
+ *  multi-sheet export run reuses the same decoded bitmap rather than re-fetching.
+ *
+ *  Only a SUCCESS is cached. A failed fetch, an HTTP error page (`res.ok` is false) or a
+ *  decode failure rejects for this caller and is forgotten, so the next export retries
+ *  instead of going out without the mark for the rest of the session. */
 export function loadExportWatermarkImage(): Promise<ImageBitmap> {
   if (!cachedImage) {
-    cachedImage = fetch(EXPORT_WATERMARK_SRC)
-      .then((res) => res.blob())
+    const attempt = fetch(EXPORT_WATERMARK_SRC)
+      .then((res) => {
+        if (!res.ok) throw new Error(`watermark image: HTTP ${res.status}`);
+        return res.blob();
+      })
       .then((blob) => createImageBitmap(blob));
+    cachedImage = attempt;
+    // Registered before the caller can see the rejection, so the cache is already clear by then.
+    attempt.catch(() => {
+      if (cachedImage === attempt) cachedImage = null;
+    });
   }
   return cachedImage;
 }

@@ -431,6 +431,15 @@
   font-weight: 700;
   cursor: pointer;
 }
+/* D173: Retake laid out like «Use photo» (icon and word on one centred line, 8 px apart, the same
+   64 px height). The generic .btn left the icon riding above the word's baseline. */
+.camera-review-retake {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 64px;
+  padding: 0 20px;
+}
 .camera-review-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;

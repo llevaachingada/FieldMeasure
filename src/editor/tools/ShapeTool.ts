@@ -17,7 +17,6 @@ import type { Annotation, AnnotationStyle, Px } from '@/domain/types';
 import { DEFAULT_STYLE } from '@/domain/types';
 import type { Geometry } from '@/domain/types';
 import { formatLength } from '@/domain/units';
-import { angleDeg } from '@/domain/geometry';
 import type { EditorCanvas } from '@/editor/EditorCanvas';
 import type { Command, History } from '@/editor/history';
 import type { MarkupScene } from '@/editor/shapes/scene';
@@ -127,11 +126,6 @@ export function shapeReadout(
   }
   const len = Math.hypot(b.x - a.x, b.y - a.y) / scale;
   return formatLength(len, ctx.unitSystem, ctx.precisionDenominator, ctx.unitFormat);
-}
-
-/** The path readout is screen-relative (mm per CSS px) — informational only. */
-export function shapeAngleDeg(a: Px, b: Px): number {
-  return angleDeg(b, a, { x: a.x + 1, y: a.y });
 }
 
 /* ------------------------------------------------------------------ *

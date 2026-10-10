@@ -1,13 +1,17 @@
 name: Deploy to GitHub Pages
 
-# `main` is the live app (D166): only pushes to it deploy.
+# `main` is the live app (D166). It deploys after CI passes on main (D168).
 # Builds the app under the repo's own Pages path (FM_BASE, D34; D166 reads it from
 # configure-pages, so a renamed repo, a copy under another owner, or a custom domain
 # just works) and publishes dist/.
 # Repo settings needed once: Settings > Pages > Source = "GitHub Actions", and under
 # Settings > Environments > github-pages, allow `main`.
 on:
-  push:
+  # Deploy only after CI has passed on main (D168). Re-running a failed CI run redeploys once it
+  # goes green. "Run workflow" on this workflow deploys main by hand.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -22,9 +26,17 @@ concurrency:
 
 jobs:
   build:
+    # Only a CI run triggered by a push to main deploys: a pull request from a fork whose branch
+    # happens to be named `main` also matches the branch filter, and must never deploy.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The exact commit CI tested (workflow_run), or main for a manual run.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -37,7 +49,7 @@ jobs:
         env:
           # base_path is '/<repo>' for a project site, '' for a user site or a custom domain.
           FM_BASE: ${{ steps.pages.outputs.base_path }}/
-          FM_BUILD_ID: ${{ github.ref_name }}+${{ github.sha }}
+          FM_BUILD_ID: main+${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

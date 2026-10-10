@@ -52,19 +52,6 @@ export interface InkParams {
 }
 
 /**
- * Pen stroke params at a given CSS stroke width (image units). Pressure varies width
- * (thinning 0.5).
- */
-export function penInkParams(strokeWidthMu: number, scale: number): InkParams {
-  return {
-    size: strokeWidthMu / scale,
-    thinning: PEN_THINNING,
-    smoothing: PEN_SMOOTHING,
-    streamline: PEN_STREAMLINE,
-  };
-}
-
-/**
  * Touch/finger stroke params: constant width floor `TOUCH_INK_FLOOR_MU`, smoothing 0.6,
  * thinning 0. `size = floorMu / scale` keeps the rendered ink constant in CSS px (§4.2).
  */
@@ -129,13 +116,4 @@ export function getSvgPathFromStroke(points: number[][], closed = true): string 
   }
   if (closed) result += 'Z';
   return result;
-}
-
-/** Convenience: the SVG `data` string for a stroke at the supplied params. */
-export function strokePathData(
-  points: readonly Px[],
-  pressure: readonly number[],
-  options: StrokeOutlineOptions = {},
-): string {
-  return getSvgPathFromStroke(strokeOutline(points, pressure, options), true);
 }

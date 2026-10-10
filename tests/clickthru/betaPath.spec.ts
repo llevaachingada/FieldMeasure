@@ -3,7 +3,7 @@
  * app on the **Surface target profile**, screenshotting every step and recording the observed
  * effect of every gesture.
  *
- * Path (docs/handoff-session-21.md §3) + the amendment's gesture/rotation lab:
+ * Path (docs/archive/handoff-session-21.md §3) + the amendment's gesture/rotation lab:
  *   first-run → Home → New project → camera → shutter → review → Use photo → sheets grid →
  *   open sheet → canvas dimension tap-tap → keypad → label → touch gestures → rotation gate →
  *   pen gestures → export wizard → reload persists → read the artifact out of OPFS.

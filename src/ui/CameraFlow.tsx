@@ -329,7 +329,7 @@ export const GRANT_PROMPT_TIMEOUT_MS = 60_000;
  *
  * Extracted so the mechanism is testable WITHOUT the camera flow: the first attempt to test it
  * end to end had to fight the capture's own async path under fake timers (and a queued mock
- * leaked into the next test), which is the trap `docs/review-brief.md` §8 names — a test that
+ * leaked into the next test), which is the trap `docs/archive/review-brief.md` §8 names — a test that
  * depends on an environment which cannot exercise the path. The DOM half (the stage label and
  * the photo staying on screen) is pinned with real timers instead.
  */
@@ -397,6 +397,20 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   const sessionRef = useRef<CameraSession | null>(null);
   if (sessionRef.current === null) sessionRef.current = new CameraSession();
   const session = sessionRef.current;
+  /**
+   * The viewfinder `<video>`'s ref. The review screen is an early return, so «Retake» mounts a
+   * NEW `<video>` with no `srcObject` (`session.start()` only fed the first one): the picture
+   * went black while the shutter kept working off the track. Every time the element mounts,
+   * hand it the session's live stream. Stable identity (`session` never changes), so React
+   * calls it on mount/unmount only, not on every render.
+   */
+  const attachVideo = useCallback(
+    (el: HTMLVideoElement | null): void => {
+      videoRef.current = el;
+      session.attach(el);
+    },
+    [session],
+  );
   const projectRef = useRef<ProjectState | null>(null);
   /** The armed bounded-wait timer for an in-flight save (cleared on unmount, not left behind). */
   const watchdogRef = useRef<(() => void) | null>(null);
@@ -1093,6 +1107,20 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
     const fallback = fallbackCopyForDeviceMax(PROVISIONAL_DEVICE_MAX?.height ?? null);
     return (
       <main className="camera camera-panel-host">
+        {/* The panel covers the whole screen (z-index 50), so it needs its own way out: with the
+            camera blocked the viewfinder's Close below never renders, and a touch-only crew
+            could only kill the app. Same button, label and 56 px target as the viewfinder's. */}
+        <header className="camera-top">
+          <button
+            type="button"
+            className="camera-close hit-slop"
+            aria-label={STRINGS.capture.close}
+            onClick={onCancel}
+          >
+            <X aria-hidden="true" />
+            <span>{STRINGS.capture.close}</span>
+          </button>
+        </header>
         <div className="camera-panel" role="alert">
           <h1 className="camera-panel-title">{fallback.title}</h1>
           <p className="camera-panel-body">{fallback.body}</p>
@@ -1143,7 +1171,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
           }}
         />
         <div className="camera-review-actions">
-          <button type="button" className="btn btn-secondary hit-slop" onClick={retake}>
+          <button type="button" className="btn btn-secondary camera-review-retake hit-slop" onClick={retake}>
             <RotateCcw aria-hidden="true" />
             <span>{STRINGS.capture.retake}</span>
           </button>
@@ -1179,7 +1207,7 @@ export function describeWriteFailure(e: unknown): CaptureFailure {
   return (
     <main className="camera">
       <video
-        ref={videoRef}
+        ref={attachVideo}
         className={`camera-video${digitalZoom > 1 ? ` is-digital-zoom-${digitalZoom}` : ''}`}
         autoPlay
         playsInline

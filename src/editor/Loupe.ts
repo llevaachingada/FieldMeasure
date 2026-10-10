@@ -41,8 +41,6 @@ import type { LoupeOverlay } from './snapTargets';
 
 // Owner (session 29, D165): a third less zoom. Were 3.5 (pen) and 4 (touch).
 export const PEN_LOUPE_MAGNIFICATION = 2.35;
-/** UI §8.1 setting values (Off / 112 / 160 / 200). */
-export const PEN_LOUPE_SIZES = [112, 160, 200] as const;
 export const PEN_LOUPE_OFFSET_PX = 112;
 export const LOUPE_EDGE_PX = 24; // §8.4 "flips quadrant within 24 px of a viewport edge"
 export const CROSSHAIR_GAP_PX = 12; // §8.4 crosshair centre gap

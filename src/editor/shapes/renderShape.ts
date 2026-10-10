@@ -11,8 +11,9 @@
  */
 import Konva from 'konva';
 import type { AnnotationStyle, Px } from '@/domain/types';
-import { angleDeg, elbowPoints, midpoint, readableAngleDeg } from '@/domain/geometry';
+import { angleDeg, elbowPoints, midpoint } from '@/domain/geometry';
 import { screenFontSize } from '@/editor/EditorCanvas';
+import { MEASURE_LABEL_FONT_FAMILY } from './renderDimension';
 
 /** Shared per-annotation render context. */
 export interface RenderCtx {
@@ -23,7 +24,6 @@ export interface RenderCtx {
 /** Site Slate tokens (§3.1). */
 export const SEL = '#2FD4E0';
 export const LABEL_HALO = '#0B0E12';
-export const INK_DEFAULT = '#FF7A18';
 
 const LINE_DASH: Record<AnnotationStyle['lineStyle'], number[] | undefined> = {
   solid: undefined,
@@ -221,7 +221,7 @@ function buildAngle(
   const label = new Konva.Text({
     text,
     fontSize: screenFontSize(style.fontSizeMu, ctx.scale),
-    fontFamily: 'JetBrains Mono',
+    fontFamily: MEASURE_LABEL_FONT_FAMILY,
     fontStyle: style.bold ? '700' : '400',
     fill: '#FFFFFF',
     stroke: LABEL_HALO,
@@ -334,9 +334,4 @@ export function shapeBounds(
       return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
     }
   }
-}
-
-/** Text rotation so a segment label stays upright — re-export for callers. */
-export function labelRotation(a: Px, b: Px): number {
-  return readableAngleDeg(a, b);
 }

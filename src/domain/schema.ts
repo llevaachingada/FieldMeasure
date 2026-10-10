@@ -1,4 +1,4 @@
-// Validation schemas — §3.4 of docs/preflight-handoff-v0.3-hardened.md.
+// Validation schemas — §3.4 of docs/archive/preflight-handoff-v0.3-hardened.md.
 //
 // SPEC CORRECTION (session 4 / slice 1.1, recorded in DECISIONS):
 // §3.4 declares `ProjectFileZ.project.unitFormat` (required z.enum) and

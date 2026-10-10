@@ -28,13 +28,12 @@ import {
   HOLD_SHAPE_TOUCH_MS,
   HOLD_SHAPE_TOUCH_PX,
   TOUCH_INK_SMOOTHING_PERCENT,
-  type MarkupTool,
   type ToolSettings,
 } from './toolTypes';
 
-/** §4.2: finger freehand is gated behind the setting and off by default. */
-export function isFingerInkAllowed(settings: Pick<ToolSettings, 'fingerDraws' | 'penOnly'>): boolean {
-  return settings.fingerDraws && !settings.penOnly;
+/** §4.2: finger freehand is gated behind the setting («Finger draws»), ON by default since D167. */
+export function isFingerInkAllowed(settings: Pick<ToolSettings, 'fingerDraws'>): boolean {
+  return settings.fingerDraws;
 }
 
 /** The width floor the CI touch-fallback gate asserts (8 mu). */
@@ -282,6 +281,3 @@ export class FreehandTool {
     this.straightMachine?.dispose();
   }
 }
-
-/** Kept for the MarkupTool import shape in callers that expect it. */
-export type FreehandMarkupTool = MarkupTool;

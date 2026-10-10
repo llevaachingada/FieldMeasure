@@ -6,7 +6,7 @@
  *
  * The five layers (§8.1), painted bottom→top:
  *   photoLayer  — the base image, `listening: false` (nothing to hit-test)
- *   insetLayer  — one Konva.Group per inset (later slice)
+ *   insetLayer  — one Konva.Group per image inset, painted below the markup
  *   markupLayer — z-banded shapes / ink / text
  *   overlayLayer— loupe, draw preview, selection handles
  *   dragLayer   — a node is reparented here while it is being dragged
@@ -487,8 +487,7 @@ export class EditorCanvas {
 
   /**
    * The grabbable object under a container point. Resolves upward to the node tagged
-   * `annotationId` (this slice has no annotations yet; the plumbing is here so 1.5+
-   * only has to tag nodes).
+   * `annotationId` (every rendered mark tags its node with it).
    */
   hitObject(point: ScreenPoint): HitTarget | null {
     for (const layer of [this.markupLayer, this.insetLayer]) {

@@ -9,8 +9,8 @@
  *     "Saved" (do-not-simplify #14).
  *   - Right  — `⌗ Layers · ⇧ Export · ⋯ Overflow` (UI §5.2). Layers/Export are
  *     present-but-disabled until the shell supplies their handler (slice 1.6 / 1.9); the
- *     Overflow holds the wired `Export` row plus the nine items keyed in
- *     `appendix-strings-gaps.md` §9.
+ *     Overflow holds three live rows: `Export`, `Add sheet` and `Import file` (D172: the
+ *     other seven keyed in `appendix-strings-gaps.md` §9 had no action and were removed).
  *
  * Undo/redo are NOT here: UI §5.1 says they live at the bottom of the tool rail,
  * directly under the drawing hand, and are "not duplicated in the top bar" (build
@@ -33,7 +33,7 @@ export interface TopBarProps {
   sheetName?: string;
   /** `‹ Projects` — returns to the project list (the Escape ladder's last rung). */
   onExit?: () => void;
-  /** Overflow → Add sheet. Optional: absent = a labelled no-op (1.4 camera lane wires it). */
+  /** Overflow → Add sheet. Optional only so isolated renders (tests) compile; the shell always wires it. */
   onAddSheet?: () => void;
   /** Overflow → Import file. Optional. */
   onImportFile?: () => void;
@@ -82,21 +82,14 @@ export default function TopBar({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // The overflow items (UI §5.2 right zone; copy from gaps §9). Items whose feature does
-  // not exist yet are still present and labelled — a no-op, not a dead end and not a
-  // crash. `Export` is the third §12:740 entry point (`⋯ → Export`); its label is the
-  // already-approved `a11y.export`, not new copy.
+  // The overflow items. D172: no control may look tappable and do nothing, so only items with
+  // a real action are listed (Help has its own top-bar button, Insert image is the rail's
+  // Insert tool, Duplicate sheet is on the sheets grid's card menu). `Export` is the third
+  // §12:740 entry point (`⋯ → Export`); its label is the already-approved `a11y.export`.
   const items: MenuItem[] = [
     { key: 'export', label: STRINGS.a11y.export, run: onExport },
-    { key: 'duplicateSheet', label: STRINGS.editor.menuDuplicateSheet },
-    { key: 'insertImage', label: STRINGS.editor.menuInsertImage },
     { key: 'addSheet', label: STRINGS.editor.menuAddSheet, run: onAddSheet },
     { key: 'importFile', label: STRINGS.editor.menuImportFile, run: onImportFile },
-    { key: 'sheetInfo', label: STRINGS.editor.menuSheetInfo },
-    { key: 'projectSettings', label: STRINGS.editor.menuProjectSettings },
-    { key: 'settings', label: STRINGS.editor.menuSettings },
-    { key: 'help', label: STRINGS.editor.menuHelp },
-    { key: 'keyboardShortcuts', label: STRINGS.editor.menuKeyboardShortcuts },
   ];
 
   // Focus the first item when the menu opens (standard menu behaviour), and close on
