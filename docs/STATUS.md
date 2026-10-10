@@ -23,10 +23,14 @@ nothing on screen mentions one.
 
 **Deploys:** a merge to `main` goes live only after CI passes on it (D168).
 
+**Guides:** [`guides/`](guides/) holds the Quick Start for the crews and the AI guide for the owner,
+as Markdown and PDF (`npm run guides` rebuilds the PDFs). Help and `USER-GUIDE.md` are kept
+identical by a test (D172).
+
 ## Tests
 
-About 1,720 automated tests run in CI on every pull request and on `main`: node, jsdom and browser
-(Chromium) projects, plus 13 Playwright end-to-end tests, including a real crash in the middle of an autosave. All pass;
+About 1,800 automated tests run in CI on every pull request and on `main`: node, jsdom and browser
+(Chromium) projects, plus 14 Playwright end-to-end tests, including a real crash in the middle of an autosave. All pass;
 none are skipped or switched off. The tests that used to fail
 under load were made deterministic (D171), and the full browser project passed three runs in a
 row.

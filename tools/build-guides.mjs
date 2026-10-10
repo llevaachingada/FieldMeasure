@@ -178,8 +178,8 @@ const LOGO = pathToFileURL(join(ROOT, 'public', 'branding', 'vangarde-full.png')
 function page(title, kicker, body) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
 <style>
-@font-face { font-family: Archivo; src: url('${fontUrl('Archivo.woff2')}') format('woff2'); font-weight: 100 900; }
-@font-face { font-family: JBM; src: url('${fontUrl('JetBrainsMono.woff2')}') format('woff2'); font-weight: 100 800; }
+@font-face { font-family: Archivo; src: url('${fontUrl('Archivo.woff2')}') format('woff2'); font-weight: 400; }
+@font-face { font-family: JBM; src: url('${fontUrl('JetBrainsMono.woff2')}') format('woff2'); font-weight: 400; }
 @page { size: Letter; margin: 0.6in 0.65in 0.7in; }
 :root { --ink: #14181d; --muted: #5b6470; --rule: #d9dee4; --accent: #e8650a; --soft: #f4f6f8; }
 * { box-sizing: border-box; }
@@ -198,7 +198,7 @@ p:has(+ pre), p:has(+ table), p:has(+ figure), p:has(+ ol), p:has(+ ul) { break-
 figure:has(+ ol), figure:has(+ p) { break-after: avoid; }
 ol, ul { margin: 6px 0 6px 0; padding-left: 22px; }
 li { margin: 3px 0; }
-strong { font-weight: 700; }
+strong { font-weight: 700; } /* faux bold from the single-weight face, which is declared as 400 */
 a { color: #0b5cad; text-decoration: none; word-break: break-all; }
 code { font-family: JBM, Consolas, monospace; font-size: 8.8pt; background: var(--soft); padding: 1px 4px; border-radius: 3px; }
 pre { background: #0f1317; color: #e8ecef; padding: 10px 12px; border-radius: 6px; white-space: pre-wrap;

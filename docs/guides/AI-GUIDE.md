@@ -4,7 +4,7 @@ For the person who looks after Field Measure. You don't need to read or write co
 agent does the coding; you describe what you want, check its work, and decide what ships.
 
 The repository is set up for this. `AGENTS.md` gives the agent its rules. `docs/STATUS.md`,
-`docs/CHANGELOG.md` and `docs/DECISIONS.md` are its memory between sessions. About 1,700 automated
+`docs/CHANGELOG.md` and `docs/DECISIONS.md` are its memory between sessions. About 1,800 automated
 tests check its work.
 
 ## 1. How a change reaches the crews
