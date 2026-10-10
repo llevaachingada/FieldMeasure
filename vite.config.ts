@@ -87,7 +87,11 @@ export default defineConfig({
       workbox: {
         // App shell + both self-hosted fonts (.woff2) + icons (.png/.svg).
         // A font not matched here is a silent no-op (§13/0.1 step 12).
-        globPatterns: ['**/*.{js,css,html,woff2,png,svg}'],
+        // D173: + .txt, so the bundled third-party notices and the fonts' OFL texts open offline.
+        globPatterns: ['**/*.{js,css,html,woff2,png,svg,txt}'],
+        // D173: a .txt navigation must never be answered with the app shell (the SPA fallback
+        // used to return index.html for «Third-party notices», online and offline).
+        navigateFallbackDenylist: [/\.txt$/],
         // NO runtimeCaching: user photos must never enter the SW cache (§2.2).
       },
     }),

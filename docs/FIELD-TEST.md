@@ -1,7 +1,7 @@
 # Field test
 
-One crew member, one Surface, on a real job. Checks 1-16 take about an hour; check 17 runs through
-a working day. Use a **finger** for everything. Mark each check Pass or Fail and write down
+One crew member, one Surface, on a real job. Checks 1-16 and 18-21 take about an hour; check 17
+runs through a working day. Use a **finger** for everything. Mark each check Pass or Fail and write down
 anything odd. A Fail goes to your AI tool with the "To fix a problem" prompt in the README, plus a
 screenshot.
 
@@ -30,6 +30,11 @@ screenshot.
 | **Real conditions** | | |
 | 16 | Use it outdoors in direct sun. Everything is readable. | |
 | 17 | A full day offline, in real use. Nothing degrades. Note the battery use. | |
+| **Added in the ship pass (D172-D173)** | | |
+| 18 | Take a photo, tap **Retake**: the live camera shows again (not a black screen). | |
+| 19 | Write a text note with the on-screen keyboard open. The text box's **Done** button can be reached without closing the keyboard. | |
+| 20 | Rename a sheet, then tap somewhere else: the new name is kept. | |
+| 21 | Settings → **Third-party notices** opens a page of license text (also in airplane mode). | |
 
 Record: Surface model, Windows and Edge versions, date, tester: ______________________
 
