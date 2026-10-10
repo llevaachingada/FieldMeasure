@@ -13,6 +13,11 @@ checks that ran. The full build-era log (sessions 1-30) is
 - Help and the user guide are corrected and extended (sheets and trash, import, inset, erase), and a test keeps them
   identical (**D172**).
 - New guides with PDFs: `docs/guides/` Quick Start (crews) and AI guide (owner) (**D172**).
+- Exports: arrowheads show at every photo size, dashed and dotted lines stay dashed, a dimension with no value prints
+  no placeholder text, and short-dimension labels match the screen (**D173**).
+- Camera: «Retake» keeps the live picture, and «camera unavailable» has a Close (**D173**).
+- Text notes use the app font, a sheet rename survives tapping away, and «Third-party notices» opens the notices
+  offline. The Home card path, the Help keypad wording and the Retake button layout are fixed (**D173**).
 
 ## 2026-10-06: 1.0 sign-off
 

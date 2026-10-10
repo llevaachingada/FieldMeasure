@@ -4127,3 +4127,55 @@ every open decision.
 - **Guides:** `docs/guides/QUICK-START.md` (the crews, with real screenshots) and `docs/guides/AI-GUIDE.md` (the owner:
   fixing and changing the app with AI agents, in the browser or on a PC). `npm run guides` (`tools/build-guides.mjs`, no
   new dependency) prints both to PDF with the Playwright Chromium.
+
+### D173 - fixes from the second senior bug hunt
+
+**Status: shipped (session 32).** A second read-and-execute review, covering export rendering, capture, offline, project
+operations and touch traps, found these. Each fix has a test that failed on the old code.
+
+- **Export (the high-stakes module):**
+  - **Arrowheads vanished in exports.** `arrowHeadPoints` takes image units per mu (`1/scale` on screen), but
+    the export passed `1/k`, so heads were k² too small and hid inside the stroke on any photo over 1280 px. The
+    export now passes `k`.
+  - **Dashed and dotted lines exported solid.** The dash arrays are drawn in raw bitmap px
+    (`strokeScaleEnabled: false`) and were never scaled. `applyExportRules` now scales the dash by `M × k`, the
+    same factor as the stroke, from a remembered `dashMu` so repeated passes never compound.
+  - **A valueless dimension** (placed, then ✕ on the keypad) printed the on-screen placeholder «tap to enter
+    value». The export now draws its line, ticks and arrowheads, but no label and no leader. UI placeholder text
+    never reaches a drawing.
+  - **Short-dimension labels:** the export scene is now built at scale `1/k` (`setScale` before `load`), so the
+    label push and leader match the fitted editor view. A side effect, pinned by a test: the angle arc's minimum
+    radius is 12 px at the fitted view (`12k` image px), as on screen.
+  - All of these are covered by `tests/exportMarkup.browser.test.ts` (34 tests; 24 failed before), which renders
+    through the real `renderSheet` and measures pixels.
+- **The live editor's label layout:** the agent's follow-up re-lays dimension labels on zoom. It is recorded with its
+  evidence in the session-32 CHANGELOG entry.
+- **Capture:**
+  - **Retake** remounted the viewfinder `<video>` with no stream, so the screen was black and the crew shot blind.
+    `CameraSession.attach` plus a callback ref re-attach the stream on every mount.
+  - **The «camera unavailable» panel had no touch exit.** It now has the viewfinder's Close.
+  - The Retake button is laid out like «Use photo».
+- **Text notes** used `Inter`, which the app doesn't ship, so Windows drew a serif. Notes and the text-box preview
+  now share `TEXT_NOTE_FONT_FAMILY` (Archivo). Measurement labels gain a monospace fallback.
+- **Sheet rename:** blur commits, so tapping away no longer discards the typed name. Escape still cancels and Enter
+  still commits, with one decision per edit.
+- **Watermark** loading checks `res.ok` and clears its cache on failure, so one failed fetch no longer drops the mark
+  for the whole session.
+- **«Third-party notices»** opened the app: the service worker's single-page fallback answered the `.txt` with the
+  shell. `.txt` is precached and kept out of the fallback. `tests/e2e/notices.spec.ts` drives the real service worker,
+  online and offline.
+- **Home card path** read «…\…\Kitchen». The scanner now returns the folder name, and the approved template adds
+  «…\» once.
+- **Help** named "the check mark". The keypad button is «Use this value», so Help, the user guide and the Quick Start
+  now say so.
+- **Checked and sound:**
+  - the export scale invariant at M = 1/2/3;
+  - hidden annotations never export, and locked ones do;
+  - rotated insets;
+  - the precache covers every chunk, font and icon;
+  - every dialog has a touch exit;
+  - no touch target is under 48 px, apart from the sanctioned 44 px swatches;
+  - keypad edge cases;
+  - project operations keep `project.json` and folders consistent.
+- **Field test:** checks 18-21 cover what only hardware can show (Retake on the real camera, the touch keyboard over
+  the text box, rename tap-away, notices offline).
