@@ -24,6 +24,11 @@ import CameraFlow, {
   needsCrop,
   zoomPlan,
 } from '../src/ui/CameraFlow';
+// `node:fs` has no bundled types here (`types: ["vite/client"]`) and Vitest stubs `.css?raw` to ''
+// under `css: false`, so the stylesheet is read as text through the runner's own Node fs
+// (same pattern as tests/stylePanel.test.tsx).
+// @ts-expect-error -- node:fs types are not part of this repo's `types` array.
+import { readFileSync } from 'node:fs';
 import { initStore } from '../src/fs/projectStore';
 import {
   FakeDir,
@@ -170,6 +175,73 @@ describe('camera denied → the fallback panel', () => {
     });
     renderFlow();
     expect(await screen.findByText(STRINGS.capture.embeddedFallback)).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Camera denied → there must be a way OUT by touch
+ * ------------------------------------------------------------------ */
+
+describe('camera denied → the panel can be closed (it covers the whole screen)', () => {
+  // The unavailable panel is a full-screen overlay (z-index 50) over the app. Its only buttons
+  // were «Open Windows Camera» and «Import a photo»; `onCancel` was wired to the VIEWFINDER's
+  // close button alone, so with the camera blocked the only way out was killing the app.
+  it('shows the same Close button as the viewfinder and it calls onCancel', async () => {
+    await setup();
+    installMedia(
+      vi.fn(async () => {
+        throw new DOMException('denied', 'NotAllowedError');
+      }),
+    );
+    const onCancel = vi.fn();
+    render(
+      <CameraFlow
+        projectId="proj-1:Riverside"
+        folderName="Riverside"
+        onCaptured={() => {}}
+        onCancel={onCancel}
+      />,
+    );
+    await screen.findByText(STRINGS.capture.embeddedFallback);
+
+    const close = screen.getByRole('button', { name: STRINGS.capture.close });
+    // Same class as the viewfinder's close, so it gets the same 56 px target (asserted below).
+    expect(close.classList.contains('camera-close')).toBe(true);
+    expect(close.classList.contains('hit-slop')).toBe(true);
+
+    await userEvent.setup().click(close);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('is also offered when getUserMedia is missing altogether', async () => {
+    await setup();
+    Object.defineProperty(globalThis.navigator, 'mediaDevices', {
+      value: undefined,
+      configurable: true,
+    });
+    const onCancel = vi.fn();
+    render(
+      <CameraFlow
+        projectId="proj-1:Riverside"
+        folderName="Riverside"
+        onCaptured={() => {}}
+        onCancel={onCancel}
+      />,
+    );
+    await screen.findByText(STRINGS.capture.embeddedFallback);
+    await userEvent.setup().click(screen.getByRole('button', { name: STRINGS.capture.close }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('the Close button is a touch target of at least 48 px', () => {
+    // jsdom does not load CSS, so read the rule itself: `.camera-close` is what both the
+    // viewfinder and the unavailable panel use.
+    const cameraCss = readFileSync('src/ui/camera.css', 'utf8');
+    const rule = /\.camera-close\s*\{([^}]*)\}/.exec(cameraCss);
+    expect(rule).not.toBeNull();
+    const minHeight = /min-height:\s*(\d+)px/.exec(rule![1]);
+    expect(minHeight).not.toBeNull();
+    expect(Number(minHeight![1])).toBeGreaterThanOrEqual(48);
   });
 });
 

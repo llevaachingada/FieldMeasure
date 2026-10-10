@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import TextBoxSheet, { stepTextSize, textBoxStyleFor } from '../src/ui/TextBoxSheet';
-import { withAlpha } from '../src/editor/shapes/renderText';
+import { TEXT_NOTE_FONT_FAMILY, withAlpha } from '../src/editor/shapes/renderText';
 import { DEFAULT_STYLE, type Annotation } from '../src/domain/types';
 import { STRINGS } from '../src/ui/strings';
 
@@ -84,5 +84,19 @@ describe('D160 — the text-box editor', () => {
     expect(withAlpha('#0B0E12', 0.5)).toBe('rgba(11,14,18,0.5)');
     expect(withAlpha('#FFFFFF', 2)).toBe('rgba(255,255,255,1)');
     expect(withAlpha('red', 0.5)).toBe('red');
+  });
+});
+
+describe('the preview shows the typeface the note will actually have', () => {
+  // The note on the photo (and in every export) is drawn by `renderText.ts`. The preview used
+  // `Inter, Archivo, sans-serif` while the note asked for plain `Inter`, and neither is shipped
+  // first, so what the crew approved was not what they got. One stack, in both places.
+  it('uses the app UI font stack, identical to the one the canvas note is built with', () => {
+    open();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Header' } });
+    const text = screen.getByTestId('text-box-preview').querySelector('text');
+    expect(text).not.toBeNull();
+    expect(text!.getAttribute('font-family')).toBe('Archivo, system-ui, sans-serif');
+    expect(text!.getAttribute('font-family')).toBe(TEXT_NOTE_FONT_FAMILY);
   });
 });

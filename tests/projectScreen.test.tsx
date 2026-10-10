@@ -698,6 +698,118 @@ describe('rename — inline on the card, honest about failure', () => {
     expect(onRenameSheet).not.toHaveBeenCalled();
   });
 
+  // On a touch screen there is no Enter key and no visible confirm button: «done» IS tapping
+  // away. Blur used to CANCEL, so the typed name was silently thrown away.
+  it('tapping away (blur) commits the typed name — there is no Enter key on a touch screen', async () => {
+    const user = userEvent.setup();
+    const onRenameSheet = vi.fn(async () => {});
+    renderScreen({ onRenameSheet });
+
+    const field = await openRename(user);
+    await user.clear(field);
+    await user.type(field, '  Front porch  ');
+    await user.click(document.body); // the tap elsewhere: the field loses focus
+
+    await waitFor(() => expect(onRenameSheet).toHaveBeenCalledWith('s1', 'Front porch'));
+    expect(onRenameSheet).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: STRINGS.sheetMenu.renameLabel })).toBeNull(),
+    );
+  });
+
+  it('tapping away on an unchanged or blank field is a cancel, never a write', async () => {
+    const user = userEvent.setup();
+    const onRenameSheet = vi.fn();
+    renderScreen({ onRenameSheet });
+
+    await openRename(user);
+    await user.click(document.body);
+    expect(onRenameSheet).not.toHaveBeenCalled();
+    expect(screen.queryByRole('textbox', { name: STRINGS.sheetMenu.renameLabel })).toBeNull();
+
+    const field = await openRename(user);
+    await user.clear(field);
+    await user.click(document.body);
+    expect(onRenameSheet).not.toHaveBeenCalled();
+    expect(screen.queryByRole('textbox', { name: STRINGS.sheetMenu.renameLabel })).toBeNull();
+  });
+
+  it('Escape still cancels: the blur that follows it must not commit what was abandoned', async () => {
+    const user = userEvent.setup();
+    const onRenameSheet = vi.fn();
+    renderScreen({ onRenameSheet });
+
+    const field = await openRename(user);
+    await user.type(field, 'Typed but abandoned');
+    // Chrome fires a blur when the focused field is removed. Inside ONE act() React has not yet
+    // unmounted the field when that blur arrives, which is the order that would commit by mistake.
+    act(() => {
+      fireEvent.keyDown(field, { key: 'Escape' });
+      fireEvent.blur(field);
+    });
+    await user.click(document.body);
+
+    expect(onRenameSheet).not.toHaveBeenCalled();
+    expect(screen.queryByRole('textbox', { name: STRINGS.sheetMenu.renameLabel })).toBeNull();
+  });
+
+  it('Enter followed by the blur of the closing field renames once, not twice', async () => {
+    const user = userEvent.setup();
+    let finish!: () => void;
+    const onRenameSheet = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    renderScreen({ onRenameSheet });
+
+    const field = await openRename(user);
+    await user.clear(field);
+    await user.type(field, 'Once');
+    await user.keyboard('{Enter}');
+    // The write is still pending and the field still on screen: a blur now must not queue a
+    // second identical rename behind it.
+    fireEvent.blur(field);
+    await act(async () => {
+      finish();
+    });
+
+    expect(onRenameSheet).toHaveBeenCalledTimes(1);
+  });
+
+  it('opening another card\'s Rename while the first is still writing does not close the second field', async () => {
+    // Tapping the next card's ⋯ blurs (and so commits) the first field. That write is async; when
+    // it lands it used to close whichever field was open by then, i.e. the one just opened.
+    const user = userEvent.setup();
+    let finish!: () => void;
+    const onRenameSheet = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    renderScreen({ onRenameSheet });
+
+    const first = await openRename(user, 's1');
+    await user.clear(first);
+    await user.type(first, 'Porch');
+    // The helper would find two same-labelled fields while s1 is still writing, so click through.
+    await user.click(cardMenuItem('s2'));
+    await user.click(
+      screen.getByRole('menuitem', { name: t(STRINGS.sheetMenu.renameNamed, { title: 'Sheet 02' }) }),
+    );
+    await act(async () => {
+      finish();
+    });
+
+    const fields = screen.getAllByRole('textbox', { name: STRINGS.sheetMenu.renameLabel });
+    expect(fields).toHaveLength(1);
+    expect((fields[0] as HTMLInputElement).value).toBe('Sheet 02');
+    expect(onRenameSheet).toHaveBeenCalledTimes(1);
+    expect(onRenameSheet).toHaveBeenCalledWith('s1', 'Porch');
+  });
+
   it('a rejected rename keeps the field open on the old title and says so', async () => {
     const user = userEvent.setup();
     const toasts: ToastMessage[] = [];

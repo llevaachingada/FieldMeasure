@@ -503,6 +503,8 @@ function SheetCardRow({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  /** True once Enter, Escape or a blur has decided this opening of the rename field. */
+  const renameSettledRef = useRef(false);
   /** The menu's anchor animation — cancelled when it closes or the direction changes. */
   const menuAnimRef = useRef<Animation | null>(null);
   const menuName = t(STRINGS.sheetMenu.moreNamed, { title: card.title });
@@ -575,6 +577,13 @@ function SheetCardRow({
       field.select();
     }
   }, [renaming, card.title]);
+
+  // The field's outcome is decided ONCE per opening: Enter, Escape or the blur that follows
+  // them (Chrome blurs a focused field when it is removed) must not decide it a second time.
+  // A rejected rename re-opens the field, so that re-arms it too.
+  useEffect(() => {
+    renameSettledRef.current = false;
+  }, [renaming, renameFailedNonce]);
 
   // A REJECTED rename re-opens on the card's real title: the shell never took the new one.
   useEffect(() => {
@@ -674,15 +683,24 @@ function SheetCardRow({
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
+                renameSettledRef.current = true;
                 onCommitRename(card.id, draft);
               } else if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
+                renameSettledRef.current = true;
                 onCancelRename();
               }
             }}
-            // Blur cancels: the field is a transient editor, never a form that lingers.
-            onBlur={() => onCancelRename()}
+            // Blur COMMITS. This is a touch-only app: there is no Enter key and no confirm
+            // button, so tapping away IS «done», and cancelling there silently threw the typed
+            // name away. A blank or unchanged value is still a cancel (`commitRename`); Escape
+            // is the only way to abandon a change.
+            onBlur={() => {
+              if (renameSettledRef.current) return;
+              renameSettledRef.current = true;
+              onCommitRename(card.id, draft);
+            }}
           />
         ) : null}
 
@@ -1072,13 +1090,16 @@ export default function ProjectScreen({
     const rename = onRenameSheet;
     const card = byId.get(id);
     const title = value.trim();
+    // Close only THIS card's field: a blur-commit is still writing when the next tap can already
+    // have opened another card's field, and that one must not be closed under the crew's finger.
+    const closeThis = (): void => setRenamingId((current) => (current === id ? null : current));
     if (typeof rename !== 'function' || card === undefined || title === '' || title === card.title) {
-      setRenamingId(null);
+      closeThis();
       return;
     }
     try {
       await rename(id, title);
-      setRenamingId(null);
+      closeThis();
     } catch {
       setRenameFailedNonce((nonce) => nonce + 1);
       emitToast({ text: STRINGS.sheetMenu.renameFailed, urgent: true });

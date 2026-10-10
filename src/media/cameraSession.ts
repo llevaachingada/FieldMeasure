@@ -309,6 +309,27 @@ export class CameraSession {
   }
 
   /**
+   * Feed the live stream to a viewfinder `<video>` that mounted AFTER `start()` ran. `start()`
+   * attaches the stream only to the element it is handed, so any later remount (the capture
+   * flow's review screen unmounts the viewfinder, and «Retake» mounts a new, empty one) would
+   * otherwise show a black picture while the track keeps running and the shutter keeps firing.
+   * A no-op when there is no element or no live stream (`start()` attaches it once it arrives).
+   * Playing is best-effort: a refused `play()` must never break the viewfinder.
+   */
+  attach(video: HTMLVideoElement | null): void {
+    const stream = this.streamValue;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) video.srcObject = stream;
+    try {
+      // `autoPlay` normally starts it; the explicit call covers an element that was paused or
+      // had its source swapped. Promise.resolve: some environments (jsdom) return nothing.
+      void Promise.resolve(video.play()).catch(() => {});
+    } catch {
+      // ignore: autoplay policy, or an element that cannot play yet.
+    }
+  }
+
+  /**
    * Best-effort hardware hint. Returns whether the device actually ACCEPTED it. A rejected or
    * unsupported constraint must never break the viewfinder (the catch stays), but a control that
    * reports success when the hardware refused is a lie — see D108. Callers that only want the

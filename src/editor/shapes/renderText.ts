@@ -48,6 +48,15 @@ export function autoContrastForLuminance(meanLuminance: number): TextContrast {
   return meanLuminance > 0.5 ? TEXT_LIGHT : TEXT_DARK;
 }
 
+/**
+ * The typeface of a text note, on screen AND in exports: the app's UI stack (`body` in
+ * `src/styles.css`). It used to be `'Inter'`, which the app does not ship (only Archivo and
+ * JetBrains Mono have an @font-face), so Windows drew the note in Times New Roman. Ends in a
+ * generic family so a font that has not loaded degrades to a sans-serif, never a serif.
+ * `TextBoxSheet`'s preview uses this same string, so what is previewed is what is drawn.
+ */
+export const TEXT_NOTE_FONT_FAMILY = 'Archivo, system-ui, sans-serif';
+
 export interface TextRenderInput {
   id: string;
   at: Px;
@@ -95,7 +104,7 @@ export function buildTextGroup(input: TextRenderInput): Konva.Group {
   const glyphs = new Konva.Text({
     text: input.text,
     fontSize,
-    fontFamily: 'Inter',
+    fontFamily: TEXT_NOTE_FONT_FAMILY,
     fontStyle: input.style.bold ? '700' : '400',
     fill: treatment.text,
     lineHeight: 1.2,
