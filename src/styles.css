@@ -1511,6 +1511,17 @@ button.crumb:hover {
 .editor-topbar[data-compact='true'] .topbar-logo {
   display: none;
 }
+/* D173: on the project page a long title plus the storage chip can reach the centred logo. The
+   bar's real content paints ABOVE the faint logo (the chip is opaque), so a collision reads as
+   the chip in front of the mark, never the two overprinted. */
+.project-bar > .crumb-back,
+.project-bar > .project-title,
+.project-bar > .project-count,
+.project-bar > .storage-chip,
+.project-bar > .project-readonly-chip {
+  position: relative;
+  z-index: 1;
+}
 @media (max-width: 1100px) {
   .topbar-logo {
     display: none;

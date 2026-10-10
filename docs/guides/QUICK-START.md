@@ -54,7 +54,7 @@ it makes is saved in a folder on the Surface.
 
 ![The keypad](img/07-keypad.jpg)
 
-3. Type the size and tap the check mark. For 2'-6 1/2" tap **2**, **FT**, **6**, **IN**, **1**,
+3. Type the size and tap **Use this value**. For 2'-6 1/2" tap **2**, **FT**, **6**, **IN**, **1**,
    **/**, **2**. For inches only, skip the **FT** part.
 
 ![Dimensions on the photo](img/08-dimensions.jpg)

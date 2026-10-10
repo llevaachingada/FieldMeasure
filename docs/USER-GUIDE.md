@@ -32,7 +32,7 @@ Installing the app is covered in [`INSTALL.md`](INSTALL.md) and the printable
 
 1. In the tool bar at the side of the screen, tap **Dimension** (at the top, under **Measure**).
 2. Tap where the measurement starts, then tap where it ends. The keypad opens.
-3. Type the size (for example `12 FT 6 IN 3/8`) and tap the check mark.
+3. Type the size (for example `12 FT 6 IN 3/8`) and tap **Use this value**.
 4. To move the numbers off the line, tap **Select**, tap the dimension, then drag its numbers.
 5. To fix an end, tap **Select**, tap the dimension, then drag one of its round end grips. The
    end follows your finger and the magnifier shows it. It snaps to the ends of other dimensions

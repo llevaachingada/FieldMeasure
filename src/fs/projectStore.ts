@@ -858,8 +858,10 @@ function annotateDuplicates(projects: ScannedProject[]): void {
   }
 }
 
+/** D173: the folder name only. The Home card's approved template (`home.projectCardPath`,
+ *  `…\{path}`) adds the leading `…\`; returning it here as well printed `…\…\Kitchen`. */
 function cardPath(folderName: string): string {
-  return `…\\${folderName}`;
+  return folderName;
 }
 
 /** D140: a root subfolder is a project candidate only if it has `project.json` or its
