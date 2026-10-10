@@ -13,6 +13,7 @@ import Konva from 'konva';
 import type { AnnotationStyle, Px } from '@/domain/types';
 import { angleDeg, elbowPoints, midpoint } from '@/domain/geometry';
 import { screenFontSize } from '@/editor/EditorCanvas';
+import { MEASURE_LABEL_FONT_FAMILY } from './renderDimension';
 
 /** Shared per-annotation render context. */
 export interface RenderCtx {
@@ -220,7 +221,7 @@ function buildAngle(
   const label = new Konva.Text({
     text,
     fontSize: screenFontSize(style.fontSizeMu, ctx.scale),
-    fontFamily: 'JetBrains Mono',
+    fontFamily: MEASURE_LABEL_FONT_FAMILY,
     fontStyle: style.bold ? '700' : '400',
     fill: '#FFFFFF',
     stroke: LABEL_HALO,

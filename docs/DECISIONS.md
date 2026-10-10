@@ -4148,8 +4148,15 @@ operations and touch traps, found these. Each fix has a test that failed on the 
     radius is 12 px at the fitted view (`12k` image px), as on screen.
   - All of these are covered by `tests/exportMarkup.browser.test.ts` (34 tests; 24 failed before), which renders
     through the real `renderSheet` and measures pixels.
-- **The live editor's label layout:** the agent's follow-up re-lays dimension labels on zoom. It is recorded with its
-  evidence in the session-32 CHANGELOG entry.
+- **The live editor's label layout follows the zoom.**
+  - Before: `MarkupScene.setScale` only re-fonted labels. A short dimension's push and leader stayed frozen at the
+    scale it was built at, so the screen could disagree with the export and with the label's own drag hit region
+    (`gestureArbiter` already used the live scale).
+  - Now: `applyDimensionLabel` re-runs `labelLayout` given the geometry, and build and re-layout share `layOutLabel`.
+  - During a pinch, the label's leader line is created, moved or destroyed in place, and no group is rebuilt.
+  - Tests: `tests/dimensionLabelScale.browser.test.ts` (8 tests; 7 failed before) compares each zoomed scene with a
+    fresh build at that scale.
+  - Labels and angle readouts gain a monospace fallback (`MEASURE_LABEL_FONT_FAMILY`).
 - **Capture:**
   - **Retake** remounted the viewfinder `<video>` with no stream, so the screen was black and the crew shot blind.
     `CameraSession.attach` plus a callback ref re-attach the stream on every mount.

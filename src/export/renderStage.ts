@@ -25,6 +25,7 @@
  *   | rule       | screen (`EditorCanvas.applyScreenRules`) | export (here)          |
  *   |------------|------------------------------------------|------------------------|
  *   | strokes    | `strokeScaleEnabled:false`, width = mu   | width = mu × M         |
+ *   | dashes     | `dash` array in screen px (`[8, 6]`)     | array × M              |
  *   | text       | `fontSize = mu / s`                      | `fontSize = mu`        |
  *   | ink        | outline regenerated at `mu / s`          | outline at `mu`        |
  *   | pixelRatio | `min(devicePixelRatio, 2)`               | `1`                    |
@@ -59,7 +60,8 @@
  */
 import type Konva from 'konva';
 import type { Annotation, Px } from '@/domain/types';
-import type { LabelContext } from '@/editor/shapes/dimensionLabel';
+import { derivedDimensionLabel, type LabelContext } from '@/editor/shapes/dimensionLabel';
+import type { MarkupScene } from '@/editor/shapes/scene';
 import type { InsetAssetImage } from '@/editor/inset/renderInset';
 import type { SheetExport } from './pdf';
 import { drawWatermark } from './watermark';
@@ -75,7 +77,12 @@ export interface ExportSheetInput {
   imageHeightPx: number;
   annotations: readonly Annotation[];
   ctx: LabelContext;
-  /** `dimension.ghostLabel`; owned by strings.ts, passed in — never copy wording here. */
+  /**
+   * `dimension.ghostLabel`, still passed by callers but NOT DRAWN (D173): a dimension with no
+   * value exports its line and no label at all, because the on-screen placeholder («tap to
+   * enter value») is UI, not part of a drawing. `renderSheet` gives the scene an empty ghost
+   * text and strips the label nodes, so this can never reach a printout.
+   */
   ghostText: string;
   /** Decoded sheet photo, or `null` for a damaged photo → white page (§19.4a). */
   photo: CanvasImageSource | null;
@@ -169,6 +176,18 @@ export function exportStrokeWidth(strokeWidthMu: number, m: number): number {
 }
 
 /**
+ * Dashes: a `strokeScaleEnabled:false` stroke is drawn with the layer transform reset, so
+ * Konva takes its dash array in raw BITMAP px, exactly like the width. The on-screen array
+ * (`[8, 6]` dashed, `[1, 5]` dotted) is in screen px, the same unit as `strokeWidthMu`, so it
+ * gets the same factor as the width: `× M` here and `× k` (D154) in `applyExportRules`.
+ * Left at `[8, 6]`, the round caps of a `4 × M` stroke fill the 6 px gap and the line prints
+ * solid from M = 2 (and from any photo over 1280 px at M = 1).
+ */
+export function exportDash(dashMu: readonly number[], m: number, k = 1): number[] {
+  return dashMu.map((d) => exportStrokeWidth(d, m) * k);
+}
+
+/**
  * Text: `fontSize = mu`, **never counter-scaled**. The layer's `scale = M` magnifies the
  * glyph to `mu × M` bitmap px. Screen's opposite: `fontSize = mu / s`.
  */
@@ -244,6 +263,8 @@ interface TextNode {
 interface StrokeNode {
   strokeScaleEnabled(): boolean;
   strokeWidth(value: number): void;
+  dash(): number[] | undefined;
+  dash(value: number[]): void;
 }
 
 /**
@@ -269,19 +290,36 @@ export function applyExportRules(root: Konva.Container, m: number, k = 1): void 
     }
 
     const strokeWidthMu = node.getAttr('strokeWidthMu');
-    if (typeof strokeWidthMu === 'number' && typeof (node as unknown as StrokeNode).strokeScaleEnabled === 'function') {
-      const shape = node as unknown as StrokeNode;
-      // `strokeScaleEnabled:false` is KEPT (same as screen): the width below is already
-      // in bitmap px, so the layer's `scale = M` must NOT multiply it a second time.
-      if (shape.strokeScaleEnabled() === false) {
+    const shape = node as unknown as StrokeNode;
+    if (typeof shape.strokeScaleEnabled === 'function' && shape.strokeScaleEnabled() === false) {
+      // `strokeScaleEnabled:false` is KEPT (same as screen): the width and the dash below are
+      // already in bitmap px, so the layer's `scale = M` must NOT multiply them a second time.
+      if (typeof strokeWidthMu === 'number') {
         shape.strokeWidth(exportStrokeWidth(strokeWidthMu, m) * k);
       }
+      // The dash array is in the same raw bitmap px as the width, so it takes the same factor.
+      // The screen array is remembered in `dashMu` on first sight and every pass starts from it,
+      // so applying the rules again (another M or k) never compounds.
+      let dashMu = node.getAttr('dashMu') as number[] | undefined;
+      if (!Array.isArray(dashMu)) {
+        const onScreen = shape.dash();
+        if (Array.isArray(onScreen) && onScreen.length > 0) {
+          dashMu = [...onScreen];
+          node.setAttr('dashMu', dashMu);
+        }
+      }
+      if (Array.isArray(dashMu)) shape.dash(exportDash(dashMu, m, k));
     }
 
     if (LINE_CLASSES.has(className)) {
-      // D150: a dimension arrowhead at export is `mu` image px, the same as ink (scale 1).
+      // D150/D154: a dimension arrowhead at export is `mu × k` image px, like the ink beside it
+      // (the layer's `scale = M` then makes it `mu × k × M` bitmap px, in step with the stroke).
+      // `arrowHeadPoints` takes IMAGE UNITS PER MU, which is `1 / scale` on screen. The ink
+      // helpers take the SCALE and divide, so their export scale is `EXPORT_INK_SCALE / k`; the
+      // units-per-mu here is its reciprocal, `k / EXPORT_INK_SCALE`. Passing the scale itself
+      // (`1 / k`) drew the head `k²` too small, so it hid under the line on any photo over 1280 px.
       const head = node.getAttr('arrowHead') as ArrowHeadSpec | undefined;
-      if (head) (node as unknown as InkLineNode).points(arrowHeadPoints(head, EXPORT_INK_SCALE / k));
+      if (head) (node as unknown as InkLineNode).points(arrowHeadPoints(head, k / EXPORT_INK_SCALE));
       const inkPoints = node.getAttr('inkPoints');
       if (Array.isArray(inkPoints) && typeof strokeWidthMu === 'number') {
         // `size = mu / EXPORT_INK_SCALE = mu` — the live-draw ink shape (Konva.Line).
@@ -316,6 +354,32 @@ export function applyExportRules(root: Konva.Container, m: number, k = 1): void 
         box.cornerRadius(node.getAttr('textPill') === true ? glyphs.height() / 2 + pad : 4);
       }
     }
+  }
+}
+
+/**
+ * D173: a dimension with no value (placed, then cancelled on the keypad) keeps its geometry, and
+ * the export draws its line, ticks and arrowheads but NO label: the on-screen placeholder
+ * («tap to enter value») is a prompt for the person holding the tablet, not part of a drawing.
+ * Removes the label nodes AND the leader (a pushed label's line back to the dimension), so no
+ * stray hairline points at nothing. "No value" is the same test the screen uses to choose the
+ * placeholder (`derivedDimensionLabel` is `null`), applied to inset children too.
+ */
+export function dropValuelessLabels(scene: MarkupScene, ctx: LabelContext): void {
+  const visit = (key: string, ann: Annotation): void => {
+    if (ann.geometry.kind !== 'dimension') return;
+    if (derivedDimensionLabel(ann.valueMm, ctx) !== null) return;
+    const group = scene.getNode(key);
+    if (!group) return;
+    const nodes = group.getAttr('labelNodes') as { halo?: Konva.Node; main?: Konva.Node } | undefined;
+    nodes?.halo?.destroy();
+    nodes?.main?.destroy();
+    group.setAttr('labelNodes', undefined);
+    group.find((n: Konva.Node) => n.getAttr('labelLeader') === true).forEach((leader) => leader.destroy());
+  };
+  for (const ann of scene.list()) {
+    visit(ann.id, ann);
+    for (const child of ann.children ?? []) visit(`${ann.id}/${child.id}`, child);
   }
 }
 
@@ -427,18 +491,24 @@ export async function renderSheet(
     layer: markupLayer,
     insetLayer: insetLayer ?? markupLayer,
     ctx: input.ctx,
-    ghostText: input.ghostText,
+    // D173: never the UI placeholder. A valueless dimension's label is removed below; the empty
+    // text is the backstop that keeps the placeholder off the page even if that were missed.
+    ghostText: '',
     assetProvider: input.assetProvider,
   });
   if (input.assetProvider) scene.setAssetProvider(input.assetProvider);
-  scene.load(input.annotations);
-  // Labels are DERIVED here and now from `valueMm` + the project context (AGENTS #2).
-  // `setScale` is the SCREEN path and is never called on an export tree.
-  scene.setContext(input.ctx);
-  // D154: lay the dimension labels out for the `mu × k` glyphs (the label gap and collision
-  // push are functions of the drawn size). This is the scene's label layout, not the screen rules.
+  // D154: the scene is built for the `mu × k` marks, i.e. at the editor's fitted-view scale 1/k, so
+  // an export looks like the editor at that zoom. A dimension label's collision push (140 / 36
+  // screen px, i.e. `140 k` / `36 k` image px) is a function of that scale; `MarkupScene.setScale`
+  // re-lays labels out, but several marks are sized only when BUILT (the angle arc's 12 px minimum
+  // radius), so the scale is set before the load rather than after it. This is the scene's own
+  // layout; the screen RULES (`applyScreenRules`) are never run on an export tree.
   const k = exportMarkupScale(w, h);
   if (k !== 1) scene.setScale(1 / k);
+  scene.load(input.annotations);
+  // Labels are DERIVED here and now from `valueMm` + the project context (AGENTS #2).
+  scene.setContext(input.ctx);
+  dropValuelessLabels(scene, input.ctx);
 
   for (const layer of layers) applyExportRules(layer, m, k);
 

@@ -23,7 +23,7 @@ import Konva from 'konva';
 import type { Annotation, AnnotationStyle, Geometry, Px, UUID } from '@/domain/types';
 import { DEFAULT_STYLE } from '@/domain/types';
 import type { LabelContext } from './dimensionLabel';
-import { applyDimensionLabel, buildDimensionGroup } from './renderDimension';
+import { applyDimensionLabel, buildDimensionGroup, type DimensionLabelGeometry } from './renderDimension';
 import { buildShapeGroup, shapeBounds } from './renderShape';
 import { buildInkGroup } from './renderInk';
 import { buildTextGroup } from './renderText';
@@ -173,6 +173,12 @@ export interface NewAnnotation {
   valueMm?: number | null;
   valueDeg?: number | null;
   enteredText?: string | null;
+}
+
+/** The geometry a dimension's label layout reads, or `undefined` for any other kind of mark. */
+function labelGeometry(ann: Annotation): DimensionLabelGeometry | undefined {
+  const g = ann.geometry;
+  return g.kind === 'dimension' ? g : undefined;
 }
 
 export class MarkupScene {
@@ -635,6 +641,16 @@ export class MarkupScene {
     this.layer.batchDraw();
   }
 
+  /**
+   * The zoom changed. Every dimension label is re-sized AND re-laid out: the collision push
+   * (§8.1: 140 px radius, 36 px off the line) is a screen-px rule, so whether a label is pushed,
+   * where, and whether it has a leader all depend on the scale. Re-fonting alone left a sheet
+   * that was loaded at scale 1 showing its short labels on the line after the fit-zoom, while
+   * the export (built at 1/k) and the label's drag hit region (`gestureArbiter`) used the pushed
+   * place. Runs on every zoom step of a pinch, so it only touches dimension groups' existing
+   * label nodes (no group rebuilds); a leader is created or destroyed only when the pushed state
+   * flips.
+   */
   setScale(scale: number): void {
     this.scale = scale;
     for (const ann of this.objects) this.refreshLabels(ann, scale);
@@ -644,14 +660,16 @@ export class MarkupScene {
   /**
    * Re-derive the labels of one annotation AND its inset children. Child labels live in
    * the child's own group, so a top-level-only walk would leave them stale on a
-   * precision/unit change (a wrong-measurement bug).
+   * precision/unit change (a wrong-measurement bug) or a zoom change (a label left on its line).
    */
   private refreshLabels(ann: Annotation, scale: number, ctx: LabelContext = this.ctx): void {
     const group = this.groups.get(ann.id);
-    if (group) applyDimensionLabel(group, { ...this.labelInput(ann), ctx, scale });
+    if (group) applyDimensionLabel(group, { ...this.labelInput(ann), ctx, scale, geometry: labelGeometry(ann) });
     for (const child of ann.children ?? []) {
       const childGroup = this.groups.get(`${ann.id}/${child.id}`);
-      if (childGroup) applyDimensionLabel(childGroup, { ...this.labelInput(child), ctx, scale });
+      if (childGroup) {
+        applyDimensionLabel(childGroup, { ...this.labelInput(child), ctx, scale, geometry: labelGeometry(child) });
+      }
     }
   }
 
