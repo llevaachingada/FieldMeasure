@@ -86,7 +86,6 @@ More (camera, read-only projects, export): [`docs/USER-GUIDE.md`](docs/USER-GUID
 |---|---|
 | **Works** | New project → camera → dimensions (calculator keypad, snapping, magnifier) → 14 markup tools (shapes, arrows, angles, pen, highlighter, text boxes, eraser, photo-in-photo) → one-page PDF/PNG with a date stamp and the VANGARDE watermark. Autosave, undo, offline. |
 | **Tested** | About 1,690 automated tests run on every change. |
-| **Not yet** | Use by a crew member on a real job. The things only a real Surface can prove are listed in [`docs/HARDWARE-TEST-CHECKLIST.md`](docs/HARDWARE-TEST-CHECKLIST.md) (the `[Surface]` rows). |
 | **Unfinished** | On-screen nudge arrows (keyboard arrows work), a version-history panel, some wording marked "proposed". None of it blocks use. Full list: [`docs/CONTINUITY.md`](docs/CONTINUITY.md). |
 
 ## 4. Make your own copy (15 minutes, clicks only)
