@@ -25,6 +25,9 @@
     .\tools\launch-fieldmeasure.ps1 -SkipBuild      # reuse the existing dist (faster)
     .\tools\launch-fieldmeasure.ps1 -Stop           # stop everything, launch nothing
     .\tools\launch-fieldmeasure.ps1 -InstallShortcut  # create the Desktop shortcut too
+
+  Most people never run this by hand: `Install Field Measure.cmd` (repo root) installs the app
+  and makes the Desktop shortcut, which runs this script with -SkipBuild.
 #>
 [CmdletBinding()]
 param(
@@ -283,16 +286,6 @@ if (-not $browser) {
   Write-Ok "browser opened; profile: $ChromeProfile"
 }
 
-# LAN address, so the Surface can reach the same server for the hardware pass.
-$lan = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-  Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
-  Select-Object -ExpandProperty IPAddress -First 1
-if ($lan) {
-  Write-Host ''
-  Write-Host "  On the Surface, open:  http://${lan}:$Port/" -ForegroundColor White
-  Write-Host '  (emulation only - the clickthru harness still never promotes a [Surface] row)'
-}
-
 # --- optional: install the Desktop shortcut ----------------------------------
 if ($InstallShortcut) {
   Write-Host ''
@@ -305,10 +298,12 @@ if ($InstallShortcut) {
   $ws = New-Object -ComObject WScript.Shell
   $lnk = $ws.CreateShortcut($lnkPath)
   $lnk.TargetPath = (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')
-  $lnk.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+  # -SkipBuild: the installer already built the app, so a launch takes seconds, not a minute.
+  # It still builds if dist\ is missing.
+  $lnk.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -SkipBuild"
   $lnk.WorkingDirectory = $Repo
   $lnk.IconLocation = "$iconSource,0"
-  $lnk.Description = 'Launch Field Measure (rebuild, restart the server, open in Chrome)'
+  $lnk.Description = 'Field Measure: closes any old copy, then opens the app'
   $lnk.Save()
   Write-Ok "shortcut created: $lnkPath"
 }
