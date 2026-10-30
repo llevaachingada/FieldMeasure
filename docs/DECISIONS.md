@@ -3883,3 +3883,27 @@ does not read code.
   first run again, and the fix is to pick the same folder.
 - The manifest and `package.json` descriptions no longer say "slice 0.1 scaffold". `AGENTS.md` gained a short handoff
   paragraph. Its rules are unchanged.
+
+### D167 - handoff cleanup: old planning docs leave `main`, a double-click installer and desktop shortcut
+
+Owner request (session 30): the README and user guide must work for someone without serious computer skills, the old
+planning, implementation and research docs come off `main`, and there must be a desktop shortcut that kills old
+processes and launches.
+
+- **Removed from `docs/`** (in git history at `8da91d2`): the v0.2 build spec and v1 UI spec, the implementation plan,
+  the build runbook, the checkpoints, every `handoff-*.md`, the review rounds, the readiness and fix plans, the
+  touch-first design study, the torch investigation, the scaffold appendix and the install runbook (folded into the
+  README). Every slice the plan described has shipped, so these were history, not instructions.
+- **Kept:** the two canonical specs, DECISIONS, CONTINUITY, BUILD-LOG, the strings appendices (both are read by
+  tests), UNITS, the hardware checklist, the clickthru guide, the review brief, the user guide and a rewritten INDEX.
+  `AGENTS.md` no longer points at the runbook or the plan; the authority chain drops the plan.
+- **`Install Field Measure.cmd`** (repo root, CRLF via `.gitattributes`): installs Node.js LTS with winget if Node 24+
+  is missing, mirrors the folder to `%LOCALAPPDATA%\FieldMeasure\app` (so the ZIP can be deleted; `node_modules`,
+  `dist` and `.git` are excluded and kept), runs `npm ci` and `npm run build`, then the launcher with
+  `-SkipBuild -InstallShortcut`. Re-running it is the update path.
+- **Launcher:** the desktop shortcut now passes `-SkipBuild` (it still builds when `dist\` is missing), so a launch
+  is seconds. The LAN "open on the Surface" hint is gone: plain `http://` on another device is not a secure context,
+  so the folder API would not work there and the hint misled.
+- **README** leads with two install paths (desktop shortcut, web app) and troubleshooting. The old warning that a
+  `localhost` copy is disposable is replaced by the truer rule: projects live on disk, and picking the same folder
+  brings them back.

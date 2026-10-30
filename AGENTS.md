@@ -24,29 +24,27 @@ never infer progress from this file.
 ## Start here, in this order
 
 1. **`docs/CONTINUITY.md`** — where the project stands right now: live snapshot, timeline, open items.
-2. **`docs/BUILD-RUNBOOK.md`** — how to work: the slice loop, gate policy, the parallel-lane
-   protocol, when to stop and ask. **Read this before writing any code.**
-3. **`docs/BUILD-LOG.md`** — what has already been done. Read the last entry to find your place.
-4. **`docs/implementation-plan.md`** — the slice you are on. It has files, numbered build order,
-   signatures, test tables, and a checkable gate.
-5. **`docs/preflight-handoff-v0.3-hardened.md`** — the build spec. The authority on *what*.
-   §2.4 is the v1 scope table and overrides everything.
-6. **`docs/clickthru-harness.md`** — how to *look at the app*: one command that drives the built app
+2. **`docs/BUILD-LOG.md`** — what has already been done. Read the last entry to find your place.
+3. **`docs/preflight-handoff-v0.3-hardened.md`** — the build spec. The authority on *what*.
+   §2.4 is the v1 scope table and overrides everything. UI look and feel:
+   `docs/ui-spec-field-measure-v2-hardened.md`.
+4. **`docs/clickthru-harness.md`** — how to *look at the app*: one command that drives the built app
    with real touch/pen input on the Surface geometry and screenshots every step. Read it before you
    claim anything "works end to end", and run it after any wave that changes what the user sees.
 
-Do not start a slice before reading its entry in the implementation plan in full.
+The original implementation plan, build runbook, checkpoints and per-session handoffs were removed
+at handoff (D167); every slice in the plan shipped. They remain in git history (commit `8da91d2`)
+if you need the reasoning behind an old slice.
 
 ---
 
 ## Authority chain (when documents disagree)
 
 ```
-build spec §2.4 (v1 scope)  >  build spec  >  UI spec  >  implementation plan
+build spec §2.4 (v1 scope)  >  build spec  >  UI spec
 ```
 
-The implementation plan is the authority on **order and done-ness** only. If you find a genuine
-conflict, fix the subordinate document and add a line to `docs/DECISIONS.md`.
+If you find a genuine conflict, fix the subordinate document and add a line to `docs/DECISIONS.md`.
 
 ---
 
@@ -113,9 +111,8 @@ A bug in any of these is a wrong measurement or a wrong artifact. Test them exha
 ## Working with lanes (parallel agents)
 
 Work may be dispatched to specialist lanes (@fixer, @designer, @oracle, @librarian, @explorer)
-instead of being done serially. If you are orchestrating, read **`docs/BUILD-RUNBOOK.md` §11**
-*before* dispatching — contended files, per-lane verification limits, the integration checklist —
-and hand every review lane **`docs/review-brief.md`**.
+instead of being done serially. If you are orchestrating, hand every review lane
+**`docs/review-brief.md`**. Lanes never edit the same file at once; the orchestrator reconciles and re-runs every check on the merged tree.
 
 The **clickthru** (`docs/clickthru-harness.md`) is the UI-verification tool. It needs the built app
 and port 4173 — both reserved by the lane protocol — so the **orchestrator** runs it, on the
@@ -127,8 +124,7 @@ the entries.
 ## You do not have a Surface
 
 Many gates are marked `[Surface]` (real hardware with a pen). You cannot run them.
-**This does not block you.** Follow `docs/BUILD-RUNBOOK.md` §4: machine-checkable gates block the
-slice; `[Surface]` gates get logged to `docs/HARDWARE-TEST-CHECKLIST.md` and the slice proceeds.
+**This does not block you.** Machine-checkable gates block the slice; `[Surface]` gates get logged to `docs/HARDWARE-TEST-CHECKLIST.md` and the slice proceeds.
 Never fake a `[Surface]` result, and never silently skip one.
 
 The clickthru harness (`docs/clickthru-harness.md`) now exercises the machine-checkable half on the
@@ -142,7 +138,7 @@ thermal behaviour or sunlight, so it **never promotes a `[Surface]` row**.
 
 Almost never — every previously open question is resolved in build spec **§21**. Stop only for:
 
-1. A gate that fails three times with three genuinely different fixes attempted (runbook §6).
+1. A gate that fails three times with three genuinely different fixes attempted.
 2. Something that would require adding a runtime dependency, or violating a non-negotiable above.
 3. A destructive or outward-facing action: deleting user data, force-pushing, deploying, or
    publishing anything.

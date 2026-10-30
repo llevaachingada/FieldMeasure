@@ -2077,3 +2077,13 @@ Gates: tsc 0 | vitest node+jsdom **1455/1455 on Node 24** | build 0 (also with `
 playwright 8 passed / 5 skipped. The container's default Node 22 fails two `projectSession.test.ts` cases (on the
 pre-change tree too), and they pass on Node 24, which `engines` requires. The vitest browser project cannot launch the
 container's Chromium (1194 vs Playwright 1.63's 1243), so CI is its gate. Clickthru was not run (no UI change).
+
+## Session 30 (continued): D167, handoff cleanup and the installer
+
+Owner request. 25 superseded planning, research and handoff docs removed from `docs/` (history: `8da91d2`).
+New `Install Field Measure.cmd` (Node via winget, copy to `%LOCALAPPDATA%\FieldMeasure\app`, `npm ci`, build,
+desktop shortcut, launch). The shortcut runs the launcher with `-SkipBuild`; the launcher still stops the old server
+and app window first. README, user guide section 1, INDEX and AGENTS.md updated. No app code changed.
+
+Not tested here: the `.cmd` and `.ps1` on real Windows (this container is Linux). `[Surface]`/Windows check owed:
+run the installer from a fresh ZIP on a PC with no Node, then launch twice from the shortcut.

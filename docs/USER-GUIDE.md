@@ -1,6 +1,6 @@
 # Field Measure: User Guide
 
-A short, step-by-step guide for people using Field Measure on a Surface. The same guide is in the
+A short, step-by-step guide for people using Field Measure on a Surface or PC. The same guide is in the
 app: tap **Help** at the top of any screen (Home, a project's sheets, or the photo editor).
 
 > Keep this file and the in-app Help (`STRINGS.help` in `src/ui/strings.ts`) in step. If one
@@ -10,10 +10,15 @@ app: tap **Help** at the top of any screen (Home, a project's sheets, or the pho
 
 ## 1. Getting started
 
-1. The first time you open the app, pick your hand (left or right) and choose where projects are
-   saved. The suggested folder is `Documents\FieldMeasure`.
-2. Each project is a folder on this Surface. To share it, drag the folder (or its exports) into
+1. Open Field Measure: double-click **Field Measure** on the desktop, or open it from the Start
+   menu. (Not installed yet? See section 1 of the [README](../README.md).)
+2. The first time, pick your hand (left or right) and choose where projects are saved. Tap
+   **Use Documents\FieldMeasure**. When the browser asks about folder access, choose
+   **Allow on every visit**.
+3. Each project is a folder on this computer. To share it, drag the folder (or its exports) into
    Dropbox or email it.
+4. If the app ever seems stuck, close it and double-click the desktop shortcut again. It closes
+   the old copy first. Saved work is never lost.
 
 ## 2. Take photos
 

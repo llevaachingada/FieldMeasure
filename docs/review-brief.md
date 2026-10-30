@@ -49,7 +49,7 @@ project — the prior catch is quoted so the question is not read as hypothetica
 5. **Honesty about deferral.** Are `[Surface]` gates logged in `docs/HARDWARE-TEST-CHECKLIST.md`, marked
    PENDING (never PASS), with the machine-verifiable half stated explicitly? Is anything marked
    machine-passed that is not machine-proven? Is any checkpoint that fired recorded in **all three**
-   places (`BUILD-RUNBOOK.md` §8)?
+   places (`docs/CONTINUITY.md`, `docs/BUILD-LOG.md`, `docs/DECISIONS.md`)?
 
 6. **"Do not flatten".** For every rule the specs mark load-bearing (screen vs export scaling, derived
    labels, the inset crop offset, the tool rail), would the test actually catch the flattening it
@@ -71,10 +71,10 @@ project — the prior catch is quoted so the question is not read as hypothetica
 
 ## Ground truth
 
-- Authority: build spec **§2.4 (v1 scope)** > build spec > UI spec > implementation plan.
-- Specs: `docs/preflight-handoff-v0.3-hardened.md`, `docs/ui-spec-field-measure-v2-hardened.md`,
-  `docs/implementation-plan.md`. Non-negotiables and the four highest-stakes modules: `AGENTS.md`.
-  Process: `docs/BUILD-RUNBOOK.md`.
+- Authority: build spec **§2.4 (v1 scope)** > build spec > UI spec.
+- Specs: `docs/preflight-handoff-v0.3-hardened.md`, `docs/ui-spec-field-measure-v2-hardened.md`.
+  Non-negotiables and the four highest-stakes modules: `AGENTS.md`.
+  Process: `AGENTS.md`.
 - A defect in one of the four highest-stakes modules is a **stop**, not a finding to batch.
 
 ---
